@@ -1,52 +1,50 @@
 package com.dak.spravel.model;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+import org.springframework.data.annotation.CreatedDate;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.util.UUID;
-import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
-import org.springframework.data.annotation.CreatedDate;
-
-/**
- * JPA entity for roles with many-to-many permission relationship.
- */
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 @Entity
-@Table(name = "roles")
-public class Role {
+@Table(name = "suppliers")
+public class Supplier {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // e.g. "admin", "editor"
-    @Column(nullable = false, unique = true)
-    private String slug;
+    @Column(unique = true, nullable = false)
+    private UUID uid;
+    
+
+
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "partner_id", updatable = false)
+    // private UUID partner;
 
     @Column(nullable = false)
     private String name;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-        name = "role_permissions",
-        joinColumns = @JoinColumn(name = "role_id"),
-        inverseJoinColumns = @JoinColumn(name = "permission_id")
-    )
-    private Set<Permission> permissions = new HashSet<>();
+    private String phone;
 
-     @CreatedDate
+    private String address;
+
+    @Column(columnDefinition = "TEXT")
+    private String notes;
+
+    @CreatedDate
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 
     private LocalDateTime deletedAt;
-    
+
     @Column(name = "created_by", updatable = false)
     private UUID createdBy;
 
@@ -56,7 +54,7 @@ public class Role {
     @Column(name = "deleted_by")
     private UUID deletedBy;
 
-     @PrePersist
+    @PrePersist
     private void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
