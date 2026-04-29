@@ -21,18 +21,18 @@ public class StockMutation {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "auto_id", updatable = false, nullable = false)
-    private Long autoId;
+    private Long id;
 
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false, unique = true)
-    private UUID id;
+    @Column( updatable = false, nullable = false, unique = true)
+    private UUID uid;
 
-    @Column(name = "partner_id", nullable = false)
-    private UUID partnerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Product product;
 
-    @Column(name = "product_id", nullable = false)
-    private UUID productId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Partners partner;
 
     // "sale_out" | "purchase_in" | "transfer" | "adjustment" | "return"
 
@@ -73,20 +73,7 @@ public class StockMutation {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
-
-    //  Relationships
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", insertable = false, updatable = false)
-    private Product product;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "partner_id", insertable = false, updatable = false)
-    private Partners partner;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", insertable = false, updatable = false)
-    private User createdByUser;
+    @JoinColumn(name = "user_id", referencedColumnName = "id", updatable = false)
+    private User createdBy;
 }

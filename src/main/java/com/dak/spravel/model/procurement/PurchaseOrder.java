@@ -1,36 +1,40 @@
 package com.dak.spravel.model.procurement;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.sql.Date;
 import java.util.UUID;
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = false, of = {"id", "poNumber"}) // Exclude poNumber
 @Entity
 @Table(
-    name = "purchase_orders"
-    // ,uniqueConstraints = @UniqueConstraint(columnNames = {"partner_id", "po_number"})
+    name = "purchase_orders",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"partner_id", "po_number"})
 )
-public class PurchaseOrder {
+public class PurchaseOrder extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true, nullable = false)
     private UUID uid;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "partner_id", nullable = false)
-    // private UUID partner;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "supplier_id", nullable = false)
-    // private UUID supplier;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", referencedColumnName = "id", nullable = false)
+    private Supplier supplier;
 
     @Column(nullable = false, updatable = false)
     private String poNumber;
@@ -48,15 +52,53 @@ public class PurchaseOrder {
     // }
 
     @Column(nullable = false)
-    private LocationType locationType;
-
-    public enum LocationType {
-        WAREHOUSE,
-        BRANCH
-    }
+    private String locationType;
 
     @Column(nullable = false)
     private UUID locationId;
+    // @Service
+    // @RequiredArgsConstructor
+    // public class PurchaseOrderService {
+
+    //     private final PurchaseOrderRepository purchaseOrderRepository;
+    //     private final WarehouseRepository warehouseRepository;
+    //     private final BranchRepository branchRepository;
+    //     private final ProductRepository productRepository;
+
+    //     // Saat transaksi dari warehouse
+    //     public PurchaseOrder createFromWarehouse(UUID warehouseId, UUID productId, BigDecimal qty) {
+    //         Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
+    //             .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
+
+    //         PurchaseOrder po = new PurchaseOrder();
+    //         po.setPoNumber(generatePoNumber());
+    //         po.setLocationType(LocationType.WAREHOUSE);
+    //         po.setLocationId(warehouse.getUid());
+
+    //         return purchaseOrderRepository.save(po);
+    //     }
+
+    //     // Saat transaksi dari branch
+    //     public PurchaseOrder createFromBranch(UUID branchId, UUID productId, BigDecimal qty) {
+    //         Branch branch = branchRepository.findByUid(branchId)
+    //             .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
+
+    //         PurchaseOrder po = new PurchaseOrder();
+    //         po.setPoNumber(generatePoNumber());
+    //         po.setLocationType(LocationType.BRANCH);
+    //         po.setLocationId(branch.getUid());
+
+    //         return purchaseOrderRepository.save(po);
+    //     }
+
+    //     private String generatePoNumber() {
+    //         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    //         String prefix = "PO-" + date + "-";
+    //         long count = purchaseOrderRepository.countByPoNumberStartingWith(prefix);
+    //         return prefix + String.format("%04d", count + 1);
+    //     }
+    // }
+// }
                     
     @Column(nullable = false)
     private Status status;
@@ -69,11 +111,9 @@ public class PurchaseOrder {
         CANCELLED
     }
 
-    @Column(nullable = false)
-    private LocalDateTime orderDate;
+    private Date orderDate;
 
-    @Column(updatable = false)
-    private LocalDateTime expectedDate;
+    private Date expectedDate;
     
     @Column(columnDefinition = "TEXT")
     private String notes;

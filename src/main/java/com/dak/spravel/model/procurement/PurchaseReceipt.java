@@ -2,7 +2,7 @@ package com.dak.spravel.model.procurement;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
-import org.springframework.data.annotation.CreatedDate;
+import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,10 +22,11 @@ public class PurchaseReceipt {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "uid", updatable = false, nullable = false, unique = true)   
     private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_order_id", nullable = false)
+    @JoinColumn(name = "purchase_order_id", referencedColumnName = "id", nullable = false)
     private PurchaseOrder purchaseOrder;
 
     @Column(nullable = false)
@@ -51,31 +52,17 @@ public class PurchaseReceipt {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @CreatedDate
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     private LocalDateTime updatedAt;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id")
+    private User createdBy;
 
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @PrePersist
-    private void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    private void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+    
 }

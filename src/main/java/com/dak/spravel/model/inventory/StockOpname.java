@@ -1,37 +1,40 @@
 package com.dak.spravel.model.inventory;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
-
-import org.springframework.data.annotation.CreatedDate;
-
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "stock_opnames")
-public class StockOpname {
+public class StockOpname extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY) 
     private Long id;
 
+    @Column(name = "uid", updatable = false, unique = true)
     private UUID uid;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "partner_id", nullable = false)
-    // private UUID partner;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
+    // "branch" | "warehouse"
+    @Column(name = "location_type", nullable = false)
     private String location;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "location_id", nullable = false)
-    // private Location location;
+    @Column(name = "location_id", nullable = false)
+    private UUID locationId;
 
     private LocalDateTime date;
 
@@ -47,45 +50,17 @@ public class StockOpname {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @CreatedDate
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
-
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @PrePersist
-    private void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    private void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "reviewed_by")
-    // private User reviewedBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by", referencedColumnName = "id")
+    private User reviewedBy;
 
     @Column(name = "reviewed_at")
-    private Timestamp reviewedAt;
+    private LocalDateTime reviewedAt;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "approved_by")
-    // private User approvedBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by", referencedColumnName = "id")
+    private User approvedBy;
 
     @Column(name = "approved_at")
-    private Timestamp approvedAt;
+    private LocalDateTime approvedAt;
 }

@@ -34,7 +34,7 @@ public class Post {
     private String status = "DRAFT";
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
+    @JoinColumn(name = "category_id", referencedColumnName = "id")
     private Category category;
 
     @Column(name = "created_by")
