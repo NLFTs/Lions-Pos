@@ -138,6 +138,13 @@ Spravel menyediakan CLI shortcut `./spravel` untuk semua operasi development:
 
 Spravel menggunakan **satu file** `application.properties` untuk semua environment. Perbedaan antar environment dikontrol via **environment variable**.
 
+
+
+
+
+
+
+test
 ### Environment Variables
 
 | Variable | Default | Deskripsi |
