@@ -1,6 +1,7 @@
 package com.dak.spravel.model.inventory;
 
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.catalog.Product;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -19,15 +20,16 @@ public class StockOpnameItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @Column(name = "uid", updatable = false, nullable = false, unique = true)
     private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "stock_opname_id", nullable = false)
+    @JoinColumn(name = "stock_opname_id", referencedColumnName = "id", nullable = false)
     private StockOpname stockOpname;
 
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "product_id", nullable = false)
-    // private Product product;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
+    private Product product;
 
     @Column(precision = 10, scale = 2)
     private BigDecimal qtySystem = BigDecimal.ZERO;
@@ -38,11 +40,25 @@ public class StockOpnameItem {
     @Column(precision = 10, scale = 2)
     private BigDecimal qtyDifference = BigDecimal.ZERO;
 
+        // // Service akan menghitung qtyDifference = qtyPhysical - qtySystem, dan menyimpan snapshot unit cost dari stock balance saat ini
+        // public void inputPhysicalCount(UUID opnameItemId, BigDecimal qtyPhysical) {
+        //     OpnameItem item = opnameItemRepository.findByUid(opnameItemId)
+        //         .orElseThrow(() -> new RuntimeException("Item tidak ditemukan"));
+
+        //     item.setQtyPhysical(qtyPhysical);
+            
+        //     // Otomatis hitung selisih
+        //     // positif = surplus, negatif = loss
+        //     item.setQtyDifference(qtyPhysical.subtract(item.getQtySystem()));
+
+        //     opnameItemRepository.save(item);
+        // }   
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "counted_by")
+    @JoinColumn(name = "counted_by" , referencedColumnName = "id")
     private User countedBy;
 
     @Column(name = "counted_at")

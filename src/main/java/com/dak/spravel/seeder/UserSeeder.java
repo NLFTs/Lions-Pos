@@ -3,6 +3,9 @@ package com.dak.spravel.seeder;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+
+import java.util.UUID;
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 

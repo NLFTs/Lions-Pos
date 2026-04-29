@@ -21,48 +21,80 @@ import java.util.UUID;
                 @UniqueConstraint(columnNames = {"product_id", "location_type", "location_id"})
         }
 )
-
 public class StockBalance {
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "auto_id", updatable = false, nullable = false)
-    private Long autoId;
+        @Column(name = "uid", updatable = false, nullable = false, unique = true)
+        private UUID uid;
 
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false, unique = true)
-    private UUID id;
+        public void setUid(UUID uid) {
+            if (this.uid == null) {
+                this.uid = uid;
+            }
+        }
 
-    @Column(name = "product_id", nullable = false)
-    private UUID productId;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
+        private Product product;
 
-    // "branch" | "warehouse"
+        @Column(name = "location_type", nullable = false)
+        private String locationType;
 
-    @Column(name = "location_type", nullable = false, length = 50)
-    private String locationType;
+        // FK to branches.id or warehouses.id depending on location_type
+        @Column(name = "location_id", nullable = false)
+        private UUID locationId;
 
-    // FK to branches.id or warehouses.id depending on location_type
+// @Service
+// @RequiredArgsConstructor
+// public class StockService {
 
-    @Column(name = "location_id", nullable = false)
-    private UUID locationId;
+//     private final StockBalanceRepository stockBalanceRepository;
+//     private final WarehouseRepository warehouseRepository;
+//     private final BranchRepository branchRepository;
 
-    @Column(name = "qty", nullable = false, precision = 19, scale = 4)
-    private BigDecimal qty = BigDecimal.ZERO;
+//     // Saat transaksi dari warehouse
+//         public StockBalance createFromWarehouse(UUID warehouseId, UUID productId, BigDecimal qty) {
+//                 Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
+//                 .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+//                 StockBalance stock = new StockBalance();
+//                 stock.setProduct(productRepository.findByUid(productId).orElseThrow());
+//                 stock.setQty(qty);
 
-    @Column(name = "updated_by")
-    private UUID updatedBy;
+//                 // Otomatis set dari warehouse
+//                 stock.setLocationType(LocationType.WAREHOUSE);
+//                 stock.setLocationId(warehouse.getUid());
 
-    // Relationships
+//                 return stockBalanceRepository.save(stock);
+//         }
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", insertable = false, updatable = false)
-    private Product product;
+//         // Saat transaksi dari branch
+//         public StockBalance createFromBranch(UUID branchId, UUID productId, BigDecimal qty) {
+//                 Branch branch = branchRepository.findByUid(branchId)
+//                 .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "updated_by", insertable = false, updatable = false)
-    private User updatedByUser;
+//                 StockBalance stock = new StockBalance();
+//                 stock.setProduct(productRepository.findByUid(productId).orElseThrow());
+//                 stock.setQty(qty);
+
+//                 // Otomatis set dari branch
+//                 stock.setLocationType(LocationType.BRANCH);
+//                 stock.setLocationId(branch.getUid());
+
+//                 return stockBalanceRepository.save(stock);
+//         }
+// }
+
+        @Column(name = "qty", nullable = false, precision = 19, scale = 4)
+        private BigDecimal qty = BigDecimal.ZERO;
+
+        @UpdateTimestamp
+        @Column(name = "updated_at")
+        private LocalDateTime updatedAt;
+
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "updated_by", referencedColumnName = "id", insertable = false, updatable = false)
+        private User updatedBy;
 }

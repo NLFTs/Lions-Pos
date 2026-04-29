@@ -3,21 +3,20 @@ package com.dak.spravel.model.catalog;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.LocalDateTime;
 import java.util.UUID;
+
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "categories")
-@EntityListeners(AuditingEntityListener.class)
-public class Category {
+public class Category extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -25,18 +24,12 @@ public class Category {
     @Column(unique = true, updatable = false, nullable = false)
     private UUID uid; 
 
-    @PrePersist
-    private void onCreate() {
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
-
-    @Column(name = "partner_id", nullable = false)
-    private java.util.UUID partnerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
+    @JoinColumn(name = "parent_id", referencedColumnName = "id")
     private Category parent;
 
     @Column(nullable = false)
@@ -47,24 +40,4 @@ public class Category {
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
-
-    @CreatedDate
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @LastModifiedDate
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_by")
-    private java.util.UUID createdBy;
-
-    @Column(name = "updated_by")
-    private java.util.UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private java.util.UUID deletedBy;
 }

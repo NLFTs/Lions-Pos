@@ -3,6 +3,8 @@ package com.dak.spravel.model.procurement;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import com.dak.spravel.model.catalog.Product;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,16 +23,16 @@ public class PurchaseReceiptItem {
     private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_receipt_id", nullable = false)
+    @JoinColumn(name = "purchase_receipt_id", referencedColumnName = "id", nullable = false)
     private PurchaseReceipt purchaseReceipt;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_order_item_id", nullable = false)
+    @JoinColumn(name = "purchase_order_item_id", referencedColumnName = "id", nullable = false)
     private PurchaseOrderItems purchaseOrderItem;
     
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "product_id", nullable = false)
-    // private Product product;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
+    private Product product;
 
     @Column(precision = 10, scale = 2)
     private BigDecimal qtyReceived = BigDecimal.ZERO;
@@ -38,6 +40,8 @@ public class PurchaseReceiptItem {
     @Column(precision = 10, scale = 2)
     private BigDecimal unitCost = BigDecimal.ZERO;
 
+    // Snapshot unit cost dari purchase order item, untuk menghindari perubahan harga di masa depan
+    // receiptItem.setUnitCost(poItem.getUnitCost());
     @Column(columnDefinition = "TEXT")
     private String notes;
 }

@@ -5,8 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
+import com.dak.spravel.model.auth.User;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -15,17 +14,16 @@ import java.util.UUID;
 @NoArgsConstructor
 @Entity
 @Table(name = "product_photos")
-@EntityListeners(AuditingEntityListener.class)
 public class ProductPhoto {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
     private Product product;
 
-    @Column(nullable = false)
+    @Column(name = "profile_url", columnDefinition = "TEXT")
     private String url;
 
     @Column(name = "is_primary", nullable = false)
@@ -38,6 +36,7 @@ public class ProductPhoto {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
 }

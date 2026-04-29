@@ -10,6 +10,7 @@ import com.dak.spravel.repository.RoleRepository;
 import com.dak.spravel.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -83,6 +84,7 @@ public class PermissionSeeder {
         {"log.show",   "View Log Detail", "log"},
     };
 
+    @Transactional
     public void run() {
         if (!enableSeeder) return;
 
