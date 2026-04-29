@@ -1,0 +1,43 @@
+package com.dak.spravel.model;
+
+import java.math.BigDecimal;
+import java.util.UUID;
+
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Entity
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "purchase_receipt_items")
+public class PurchaseReceiptItem {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private UUID uid;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_receipt_id", nullable = false)
+    private PurchaseReceipt purchaseReceipt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_order_item_id", nullable = false)
+    private PurchaseOrderItems purchaseOrderItem;
+    
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "product_id", nullable = false)
+    // private Product product;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal qtyReceived = BigDecimal.ZERO;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal unitCost = BigDecimal.ZERO;
+
+    @Column(columnDefinition = "TEXT")
+    private String notes;
+}
