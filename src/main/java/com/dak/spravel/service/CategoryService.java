@@ -4,7 +4,7 @@ import com.dak.spravel.dto.request.CreateCategoryRequest;
 import com.dak.spravel.dto.request.UpdateCategoryRequest;
 import com.dak.spravel.dto.response.CategoryResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.Category;
+import com.dak.spravel.model.catalog.Category;
 import com.dak.spravel.repository.CategoryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

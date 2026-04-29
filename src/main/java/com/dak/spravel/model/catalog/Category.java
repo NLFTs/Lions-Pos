@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.catalog;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -41,6 +41,9 @@ public class Category {
 
     @Column(nullable = false)
     private String name;
+
+    @Column
+    private String description;
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;

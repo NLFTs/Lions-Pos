@@ -1,16 +1,21 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "transfer_requests")
 public class TransferRequest {
 
@@ -92,7 +97,7 @@ public class TransferRequest {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", insertable = false, updatable = false)
-    private Partner partner;
+    private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", insertable = false, updatable = false)

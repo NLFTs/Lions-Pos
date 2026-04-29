@@ -1,9 +1,9 @@
 package com.dak.spravel.seeder;
 
-import com.dak.spravel.model.Module;
-import com.dak.spravel.model.Permission;
-import com.dak.spravel.model.Role;
-import com.dak.spravel.model.User;
+import com.dak.spravel.model.auth.Module;
+import com.dak.spravel.model.auth.Permission;
+import com.dak.spravel.model.auth.Role;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.ModuleRepository;
 import com.dak.spravel.repository.PermissionRepository;
 import com.dak.spravel.repository.RoleRepository;

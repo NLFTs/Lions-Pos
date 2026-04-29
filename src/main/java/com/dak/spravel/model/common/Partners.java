@@ -1,24 +1,21 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.common;
 
+import com.dak.spravel.model.inventory.BranchWarehouses;
+import com.dak.spravel.model.inventory.Warehouses;
+import com.dak.spravel.model.inventory.Branches;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.annotation.CreatedDate;
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class Partners {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

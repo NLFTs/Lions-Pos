@@ -1,5 +1,6 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 import java.sql.Timestamp;
+import com.dak.spravel.model.common.Partners;
 import java.util.UUID;
 
 import org.springframework.data.annotation.CreatedDate;
@@ -12,7 +13,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import lombok.Data;
 
 @Entity

@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.auth;
 
 import java.time.LocalDateTime;
 import org.springframework.security.core.Authentication;

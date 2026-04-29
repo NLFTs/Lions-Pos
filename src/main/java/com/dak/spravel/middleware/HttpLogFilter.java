@@ -1,6 +1,6 @@
 package com.dak.spravel.middleware;
 
-import com.dak.spravel.model.LogHttp;
+import com.dak.spravel.model.system.LogHttp;
 import com.dak.spravel.repository.LogHttpRepository;
 import com.dak.spravel.repository.UserRepository;
 import com.dak.spravel.util.ConfigConstant;

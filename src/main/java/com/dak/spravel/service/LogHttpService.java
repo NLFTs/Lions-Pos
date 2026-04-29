@@ -2,7 +2,7 @@ package com.dak.spravel.service;
 
 import com.dak.spravel.dto.response.LogHttpResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.LogHttp;
+import com.dak.spravel.model.system.LogHttp;
 import com.dak.spravel.repository.LogHttpRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

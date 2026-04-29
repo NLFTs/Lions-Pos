@@ -1,15 +1,20 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.order;
 
 import java.math.BigDecimal;
-
+import java.util.UUID;
+import jakarta.persistence.Id;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 public class Order_items {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

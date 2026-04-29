@@ -1,20 +1,20 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
+
 import java.sql.Timestamp;
 import java.util.UUID;
 import org.springframework.data.annotation.CreatedDate;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
+import jakarta.persistence.*;
+import com.dak.spravel.model.common.Partners;
+
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "warehouses")
 public class Warehouses {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,6 +1,6 @@
 package com.dak.spravel.service;
 
-import com.dak.spravel.model.User;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.UserRepository;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;

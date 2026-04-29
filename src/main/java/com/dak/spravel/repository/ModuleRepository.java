@@ -1,6 +1,6 @@
 package com.dak.spravel.repository;
 
-import com.dak.spravel.model.Module;
+import com.dak.spravel.model.auth.Module;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

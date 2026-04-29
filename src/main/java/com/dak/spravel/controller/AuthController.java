@@ -5,7 +5,7 @@ import com.dak.spravel.dto.response.MeResponse;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.TokenResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.Token;
+import com.dak.spravel.model.auth.Token;
 import com.dak.spravel.repository.TokenRepository;
 import com.dak.spravel.repository.UserRepository;
 import com.dak.spravel.service.PermissionCacheService;
