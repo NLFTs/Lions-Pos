@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="${title} ?: 'Spravel'">Spravel</title>
+
+    <!-- Production: Vite-built CSS -->
+    <link rel="stylesheet" th:href="@{/_/assets/index.css}" th:unless="${devMode}" onerror="this.remove()" />
+</head>
+<body class="antialiased">
+    <div id="app"></div>
+
+    <!-- Production: Vite-built JS bundle -->
+    <th:block th:unless="${devMode}">
+        <script type="module" th:src="@{/_/assets/index.js}"></script>
+    </th:block>
+
+    <!-- Development: Vite dev server (hot-reload) -->
+    <th:block th:if="${devMode}">
+        <script type="module" src="http://localhost:5173/@vite/client"></script>
+        <script type="module" src="http://localhost:5173/src/main.js"></script>
+    </th:block>
+</body>
+</html>

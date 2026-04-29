@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn *)",
+      "Bash(./mvnw *)",
+      "Bash(rm *)",
+      "Bash(file *)",
+      "Bash(pnpm install)",
+      "Bash(pnpm add *)",
+      "Bash(npm install *)",
+      "Bash(sort)",
+      "Bash(do *)",
+      "Bash(then *)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(npm run *)",
+      "Bash(ls *)",
+      "Bash(lsof *)",
+      "Bash(curl *)",
+      "Bash(python3 *)",
+      "Bash(kill *)",
+      "Bash(sleep *)",
+      "Bash(nohup *)",
+      "Bash(break)",
+      "Bash(bash *)"
+    ]
+  },
+  "$version": 3
+}

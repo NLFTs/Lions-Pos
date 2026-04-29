@@ -1,0 +1,110 @@
+#!/bin/bash
+# Spravel CLI — Shortcut commands for development
+# Usage: ./spravel <command>
+#
+# Frontend:
+#   frontend:install   — Install frontend dependencies (pnpm)
+#   frontend:build     — Build Vue.js → src/main/resources/static
+#   frontend:dev       — Start Vite dev server (hot-reload)
+#   frontend:clean     — Clean frontend build output
+#
+# Backend:
+#   backend:dev        — Run Spring Boot dev server (skip frontend build)
+#   backend:build      — Compile backend only (skip frontend & tests)
+#   backend:test       — Run backend tests
+#   backend:clean      — Clean backend build output
+#
+# Fullstack:
+#   full:build         — Build frontend + backend JAR (production)
+#   full:clean         — Clean everything (frontend + backend)
+#   full:dev           — Start both Vite + Spring Boot (parallel)
+#
+set -e
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+MVNW="$DIR/mvnw"
+FRONTEND="$DIR/frontend"
+PNPM="npx -y pnpm"
+
+case "$1" in
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:install)
+    echo "📦 Installing frontend dependencies..."
+    cd "$FRONTEND" && $PNPM install --frozen-lockfile
+    ;;
+  frontend:build)
+    echo "🔨 Building frontend..."
+    cd "$FRONTEND" && $PNPM install --frozen-lockfile && $PNPM run build
+    ;;
+  frontend:dev)
+    echo "⚡ Starting Vite dev server..."
+    cd "$FRONTEND" && $PNPM run dev
+    ;;
+  frontend:clean)
+    echo "🧹 Cleaning frontend build output..."
+    rm -rf "$DIR/src/main/resources/static/assets" "$DIR/src/main/resources/static/index.html"
+    echo "Done."
+    ;;
+
+  # ── Backend ───────────────────────────────────────────────────────────────
+  backend:dev)
+    echo "🚀 Starting Spring Boot (skip frontend build)..."
+    "$MVNW" spring-boot:run -Dexec.skip=true
+    ;;
+  backend:build)
+    echo "🔨 Compiling backend..."
+    "$MVNW" compile -Dexec.skip=true -q
+    ;;
+  backend:test)
+    echo "🧪 Running backend tests..."
+    "$MVNW" test -Dexec.skip=true
+    ;;
+  backend:clean)
+    echo "🧹 Cleaning backend build..."
+    "$MVNW" clean -q
+    ;;
+
+  # ── Fullstack ─────────────────────────────────────────────────────────────
+  full:build)
+    echo "📦 Building frontend + backend JAR..."
+    "$MVNW" package -DskipTests
+    ;;
+  full:clean)
+    echo "🧹 Cleaning everything..."
+    rm -rf "$DIR/src/main/resources/static/assets" "$DIR/src/main/resources/static/index.html"
+    "$MVNW" clean -q
+    echo "Done."
+    ;;
+  full:dev)
+    echo "⚡ Starting Vite + Spring Boot in parallel..."
+    echo "   Press Ctrl+C to stop both."
+    trap 'kill 0' EXIT
+    (cd "$FRONTEND" && $PNPM run dev) &
+    "$MVNW" spring-boot:run -Dexec.skip=true &
+    wait
+    ;;
+
+  # ── Help ──────────────────────────────────────────────────────────────────
+  *)
+    echo ""
+    echo "  Spravel CLI — Usage: ./spravel <command>"
+    echo ""
+    echo "  Frontend:"
+    echo "    frontend:install   Install dependencies (pnpm)"
+    echo "    frontend:build     Build Vue → static/"
+    echo "    frontend:dev       Vite dev server (HMR)"
+    echo "    frontend:clean     Clean build output"
+    echo ""
+    echo "  Backend:"
+    echo "    backend:dev        Spring Boot dev server"
+    echo "    backend:build      Compile backend only"
+    echo "    backend:test       Run tests"
+    echo "    backend:clean      Clean build"
+    echo ""
+    echo "  Fullstack:"
+    echo "    full:build         Frontend + backend JAR"
+    echo "    full:clean         Clean everything"
+    echo "    full:dev           Vite + Spring Boot (parallel)"
+    echo ""
+    ;;
+esac
