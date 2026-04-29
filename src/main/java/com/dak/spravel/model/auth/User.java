@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.auth;
 
 import jakarta.persistence.*;
 import lombok.Data;

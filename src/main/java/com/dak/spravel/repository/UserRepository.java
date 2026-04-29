@@ -1,6 +1,6 @@
 package com.dak.spravel.repository;
 
-import com.dak.spravel.model.User;
+import com.dak.spravel.model.auth.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

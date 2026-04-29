@@ -1,6 +1,7 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
 import jakarta.persistence.*;
+import com.dak.spravel.model.catalog.Product;
 import lombok.Data;
 
 import java.math.BigDecimal;

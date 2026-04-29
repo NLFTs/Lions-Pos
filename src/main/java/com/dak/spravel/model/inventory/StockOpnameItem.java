@@ -1,5 +1,6 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
+import com.dak.spravel.model.auth.User;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;

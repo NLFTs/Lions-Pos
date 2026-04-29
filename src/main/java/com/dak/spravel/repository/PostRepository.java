@@ -1,6 +1,6 @@
 package com.dak.spravel.repository;
 
-import com.dak.spravel.model.Post;
+import com.dak.spravel.model.common.Post;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

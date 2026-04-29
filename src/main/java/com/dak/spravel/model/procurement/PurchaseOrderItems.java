@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.procurement;
 
 import java.math.BigDecimal;
 import java.util.UUID;

@@ -1,21 +1,27 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
+import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(
         name = "stock_balances",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {"product_id", "location_type", "location_id"})
         }
 )
+
 public class StockBalance {
 
     @Id

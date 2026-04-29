@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.catalog;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

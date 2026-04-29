@@ -1,6 +1,6 @@
 package com.dak.spravel.seeder;
 
-import com.dak.spravel.model.Category;
+import com.dak.spravel.model.catalog.Category;
 import com.dak.spravel.repository.CategoryRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

@@ -1,15 +1,21 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
+import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "stock_mutations")
 public class StockMutation {
 
@@ -78,7 +84,7 @@ public class StockMutation {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", insertable = false, updatable = false)
-    private Partner partner;
+    private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", insertable = false, updatable = false)

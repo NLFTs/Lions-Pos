@@ -1,4 +1,4 @@
-package com.dak.spravel.model;
+package com.dak.spravel.model.inventory;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;

@@ -6,7 +6,7 @@ import com.dak.spravel.dto.request.UpdateUserRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.UserResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.User;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.UserRepository;
 import com.dak.spravel.service.UserService;
 import com.dak.spravel.util.ResponseBuilder;
@@ -18,7 +18,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.http.HttpStatus;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
