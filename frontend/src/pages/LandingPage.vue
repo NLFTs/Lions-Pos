@@ -50,7 +50,7 @@ const navigateToLogin = () => {
       @navigate="handleNavigation"
     >
       <template #logo>
-        <Zap class="h-6 w-6 text-white" />
+        <Zap class="h-6 w-6 text-primary-foreground transition-colors duration-300" />
       </template>
 
       <template #actions>
@@ -58,17 +58,17 @@ const navigateToLogin = () => {
         <Button 
           variant="ghost" 
           size="icon" 
-          class="text-muted-foreground hover:text-primary transition-colors rounded-full mr-2" 
+          class="text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300 rounded-full mr-2" 
           @click="themeStore.toggleDark()"
         >
           <Sun v-if="!themeStore.isDark" class="h-5 w-5" />
           <Moon v-else class="h-5 w-5" />
         </Button>
 
-        <Button variant="ghost" class="font-bold text-muted-foreground hover:text-primary transition-colors" @click="navigateToLogin">
+        <Button variant="ghost" class="font-bold text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300" @click="navigateToLogin">
           Masuk
         </Button>
-        <Button class="bg-primary hover:bg-primary/90 text-white font-bold px-6 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95" @click="navigateToLogin">
+        <Button class="font-bold px-6 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95" @click="navigateToLogin">
           Mulai Gratis
         </Button>
       </template>
@@ -77,11 +77,11 @@ const navigateToLogin = () => {
     <!-- Content Sections -->
     <main class="flex-grow flex flex-col items-center justify-center text-center px-8 py-32">
       <div class="space-y-8 max-w-4xl mx-auto">
-        <h1 class="text-5xl md:text-7xl font-black font-lexend tracking-tighter text-foreground leading-[1.1]">
+        <h1 class="text-5xl md:text-7xl font-black font-lexend tracking-tighter text-zinc-900 dark:text-zinc-100 leading-[1.1] transition-colors duration-300">
           Ready to Build <br class="md:hidden" />
-          <span class="text-primary inline-block">Something Great?</span>
+          <span class="text-primary inline-block transition-colors duration-300">Something Great?</span>
         </h1>
-        <p class="text-lg md:text-xl text-muted-foreground font-medium max-w-2xl mx-auto leading-relaxed">
+        <p class="text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed transition-colors duration-300">
           Struktur layout, GSAP, dan Smooth Scroll telah siap. <br />
           Silakan tambahkan section berikutnya sesuai kebutuhan.
         </p>
