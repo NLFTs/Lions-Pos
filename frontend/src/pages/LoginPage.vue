@@ -39,21 +39,21 @@ const features = [
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-white selection:bg-primary/20 selection:text-primary">
+  <div class="flex min-h-screen bg-white dark:bg-zinc-950 selection:bg-primary/20 selection:text-primary transition-colors duration-300">
     <!-- Left side: Login Form -->
     <div class="flex flex-1 flex-col justify-center px-6 py-12 lg:flex-none lg:px-20 xl:px-24">
       <div class="mx-auto w-full max-w-sm lg:w-96 animate-in fade-in slide-in-from-left duration-700">
         <!-- Branding Header -->
         <div class="flex items-center gap-3 mb-12">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30">
-            <Zap class="h-6 w-6 text-white" />
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30 transition-colors duration-300">
+            <Zap class="h-6 w-6 text-primary-foreground transition-colors duration-300" />
           </div>
-          <span class="text-2xl font-bold tracking-tight text-zinc-900 border-none">Spravel</span>
+          <span class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 border-none transition-colors duration-300">Spravel</span>
         </div>
 
         <div class="mb-10">
-          <h1 class="text-3xl font-extrabold tracking-tight text-zinc-950">Selamat Datang Kembali</h1>
-          <p class="mt-3 text-sm font-medium text-zinc-500">
+          <h1 class="text-3xl font-extrabold tracking-tight text-zinc-950 dark:text-zinc-100 transition-colors duration-300">Selamat Datang Kembali</h1>
+          <p class="mt-3 text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors duration-300">
             Silakan masukkan kredensial untuk mengakses akun Anda
           </p>
         </div>
@@ -64,7 +64,7 @@ const features = [
 
         <form @submit.prevent="handleLogin" class="space-y-6">
           <div class="space-y-2">
-            <Label for="username" class="text-sm font-semibold text-zinc-700">Username</Label>
+            <Label for="username" class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 transition-colors duration-300">Username</Label>
             <div class="group relative">
               <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
                 <User class="h-4 w-4 text-zinc-400 group-focus-within:text-primary transition-colors" />
@@ -73,7 +73,7 @@ const features = [
                 id="username"
                 v-model="form.username"
                 placeholder="Masukkan username"
-                class="h-11 pl-10 border-zinc-200 bg-zinc-50/30 focus:bg-white transition-all ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
+                class="h-11 pl-10 border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 text-zinc-900 dark:text-zinc-100 transition-all ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
                 :disabled="loading"
                 required
               />
@@ -82,7 +82,7 @@ const features = [
 
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <Label for="password" class="text-sm font-semibold text-zinc-700">Password</Label>
+              <Label for="password" class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 transition-colors duration-300">Password</Label>
             </div>
             <div class="group relative">
               <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
@@ -93,7 +93,7 @@ const features = [
                 v-model="form.password"
                 :type="showPassword ? 'text' : 'password'"
                 placeholder="Masukkan password"
-                class="h-11 pl-10 pr-10 border-zinc-200 bg-zinc-50/30 focus:bg-white transition-all ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
+                class="h-11 pl-10 pr-10 border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/50 focus:bg-white dark:focus:bg-zinc-900 text-zinc-900 dark:text-zinc-100 transition-all ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
                 :disabled="loading"
                 required
               />
@@ -112,7 +112,7 @@ const features = [
           <div class="pt-2">
             <Button
               type="submit"
-              class="w-full h-11 text-base font-bold shadow-none active:scale-[0.98] transition-all bg-primary hover:bg-primary/90"
+              class="w-full h-11 text-base font-bold shadow-none active:scale-[0.98] transition-all"
               :disabled="loading"
             >
               <Loader2 v-if="loading" class="mr-2 h-4 w-4 animate-spin" />
@@ -122,7 +122,7 @@ const features = [
           </div>
         </form>
 
-        <p class="mt-10 text-center text-sm font-medium text-zinc-500">
+        <p class="mt-10 text-center text-sm font-medium text-zinc-500 dark:text-zinc-400 transition-colors duration-300">
           Butuh bantuan? <a href="#" class="text-primary hover:underline font-bold transition-all decoration-2 underline-offset-2">Hubungi IT Support</a>
         </p>
       </div>
@@ -131,32 +131,32 @@ const features = [
     <!-- Right side: Content/Visual -->
     <div class="relative hidden flex-1 lg:block overflow-hidden group">
       <!-- Gradient Background -->
-      <div class="absolute inset-0 bg-primary">
+      <div class="absolute inset-0 bg-primary transition-colors duration-300">
          <!-- Abstract Pattern Overlay -->
-         <div class="absolute inset-0 opacity-[0.08]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 30px 30px;"></div>
-         <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/95 to-primary/80"></div>
+         <div class="absolute inset-0 opacity-[0.08] text-primary-foreground transition-colors duration-300" style="background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 30px 30px;"></div>
+         <div class="absolute inset-0 bg-gradient-to-br from-primary via-primary/95 to-primary/80 transition-colors duration-300"></div>
          <!-- Subtle Animated Light Effect -->
-         <div class="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-white/10 rounded-full blur-[120px] animate-pulse"></div>
+         <div class="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-primary-foreground/10 rounded-full blur-[120px] animate-pulse transition-colors duration-300"></div>
       </div>
 
-      <div class="relative flex h-full flex-col items-center justify-center p-16 text-center text-white">
+      <div class="relative flex h-full flex-col items-center justify-center p-16 text-center text-primary-foreground transition-colors duration-300">
         <div class="max-w-md w-full animate-in fade-in slide-in-from-right duration-700">
-          <div class="mb-10 inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-white/10 border border-white/20 shadow-2xl backdrop-blur-xl">
-            <Zap class="h-10 w-10 text-white" />
+          <div class="mb-10 inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary-foreground/10 border border-primary-foreground/20 shadow-2xl backdrop-blur-xl transition-colors duration-300">
+            <Zap class="h-10 w-10 text-primary-foreground transition-colors duration-300" />
           </div>
 
           <h2 class="text-4xl font-extrabold tracking-tight leading-[1.1] mb-6">
             Sistem Manajemen <br/> Kredit Digital
           </h2>
-          <p class="text-lg font-medium text-primary-foreground/80 mb-12">
+          <p class="text-lg font-medium text-primary-foreground/80 mb-12 transition-colors duration-300">
             Platform terintegrasi untuk mengelola seluruh proses bisnis Anda dengan efisien, aman, dan transparan.
           </p>
 
           <!-- Value Props -->
           <div class="grid gap-4 mx-auto w-max text-left">
             <div v-for="item in features" :key="item" class="flex items-center gap-3.5 group/item">
-              <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 border border-white/30 backdrop-blur-sm group-hover/item:bg-white/30 transition-colors">
-                <CheckCircle2 class="h-4 w-4 text-white" />
+              <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20 border border-primary-foreground/30 backdrop-blur-sm group-hover/item:bg-primary-foreground/30 transition-colors duration-300">
+                <CheckCircle2 class="h-4 w-4 text-primary-foreground transition-colors duration-300" />
               </div>
               <span class="text-base font-semibold tracking-wide">{{ item }}</span>
             </div>
@@ -164,7 +164,7 @@ const features = [
         </div>
         
         <!-- Bottom branding/info -->
-        <div class="absolute bottom-10 text-xs font-semibold tracking-widest text-white/40 uppercase">
+        <div class="absolute bottom-10 text-xs font-semibold tracking-widest text-primary-foreground/40 uppercase transition-colors duration-300">
           © 2026 Spravel Enterprise Edition
         </div>
       </div>
