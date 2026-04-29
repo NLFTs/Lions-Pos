@@ -13,7 +13,7 @@ import lombok.Data;
 public class Order_items {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private UUID id;
+    private Long id;
 
      @Column(unique = true , nullable = false , updatable = false)
     private UUID uid;
