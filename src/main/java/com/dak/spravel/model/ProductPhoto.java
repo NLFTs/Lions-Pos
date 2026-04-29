@@ -5,31 +5,31 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "categories")
+@Table(name = "product_photos")
 @EntityListeners(AuditingEntityListener.class)
-public class Category {
+public class ProductPhoto {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private java.util.UUID id;
-
-    @Column(name = "partner_id", nullable = false)
-    private java.util.UUID partnerId;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
-    private Category parent;
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
     @Column(nullable = false)
-    private String name;
+    private String url;
+
+    @Column(name = "is_primary", nullable = false)
+    private Boolean isPrimary = false;
 
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder = 0;
@@ -38,19 +38,6 @@ public class Category {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @LastModifiedDate
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
     @Column(name = "created_by")
-    private java.util.UUID createdBy;
-
-    @Column(name = "updated_by")
-    private java.util.UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private java.util.UUID deletedBy;
+    private UUID createdBy;
 }
