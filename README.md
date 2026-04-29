@@ -156,6 +156,11 @@ Spravel menggunakan **satu file** `application.properties` untuk semua environme
 | `SPRING_DATASOURCE_HIKARI_MAX_POOL_SIZE` | `10` | Max koneksi database |
 | `SPRING_DATASOURCE_HIKARI_MIN_IDLE` | `5` | Min idle koneksi |
 
+
+
+
+
+
 ### Contoh Production
 
 ```bash
