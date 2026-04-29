@@ -19,8 +19,8 @@ import java.util.UUID;
 @EntityListeners(AuditingEntityListener.class)
 public class Category {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private java.util.UUID id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(unique = true, updatable = false, nullable = false)
     private UUID uid; 
