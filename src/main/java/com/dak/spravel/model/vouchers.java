@@ -28,8 +28,11 @@ import lombok.Data;
 @Table(name = "vouchers",indexes=@Index(name = "idx_vouchers_code", columnList = "code"))
 public class vouchers {
 @Id
-@GeneratedValue(strategy = GenerationType.UUID)
-private UUID id;
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+private Long id;
+
+@Column(unique = true, updatable = false, nullable = false)
+    private UUID uid; 
 
 @Column(name = "partner_id", nullable = false)
 private UUID partner_id;
@@ -87,6 +90,9 @@ private UUID deletedBy;
 private void onCreate() {
     this.createdAt = new Timestamp(System.currentTimeMillis());
     this.updatedAt = new Timestamp(System.currentTimeMillis());
+     if (this.uid == null) {
+            this.uid = UUID.randomUUID();
+        }
 }
 
 @PreUpdate
