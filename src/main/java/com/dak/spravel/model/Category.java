@@ -9,6 +9,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @AllArgsConstructor
@@ -20,6 +21,16 @@ public class Category {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private java.util.UUID id;
+
+    @Column(unique = true, updatable = false, nullable = false)
+    private UUID uid; 
+
+    @PrePersist
+    private void onCreate() {
+        if (this.uid == null) {
+            this.uid = UUID.randomUUID();
+        }
+    }
 
     @Column(name = "partner_id", nullable = false)
     private java.util.UUID partnerId;
