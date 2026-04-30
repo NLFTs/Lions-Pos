@@ -7,18 +7,14 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
-import java.math.BigDecimal;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(
-    name = "products"
-
-)
-public class Product extends BaseEntity{
+@Table(name = "categories_products")
+public class CategoryProduct extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,15 +24,15 @@ public class Product extends BaseEntity{
     private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", referencedColumnName = "id")
-    private CategoryProduct category;
+    @JoinColumn(name = "parent_id", referencedColumnName = "id")
+    private CategoryProduct parent;
 
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "sku")
-    private String sku;
+    @Column
+    private String description;
 
-    @Column(name = "base_price", nullable = false, precision = 19, scale = 2)
-    private BigDecimal basePrice;
+    @Column(name = "sort_order")
+    private Integer sortOrder = 0;
 }

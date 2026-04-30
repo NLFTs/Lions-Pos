@@ -7,8 +7,9 @@ import com.dak.spravel.dto.response.UserResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.repository.RoleRepository;
-import com.dak.spravel.repository.UserRepository;
+import com.dak.spravel.repository.auth.RoleRepository;
+import com.dak.spravel.repository.auth.UserRepository;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

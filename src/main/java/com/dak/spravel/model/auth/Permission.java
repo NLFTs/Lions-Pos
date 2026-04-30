@@ -1,19 +1,19 @@
-package com.dak.spravel.    model.auth;
+package com.dak.spravel.model.auth;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-import org.springframework.data.annotation.CreatedDate;
+import com.dak.spravel.model.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
 @Table(name = "permissions")
-public class Permission {
+public class Permission extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,34 +28,6 @@ public class Permission {
 
     /** Parent module — groups this permission in the role matrix UI. */
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "module_id", nullable = false)
+    @JoinColumn(name = "module_id", referencedColumnName = "id", nullable = false)
     private Module module;
-
-     @CreatedDate
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
-
-    private LocalDateTime deletedAt;
-    
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-     @PrePersist
-    private void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    private void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }

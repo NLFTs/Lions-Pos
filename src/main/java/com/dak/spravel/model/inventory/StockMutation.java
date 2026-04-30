@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -21,18 +20,15 @@ public class StockMutation {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "auto_id", updatable = false, nullable = false)
-    private Long autoId;
+    private Long id;
 
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false, unique = true)
-    private UUID id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Product product;
 
-    @Column(name = "partner_id", nullable = false)
-    private UUID partnerId;
-
-    @Column(name = "product_id", nullable = false)
-    private UUID productId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
+    private Partners partner;
 
     // "sale_out" | "purchase_in" | "transfer" | "adjustment" | "return"
 
@@ -44,14 +40,14 @@ public class StockMutation {
     private String fromLocationType;
 
     @Column(name = "from_location_id")
-    private UUID fromLocationId;
+    private Long fromLocationId;
 
     // "branch" | "warehouse" | null
     @Column(name = "to_location_type", length = 50)
     private String toLocationType;
 
     @Column(name = "to_location_id")
-    private UUID toLocationId;
+    private Long toLocationId;
 
     @Column(name = "qty", nullable = false, precision = 19, scale = 4)
     private BigDecimal qty;
@@ -64,7 +60,7 @@ public class StockMutation {
     // Polymorphic FK — points to orders.id, transfer_requests.id, or stock_opname.id
 
     @Column(name = "reference_id")
-    private UUID referenceId;
+    private Long referenceId;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -73,20 +69,7 @@ public class StockMutation {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
-
-    //  Relationships
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", insertable = false, updatable = false)
-    private Product product;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "partner_id", insertable = false, updatable = false)
-    private Partners partner;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", insertable = false, updatable = false)
-    private User createdByUser;
+    @JoinColumn(name = "user_id", referencedColumnName = "id", updatable = false)
+    private User createdBy;
 }

@@ -1,38 +1,77 @@
 package com.dak.spravel.model.order;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.UUID;
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.catalog.Voucher;
+import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.Branches;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
-public class Orders {
+@Table(
+    name = "orders",
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"partner_id" ,"order_number"})
+    }
+)
+public class Orders extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+ 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
-    @Column(unique = true , nullable = false , updatable = false)
-    private UUID uid;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id", referencedColumnName = "id", nullable = false)
+    private Branches branch;
 
-
-    @Column(name = "partner_id", nullable = false)
-    private UUID partnerId;
-
-    @Column(name = "branch_id", nullable = false)
-    private UUID branchId;
-
-    @Column(name = "cashier_id", nullable = false)
-    private UUID cashierId;
-
-    @Column(name = "order_number", nullable = false)
-    private String orderNumber;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", referencedColumnName = "id", nullable = false)
+    private User customer;
 
     @Column(nullable = false)
-    private String status;
+    private String orderNumber;
+
+    // // Repository untuk status order bisa dibuat terpisah, tapi untuk sementara kita buat enum saja
+    // long countByOrderNumberStartingWith(String prefix);
+
+    // Services untuk generate order number bisa dibuat di service, tapi untuk sementara kita buat method di entity saja
+    // private String generateOrderNumber() {
+    // String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    // String prefix = "ORD-" + date + "-";
+    
+    // long count = orderRepository.countByOrderNumberStartingWith(prefix);
+    // String sequence = String.format("%04d", count + 1);
+    
+    // return prefix + sequence;
+    // // Hasil: ORD-20260429-0001
+    // }
+
+    // public Order createOrder(OrderRequest request) {
+    //     Order order = new Order();
+    //     order.setOrderNumber(generateOrderNumber());
+    //     // set field lainnya...
+    //     return orderRepository.save(order);
+    // }
+
+    @Column(nullable = false)
+    private PaymentStatus status;
+
+    public enum PaymentStatus {
+        DRAFT, PAID, CANCELED
+    }
 
     @Column(nullable = false)
     private BigDecimal subtotal;
@@ -43,38 +82,10 @@ public class Orders {
     @Column(nullable = false)
     private BigDecimal total;
 
-    @Column(name = "voucher_id")
-    private UUID voucherId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id", referencedColumnName = "id")
+    private Voucher voucher;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
-
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_by")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-     @PrePersist
-    public void prePersist() {
-        this.createdAt = LocalDateTime.now();
-        this.discountAmount = this.discountAmount == null ? BigDecimal.ZERO : this.discountAmount;
-    }
-
-    @PreUpdate
-    public void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }

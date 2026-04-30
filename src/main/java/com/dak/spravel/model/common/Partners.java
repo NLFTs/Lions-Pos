@@ -1,35 +1,25 @@
 package com.dak.spravel.model.common;
 
-import com.dak.spravel.model.inventory.BranchWarehouses;
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.model.inventory.Branches;
-import java.sql.Timestamp;
 import java.util.List;
-import java.util.UUID;
-import org.springframework.data.annotation.CreatedDate;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
-public class Partners {
+@Table(name = "partners")
+public class Partners extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, updatable = false, nullable = false)
-    private UUID uid;
-
-    @PrePersist
-    private void onCreateUid(){
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
 
     @Column(nullable = false)
     private String name;
@@ -38,50 +28,18 @@ public class Partners {
     private String slug;
 
     public enum Plan {
-        FREE, PRO, ENTERPRISE
+        BASIC, PRO, ENTERPRISE
     }
 
     @Enumerated(EnumType.STRING)
-    @Column(columnDefinition = "varchar default 'free'")
-    private Plan plan = Plan.FREE;
+    private Plan plan;
 
     @Column(name = "is_active")
     private Boolean isActive = true;
-
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Timestamp createdAt;
-
-    private Timestamp updatedAt;
-
-    private Timestamp deletedAt;
-
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
 
     @OneToMany(mappedBy = "partners", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Branches> branches;
 
     @OneToMany(mappedBy = "partners", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Warehouses> warehouses;
-
-    @OneToMany(mappedBy = "partners", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<BranchWarehouses> branchWarehouses;
-
-    @PrePersist
-    private void onCreate(){
-        this.createdAt = new Timestamp(System.currentTimeMillis());
-        this.updatedAt = new Timestamp(System.currentTimeMillis());
-    }
-
-    @PreUpdate
-    private void onUpdate(){
-        this.updatedAt = new Timestamp(System.currentTimeMillis());
-    }
 }

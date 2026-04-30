@@ -1,89 +1,62 @@
 package com.dak.spravel.model.catalog;
 
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.util.UUID;
-import org.springframework.data.annotation.CreatedDate;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "vouchers",indexes=@Index(name = "idx_vouchers_code", columnList = "code"))
-public class Voucher {
+public class Voucher extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, updatable = false, nullable = false)
-        private UUID uid; 
-
-    @Column(name = "partner_id", nullable = false)
-    private UUID partner_id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
     @Column(nullable = false, unique = true)
     private String code;
 
     @Column(nullable = false)
     private String name;
+    
+    @Column( nullable = false)
+    private DiscountType discountType; // "percent" atau "fixed"
 
-    @Column(name = "discount_type", nullable = false)
-    private String discountType; // "percent" atau "fixed"
+    public enum DiscountType {
+        PERCENT,
+        FIXED
+    }
 
-    @Column(name = "discount_value", nullable = false, precision = 15, scale = 2)
+    @Column( nullable = false, precision = 15, scale = 2)
     private BigDecimal discountValue;
 
-    @Column(name = "min_purchase", precision = 15, scale = 2)
+    @Column( precision = 15, scale = 2)
     private BigDecimal minPurchase = BigDecimal.ZERO;
 
-    @Column(name = "max_discount", precision = 15, scale = 2)
+    @Column( precision = 15, scale = 2)
     private BigDecimal maxDiscount; //null= no cap
 
+    @Column(nullable = true)
     private Integer quota = 0; // 0 = unlimited
 
-    @Column(name = "used_count")
     private Integer used_count = 0;
 
-    @Column(name = "valid_from")
     private LocalDate valid_from;
 
-    @Column(name = "valid_until")
     private LocalDate valid_until;
 
-    @Column(name = "is_active")
     private Boolean is_active = true;
-
-    @CreatedDate
-    @Column(updatable = false)
-    private Timestamp createdAt;
-
-    private Timestamp updatedAt;
-
-    private Timestamp deletedAt;
-
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @PrePersist
-    private void onCreate() {
-        this.createdAt = new Timestamp(System.currentTimeMillis());
-        this.updatedAt = new Timestamp(System.currentTimeMillis());
-        if (this.uid == null) {
-                this.uid = UUID.randomUUID();
-            }
-    }
-
-    @PreUpdate
-    private void onUpdate() {
-        this.updatedAt = new Timestamp(System.currentTimeMillis());
-    }
+    
 }

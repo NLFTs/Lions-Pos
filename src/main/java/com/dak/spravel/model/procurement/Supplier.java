@@ -1,67 +1,36 @@
 package com.dak.spravel.model.procurement;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-import org.springframework.data.annotation.CreatedDate;
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "suppliers")
-public class Supplier {
+public class Supplier extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, nullable = false)
-    private UUID uid;
     
-
-
-    // @ManyToOne(fetch = FetchType.LAZY)
-    // @JoinColumn(name = "partner_id", updatable = false)
-    // private UUID partner;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", updatable = false)
+    private Partners partner;
 
     @Column(nullable = false)
     private String name;
 
     private String phone;
 
+    @Column(columnDefinition = "TEXT")
     private String address;
 
     @Column(columnDefinition = "TEXT")
     private String notes;
-
-    @CreatedDate
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
-
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_by", updatable = false)
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
-    @Column(name = "deleted_by")
-    private UUID deletedBy;
-
-    @PrePersist
-    private void onCreate() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    @PreUpdate
-    private void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }
