@@ -10,7 +10,7 @@ import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import { Button } from '@/components/ui/button'
 import api from '@/lib/api'
 import {
-  Plus, Pencil, Trash2, MoreVertical, X, Shield, Eye, EyeOff, ChevronDown,
+  Plus, Pencil, Trash2, MoreVertical, X, Shield, Eye, EyeOff, ChevronDown, Check,
 } from 'lucide-vue-next'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -415,20 +415,15 @@ function getAvatarColor(user) {
                 <div class="px-3 pt-3 pb-2">
                   <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Role</p>
                   <div class="space-y-1">
-                    <label
+                    <button
                       v-for="role in availableRoles"
                       :key="role.slug"
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      @click="toggleRoleFilter(role.slug)"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="activeFilters.roles.includes(role.slug) ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="toggleRoleFilter(role.slug)"
-                      >
-                        <svg v-if="activeFilters.roles.includes(role.slug)" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="toggleRoleFilter(role.slug)">{{ role.name }}</span>
-                    </label>
+                      <span class="text-sm font-medium text-foreground select-none">{{ role.name }}</span>
+                      <Check v-if="activeFilters.roles.includes(role.slug)" class="h-4 w-4 text-foreground" />
+                    </button>
                     <p v-if="availableRoles.length === 0" class="text-xs text-muted-foreground px-2 py-1">No roles available.</p>
                   </div>
                 </div>
@@ -439,30 +434,20 @@ function getAvatarColor(user) {
                 <div class="px-3 pt-2 pb-3">
                   <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Telepon</p>
                   <div class="space-y-1">
-                    <label
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    <button
+                      @click="setPhoneFilter(true)"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="activeFilters.hasPhone === true ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="setPhoneFilter(true)"
-                      >
-                        <svg v-if="activeFilters.hasPhone === true" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="setPhoneFilter(true)">Punya Nomor Telepon</span>
-                    </label>
-                    <label
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      <span class="text-sm font-medium text-foreground select-none">Punya Nomor Telepon</span>
+                      <Check v-if="activeFilters.hasPhone === true" class="h-4 w-4 text-foreground" />
+                    </button>
+                    <button
+                      @click="setPhoneFilter(false)"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="activeFilters.hasPhone === false ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="setPhoneFilter(false)"
-                      >
-                        <svg v-if="activeFilters.hasPhone === false" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="setPhoneFilter(false)">Tanpa Nomor Telepon</span>
-                    </label>
+                      <span class="text-sm font-medium text-foreground select-none">Tanpa Nomor Telepon</span>
+                      <Check v-if="activeFilters.hasPhone === false" class="h-4 w-4 text-foreground" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -703,18 +688,20 @@ function getAvatarColor(user) {
               <label class="text-sm font-medium text-foreground">Assign Roles</label>
               <div class="rounded-md border border-border overflow-hidden">
                 <div class="max-h-44 overflow-y-auto divide-y divide-border">
-                  <label v-for="role in roles" :key="role.id"
-                    class="flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 cursor-pointer transition-colors">
+                  <button v-for="role in roles" :key="role.id"
+                    type="button"
+                    @click="toggleRole(role.id)"
+                    :disabled="saving"
+                    class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 cursor-pointer transition-colors outline-none text-left disabled:opacity-50">
                     <div class="flex items-center gap-3">
-                      <input type="checkbox" :checked="form.roleIds.includes(role.id)" @change="toggleRole(role.id)" :disabled="saving"
-                        class="h-4 w-4 rounded border-border accent-foreground" />
+                      <Shield class="h-4 w-4 text-muted-foreground" />
                       <div>
                         <p class="font-medium text-sm text-foreground">{{ role.name }}</p>
                         <p class="text-xs text-muted-foreground">{{ role.slug }}</p>
                       </div>
                     </div>
-                    <Shield class="h-4 w-4 text-muted-foreground" />
-                  </label>
+                    <Check v-if="form.roleIds.includes(role.id)" class="h-4 w-4 text-foreground" />
+                  </button>
                 </div>
                 <div v-if="roles.length === 0" class="p-3 text-sm text-muted-foreground">No roles available.</div>
               </div>
