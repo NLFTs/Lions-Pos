@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -26,15 +25,6 @@ public class StockBalance {
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
 
-        @Column(name = "uid", updatable = false, nullable = false, unique = true)
-        private UUID uid;
-
-        public void setUid(UUID uid) {
-            if (this.uid == null) {
-                this.uid = uid;
-            }
-        }
-
         @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
         private Product product;
@@ -44,7 +34,7 @@ public class StockBalance {
 
         // FK to branches.id or warehouses.id depending on location_type
         @Column(name = "location_id", nullable = false)
-        private UUID locationId;
+        private Long locationId;
 
 // @Service
 // @RequiredArgsConstructor
@@ -55,7 +45,7 @@ public class StockBalance {
 //     private final BranchRepository branchRepository;
 
 //     // Saat transaksi dari warehouse
-//         public StockBalance createFromWarehouse(UUID warehouseId, UUID productId, BigDecimal qty) {
+//         public StockBalance createFromWarehouse(String warehouseId, String productId, BigDecimal qty) {
 //                 Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
 //                 .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
 
@@ -71,7 +61,7 @@ public class StockBalance {
 //         }
 
 //         // Saat transaksi dari branch
-//         public StockBalance createFromBranch(UUID branchId, UUID productId, BigDecimal qty) {
+//         public StockBalance createFromBranch(String branchId, String productId, BigDecimal qty) {
 //                 Branch branch = branchRepository.findByUid(branchId)
 //                 .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
 

@@ -1,7 +1,6 @@
 package com.dak.spravel.model.procurement;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -21,9 +20,6 @@ public class PurchaseReceipt {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "uid", updatable = false, nullable = false, unique = true)   
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_order_id", referencedColumnName = "id", nullable = false)

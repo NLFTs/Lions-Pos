@@ -2,7 +2,6 @@ package com.dak.spravel.model.procurement;
 
 import java.math.BigDecimal;
 import java.sql.Date;
-import java.util.UUID;
 import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
@@ -24,9 +23,6 @@ public class PurchaseOrder extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, nullable = false)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
@@ -55,7 +51,7 @@ public class PurchaseOrder extends BaseEntity {
     private String locationType;
 
     @Column(nullable = false)
-    private UUID locationId;
+    private Long locationId;
     // @Service
     // @RequiredArgsConstructor
     // public class PurchaseOrderService {
@@ -66,7 +62,7 @@ public class PurchaseOrder extends BaseEntity {
     //     private final ProductRepository productRepository;
 
     //     // Saat transaksi dari warehouse
-    //     public PurchaseOrder createFromWarehouse(UUID warehouseId, UUID productId, BigDecimal qty) {
+    //     public PurchaseOrder createFromWarehouse(String warehouseId,  productId, BigDecimal qty) {
     //         Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
     //             .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
 
@@ -79,7 +75,7 @@ public class PurchaseOrder extends BaseEntity {
     //     }
 
     //     // Saat transaksi dari branch
-    //     public PurchaseOrder createFromBranch(UUID branchId, UUID productId, BigDecimal qty) {
+    //     public PurchaseOrder createFromBranch(String branchId,  productId, BigDecimal qty) {
     //         Branch branch = branchRepository.findByUid(branchId)
     //             .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
 

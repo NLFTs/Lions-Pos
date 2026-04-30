@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.util.UUID;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.catalog.Voucher;
@@ -29,9 +28,6 @@ public class Orders extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "uid", updatable = false, nullable = false, unique = true)
-    private UUID uid;
  
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)

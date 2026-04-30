@@ -21,7 +21,7 @@ public class MainSeeder {
     @EventListener(ApplicationReadyEvent.class)
     public void seedAfterMigrations() {
         try {
-            // categorySeeder.run();
+            categorySeeder.run();
             userSeeder.run();         // must run before permissionSeeder
             permissionSeeder.run();   // assigns admin role to su
         } catch (Exception e) {

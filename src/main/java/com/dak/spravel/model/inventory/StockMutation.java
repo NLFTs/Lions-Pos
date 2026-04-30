@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -22,9 +21,6 @@ public class StockMutation {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column( updatable = false, nullable = false, unique = true)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
@@ -44,14 +40,14 @@ public class StockMutation {
     private String fromLocationType;
 
     @Column(name = "from_location_id")
-    private UUID fromLocationId;
+    private Long fromLocationId;
 
     // "branch" | "warehouse" | null
     @Column(name = "to_location_type", length = 50)
     private String toLocationType;
 
     @Column(name = "to_location_id")
-    private UUID toLocationId;
+    private Long toLocationId;
 
     @Column(name = "qty", nullable = false, precision = 19, scale = 4)
     private BigDecimal qty;
@@ -64,7 +60,7 @@ public class StockMutation {
     // Polymorphic FK — points to orders.id, transfer_requests.id, or stock_opname.id
 
     @Column(name = "reference_id")
-    private UUID referenceId;
+    private Long referenceId;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;

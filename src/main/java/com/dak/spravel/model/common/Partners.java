@@ -1,10 +1,9 @@
 package com.dak.spravel.model.common;
 
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.model.inventory.Branches;
 import java.util.List;
-import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,13 +16,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "partners")
-public class Partners extends BaseEntitySimple{
+public class Partners extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, updatable = false, nullable = false)
-    private UUID uid;
 
     @Column(nullable = false)
     private String name;

@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import java.util.HashSet;
 import java.util.Set;
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
 /**
  * Role entity representing a role in the system.
  * Roles group permissions and can be assigned to users.
@@ -18,7 +18,7 @@ import com.dak.spravel.model.base.BaseEntitySimple;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "roles", uniqueConstraints = @UniqueConstraint(columnNames = "slug"))
-public class Role extends BaseEntitySimple {
+public class Role extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

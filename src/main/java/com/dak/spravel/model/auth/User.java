@@ -6,8 +6,6 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
-
 import com.dak.spravel.model.base.BaseEntity;
 
 @Data
@@ -19,16 +17,6 @@ public class User extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(updatable = false, nullable = false, unique = true)
-    private String uid;
-
-    @PrePersist
-    public void init() {
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID().toString();
-        }
-    }
 
     private String username;
 

@@ -1,6 +1,6 @@
     package com.dak.spravel.seeder;
 
-    import com.dak.spravel.model.catalog.Category;
+    import com.dak.spravel.model.Category;
     import com.dak.spravel.repository.CategoryRepository;
     import org.springframework.beans.factory.annotation.Value;
     import org.springframework.stereotype.Component;
@@ -31,7 +31,6 @@
                 if (!categoryRepository.existsByName(data[0])) {
                     Category category = new Category();
                     category.setName(data[0]);
-                    category.setPartner(null); // Set partner if needed
                     category.setDescription(data[1]);
                     categoryRepository.save(category);
                 }

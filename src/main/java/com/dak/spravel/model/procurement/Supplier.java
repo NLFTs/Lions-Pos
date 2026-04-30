@@ -1,6 +1,5 @@
 package com.dak.spravel.model.procurement;
 
-import java.util.UUID;
 import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
@@ -19,9 +18,6 @@ public class Supplier extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, nullable = false)
-    private UUID uid;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", updatable = false)

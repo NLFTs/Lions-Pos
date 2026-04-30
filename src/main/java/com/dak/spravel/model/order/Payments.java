@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
-import java.util.UUID;
+import java.util.Set;
 import com.dak.spravel.model.base.BaseEntity;
 
 @Data
@@ -21,11 +21,13 @@ public class Payments extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "uid", updatable = false, nullable = false, unique = true)
-    private UUID uid;
-
-    @Column(name = "order_id", nullable = false)
-    private UUID orderId;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "payments_orders",
+        joinColumns = @JoinColumn(name = "payment_id"),
+        inverseJoinColumns = @JoinColumn(name = "order_id")
+    )
+    private Set<Orders> orders;
 
     @Column(nullable = false)
     private Method method;

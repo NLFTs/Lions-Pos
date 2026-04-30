@@ -1,10 +1,7 @@
 package com.dak.spravel.model.procurement;
 
 import java.math.BigDecimal;
-import java.util.UUID;
-
 import com.dak.spravel.model.catalog.Product;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,8 +16,6 @@ public class PurchaseReceiptItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_receipt_id", referencedColumnName = "id", nullable = false)

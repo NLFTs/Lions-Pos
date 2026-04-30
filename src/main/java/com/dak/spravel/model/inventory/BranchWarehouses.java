@@ -3,7 +3,6 @@ package com.dak.spravel.model.inventory;
 
 import com.dak.spravel.model.auth.User;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import org.springframework.data.annotation.CreatedDate;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -19,9 +18,6 @@ public class BranchWarehouses {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, updatable = false, nullable = false)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branches_id", referencedColumnName = "id", nullable = false)
