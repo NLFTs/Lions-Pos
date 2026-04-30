@@ -58,17 +58,17 @@ const navigateToLogin = () => {
         <Button 
           variant="ghost" 
           size="icon" 
-          class="text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300 rounded-full mr-2" 
+          class="text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300 rounded-full sm:mr-2 h-8 w-8 sm:h-10 sm:w-10" 
           @click="themeStore.toggleDark()"
         >
-          <Sun v-if="!themeStore.isDark" class="h-5 w-5" />
-          <Moon v-else class="h-5 w-5" />
+          <Sun v-if="!themeStore.isDark" class="h-4 w-4 sm:h-5 sm:w-5" />
+          <Moon v-else class="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
 
-        <Button variant="ghost" class="font-bold text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300" @click="navigateToLogin">
+        <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300" @click="navigateToLogin">
           Masuk
         </Button>
-        <Button class="font-bold px-6 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95" @click="navigateToLogin">
+        <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95" @click="navigateToLogin">
           Mulai Gratis
         </Button>
       </template>
