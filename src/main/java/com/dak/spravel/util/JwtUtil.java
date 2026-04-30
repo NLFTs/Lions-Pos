@@ -13,7 +13,7 @@ import java.util.List;
  * JWT token generation, validation, and claim extraction utilities.
  * <p>
  * Access tokens no longer carry permissions — those are resolved
- * server-side via {@link com.dak.spravel.service.PermissionCacheService}.
+ * server-side via {@link com.dak.spravel.service.auth.PermissionCacheService}.
  */
 @Component
 public class JwtUtil {
