@@ -399,7 +399,7 @@ function getAvatarColor(user) {
             <Transition name="fade">
               <div
                 v-if="filterOpen"
-                class="absolute right-0 top-full mt-1 z-30 w-64 bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+                class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-[calc(100vw-2.5rem)] sm:w-64 max-w-[280px] sm:max-w-none bg-card border border-border rounded-lg shadow-xl overflow-hidden"
               >
                 <!-- Header -->
                 <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
