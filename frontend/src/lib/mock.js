@@ -3,6 +3,96 @@
  * This allows the frontend to run without a backend.
  */
 
+const permissionModules = ['user', 'post', 'category', 'role', 'permission', 'module']
+const permissionActions = ['index', 'show', 'store', 'update', 'delete']
+
+const mockPermissionsMap = permissionModules.reduce((acc, module) => {
+  acc[module] = permissionActions.map((action) => ({
+    id: `perm-${module}-${action}`,
+    name: `${action.charAt(0).toUpperCase()}${action.slice(1)} ${module}`,
+    slug: `${module}.${action}`,
+    module,
+    action,
+  }))
+  return acc
+}, {
+  log: [
+    { id: 'perm-log-index', name: 'Index log', slug: 'log.index', module: 'log', action: 'index' },
+  ],
+})
+
+const allMockPermissions = Object.values(mockPermissionsMap).flat()
+const editorPermissions = allMockPermissions.filter((permission) => (
+  ['post', 'category'].includes(permission.module)
+  || permission.slug === 'log.index'
+))
+
+function parseBody(data) {
+  if (!data) return {}
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data)
+    } catch {
+      return {}
+    }
+  }
+  return data
+}
+
+function mockRoleMutation(config, url) {
+  const method = (config.method || 'get').toLowerCase()
+  const body = parseBody(config.data)
+
+  if (method === 'post' && url === '/api/v1/roles') {
+    const permissions = allMockPermissions.filter((permission) => body.permissionIds?.includes(permission.id))
+    return {
+      status: 200,
+      data: {
+        data: {
+          id: `r-${Date.now()}`,
+          name: body.name,
+          slug: body.slug,
+          permissions,
+        },
+      },
+    }
+  }
+
+  const permissionMatch = url.match(/^\/api\/v1\/roles\/([^/]+)\/permissions$/)
+  if (method === 'put' && permissionMatch) {
+    const permissions = allMockPermissions.filter((permission) => body.permissionIds?.includes(permission.id))
+    return {
+      status: 200,
+      data: {
+        data: {
+          id: permissionMatch[1],
+          permissions,
+        },
+      },
+    }
+  }
+
+  const roleMatch = url.match(/^\/api\/v1\/roles\/([^/]+)$/)
+  if (roleMatch && ['put', 'delete'].includes(method)) {
+    if (method === 'delete') {
+      return { status: 204, data: null }
+    }
+
+    return {
+      status: 200,
+      data: {
+        data: {
+          id: roleMatch[1],
+          name: body.name,
+          slug: body.slug,
+        },
+      },
+    }
+  }
+
+  return null
+}
+
 const mockData = {
   '/api/v1/auth/me': {
     status: 200,
@@ -13,12 +103,12 @@ const mockData = {
         fullname: 'Super Admin Mock',
         roles: ['ADMIN'],
         permissions: [
-          'user.index', 'user.store', 'user.update', 'user.destroy',
-          'post.index', 'post.store', 'post.update', 'post.destroy',
-          'category.index', 'category.store', 'category.update', 'category.destroy',
-          'role.index', 'role.store', 'role.update', 'role.destroy',
-          'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
-          'module.index', 'module.store', 'module.update', 'module.destroy',
+          'user.index', 'user.store', 'user.update', 'user.delete', 'user.destroy',
+          'post.index', 'post.store', 'post.update', 'post.delete', 'post.destroy',
+          'category.index', 'category.store', 'category.update', 'category.delete', 'category.destroy',
+          'role.index', 'role.store', 'role.update', 'role.delete', 'role.destroy',
+          'permission.index', 'permission.store', 'permission.update', 'permission.delete', 'permission.destroy',
+          'module.index', 'module.store', 'module.update', 'module.delete', 'module.destroy',
           'log.index'
         ]
       }
@@ -70,18 +160,21 @@ const mockData = {
     status: 200,
     data: {
       data: [
-        { id: 'r1', name: 'ADMIN', description: 'Full access' },
-        { id: 'r2', name: 'EDITOR', description: 'Can edit posts' },
+        { id: 'r1', name: 'ADMIN', slug: 'admin', description: 'Full access', permissions: allMockPermissions },
+        { id: 'r2', name: 'EDITOR', slug: 'editor', description: 'Can edit posts', permissions: editorPermissions },
       ]
+    }
+  },
+  '/api/v1/roles/permissions': {
+    status: 200,
+    data: {
+      data: mockPermissionsMap
     }
   },
   '/api/v1/permissions': {
     status: 200,
     data: {
-      data: [
-        { id: 'perm1', name: 'User Index', slug: 'user.index' },
-        { id: 'perm2', name: 'Post Index', slug: 'post.index' },
-      ]
+      data: allMockPermissions
     }
   },
   '/api/v1/modules': {
@@ -160,6 +253,12 @@ export function setupMocks(api) {
   api.interceptors.request.use(async (config) => {
     // Strip base URL if present
     const url = config.url.replace(config.baseURL, '')
+    const roleMutationResponse = mockRoleMutation(config, url)
+
+    if (roleMutationResponse) {
+      console.log(`[Mock API] Intercepting ${config.method.toUpperCase()} ${url}`)
+      return Promise.reject({ __isMock: true, response: roleMutationResponse })
+    }
 
     // Exact match first
     if (mockData[url]) {
