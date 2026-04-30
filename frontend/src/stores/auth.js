@@ -17,10 +17,19 @@ function loadJson(key, fallback) {
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ─────────────────────────────────────────────────────────────────
   // shallowRef: user & permissions tidak perlu deep reactive — hanya di-replace keseluruhan
-  const accessToken  = ref(localStorage.getItem('access_token')  || null)
-  const refreshToken = ref(localStorage.getItem('refresh_token') || null)
-  const user         = shallowRef(loadJson('auth_user', null))
-  const permissions  = shallowRef(loadJson('auth_permissions', []))
+  const isMock = import.meta.env.VITE_MOCK_API === 'true'
+  const accessToken  = ref(localStorage.getItem('access_token')  || (isMock ? 'mock-access-token' : null))
+  const refreshToken = ref(localStorage.getItem('refresh_token') || (isMock ? 'mock-refresh-token' : null))
+  const user         = shallowRef(loadJson('auth_user', isMock ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null))
+  const permissions  = shallowRef(loadJson('auth_permissions', isMock ? [
+    'user.index', 'user.store', 'user.update', 'user.destroy',
+    'post.index', 'post.store', 'post.update', 'post.destroy',
+    'category.index', 'category.store', 'category.update', 'category.destroy',
+    'role.index', 'role.store', 'role.update', 'role.destroy',
+    'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
+    'module.index', 'module.store', 'module.update', 'module.destroy',
+    'log.index'
+  ] : []))
 
   const isAuthenticated = computed(() => !!accessToken.value)
 
@@ -46,7 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // ─── login ─────────────────────────────────────────────────────────────────
   async function login(username, password) {
-    const res = await axios.post('/api/v1/auth/login', { username, password })
+    const res = await api.post('/api/v1/auth/login', { username, password })
     const { accessToken: at, refreshToken: rt } = res.data.data
     accessToken.value  = at
     refreshToken.value = rt
@@ -59,7 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       if (refreshToken.value) {
-        await axios.post(`/api/v1/auth/logout?refreshToken=${refreshToken.value}`)
+        await api.post(`/api/v1/auth/logout?refreshToken=${refreshToken.value}`)
       }
     } catch (_) {
       // ignore logout errors
