@@ -5,5 +5,6 @@ import org.springframework.stereotype.Repository;
 import com.dak.spravel.model.common.Partners;
 
 @Repository
-public interface PartnerRepository extends JpaRepository<Partners, Long> {    
+public interface PartnerRepository extends JpaRepository<Partners, Long> {
+    
 }

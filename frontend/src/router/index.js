@@ -28,14 +28,14 @@ const routes = [
     },
   },
   {
-    path: '/dashboard/posts',
-    name: 'posts',
+    path: '/dashboard/products',
+    name: 'products',
     component: () => import('@/pages/PostsPage.vue'),
     meta: {
       requiresAuth: true,
       permission: 'post.index',
-      pageTitle: 'Manajemen Post',
-      pageSubtitle: 'Kelola konten post, status publish, dan kategori.',
+      pageTitle: 'Manajemen Produk',
+      pageSubtitle: 'Kelola produk, status, dan kategori.',
     },
   },
   {

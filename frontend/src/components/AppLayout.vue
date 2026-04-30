@@ -90,7 +90,7 @@ const MENU_GROUPS = [
         icon: FileText,
         permission: null,
         children: [
-          { label: 'Posts', icon: ScrollText, to: '/dashboard/posts', permission: 'post.index' },
+          { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'post.index' },
           { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
         ],
       },
