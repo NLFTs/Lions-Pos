@@ -6,6 +6,7 @@ import StatCard from '@/components/dashboard/StatCard.vue'
 import DashboardCard from '@/components/dashboard/Card.vue'
 import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import QuickActions from '@/components/dashboard/QuickActions.vue'
+import MobileSummaryTabs from '@/components/dashboard/MobileSummaryTabs.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import api from '@/lib/api'
@@ -295,8 +296,16 @@ onMounted(fetchStats)
       </div>
 
       <template v-else>
-        <!-- Stat Cards Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <!-- ===== MOBILE: Single card with tab switcher (informasi terbaru) ===== -->
+        <MobileSummaryTabs
+          :recent-posts="recentPosts"
+          :recent-users="recentUsers"
+          :recent-activities="recentActivities"
+          :format-date="formatDate"
+        />
+
+        <!-- ===== MOBILE ONLY: Stat cards grid (2 col) ===== -->
+        <div v-if="statCards.length > 0" class="lg:hidden grid grid-cols-2 gap-3">
           <StatCard
             v-for="card in statCards"
             :key="card.label"
@@ -304,94 +313,110 @@ onMounted(fetchStats)
           />
         </div>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Recent Posts (2 columns) -->
-          <DashboardCard
-            title="Post Terbaru"
-            subtitle="5 post terakhir"
-            :icon="FileText"
-            action-label="Lihat Semua"
-            action-to="/dashboard/posts"
-            class="lg:col-span-2"
-          >
-            <div v-if="recentPosts.length > 0" class="space-y-3">
-              <RouterLink
-                v-for="post in recentPosts"
-                :key="post.id"
-                :to="`/dashboard/posts`"
-                class="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all group"
-              >
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                    {{ post.title }}
-                  </p>
-                  <div class="flex items-center gap-2 mt-1">
-                    <span
-                      class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                      :class="post.status === 'published'
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                        : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
-                    >
-                      {{ post.status === 'published' ? 'Published' : 'Draft' }}
-                    </span>
-                    <span class="text-xs text-muted-foreground">{{ formatDate(post.createdAt) }}</span>
+        <!-- ===== DESKTOP (lg+): Full grid layout ===== -->
+        <div class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Left Column: Recent Items (1/3 width) -->
+          <div class="space-y-6 lg:col-span-1">
+            <!-- Post Terbaru -->
+            <DashboardCard
+              title="Post Terbaru"
+              subtitle="5 post terakhir"
+              :icon="FileText"
+              action-label="Lihat Semua"
+              action-to="/dashboard/posts"
+            >
+              <div v-if="recentPosts.length > 0" class="space-y-3">
+                <RouterLink
+                  v-for="post in recentPosts"
+                  :key="post.id"
+                  :to="`/dashboard/posts`"
+                  class="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all group"
+                >
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                      {{ post.title }}
+                    </p>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        :class="post.status === 'published'
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
+                      >
+                        {{ post.status === 'published' ? 'Published' : 'Draft' }}
+                      </span>
+                      <span class="text-xs text-muted-foreground">{{ formatDate(post.createdAt) }}</span>
+                    </div>
+                  </div>
+                  <ArrowRight class="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                </RouterLink>
+              </div>
+              <div v-else class="py-8 text-center">
+                <FileText class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                <p class="text-sm text-muted-foreground">Belum ada post.</p>
+              </div>
+            </DashboardCard>
+
+            <!-- User Terbaru -->
+            <DashboardCard
+              title="User Terbaru"
+              subtitle="5 user terbaru"
+              :icon="UserPlus"
+              action-label="Lihat Semua"
+              action-to="/dashboard/users"
+            >
+              <div v-if="recentUsers.length > 0" class="space-y-3">
+                <div
+                  v-for="u in recentUsers"
+                  :key="u.id"
+                  class="flex items-center gap-3 p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all"
+                >
+                  <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
+                    {{ (u.fullname || u.username).charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium truncate">{{ u.fullname || u.username }}</p>
+                    <p class="text-xs text-muted-foreground">@{{ u.username }}</p>
                   </div>
                 </div>
-                <ArrowRight class="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-              </RouterLink>
-            </div>
-            <div v-else class="py-8 text-center">
-              <FileText class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-              <p class="text-sm text-muted-foreground">Belum ada post.</p>
-            </div>
-          </DashboardCard>
+              </div>
+              <div v-else class="py-8 text-center">
+                <Users class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                <p class="text-sm text-muted-foreground">Belum ada user.</p>
+              </div>
+            </DashboardCard>
 
-          <!-- Recent Activities (1 column) -->
-          <DashboardCard
-            title="Aktivitas Terbaru"
-            :icon="Activity"
-            class="lg:col-span-1"
-          >
-            <ActivityTimeline :items="recentActivities" />
-          </DashboardCard>
-        </div>
-
-        <!-- Recent Users Section -->
-        <DashboardCard
-          v-if="recentUsers.length > 0"
-          title="User Terbaru"
-          subtitle="5 user yang baru bergabung"
-          :icon="UserPlus"
-          action-label="Lihat Semua"
-          action-to="/dashboard/users"
-        >
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            <div
-              v-for="u in recentUsers"
-              :key="u.id"
-              class="flex items-center gap-3 p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all"
+            <!-- Aktivitas Terbaru -->
+            <DashboardCard
+              title="Aktivitas Terbaru"
+              :icon="Activity"
             >
-              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
-                {{ (u.fullname || u.username).charAt(0).toUpperCase() }}
+              <ActivityTimeline :items="recentActivities" />
+            </DashboardCard>
+          </div>
+
+          <!-- Right Column: Stats (2/3 width) -->
+          <div class="lg:col-span-2 space-y-4">
+            <h2 class="text-lg font-semibold tracking-tight">Statistik & Data</h2>
+            <div v-if="statCards.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <StatCard
+                v-for="card in statCards"
+                :key="card.label"
+                v-bind="card"
+              />
+            </div>
+
+            <!-- Empty State - No Permissions -->
+            <div v-else class="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed">
+              <div class="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Activity class="w-8 h-8 text-muted-foreground/40" />
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate">{{ u.fullname || u.username }}</p>
-                <p class="text-xs text-muted-foreground">@{{ u.username }}</p>
-              </div>
+              <h3 class="text-lg font-semibold mb-1">Tidak Ada Akses</h3>
+              <p class="text-sm text-muted-foreground max-w-sm">
+                Anda belum memiliki akses ke modul apapun. Hubungi administrator untuk meminta hak akses.
+              </p>
             </div>
           </div>
-        </DashboardCard>
-
-        <!-- Empty State - No Permissions -->
-        <div v-if="statCards.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
-          <div class="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <Activity class="w-8 h-8 text-muted-foreground/40" />
-          </div>
-          <h3 class="text-lg font-semibold mb-1">Tidak Ada Akses</h3>
-          <p class="text-sm text-muted-foreground max-w-sm">
-            Anda belum memiliki akses ke modul apapun. Hubungi administrator untuk meminta hak akses.
-          </p>
         </div>
       </template>
     </div>
