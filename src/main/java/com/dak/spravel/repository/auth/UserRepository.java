@@ -1,4 +1,4 @@
-package com.dak.spravel.repository;
+package com.dak.spravel.repository.auth;
 
 import com.dak.spravel.model.auth.User;
 import org.springframework.data.domain.Page;

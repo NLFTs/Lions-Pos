@@ -7,7 +7,7 @@ import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.UserResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.repository.UserRepository;
+import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.service.UserService;
 import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;

@@ -3,10 +3,11 @@ package com.dak.spravel.seeder;
 import com.dak.spravel.model.auth.Module;
 import com.dak.spravel.model.auth.Permission;
 import com.dak.spravel.model.auth.Role;
-import com.dak.spravel.repository.ModuleRepository;
-import com.dak.spravel.repository.PermissionRepository;
-import com.dak.spravel.repository.RoleRepository;
-import com.dak.spravel.repository.UserRepository;
+import com.dak.spravel.repository.auth.ModuleRepository;
+import com.dak.spravel.repository.auth.PermissionRepository;
+import com.dak.spravel.repository.auth.RoleRepository;
+import com.dak.spravel.repository.auth.UserRepository;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

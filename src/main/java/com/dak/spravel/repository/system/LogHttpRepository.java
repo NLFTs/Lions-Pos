@@ -1,4 +1,4 @@
-package com.dak.spravel.repository;
+package com.dak.spravel.repository.system;
 
 import com.dak.spravel.model.system.LogHttp;
 import org.springframework.data.domain.Page;
