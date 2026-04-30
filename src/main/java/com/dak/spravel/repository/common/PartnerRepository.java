@@ -6,4 +6,6 @@ import com.dak.spravel.model.common.Partners;
 
 @Repository
 public interface PartnerRepository extends JpaRepository<Partners, Long> {    
+    boolean existsByName(String name);
+    boolean existsBySlug(String slug);  
 }

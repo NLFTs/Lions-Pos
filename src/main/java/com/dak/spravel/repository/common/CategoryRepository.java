@@ -1,7 +1,8 @@
 package com.dak.spravel.repository.common;
 
-import com.dak.spravel.model.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.dak.spravel.model.common.Category;
 
 import java.util.Optional;
 
