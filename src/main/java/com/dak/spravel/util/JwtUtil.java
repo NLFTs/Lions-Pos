@@ -5,9 +5,9 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
 import javax.crypto.SecretKey;
 import java.util.Date;
+import java.util.List;
 
 /**
  * JWT token generation, validation, and claim extraction utilities.
@@ -35,6 +35,16 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateAccessToken(String username, List<String> permissions) {
+        return Jwts.builder()
+                .subject(username)
+                .claim("permissions", permissions)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
     public String generateRefreshToken(String username) {
         return Jwts.builder()
                 .subject(username)
@@ -46,6 +56,12 @@ public class JwtUtil {
 
     public String getUsernameFromToken(String token) {
         return getClaims(token).getSubject();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<String> getPermissionsFromToken(String token) {
+        List<String> permissions = (List<String>) getClaims(token).get("permissions");
+        return permissions != null ? permissions : List.of();
     }
 
     public boolean validateToken(String token) {

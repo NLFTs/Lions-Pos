@@ -4,12 +4,11 @@ import com.dak.spravel.dto.request.CreatePermissionRequest;
 import com.dak.spravel.dto.request.UpdatePermissionRequest;
 import com.dak.spravel.dto.response.PermissionResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.Module;
-import com.dak.spravel.model.Permission;
-import com.dak.spravel.repository.ModuleRepository;
-import com.dak.spravel.repository.PermissionRepository;
+import com.dak.spravel.model.auth.Module;
+import com.dak.spravel.model.auth.Permission;
+import com.dak.spravel.repository.auth.ModuleRepository;
+import com.dak.spravel.repository.auth.PermissionRepository;
 import org.springframework.stereotype.Service;
-
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;

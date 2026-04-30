@@ -1,9 +1,9 @@
 package com.dak.spravel.controller;
 
-import com.dak.spravel.model.Token;
-import com.dak.spravel.model.User;
-import com.dak.spravel.repository.TokenRepository;
-import com.dak.spravel.repository.UserRepository;
+import com.dak.spravel.model.auth.Token;
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.repository.auth.TokenRepository;
+import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

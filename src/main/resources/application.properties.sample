@@ -1,0 +1,50 @@
+# Spravel — Application Configuration
+# Semua konfigurasi ada di satu file ini.
+# Nilai sensitif menggunakan fallback dari environment variable.
+# Edit file ini yang awalnya "application.properties.sample" menjadi "application.properties"
+
+# Application
+app.name=spravel
+app.version=0.0.1
+app.build.image.tag=${APP_BUILD_IMAGE_TAG:not-set}
+
+# Database (PostgreSQL)
+spring.datasource.url=${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/gaptek}
+spring.datasource.username=${SPRING_DATASOURCE_USERNAME:postgres}
+spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:password}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Connection Pool (HikariCP)
+spring.datasource.hikari.maximum-pool-size=${SPRING_DATASOURCE_HIKARI_MAX_POOL_SIZE:10}
+spring.datasource.hikari.minimum-idle=${SPRING_DATASOURCE_HIKARI_MIN_IDLE:5}
+
+# JPA / Hibernate
+spring.jpa.hibernate.ddl-auto=${SPRING_JPA_DDL_AUTO:update}
+spring.jpa.show-sql=${SPRING_JPA_SHOW_SQL:false}
+
+# JWT Configuration
+app.jwt.secret=${APP_JWT_SECRET:dGhpc19pc19hX3Zlcnlfc2VjdXJlX3NlY3JldF9mb3Jfand0IQ==}
+# 5 menit (ms) 300000
+app.jwt.access-token-expiration=300000
+# 24 jam (ms) 86400000
+app.jwt.refresh-token-expiration=86400000
+
+# Server
+server.port=${SERVER_PORT:8090}
+
+# Seederx
+app.enable.seeder=${APP_ENABLE_SEEDER:true}
+
+# Logging
+logging.level.com.dak.spravel=${LOGGING_LEVEL_APP:DEBUG}
+logging.level.root=${LOGGING_LEVEL_ROOT:INFO}
+
+# Spring MVC
+spring.mvc.throw-exception-if-no-handler-found=true
+spring.web.resources.add-mappings=true
+
+# Thymeleaf
+spring.thymeleaf.prefix=classpath:/templates/
+spring.thymeleaf.suffix=.html
+spring.thymeleaf.mode=HTML
+spring.thymeleaf.cache=${SPRING_THYMELEAF_CACHE:false}

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "categories")
+@Table(name = "post_categories")
 @EntityListeners(AuditingEntityListener.class)
 public class Category {
     @Id

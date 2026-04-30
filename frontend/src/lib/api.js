@@ -1,13 +1,29 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { setupMocks } from './mock'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
   headers: { 'Content-Type': 'application/json' },
 })
 
+if (import.meta.env.VITE_MOCK_API === 'true') {
+  setupMocks(api)
+}
+
 // ─── Helper: decode permissions from JWT payload (no extra lib needed) ────────
 function parseJwtPerms(token) {
+  if (import.meta.env.VITE_MOCK_API === 'true' && token === 'mock-access-token') {
+    return [
+      'user.index', 'user.store', 'user.update', 'user.destroy',
+      'post.index', 'post.store', 'post.update', 'post.destroy',
+      'category.index', 'category.store', 'category.update', 'category.destroy',
+      'role.index', 'role.store', 'role.update', 'role.destroy',
+      'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
+      'module.index', 'module.store', 'module.update', 'module.destroy',
+      'log.index'
+    ]
+  }
   try {
     const payload = JSON.parse(
       atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))
