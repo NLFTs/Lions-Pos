@@ -158,23 +158,48 @@ const mockData = {
 
 export function setupMocks(api) {
   api.interceptors.request.use(async (config) => {
-    // Check if we have mock data for this URL
     // Strip base URL if present
     const url = config.url.replace(config.baseURL, '')
-    
+
+    // Exact match first
     if (mockData[url]) {
       console.log(`[Mock API] Intercepting ${config.method.toUpperCase()} ${url}`)
-      
-      // Return a resolved promise with the mock data
-      // We throw an object that looks like an Axios error or success
-      // But actually, we want to return a response object.
-      // Axios interceptors allow returning a response directly to skip the network.
-      return Promise.reject({
-        __isMock: true,
-        response: mockData[url]
-      })
+      return Promise.reject({ __isMock: true, response: mockData[url] })
     }
-    
+
+    // Prefix / pattern match for paginated endpoints
+    // e.g. /api/v1/users?page=0&size=10  → use /api/v1/users mock
+    const baseUrl = url.split('?')[0]
+    if (mockData[baseUrl]) {
+      const mockResponse = mockData[baseUrl]
+
+      // If the mock data is a flat array, wrap it in a paginated envelope
+      const rawData = mockResponse.data?.data
+      if (Array.isArray(rawData)) {
+        const params = new URLSearchParams(url.split('?')[1] || '')
+        const page = parseInt(params.get('page') || '0')
+        const size = parseInt(params.get('size') || '10')
+        const sliced = rawData.slice(page * size, page * size + size)
+        const paginatedResponse = {
+          ...mockResponse,
+          data: {
+            data: {
+              content: sliced,
+              totalElements: rawData.length,
+              totalPages: Math.ceil(rawData.length / size),
+              number: page,
+              size,
+            }
+          }
+        }
+        console.log(`[Mock API] Intercepting (paginated) ${config.method.toUpperCase()} ${url}`)
+        return Promise.reject({ __isMock: true, response: paginatedResponse })
+      }
+
+      console.log(`[Mock API] Intercepting (prefix) ${config.method.toUpperCase()} ${url}`)
+      return Promise.reject({ __isMock: true, response: mockResponse })
+    }
+
     return config
   })
 
