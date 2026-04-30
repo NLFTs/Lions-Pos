@@ -7,5 +7,7 @@ import com.dak.spravel.model.order.Payments;
 
 @Repository
 public interface PaymentsRepository extends JpaRepository <Payments, Long> {
+   
+    
     
 }
