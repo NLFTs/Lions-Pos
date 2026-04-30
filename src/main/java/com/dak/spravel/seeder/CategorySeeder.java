@@ -1,8 +1,9 @@
     package com.dak.spravel.seeder;
 
     import com.dak.spravel.model.Category;
-    import com.dak.spravel.repository.CategoryRepository;
-    import org.springframework.beans.factory.annotation.Value;
+import com.dak.spravel.repository.order.CategoryRepository;
+
+import org.springframework.beans.factory.annotation.Value;
     import org.springframework.stereotype.Component;
     import lombok.RequiredArgsConstructor;
 

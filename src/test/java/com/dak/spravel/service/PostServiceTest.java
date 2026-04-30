@@ -6,8 +6,9 @@ import com.dak.spravel.dto.response.PostResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.Category;
 import com.dak.spravel.model.common.Post;
-import com.dak.spravel.repository.CategoryRepository;
-import com.dak.spravel.repository.PostRepository;
+import com.dak.spravel.repository.common.PostRepository;
+import com.dak.spravel.repository.order.CategoryRepository;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

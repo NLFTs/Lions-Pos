@@ -1,4 +1,4 @@
-package com.dak.spravel.repository;
+package com.dak.spravel.repository.order;
 
 import com.dak.spravel.model.Category;
 import org.springframework.data.jpa.repository.JpaRepository;

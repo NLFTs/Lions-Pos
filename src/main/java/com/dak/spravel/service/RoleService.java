@@ -8,8 +8,9 @@ import com.dak.spravel.dto.response.RoleResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Permission;
 import com.dak.spravel.model.auth.Role;
-import com.dak.spravel.repository.PermissionRepository;
-import com.dak.spravel.repository.RoleRepository;
+import com.dak.spravel.repository.auth.PermissionRepository;
+import com.dak.spravel.repository.auth.RoleRepository;
+
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;

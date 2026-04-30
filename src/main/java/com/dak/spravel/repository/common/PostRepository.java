@@ -1,4 +1,4 @@
-package com.dak.spravel.repository;
+package com.dak.spravel.repository.common;
 
 import com.dak.spravel.model.common.Post;
 import org.springframework.data.domain.Page;

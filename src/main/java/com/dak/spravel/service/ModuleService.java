@@ -5,7 +5,8 @@ import com.dak.spravel.dto.request.UpdateModuleRequest;
 import com.dak.spravel.dto.response.ModuleResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Module;
-import com.dak.spravel.repository.ModuleRepository;
+import com.dak.spravel.repository.auth.ModuleRepository;
+
 import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
