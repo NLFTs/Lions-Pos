@@ -1,5 +1,5 @@
 /**
- * Mocking layer for Spravel Frontend
+ * Mocking layer for GAPETK Frontend
  * This allows the frontend to run without a backend.
  */
 
@@ -91,6 +91,67 @@ const mockData = {
         { id: 'm1', name: 'User Management' },
         { id: 'm2', name: 'Content Management' },
       ]
+    }
+  },
+  '/api/v1/logs?page=0&size=20': {
+    status: 200,
+    data: {
+      data: {
+        totalElements: 4,
+        totalPages: 1,
+        number: 0,
+        size: 20,
+        content: [
+          {
+            id: 'log1',
+            method: 'POST',
+            url: '/api/v1/auth/login',
+            responseStatus: 200,
+            userFullname: 'Super Admin Mock',
+            userId: 'mock-user-1',
+            durationMs: 45,
+            requestAt: new Date().toISOString(),
+            responseAt: new Date().toISOString(),
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/115.0.0.0 Safari/537.36'
+          },
+          {
+            id: 'log2',
+            method: 'GET',
+            url: '/api/v1/users',
+            responseStatus: 200,
+            userFullname: 'Super Admin Mock',
+            userId: 'mock-user-1',
+            durationMs: 120,
+            requestAt: new Date(Date.now() - 3600000).toISOString(),
+            responseAt: new Date(Date.now() - 3600000 + 120).toISOString(),
+            userAgent: 'Mozilla/5.0'
+          },
+          {
+            id: 'log3',
+            method: 'PUT',
+            url: '/api/v1/settings/theme',
+            responseStatus: 204,
+            userFullname: 'Jane Smith',
+            userId: '2',
+            durationMs: 80,
+            requestAt: new Date(Date.now() - 7200000).toISOString(),
+            responseAt: new Date(Date.now() - 7200000 + 80).toISOString(),
+            userAgent: 'PostmanRuntime/7.28.4'
+          },
+          {
+            id: 'log4',
+            method: 'DELETE',
+            url: '/api/v1/posts/p1',
+            responseStatus: 403,
+            userFullname: 'Bob Builder',
+            userId: '3',
+            durationMs: 35,
+            requestAt: new Date(Date.now() - 86400000).toISOString(),
+            responseAt: new Date(Date.now() - 86400000 + 35).toISOString(),
+            userAgent: 'curl/7.68.0'
+          }
+        ]
+      }
     }
   }
 }
