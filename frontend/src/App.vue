@@ -1,7 +1,8 @@
 <script setup>
-// App.vue — Root component. Routing handled by Vue Router.
+import NotificationProvider from '@/components/ui/NotificationProvider.vue'
 </script>
 
 <template>
   <RouterView />
+  <NotificationProvider />
 </template>
