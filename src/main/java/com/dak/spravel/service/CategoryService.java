@@ -5,7 +5,8 @@ import com.dak.spravel.dto.request.UpdateCategoryRequest;
 import com.dak.spravel.dto.response.CategoryResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.Category;
-import com.dak.spravel.repository.CategoryRepository;
+import com.dak.spravel.repository.common.CategoryRepository;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

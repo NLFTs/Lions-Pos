@@ -394,7 +394,27 @@ const THEMES = {
 
 export const useThemeStore = defineStore('theme', () => {
   const currentTheme = ref(localStorage.getItem('theme') || 'default')
-  const isDark = ref(localStorage.getItem('isDark') === 'true')
+  const isDark = ref(false)
+
+  // Initialize
+  function init() {
+    const savedDark = localStorage.getItem('isDark')
+    if (savedDark !== null) {
+      isDark.value = savedDark === 'true'
+    } else {
+      // Auto-detect browser preference
+      isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+
+    applyTheme(currentTheme.value, isDark.value)
+
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      if (localStorage.getItem('isDark') === null) {
+        applyTheme(currentTheme.value, e.matches)
+      }
+    })
+  }
 
   const themeLabels = computed(() => {
     return Object.entries(THEMES).map(([key, value]) => ({
@@ -404,55 +424,50 @@ export const useThemeStore = defineStore('theme', () => {
     }))
   })
 
-  function applyTheme(themeKey, dark) {
-    const theme = THEMES[themeKey]
-    if (!theme) return
+function applyTheme(themeKey, dark) {
+  const theme = THEMES[themeKey]
+  if (!theme) return
 
-    const colorScheme = dark ? 'dark' : 'light'
-    const colors = theme.colors[colorScheme]
+  const colorScheme = dark ? 'dark' : 'light'
+  const colors = theme.colors[colorScheme]
 
-    const root = document.documentElement
+  const root = document.documentElement
 
-    // Apply colors
-    Object.entries(colors).forEach(([prop, value]) => {
-      root.style.setProperty(prop, value)
-    })
+  // Apply colors
+  Object.entries(colors).forEach(([prop, value]) => {
+    root.style.setProperty(prop, value)
+  })
 
-    // Apply dark class
-    if (dark) {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-
-    // Save preferences
-    localStorage.setItem('theme', themeKey)
-    localStorage.setItem('isDark', String(dark))
-    currentTheme.value = themeKey
-    isDark.value = dark
+  // Apply dark class
+  if (dark) {
+    root.classList.add('dark')
+  } else {
+    root.classList.remove('dark')
   }
 
-  function toggleDark() {
-    applyTheme(currentTheme.value, !isDark.value)
-  }
+  // Save preferences
+  localStorage.setItem('theme', themeKey)
+  localStorage.setItem('isDark', String(dark))
+  currentTheme.value = themeKey
+  isDark.value = dark
+}
 
-  function setTheme(themeKey) {
-    applyTheme(themeKey, isDark.value)
-  }
+function toggleDark() {
+  applyTheme(currentTheme.value, !isDark.value)
+}
 
-  // Initialize
-  function init() {
-    applyTheme(currentTheme.value, isDark.value)
-  }
+function setTheme(themeKey) {
+  applyTheme(themeKey, isDark.value)
+}
 
   return {
-    currentTheme,
-    isDark,
-    themeLabels,
-    THEMES,
-    applyTheme,
-    toggleDark,
-    setTheme,
-    init,
-  }
+  currentTheme,
+  isDark,
+  themeLabels,
+  THEMES,
+  applyTheme,
+  toggleDark,
+  setTheme,
+  init,
+}
 })
