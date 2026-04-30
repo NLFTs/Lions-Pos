@@ -35,7 +35,7 @@
 defineProps({
   brandName: {
     type: String,
-    default: 'Spravel'
+    default: 'GAPETK'
   },
   navItems: {
     type: Array,

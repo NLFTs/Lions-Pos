@@ -3,6 +3,7 @@ import { ref, shallowRef, computed } from 'vue'
 import axios from 'axios'
 import api from '@/lib/api'
 import router from '@/router'
+import { FULL_PERMISSIONS, isEmptyMode, isMockMode } from '@/lib/appMode'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function loadJson(key, fallback) {
@@ -17,19 +18,16 @@ function loadJson(key, fallback) {
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ─────────────────────────────────────────────────────────────────
   // shallowRef: user & permissions tidak perlu deep reactive — hanya di-replace keseluruhan
-  const isMock = import.meta.env.VITE_MOCK_API === 'true'
-  const accessToken  = ref(localStorage.getItem('access_token')  || (isMock ? 'mock-access-token' : null))
-  const refreshToken = ref(localStorage.getItem('refresh_token') || (isMock ? 'mock-refresh-token' : null))
-  const user         = shallowRef(loadJson('auth_user', isMock ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null))
-  const permissions  = shallowRef(loadJson('auth_permissions', isMock ? [
-    'user.index', 'user.store', 'user.update', 'user.destroy',
-    'post.index', 'post.store', 'post.update', 'post.destroy',
-    'category.index', 'category.store', 'category.update', 'category.destroy',
-    'role.index', 'role.store', 'role.update', 'role.destroy',
-    'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
-    'module.index', 'module.store', 'module.update', 'module.destroy',
-    'log.index'
-  ] : []))
+  const offlineAccessToken = isEmptyMode ? 'empty-access-token' : (isMockMode ? 'mock-access-token' : null)
+  const offlineRefreshToken = isEmptyMode ? 'empty-refresh-token' : (isMockMode ? 'mock-refresh-token' : null)
+  const offlineUser = isEmptyMode
+    ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
+    : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
+
+  const accessToken  = ref(localStorage.getItem('access_token')  || offlineAccessToken)
+  const refreshToken = ref(localStorage.getItem('refresh_token') || offlineRefreshToken)
+  const user         = shallowRef(loadJson('auth_user', offlineUser))
+  const permissions  = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
 
   const isAuthenticated = computed(() => !!accessToken.value)
 

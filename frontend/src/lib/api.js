@@ -1,28 +1,24 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { setupMocks } from './mock'
+import { setupEmptyData } from './empty'
+import { FULL_PERMISSIONS, isEmptyMode, isMockMode } from './appMode'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
   headers: { 'Content-Type': 'application/json' },
 })
 
-if (import.meta.env.VITE_MOCK_API === 'true') {
+if (isEmptyMode) {
+  setupEmptyData(api)
+} else if (isMockMode) {
   setupMocks(api)
 }
 
 // ─── Helper: decode permissions from JWT payload (no extra lib needed) ────────
 function parseJwtPerms(token) {
-  if (import.meta.env.VITE_MOCK_API === 'true' && token === 'mock-access-token') {
-    return [
-      'user.index', 'user.store', 'user.update', 'user.destroy',
-      'post.index', 'post.store', 'post.update', 'post.destroy',
-      'category.index', 'category.store', 'category.update', 'category.destroy',
-      'role.index', 'role.store', 'role.update', 'role.destroy',
-      'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
-      'module.index', 'module.store', 'module.update', 'module.destroy',
-      'log.index'
-    ]
+  if ((isMockMode && token === 'mock-access-token') || (isEmptyMode && token === 'empty-access-token')) {
+    return FULL_PERMISSIONS
   }
   try {
     const payload = JSON.parse(
