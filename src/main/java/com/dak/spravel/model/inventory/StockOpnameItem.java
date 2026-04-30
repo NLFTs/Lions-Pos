@@ -4,7 +4,6 @@ import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,9 +18,6 @@ public class StockOpnameItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(name = "uid", updatable = false, nullable = false, unique = true)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stock_opname_id", referencedColumnName = "id", nullable = false)
@@ -41,7 +37,7 @@ public class StockOpnameItem {
     private BigDecimal qtyDifference = BigDecimal.ZERO;
 
         // // Service akan menghitung qtyDifference = qtyPhysical - qtySystem, dan menyimpan snapshot unit cost dari stock balance saat ini
-        // public void inputPhysicalCount(UUID opnameItemId, BigDecimal qtyPhysical) {
+        // public void inputPhysicalCount(String opnameItemId, BigDecimal qtyPhysical) {
         //     OpnameItem item = opnameItemRepository.findByUid(opnameItemId)
         //         .orElseThrow(() -> new RuntimeException("Item tidak ditemukan"));
 
@@ -58,7 +54,7 @@ public class StockOpnameItem {
     private String notes;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "counted_by" , referencedColumnName = "id")
+    @JoinColumn(name = "counted_by", referencedColumnName = "id")
     private User countedBy;
 
     @Column(name = "counted_at")

@@ -1,7 +1,6 @@
 package com.dak.spravel.model.inventory;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
@@ -22,8 +21,6 @@ public class StockOpname extends BaseEntity{
     @GeneratedValue(strategy = GenerationType.IDENTITY) 
     private Long id;
 
-    @Column(name = "uid", updatable = false, unique = true)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
@@ -34,7 +31,7 @@ public class StockOpname extends BaseEntity{
     private String location;
 
     @Column(name = "location_id", nullable = false)
-    private UUID locationId;
+    private Long locationId;
 
     private LocalDateTime date;
 

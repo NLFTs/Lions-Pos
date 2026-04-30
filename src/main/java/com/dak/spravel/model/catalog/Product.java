@@ -5,9 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.common.Partners;
 import java.math.BigDecimal;
-import java.util.UUID;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -18,19 +18,18 @@ import java.util.UUID;
     name = "products"
 
 )
-public class Product extends BaseEntitySimple{
+public class Product extends BaseEntity{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private UUID uid;
-
-    @Column(name = "partner_id", nullable = false)
-    private UUID partnerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", referencedColumnName = "id")
-    private Category category;
+    private CategoryProduct category;
 
     @Column(nullable = false)
     private String name;

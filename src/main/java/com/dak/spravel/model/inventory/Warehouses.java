@@ -1,7 +1,8 @@
 package com.dak.spravel.model.inventory;
 
 import jakarta.persistence.*;
-import com.dak.spravel.model.base.BaseEntitySimple;
+
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,12 +15,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "warehouses")
-public class Warehouses extends BaseEntitySimple {
+public class Warehouses extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partners_id", referencedColumnName = "id")
     private Partners partners;
 

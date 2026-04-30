@@ -1,6 +1,6 @@
 package com.dak.spravel.model.auth;
 
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
 import jakarta.persistence.*;
@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Entity
 @Table(name = "user_profiles")
-public class UserProfile extends BaseEntitySimple {
+public class UserProfile extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

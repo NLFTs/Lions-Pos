@@ -2,13 +2,15 @@ package com.dak.spravel.model.inventory;
 
 import jakarta.persistence.*;
 import com.dak.spravel.model.catalog.Product;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
-import java.util.UUID;
 
 @Entity
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "transfer_request_items")
 public class TransferRequestItem {
 
@@ -16,14 +18,6 @@ public class TransferRequestItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private UUID uid;
-    public TransferRequestItem() {
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
-
-    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transfer_request_id", referencedColumnName = "id", insertable = false, updatable = false)
     private TransferRequest transferRequest;

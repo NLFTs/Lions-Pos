@@ -4,7 +4,7 @@ import com.dak.spravel.dto.request.CreatePostRequest;
 import com.dak.spravel.dto.request.UpdatePostRequest;
 import com.dak.spravel.dto.response.PostResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.catalog.Category;
+import com.dak.spravel.model.Category;
 import com.dak.spravel.model.common.Post;
 import com.dak.spravel.repository.CategoryRepository;
 import com.dak.spravel.repository.PostRepository;

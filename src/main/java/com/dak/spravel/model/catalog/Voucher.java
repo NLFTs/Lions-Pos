@@ -1,10 +1,9 @@
 package com.dak.spravel.model.catalog;
 
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -17,17 +16,10 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "vouchers",indexes=@Index(name = "idx_vouchers_code", columnList = "code"))
-public class Voucher extends BaseEntitySimple {
+public class Voucher extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    private UUID uid; 
-    public void init() {
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)

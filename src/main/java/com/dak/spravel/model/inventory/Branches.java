@@ -1,8 +1,6 @@
 package com.dak.spravel.model.inventory;
 
-import java.util.UUID;
-
-import com.dak.spravel.model.base.BaseEntitySimple;
+import com.dak.spravel.model.base.BaseEntity;
 import com.dak.spravel.model.common.Partners;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -16,20 +14,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "branches")
-public class Branches extends BaseEntitySimple {
+public class Branches extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(unique = true, updatable = false, nullable = false)
-    private UUID uid;
-
-    @PrePersist
-    private void onCreateUid(){
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
 
     @ManyToOne
     @JoinColumn(name = "partners_id", referencedColumnName = "id")

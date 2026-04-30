@@ -1,7 +1,6 @@
 package com.dak.spravel.model.order;
 
 import java.math.BigDecimal;
-import java.util.UUID;
 import com.dak.spravel.model.catalog.Product;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -12,13 +11,11 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "order_items")
 public class OrderItems {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "uid", updatable = false, nullable = false, unique = true)
-    private UUID uid;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", referencedColumnName = "id", nullable = false)

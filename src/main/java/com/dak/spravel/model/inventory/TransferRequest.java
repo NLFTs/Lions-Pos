@@ -10,7 +10,6 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Data
@@ -23,13 +22,6 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private UUID uid;
-    public void generateUid() {
-        if (this.uid == null) {
-            this.uid = UUID.randomUUID();
-        }
-    }
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Partners partner;
@@ -40,7 +32,7 @@ public class TransferRequest {
     private String fromLocationType;
 
     @Column(name = "from_location_id", nullable = false)
-    private UUID fromLocationId;
+    private Long fromLocationId;
 
     /**
      * "branch" | "warehouse"
@@ -49,7 +41,7 @@ public class TransferRequest {
     private String toLocationType;
 
     @Column(name = "to_location_id", nullable = false)
-    private UUID toLocationId;
+    private Long toLocationId;
 
     /**
      * "pending" | "approved" | "in_transit" | "received" | "cancelled"
