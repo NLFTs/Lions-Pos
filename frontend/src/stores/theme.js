@@ -393,7 +393,7 @@ const THEMES = {
 }
 
 export const useThemeStore = defineStore('theme', () => {
-  const currentTheme = ref(localStorage.getItem('theme') || 'default')
+  const currentTheme = ref(localStorage.getItem('theme') || 'zinc')
   const isDark = ref(false)
 
   // Initialize
