@@ -11,7 +11,6 @@ import {
   LayoutDashboard,
   ShieldCheck,
   KeyRound,
-  UserCircle,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -21,13 +20,16 @@ import {
   Activity,
   PanelLeftClose,
   PanelLeftOpen,
-  Palette,
   Settings,
   Monitor,
   Moon,
   Sun,
   HelpCircle,
-  LogIn,
+  SmilePlus,
+  Home,
+  Pencil,
+  LifeBuoy,
+  Book,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -223,6 +225,19 @@ const activeLanguageColor = computed(() => {
   return 'text-[var(--primary)]'
 })
 
+// Theme Preference State (system | light | dark)
+const themePreference = ref(localStorage.getItem('isDark') === null ? 'system' : (themeStore.isDark ? 'dark' : 'light'))
+
+function setThemePreference(pref) {
+  themePreference.value = pref
+  if (pref === 'system') {
+    localStorage.removeItem('isDark')
+    themeStore.init()
+  } else {
+    themeStore.applyTheme(themeStore.currentTheme, pref === 'dark')
+  }
+}
+
 onMounted(() => {
   expandActiveParents()
 })
@@ -374,82 +389,80 @@ onBeforeUnmount(() => {
             </button>
           </DropdownMenuTrigger>
 
-          <DropdownMenuContent side="top" align="start" :side-offset="8" class="w-56 p-1">
+          <DropdownMenuContent side="top" align="start" :side-offset="8" class="w-[280px] p-0">
             <!-- Header -->
-            <DropdownMenuLabel class="px-2 py-2">
-              <div class="flex flex-col space-y-1">
-                <p class="text-sm font-bold leading-none text-zinc-900 dark:text-zinc-100">{{ displayName }}</p>
-                <p class="text-[11px] leading-none text-zinc-500 font-medium">{{ user?.role || 'Super Admin' }}</p>
+            <div class="flex items-center justify-between px-3 py-3 border-b border-border">
+              <div class="flex flex-col space-y-0.5">
+                <p class="text-sm font-semibold leading-none text-zinc-900 dark:text-zinc-100">{{ displayName }}</p>
+                <p class="text-[13px] leading-none text-zinc-500">{{ displayEmail }}</p>
               </div>
-            </DropdownMenuLabel>
-            
-            <DropdownMenuSeparator />
+              <button @click="router.push('/dashboard/profile')" class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                <Settings class="h-4 w-4" />
+              </button>
+            </div>
 
             <!-- Main actions -->
-            <DropdownMenuGroup>
-              <DropdownMenuItem @click="router.push('/dashboard/profile')">
-                <UserCircle class="mr-2 h-4 w-4" />
-                <span>Profil</span>
+            <div class="p-1">
+              <DropdownMenuItem class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Feedback</span>
+                <SmilePlus class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
-            </DropdownMenuGroup>
 
-            <DropdownMenuSeparator />
+              <div class="flex items-center justify-between px-2 py-1.5 text-sm">
+                <span>Theme</span>
+                <div class="flex items-center gap-1 border border-border rounded-full p-0.5">
+                  <button @click="setThemePreference('system')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'system', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'system' }">
+                    <Monitor class="h-3.5 w-3.5" />
+                  </button>
+                  <button @click="setThemePreference('light')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'light', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'light' }">
+                    <Sun class="h-3.5 w-3.5" />
+                  </button>
+                  <button @click="setThemePreference('dark')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'dark', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'dark' }">
+                    <Moon class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
 
-            <!-- Nested menus -->
-            <DropdownMenuGroup>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Palette class="mr-2 h-4 w-4" />
-                  <span>Tema</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuCheckboxItem
-                      v-for="t in themeStore.themeLabels"
-                      :key="t.key"
-                      :checked="themeStore.currentTheme === t.key"
-                      @click="themeStore.setTheme(t.key)"
-                    >
-                      <span class="mr-2 flex h-3 w-3 shrink-0 -translate-x-1 items-center justify-center rounded-full" :style="{ backgroundColor: t.color }"></span>
-                      {{ t.label }}
-                    </DropdownMenuCheckboxItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
+              <DropdownMenuItem @click="router.push('/')" class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Home Page</span>
+                <Home class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
 
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Monitor class="mr-2 h-4 w-4" />
-                  <span>Tampilan</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuCheckboxItem
-                      :checked="!themeStore.isDark"
-                      @click="themeStore.isDark && themeStore.toggleDark()"
-                    >
-                      <Sun class="mr-2 h-4 w-4 text-zinc-500" />
-                      <span>Terang</span>
-                    </DropdownMenuCheckboxItem>
-                    <DropdownMenuCheckboxItem
-                      :checked="themeStore.isDark"
-                      @click="!themeStore.isDark && themeStore.toggleDark()"
-                    >
-                      <Moon class="mr-2 h-4 w-4 text-zinc-500" />
-                      <span>Gelap</span>
-                    </DropdownMenuCheckboxItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
+              <DropdownMenuItem @click="router.push('/changelog')" class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Changelog</span>
+                <Pencil class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
 
-            <DropdownMenuSeparator />
+              <DropdownMenuItem @click="router.push('/help')" class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Help</span>
+                <LifeBuoy class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
 
-            <!-- Logout -->
-            <DropdownMenuItem @click="auth.logout()" class="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-950/30 focus:text-red-600 dark:focus:text-red-400">
-              <LogOut class="mr-2 h-4 w-4" />
-              <span>Keluar</span>
-            </DropdownMenuItem>
+              <DropdownMenuItem @click="router.push('/docs')" class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Docs</span>
+                <Book class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
+
+              <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
+                <span>Log Out</span>
+                <LogOut class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
+            </div>
+
+            <!-- Upgrade Button -->
+            <div class="px-3 pb-3">
+              <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
+                Upgrade to Pro
+              </Button>
+            </div>
+
+            <div class="border-t border-border bg-zinc-50/50 dark:bg-zinc-900/50 px-3 py-2.5 flex items-center justify-between rounded-b-md">
+              <div class="flex flex-col">
+                <span class="text-xs font-medium text-zinc-500">Platform Status</span>
+                <span class="text-[13px] text-zinc-900 dark:text-zinc-100">All systems normal.</span>
+              </div>
+              <div class="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
