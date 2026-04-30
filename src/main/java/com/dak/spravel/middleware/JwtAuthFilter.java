@@ -1,6 +1,6 @@
 package com.dak.spravel.middleware;
 
-import com.dak.spravel.service.PermissionCacheService;
+import com.dak.spravel.service.auth.PermissionCacheService;
 import com.dak.spravel.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

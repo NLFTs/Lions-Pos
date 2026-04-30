@@ -1,5 +1,6 @@
 package com.dak.spravel.controller;
 
+import com.dak.spravel.controller.auth.AuthController;
 import com.dak.spravel.model.auth.Token;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.auth.TokenRepository;

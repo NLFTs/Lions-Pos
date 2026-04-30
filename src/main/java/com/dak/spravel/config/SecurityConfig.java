@@ -3,7 +3,7 @@ package com.dak.spravel.config;
 import com.dak.spravel.handler.CustomAccessDeniedHandler;
 import com.dak.spravel.handler.CustomAuthEntryPoint;
 import com.dak.spravel.middleware.JwtAuthFilter;
-import com.dak.spravel.service.PermissionCacheService;
+import com.dak.spravel.service.auth.PermissionCacheService;
 import com.dak.spravel.util.JwtUtil;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

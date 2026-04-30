@@ -1,6 +1,5 @@
 package com.dak.spravel.model.common;
 
-import com.dak.spravel.model.Category;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

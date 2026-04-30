@@ -1,28 +1,43 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+import fs from 'node:fs'
+import path from 'node:path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const outDirPath = path.resolve(__dirname, '../src/main/resources/static')
 
-  // Dev mode: base '/' agar URL tanpa prefix (localhost:5173/login)
-  // Prod build: base '/_/' agar Spring Boot serve dengan prefix (localhost:8090/_/login)
-  const base = mode === 'production' ? '/_/' : '/'
+  /**
+   * LOGIKA PEMBERSIHAN MANUAL
+   * Hanya berjalan saat mode production (npm run build)
+   */
+  if (mode === 'production' && fs.existsSync(outDirPath)) {
+    const files = fs.readdirSync(outDirPath)
+    files.forEach(file => {
+      // Tentukan pengecualian di sini. Folder 'scalar-ui' tidak akan dihapus.
+      if (file !== 'scalar-ui') {
+        const fullPath = path.join(outDirPath, file)
+        fs.rmSync(fullPath, { recursive: true, force: true })
+      }
+    })
+    console.log('✅ Cleaned static folder (preserved: scalar-ui)')
+  }
 
   return {
-    base,
+    base: mode === 'production' ? '/_/' : '/',
     plugins: [vue()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
-    optimizeDeps: {
-      include: ['vue', 'vue-router', 'pinia', 'axios'],
-    },
     build: {
       outDir: '../src/main/resources/static',
-      emptyOutDir: true,
+      // PENTING: Set ke false agar Vite tidak menghapus scalar-ui yang sudah kita amankan di atas
+      emptyOutDir: false, 
       target: 'es2022',
       rollupOptions: {
         output: {
