@@ -58,12 +58,11 @@ const route = useRoute()
 const router = useRouter()
 const confirmStore = useConfirmStore()
 
-// Sidebar state
-const sidebarCollapsed = ref(localStorage.getItem('sidebarCollapsed') === 'true')
+// Sidebar state (mobile only)
+const sidebarOpen = ref(false)
 
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed.value))
+  sidebarOpen.value = !sidebarOpen.value
 }
 
 // ─── Menu Groups (dengan section header) ────────────────────────────────────
@@ -195,6 +194,7 @@ function expandActiveParents() {
 // Watch route changes and expand active parents
 watch(() => route.path, () => {
   expandActiveParents()
+  sidebarOpen.value = false
 }, { immediate: true })
 
 // handleProfileMenuAction removed
@@ -262,10 +262,20 @@ onBeforeUnmount(() => {
       @cancel="confirmStore.onCancel"
     />
 
+    <!-- Mobile Sidebar Overlay -->
+    <div
+      v-if="sidebarOpen"
+      class="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
+      @click="sidebarOpen = false"
+    ></div>
+
     <!-- ═══════════════════════════════════════════════════════════ SIDEBAR ═══ -->
     <aside
-      class="flex flex-col bg-white dark:bg-zinc-950 border-r border-border shrink-0 z-20 transition-all duration-300 ease-in-out"
-      :class="sidebarCollapsed ? 'w-[70px]' : 'w-[280px]'"
+      class="flex flex-col bg-white dark:bg-zinc-950 border-r border-border shrink-0 transition-transform duration-300 ease-in-out w-[280px]"
+      :class="[
+        'fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0',
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      ]"
     >
       <!-- ─── HEADER: Logo ─────────────────────────────────────────────────── -->
       <div class="flex h-12 items-center px-4 border-b border-border shrink-0">
@@ -273,7 +283,7 @@ onBeforeUnmount(() => {
           <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
             <Zap class="w-5 h-5 text-primary-foreground" />
           </div>
-          <span v-if="!sidebarCollapsed" class="text-lg font-bold tracking-tight whitespace-nowrap transition-opacity duration-200">
+          <span class="text-lg font-bold tracking-tight whitespace-nowrap transition-opacity duration-200">
             Spravel
           </span>
         </div>
@@ -281,7 +291,6 @@ onBeforeUnmount(() => {
 
       <!-- ─── BODY: Menu dengan Groups ─────────────────────────────────────── -->
       <nav class="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
-        <template v-if="!sidebarCollapsed">
           <template v-for="group in filteredMenuGroups" :key="group.label">
             <!-- Group Header -->
             <div class="mb-2 mt-4 px-3">
@@ -346,26 +355,6 @@ onBeforeUnmount(() => {
               </template>
             </div>
           </template>
-        </template>
-
-        <!-- Collapsed state: icon only -->
-        <template v-else>
-          <template v-for="group in filteredMenuGroups" :key="group.label">
-            <template v-for="item in group.items" :key="item.label">
-              <RouterLink
-                v-if="!item.children"
-                :to="item.to"
-                class="flex items-center justify-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all mb-1"
-                :class="isItemActive(item)
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900'"
-                :title="item.label"
-              >
-                <component :is="item.icon" class="w-5 h-5 shrink-0" />
-              </RouterLink>
-            </template>
-          </template>
-        </template>
       </nav>
 
       <!-- ─── FOOTER: Profile Button ───────────────────────────────────────── -->
@@ -374,18 +363,15 @@ onBeforeUnmount(() => {
           <DropdownMenuTrigger as-child>
             <button
               class="flex w-full items-center gap-2 rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors outline-none"
-              :class="sidebarCollapsed ? 'justify-center' : ''"
             >
               <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0 shadow-sm border border-primary/20">
                 {{ userInitial }}
               </div>
-              <template v-if="!sidebarCollapsed">
-                <div class="flex flex-col flex-1 text-left overflow-hidden">
-                  <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-none mb-0.5">{{ displayName }}</span>
-                  <span class="text-[10px] text-zinc-500 dark:text-zinc-500 font-medium tracking-tight uppercase">{{ user?.role || 'Administrator' }}</span>
-                </div>
-                <ChevronDown class="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              </template>
+              <div class="flex flex-col flex-1 text-left overflow-hidden">
+                <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-none mb-0.5">{{ displayName }}</span>
+                <span class="text-[10px] text-zinc-500 dark:text-zinc-500 font-medium tracking-tight uppercase">{{ user?.role || 'Administrator' }}</span>
+              </div>
+              <ChevronDown class="w-3.5 h-3.5 text-zinc-400 shrink-0" />
             </button>
           </DropdownMenuTrigger>
 
@@ -476,11 +462,10 @@ onBeforeUnmount(() => {
         <div class="flex items-center gap-4">
           <button
             @click="toggleSidebar"
-            class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
-            :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+            class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors lg:hidden"
+            title="Toggle sidebar"
           >
-            <PanelLeftOpen v-if="sidebarCollapsed" class="w-4 h-4" />
-            <PanelLeftClose v-else class="w-4 h-4" />
+            <PanelLeftOpen class="w-4 h-4" />
           </button>
         </div>
         <!-- Right: Language + Help -->
