@@ -6,7 +6,7 @@ import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export default defineConfig(({ mode, isSsrBuild }) => {
+export default defineConfig(({ command, mode, isSsrBuild }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const outDirPath = path.resolve(__dirname, '../src/main/resources/static')
 
@@ -14,7 +14,7 @@ export default defineConfig(({ mode, isSsrBuild }) => {
    * LOGIKA PEMBERSIHAN MANUAL
    * Hanya berjalan saat mode production (npm run build) dan BUKAN saat SSR build
    */
-  if (mode === 'production' && !isSsrBuild && fs.existsSync(outDirPath)) {
+  if (command === 'build' && mode === 'production' && !isSsrBuild && fs.existsSync(outDirPath)) {
     const files = fs.readdirSync(outDirPath)
     files.forEach(file => {
       // Tentukan pengecualian di sini. Folder 'scalar-ui' tidak akan dihapus.
