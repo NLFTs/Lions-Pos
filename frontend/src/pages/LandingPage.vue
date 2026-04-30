@@ -18,7 +18,7 @@ useGsap((gsap, ScrollTrigger) => {
 })
 
 // Configuration for Landing Page
-const brandName = 'Spravel'
+const brandName = 'GAPETK'
 
 const navigationItems = [
   { name: 'Home', path: '/' },

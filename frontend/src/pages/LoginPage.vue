@@ -165,7 +165,7 @@ const features = [
         
         <!-- Bottom branding/info -->
         <div class="absolute bottom-10 text-xs font-semibold tracking-widest text-primary-foreground/40 uppercase transition-colors duration-300">
-          © 2026 Spravel Enterprise Edition
+          © 2026 GAPTEK Enterprise Edition
         </div>
       </div>
     </div>
