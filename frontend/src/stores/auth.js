@@ -2,14 +2,23 @@ import { defineStore } from 'pinia'
 import { ref, shallowRef, computed } from 'vue'
 import axios from 'axios'
 import api from '@/lib/api'
-import router from '@/router'
 import { FULL_PERMISSIONS, isEmptyMode, isMockMode } from '@/lib/appMode'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function loadJson(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(key)
     return raw ? JSON.parse(raw) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function loadString(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    return localStorage.getItem(key) || fallback;
   } catch {
     return fallback
   }
@@ -24,8 +33,8 @@ export const useAuthStore = defineStore('auth', () => {
     ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
     : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
 
-  const accessToken  = ref(localStorage.getItem('access_token')  || offlineAccessToken)
-  const refreshToken = ref(localStorage.getItem('refresh_token') || offlineRefreshToken)
+  const accessToken  = ref(loadString('access_token', offlineAccessToken))
+  const refreshToken = ref(loadString('refresh_token', offlineRefreshToken))
   const user         = shallowRef(loadJson('auth_user', offlineUser))
   const permissions  = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
 
@@ -79,7 +88,9 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
       localStorage.removeItem('auth_permissions')
-      router.push('/login')
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
     }
   }
 
