@@ -28,19 +28,19 @@ public class TransferRequest {
     /**
      * "branch" | "warehouse"
      */
-    @Column(name = "from_location_type", nullable = false, length = 50)
+    @Column(name = "from_location_type", nullable = true, length = 50)
     private String fromLocationType;
 
-    @Column(name = "from_location_id", nullable = false)
+    @Column(name = "from_location_id", nullable = true)
     private Long fromLocationId;
 
     /**
      * "branch" | "warehouse"
      */
-    @Column(name = "to_location_type", nullable = false, length = 50)
+    @Column(name = "to_location_type", nullable = true, length = 50)
     private String toLocationType;
 
-    @Column(name = "to_location_id", nullable = false)
+    @Column(name = "to_location_id", nullable = true)
     private Long toLocationId;
 
     /**

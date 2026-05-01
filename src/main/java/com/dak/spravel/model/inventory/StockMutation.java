@@ -36,10 +36,10 @@ public class StockMutation {
     private String type;
 
     // "branch" | "warehouse" | null
-    @Column(name = "from_location_type", length = 50)
+    @Column(name = "from_location_type", nullable = true)
     private String fromLocationType;
 
-    @Column(name = "from_location_id")
+    @Column(name = "from_location_id", nullable = true)
     private Long fromLocationId;
 
     // "branch" | "warehouse" | null
