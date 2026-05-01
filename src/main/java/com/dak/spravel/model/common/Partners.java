@@ -1,9 +1,9 @@
 package com.dak.spravel.model.common;
 
 import com.dak.spravel.model.base.BaseEntity;
-import com.dak.spravel.model.inventory.Warehouses;
-import com.dak.spravel.model.inventory.Branches;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import java.util.Map;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,7 +28,15 @@ public class Partners extends BaseEntity{
     private String slug;
 
     public enum Plan {
-        BASIC, PRO, ENTERPRISE
+        BASIC, PRO, ENTERPRISE;
+
+        @JsonCreator
+        public static Plan fromObject(Map<String, Object> obj) {
+            if (obj != null && obj.containsKey("name")) {
+                return Plan.valueOf(obj.get("name").toString().toUpperCase());
+            }
+            return null;
+        }
     }
 
     @Enumerated(EnumType.STRING)
@@ -37,9 +45,4 @@ public class Partners extends BaseEntity{
     @Column(name = "is_active")
     private Boolean isActive = true;
 
-    @OneToMany(mappedBy = "partners", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Branches> branches;
-
-    @OneToMany(mappedBy = "partners", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Warehouses> warehouses;
 }

@@ -27,10 +27,10 @@ public class StockOpname extends BaseEntity{
     private Partners partner;
 
     // "branch" | "warehouse"
-    @Column(name = "location_type", nullable = false)
+    @Column(name = "location_type", nullable = true)
     private String location;
 
-    @Column(name = "location_id", nullable = false)
+    @Column(name = "location_id", nullable = true)
     private Long locationId;
 
     private LocalDateTime date;

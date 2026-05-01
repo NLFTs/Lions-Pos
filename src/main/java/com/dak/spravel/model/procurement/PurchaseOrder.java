@@ -47,10 +47,10 @@ public class PurchaseOrder extends BaseEntity {
         // // Hasil: PO-20260429-0001, PO-20260429-0002, dst
     // }
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String locationType;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long locationId;
     // @Service
     // @RequiredArgsConstructor
@@ -97,7 +97,7 @@ public class PurchaseOrder extends BaseEntity {
 // }
                     
     @Column(nullable = false)
-    private Status status;
+    private Status status = Status.DRAFT;
 
     public enum Status {
         DRAFT,
