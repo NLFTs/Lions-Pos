@@ -1,27 +1,28 @@
 <template>
-  <nav class="h-20 border-b-[3px] border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-8 sticky top-0 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md z-50 transition-colors duration-300">
+  <nav class="h-20 flex items-center justify-between px-6 md:px-12 sticky top-0 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-xl z-50 transition-colors duration-300 w-full">
     <!-- Logo Section -->
-    <div class="flex items-center gap-2 cursor-pointer" @click="$emit('navigate', '/')">
-      <div class="h-10 w-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+    <div class="flex items-center gap-2 cursor-pointer group" @click="$emit('navigate', '/')">
+      <div class="h-8 w-8 bg-white dark:bg-zinc-100 rounded-full flex items-center justify-center overflow-hidden border border-zinc-200 dark:border-zinc-800">
         <slot name="logo">
-          <span class="text-primary-foreground font-bold text-xl transition-colors duration-300">S</span>
+          <Zap class="h-4 w-4 text-zinc-950" />
         </slot>
       </div>
-      <span class="text-xl font-bold font-lexend tracking-tight text-zinc-900 dark:text-zinc-100 transition-colors duration-300">{{ brandName }}</span>
+      <span class="text-xl font-medium font-serif tracking-tight text-zinc-900 dark:text-zinc-100">{{ brandName.toLowerCase() }}</span>
     </div>
 
     <!-- Navigation Links -->
     <div class="hidden md:flex items-center gap-8">
-      <a 
+      <div 
         v-for="item in navItems" 
         :key="item.path" 
-        href="javascript:void(0)"
+        class="flex items-center gap-1 cursor-pointer group"
         @click="$emit('navigate', item.path)"
-        class="text-sm font-bold text-zinc-500 dark:text-zinc-400 hover:text-primary transition-all duration-300 relative group"
       >
-        {{ item.name }}
-        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
-      </a>
+        <span class="text-sm font-medium text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors">
+          {{ item.name }}
+        </span>
+        <ChevronDown v-if="item.hasDropdown" class="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 transition-colors" />
+      </div>
     </div>
 
     <!-- Actions -->
@@ -32,15 +33,22 @@
 </template>
 
 <script setup>
+import { Zap, ChevronDown } from 'lucide-vue-next'
+
 defineProps({
   brandName: {
     type: String,
-    default: 'GAPETK'
+    default: 'obsidian'
   },
   navItems: {
     type: Array,
     required: true,
-    default: () => []
+    default: () => [
+      { name: 'What we offer', path: '#offer', hasDropdown: true },
+      { name: "Who's it for", path: '#target', hasDropdown: true },
+      { name: 'Pricing', path: '#pricing' },
+      { name: 'About', path: '#about' }
+    ]
   }
 })
 

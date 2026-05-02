@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const routes = [
+export const routes = [
   // Root redirect
   {
     path: '/',
@@ -127,25 +127,20 @@ const routes = [
 const isProd = import.meta.env.PROD
 const base = isProd ? '/_/' : '/'
 
-const router = createRouter({
-  history: createWebHistory(base),
-  routes,
-})
+export const setupRouterGuards = (router) => {
+  router.beforeEach((to, _from) => {
+    const auth = useAuthStore()
 
-router.beforeEach((to, _from) => {
-  const auth = useAuthStore()
+    if (to.meta.requiresAuth && !auth.isAuthenticated) {
+      return { name: 'login' }
+    }
 
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login' }
-  }
+    if (to.meta.guest && auth.isAuthenticated) {
+      return { name: 'dashboard' }
+    }
 
-  if (to.meta.guest && auth.isAuthenticated) {
-    return { name: 'dashboard' }
-  }
-
-  if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
-    return { name: 'dashboard' }
-  }
-})
-
-export default router
+    if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
+      return { name: 'dashboard' }
+    }
+  })
+}
