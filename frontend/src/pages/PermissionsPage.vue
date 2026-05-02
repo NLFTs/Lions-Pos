@@ -29,8 +29,8 @@ const searchQuery  = ref('')
 const page         = ref(1)
 const pageSize     = ref(10)
 
-// Modal
-const showModal = ref(false)
+// Drawer
+const showDrawer = ref(false)
 const modalMode = ref('create')
 const saving    = ref(false)
 const formError = ref(null)
@@ -92,7 +92,7 @@ function openCreate() {
   modalMode.value = 'create'
   form.value = { id: null, slug: '', name: '', moduleId: null }
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
 function openEdit(perm) {
@@ -100,11 +100,11 @@ function openEdit(perm) {
   const mod = modules.value.find((m) => m.slug === perm.moduleSlug)
   form.value = { id: perm.id, slug: perm.slug, name: perm.name, moduleId: mod?.id ?? null }
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
-function closeModal() {
-  showModal.value = false
+function closeDrawer() {
+  showDrawer.value = false
 }
 
 function onNameInput() {
@@ -143,7 +143,7 @@ async function savePermission() {
       })
       toast.success('Permission updated!')
     }
-    showModal.value = false
+    showDrawer.value = false
     fetchPermissions()
   } catch (err) {
     formError.value = err.response?.data?.message || 'Failed to save permission.'
@@ -280,51 +280,117 @@ async function doDelete(perm) {
       </Card>
     </div>
 
-    <!-- ─── Create / Edit Modal ─── -->
+    <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="closeModal" />
-        <div class="relative z-10 w-full max-w-md rounded-lg bg-card shadow-xl border">
-          <div class="flex items-center justify-between border-b px-6 py-4">
-            <h3 class="font-semibold text-lg">
-              {{ modalMode === 'create' ? 'New Permission' : 'Edit Permission' }}
-            </h3>
-            <button @click="closeModal" class="text-muted-foreground hover:text-foreground transition-colors">
-              <X class="h-5 w-5" />
-            </button>
+      <!-- Backdrop -->
+      <Transition name="fade">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
+          @click="closeDrawer"
+        />
+      </Transition>
+
+      <!-- Panel -->
+      <Transition name="slide-right">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <h3 class="font-semibold text-base">
+                {{ modalMode === 'create' ? 'Tambah Permission' : 'Edit Permission' }}
+              </h3>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ modalMode === 'create' ? 'Isi detail permission baru.' : 'Perbarui informasi permission.' }}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeDrawer">
+              <X class="h-4 w-4" />
+            </Button>
           </div>
 
-          <div class="px-6 py-4 space-y-4">
-            <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+          <!-- Body (scrollable) -->
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <Alert v-if="formError" variant="destructive">
+              <p class="text-sm">{{ formError }}</p>
+            </Alert>
 
             <div class="space-y-1.5">
-              <Label for="permModule">Module</Label>
-              <select id="permModule" v-model="form.moduleId" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" @change="onModuleSelect">
-                <option :value="null" disabled>Select a module…</option>
+              <Label for="permModule">Modul</Label>
+              <select 
+                id="permModule" 
+                v-model="form.moduleId" 
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" 
+                @change="onModuleSelect"
+                :disabled="saving"
+              >
+                <option :value="null" disabled>— Pilih modul —</option>
                 <option v-for="mod in modules" :key="mod.id" :value="mod.id">{{ mod.name }} ({{ mod.slug }})</option>
               </select>
             </div>
 
             <div class="space-y-1.5">
-              <Label for="permName">Name</Label>
-              <Input id="permName" v-model="form.name" placeholder="e.g. View All Posts" @input="onNameInput" />
+              <Label for="permName">Nama Permission <span class="text-destructive">*</span></Label>
+              <Input 
+                id="permName" 
+                v-model="form.name" 
+                placeholder="Contoh: View All Posts" 
+                @input="onNameInput" 
+                :disabled="saving"
+              />
             </div>
 
             <div class="space-y-1.5">
-              <Label for="permSlug">Slug <span class="ml-1 text-xs text-muted-foreground font-normal">{{ modalMode === 'create' ? '(auto-filled, format: module.action)' : '(immutable)' }}</span></Label>
-              <Input id="permSlug" v-model="form.slug" :disabled="modalMode === 'edit'" placeholder="e.g. post.index" class="font-mono" :class="modalMode === 'edit' ? 'opacity-60' : ''" />
+              <Label for="permSlug">
+                Slug 
+                <span class="ml-1 text-[10px] text-muted-foreground font-normal">
+                  {{ modalMode === 'create' ? '(otomatis, format: modul.aksi)' : '(tidak dapat diubah)' }}
+                </span>
+              </Label>
+              <Input 
+                id="permSlug" 
+                v-model="form.slug" 
+                :disabled="modalMode === 'edit' || saving" 
+                placeholder="Contoh: post.index" 
+                class="font-mono text-xs" 
+                :class="modalMode === 'edit' ? 'bg-muted' : ''" 
+              />
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 border-t px-6 py-4">
-            <Button variant="outline" @click="closeModal">Cancel</Button>
-            <Button :disabled="saving" @click="savePermission">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-1 animate-spin" />
-              {{ modalMode === 'create' ? 'Create' : 'Save Changes' }}
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+            <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
+            <Button @click="savePermission" :disabled="saving">
+              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+              {{ modalMode === 'create' ? 'Simpan Permission' : 'Simpan Perubahan' }}
             </Button>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>
