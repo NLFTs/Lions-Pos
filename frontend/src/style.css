@@ -55,8 +55,12 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Lexend', sans-serif;
+    font-family: 'Plus Jakarta Sans', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  .font-serif {
+    font-family: 'Newsreader', serif;
   }
 }
 
