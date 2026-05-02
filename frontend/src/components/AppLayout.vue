@@ -33,6 +33,8 @@ import {
   Palette,
   Check,
   Search,
+  ArrowLeftRight,
+  MapPin,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -92,6 +94,9 @@ const MENU_GROUPS = [
         children: [
           { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'post.index' },
           { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
+          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: null },
+          { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: null },
+          { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: null },
         ],
       },
     ],
