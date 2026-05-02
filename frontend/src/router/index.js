@@ -114,6 +114,16 @@ export const routes = [
       pageSubtitle: 'Log aktivitas HTTP pada sistem.',
     },
   },
+  {
+    path: '/dashboard/kasir',
+    name: 'kasir',
+    component: () => import('@/pages/KasirPage.vue'),
+    meta: {
+      requiresAuth: true,
+      pageTitle: 'Kasir',
+      pageSubtitle: 'Sistem Point of Sale',
+    },
+  },
 
   // Catch-all
   {
