@@ -6,6 +6,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
+import com.dak.spravel.dto.request.partner.GetPartnerByPlan;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
@@ -33,5 +34,25 @@ public class PartnerController {
         Partners createdPartner = partnerService.createPartner(request);
         return ResponseBuilder.ok(createdPartner);
     }
+
+    @GetMapping("/plan/{plan}")
+    public ResponseEntity<ResData<Iterable<Partners>>> getPartnersByPlan(@PathVariable Partners.Plan plan) {
+        log.info("[GET] /api/v1/partners/plan/{}", plan);
+        Iterable<Partners> partners = partnerService.getPartnersByPlan(new GetPartnerByPlan(plan));
+        return ResponseBuilder.ok(partners);
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<ResData<Iterable<Partners>>> getAllPartners() {
+        log.info("[GET] /api/v1/partners/all");
+        Iterable<Partners> partners = partnerService.getAllPartners();
+        return ResponseBuilder.ok(partners);
+    }
     
+    @PutMapping("/soft-delete/{id}")
+    public ResponseEntity<ResData<Partners>> softDeletePartner(@PathVariable Long id) {
+        log.info("[PUT] /api/v1/partners/soft-delete/{}", id);
+        Partners updatedPartner = partnerService.softDeletePartner(id);
+        return ResponseBuilder.ok(updatedPartner);
+    }
 }

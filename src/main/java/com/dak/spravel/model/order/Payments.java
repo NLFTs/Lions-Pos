@@ -35,6 +35,13 @@ public class Payments extends BaseEntity {
     public enum Method {
         CASH, TRANSFER
     }
+    
+    @Column(nullable = false)
+    private Status status = Status.PENDING;
+
+    public enum Status {
+        PENDING, COMPLETED, FAILED
+    }
 
     @Column(nullable = false , precision = 19, scale = 4)
     private BigDecimal amount;
@@ -62,11 +69,4 @@ public class Payments extends BaseEntity {
     // payment.setReferenceNo(request.getReferenceNo());
     // payment.setProofUrl(request.getProofUrl());
     // }
-
-    @Column(nullable = false)
-    private Status status = Status.PENDING;
-
-    public enum Status {
-        PENDING, COMPLETED, FAILED
-    }
 }
