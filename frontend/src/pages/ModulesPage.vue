@@ -45,8 +45,8 @@ watch(searchQuery, () => {
   page.value = 1
 })
 
-// Modal
-const showModal = ref(false)
+// Drawer
+const showDrawer = ref(false)
 const modalMode = ref('create')
 const saving    = ref(false)
 const formError = ref(null)
@@ -73,18 +73,18 @@ function openCreate() {
   modalMode.value = 'create'
   form.value = { id: null, slug: '', name: '', description: '' }
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
 function openEdit(mod) {
   modalMode.value = 'edit'
   form.value = { id: mod.id, slug: mod.slug, name: mod.name, description: mod.description ?? '' }
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
-function closeModal() {
-  showModal.value = false
+function closeDrawer() {
+  showDrawer.value = false
 }
 
 function onNameInput() {
@@ -110,7 +110,7 @@ async function saveModule() {
       })
       toast.success('Module updated!')
     }
-    showModal.value = false
+    showDrawer.value = false
     fetchModules()
   } catch (err) {
     formError.value = err.response?.data?.message || 'Failed to save module.'
@@ -225,48 +225,102 @@ async function doDelete(mod) {
       </Card>
     </div>
 
-    <!-- ─── Create / Edit Modal ─── -->
+    <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="closeModal" />
-        <div class="relative z-10 w-full max-w-md rounded-lg bg-card shadow-xl border">
-          <div class="flex items-center justify-between border-b px-6 py-4">
-            <h3 class="font-semibold text-lg">
-              {{ modalMode === 'create' ? 'New Module' : 'Edit Module' }}
-            </h3>
-            <button @click="closeModal" class="text-muted-foreground hover:text-foreground transition-colors">
-              <X class="h-5 w-5" />
-            </button>
+      <!-- Backdrop -->
+      <Transition name="fade">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
+          @click="closeDrawer"
+        />
+      </Transition>
+
+      <!-- Panel -->
+      <Transition name="slide-right">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <h3 class="font-semibold text-base">
+                {{ modalMode === 'create' ? 'Tambah Modul' : 'Edit Modul' }}
+              </h3>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ modalMode === 'create' ? 'Isi detail modul baru.' : 'Perbarui informasi modul.' }}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeDrawer">
+              <X class="h-4 w-4" />
+            </Button>
           </div>
 
-          <div class="px-6 py-4 space-y-4">
-            <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+          <!-- Body (scrollable) -->
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <Alert v-if="formError" variant="destructive">
+              <p class="text-sm">{{ formError }}</p>
+            </Alert>
 
             <div class="space-y-1.5">
-              <Label for="modName">Name</Label>
-              <Input id="modName" v-model="form.name" placeholder="e.g. Post" @input="onNameInput" />
+              <Label for="modName">Nama Modul <span class="text-destructive">*</span></Label>
+              <Input id="modName" v-model="form.name" placeholder="Contoh: Post" @input="onNameInput" :disabled="saving" />
             </div>
 
             <div class="space-y-1.5">
-              <Label for="modSlug">Slug <span class="ml-1 text-xs text-muted-foreground font-normal">{{ modalMode === 'create' ? '(auto-filled, lowercase letters/numbers/_)' : '(immutable)' }}</span></Label>
-              <Input id="modSlug" v-model="form.slug" :disabled="modalMode === 'edit'" placeholder="e.g. post" class="font-mono" :class="modalMode === 'edit' ? 'opacity-60' : ''" />
+              <Label for="modSlug">
+                Slug 
+                <span class="ml-1 text-[10px] text-muted-foreground font-normal">
+                  {{ modalMode === 'create' ? '(otomatis, huruf kecil/angka/_)' : '(tidak dapat diubah)' }}
+                </span>
+              </Label>
+              <Input id="modSlug" v-model="form.slug" :disabled="modalMode === 'edit' || saving" placeholder="contoh_modul" class="font-mono text-xs" :class="modalMode === 'edit' ? 'bg-muted' : ''" />
             </div>
 
             <div class="space-y-1.5">
-              <Label for="modDesc">Description <span class="text-xs text-muted-foreground font-normal">(optional)</span></Label>
-              <Input id="modDesc" v-model="form.description" placeholder="e.g. Manage blog posts" />
+              <Label for="modDesc">Deskripsi <span class="text-xs text-muted-foreground font-normal">(opsional)</span></Label>
+              <textarea
+                id="modDesc"
+                v-model="form.description"
+                rows="4"
+                :disabled="saving"
+                placeholder="Deskripsi singkat modul..."
+                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+              />
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 border-t px-6 py-4">
-            <Button variant="outline" @click="closeModal">Cancel</Button>
-            <Button :disabled="saving" @click="saveModule">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-1 animate-spin" />
-              {{ modalMode === 'create' ? 'Create' : 'Save Changes' }}
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+            <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
+            <Button @click="saveModule" :disabled="saving">
+              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+              {{ modalMode === 'create' ? 'Simpan Modul' : 'Simpan Perubahan' }}
             </Button>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>
