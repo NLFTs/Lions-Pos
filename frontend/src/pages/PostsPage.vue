@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -18,7 +18,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableCell from '@/components/ui/TableCell.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, LayoutGrid, Package, Upload } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, Filter, Package, Upload, ChevronDown } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -33,15 +33,69 @@ const pagination = ref({ page: 0, size: 10, totalPages: 0, totalElements: 0 })
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
+const showFilter = ref(false)
+const sortBy = ref('terbaru') // 'terbaru', 'harga-termahal', 'harga-termurah'
+const filterStatus = ref('all') // 'all', 'aktif', 'nonaktif'
+const filterStock = ref('all') // 'all', 'dilacak', 'bebas'
+
+const activeFilterCount = computed(() => {
+  let count = 0
+  if (sortBy.value !== 'terbaru') count++
+  if (filterStatus.value !== 'all') count++
+  if (filterStock.value !== 'all') count++
+  return count
+})
+
+function clearFilters() {
+  sortBy.value = 'terbaru'
+  filterStatus.value = 'all'
+  filterStock.value = 'all'
+}
+
+const filterRef = ref(null)
+function handleOutsideClick(e) {
+  if (filterRef.value && !filterRef.value.contains(e.target)) {
+    showFilter.value = false
+  }
+}
 
 const filteredProducts = computed(() => {
-  if (!searchQuery.value) return products.value
-  const q = searchQuery.value.toLowerCase()
-  return products.value.filter(p =>
-    (p.name && p.name.toLowerCase().includes(q)) ||
-    (p.sku && p.sku.toLowerCase().includes(q)) ||
-    (p.categoryName && p.categoryName.toLowerCase().includes(q))
-  )
+  let result = products.value
+
+  // 1. Status Filter
+  if (filterStatus.value === 'aktif') {
+    result = result.filter(p => p.isActive)
+  } else if (filterStatus.value === 'nonaktif') {
+    result = result.filter(p => !p.isActive)
+  }
+
+  // 2. Stock Filter
+  if (filterStock.value === 'dilacak') {
+    result = result.filter(p => p.trackStock)
+  } else if (filterStock.value === 'bebas') {
+    result = result.filter(p => !p.trackStock)
+  }
+
+  // 3. Search Filter
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(p =>
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.sku && p.sku.toLowerCase().includes(q)) ||
+      (p.categoryName && p.categoryName.toLowerCase().includes(q))
+    )
+  }
+
+  // 3. Sort
+  if (sortBy.value === 'harga-termahal') {
+    result = [...result].sort((a, b) => b.price - a.price)
+  } else if (sortBy.value === 'harga-termurah') {
+    result = [...result].sort((a, b) => a.price - b.price)
+  } else if (sortBy.value === 'terbaru') {
+    result = [...result].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }
+
+  return result
 })
 
 // Drawer
@@ -130,6 +184,11 @@ async function fetchCategories() {
 onMounted(() => {
   fetchProducts()
   fetchCategories()
+  document.addEventListener('click', handleOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
 })
 
 // ─── Create / Edit Drawer ─────────────────────────────────────────────────────
@@ -296,14 +355,105 @@ function productAvatarStyle(name = '') {
             <DataTableSearch v-model="searchQuery" placeholder="Cari produk..." />
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto">
-            <Button variant="outline" class="w-full sm:w-auto hidden sm:flex">
-              <LayoutGrid class="mr-2 h-4 w-4" />
-              Sesuaikan Kolom
-            </Button>
-            <Button v-if="can('post.store')" class="w-full sm:w-auto" @click="openCreate">
-              <Plus class="h-4 w-4 mr-2" />
-              Tambah Produk
-            </Button>
+          <div ref="filterRef" class="relative flex-1 sm:flex-none">
+            <button
+              @click="showFilter = !showFilter"
+              class="w-full flex items-center justify-center gap-2 h-9 px-3 rounded-md border border-border bg-background hover:bg-accent text-foreground text-sm font-medium transition-colors"
+            >
+              <Filter class="h-3.5 w-3.5" />
+              <span>Filter</span>
+              <!-- Active count badge -->
+              <span v-if="activeFilterCount > 0" class="inline-flex items-center justify-center h-4.5 min-w-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none">
+                {{ activeFilterCount }}
+              </span>
+              <ChevronDown class="h-3 w-3 text-muted-foreground" :class="showFilter ? 'rotate-180' : ''" style="transition: transform 0.2s" />
+            </button>
+
+            <!-- Dropdown Panel -->
+            <Transition name="fade">
+              <div
+                v-if="showFilter"
+                class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-64 bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+              >
+                <!-- Header -->
+                <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
+                  <span class="text-xs font-semibold text-foreground uppercase tracking-wide">Filter</span>
+                  <button
+                    v-if="activeFilterCount > 0"
+                    @click="clearFilters"
+                    class="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+                  >Clear all</button>
+                </div>
+
+                <!-- Urutkan Section -->
+                <div class="px-3 pt-3 pb-2">
+                  <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Urutkan</p>
+                  <div class="space-y-1">
+                    <label v-for="sortOption in [{val: 'terbaru', label: 'Terbaru'}, {val: 'harga-termahal', label: 'Harga Tertinggi'}, {val: 'harga-termurah', label: 'Harga Terendah'}]" :key="sortOption.val"
+                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div
+                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
+                        :class="sortBy === sortOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
+                        @click="sortBy = sortOption.val"
+                      >
+                        <svg v-if="sortBy === sortOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      </div>
+                      <span class="text-sm text-foreground select-none" @click="sortBy = sortOption.val">{{ sortOption.label }}</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="mx-3 border-t border-border" />
+
+                <!-- Status Section -->
+                <div class="px-3 pt-2 pb-2">
+                  <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Status</p>
+                  <div class="space-y-1">
+                    <label v-for="statusOption in [{val: 'all', label: 'Semua Status'}, {val: 'aktif', label: 'Aktif'}, {val: 'nonaktif', label: 'Nonaktif'}]" :key="statusOption.val"
+                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div
+                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
+                        :class="filterStatus === statusOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
+                        @click="filterStatus = statusOption.val"
+                      >
+                        <svg v-if="filterStatus === statusOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      </div>
+                      <span class="text-sm text-foreground select-none" @click="filterStatus = statusOption.val">{{ statusOption.label }}</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="mx-3 border-t border-border" />
+
+                <!-- Stok Section -->
+                <div class="px-3 pt-2 pb-3">
+                  <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Stok</p>
+                  <div class="space-y-1">
+                    <label v-for="stockOption in [{val: 'all', label: 'Semua Stok'}, {val: 'dilacak', label: 'Dilacak'}, {val: 'bebas', label: 'Bebas'}]" :key="stockOption.val"
+                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <div
+                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
+                        :class="filterStock === stockOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
+                        @click="filterStock = stockOption.val"
+                      >
+                        <svg v-if="filterStock === stockOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      </div>
+                      <span class="text-sm text-foreground select-none" @click="filterStock = stockOption.val">{{ stockOption.label }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+          <!-- /Filter Dropdown -->
+
+          <Button v-if="can('post.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Plus class="h-4 w-4" />
+            <span>Tambah Produk</span>
+          </Button>
           </div>
         </div>
       </div>
@@ -498,7 +648,7 @@ function productAvatarStyle(name = '') {
 
                     <!-- Aksi -->
                     <TableCell class="pr-4 py-3 text-right">
-                      <div class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div class="flex justify-end gap-1 transition-opacity">
                         <Button
                           v-if="can('post.update')"
                           variant="ghost"
