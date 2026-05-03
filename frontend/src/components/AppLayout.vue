@@ -38,6 +38,7 @@ import {
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import AboutModal from '@/components/dashboard/AboutModal.vue'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -65,6 +66,9 @@ const confirmStore = useConfirmStore()
 
 // Sidebar state (mobile only)
 const sidebarOpen = ref(false)
+
+// About Modal state
+const isAboutModalOpen = ref(false)
 
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
@@ -630,6 +634,11 @@ onBeforeUnmount(() => {
                 <Book class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
 
+              <DropdownMenuItem @click="isAboutModalOpen = true" class="justify-between px-2 py-2 text-sm cursor-pointer">
+                <span>Tentang Kami</span>
+                <Zap class="h-4 w-4 text-zinc-500" />
+              </DropdownMenuItem>
+
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
                 <span>Log Out</span>
                 <LogOut class="h-4 w-4 text-zinc-500" />
@@ -714,6 +723,12 @@ onBeforeUnmount(() => {
         </div>
       </main>
     </div>
+
+    <!-- About Modal -->
+    <AboutModal 
+      :is-open="isAboutModalOpen" 
+      @close="isAboutModalOpen = false" 
+    />
   </div>
 </template>
 
