@@ -48,7 +48,7 @@ const features = [
           <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/30 transition-colors duration-300">
             <Zap class="h-6 w-6 text-primary-foreground transition-colors duration-300" />
           </div>
-          <span class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 border-none transition-colors duration-300">Spravel</span>
+          <span class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 border-none transition-colors duration-300">Gaptek</span>
         </div>
 
         <div class="mb-10">

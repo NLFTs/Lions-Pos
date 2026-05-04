@@ -33,10 +33,10 @@ export const useAuthStore = defineStore('auth', () => {
     ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
     : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
 
-  const accessToken = ref(loadString('access_token', offlineAccessToken))
-  const refreshToken = ref(loadString('refresh_token', offlineRefreshToken))
-  const user = shallowRef(loadJson('auth_user', offlineUser))
-  const permissions = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
+  const accessToken = ref(loadString('access_token', null))
+  const refreshToken = ref(loadString('refresh_token', null))
+  const user = shallowRef(loadJson('auth_user', null))
+  const permissions = shallowRef(loadJson('auth_permissions', []))
 
   const isAuthenticated = computed(() => !!accessToken.value)
 

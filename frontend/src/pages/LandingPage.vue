@@ -52,11 +52,7 @@ const handleNavigation = (path) => {
 }
 
 const navigateToLogin = () => {
-  if (isAuthenticated.value) {
-    router.push('/dashboard')
-  } else {
-    router.push('/login')
-  }
+  router.push('/login')
 }
 </script>
 
@@ -76,10 +72,10 @@ const navigateToLogin = () => {
 
       <template #actions>
         <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="navigateToLogin">
-          {{ isAuthenticated ? 'Dashboard' : 'Masuk' }}
+          Masuk
         </Button>
         <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="navigateToLogin">
-          {{ isAuthenticated ? 'Buka Dashboard' : 'Mulai Gratis' }}
+          Mulai Gratis
         </Button>
       </template>
     </Navbar>
@@ -123,7 +119,7 @@ const navigateToLogin = () => {
             class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
             @click="navigateToLogin"
           >
-            {{ isAuthenticated ? 'Lanjutkan ke Dashboard' : 'Mulai Gratis Sekarang' }}
+            Mulai Gratis Sekarang
           </Button>
           <Button 
             variant="ghost"
@@ -182,7 +178,7 @@ const navigateToLogin = () => {
               </li>
             </ul>
             <Button variant="ghost" class="w-full h-12 rounded-xl border border-zinc-800 text-white hover:bg-zinc-800/50" @click="navigateToLogin">
-              {{ isAuthenticated ? 'Dashboard' : 'Mulai Basic' }}
+              Mulai Basic
             </Button>
           </div>
           
@@ -211,7 +207,7 @@ const navigateToLogin = () => {
               </li>
             </ul>
             <Button class="w-full h-12 rounded-xl bg-white text-zinc-900 hover:scale-[1.02] transition-transform duration-300 font-medium shadow-xl shadow-white/10" @click="navigateToLogin">
-              {{ isAuthenticated ? 'Dashboard' : 'Pilih Pro' }}
+              Pilih Pro
             </Button>
           </div>
           
