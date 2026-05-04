@@ -33,8 +33,6 @@ import {
   Palette,
   Check,
   Search,
-  ArrowLeftRight,
-  MapPin,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -125,6 +123,17 @@ const MENU_GROUPS = [
         icon: Zap,
         to: '/dashboard/modules',
         permission: 'module.index',
+      },
+    ],
+  },
+  {
+    label: 'Transaksi',
+    items: [
+      {
+        label: 'Kasir',
+        icon: ShoppingCart,
+        to: '/dashboard/kasir',
+        permission: null,
       },
     ],
   },
