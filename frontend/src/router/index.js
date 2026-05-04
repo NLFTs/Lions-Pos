@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { Path } from 'ogl'
+import { components } from 'reka-ui/constant'
 
 export const routes = [
   // Root redirect
@@ -7,6 +9,11 @@ export const routes = [
     path: '/',
     name: 'landing',
     component: () => import('@/pages/LandingPage.vue'),
+  },
+  {
+    path: '/login',
+    name:'logout',
+    component: () => import ('@/pages/LoginPage.vue')
   },
 
   {
