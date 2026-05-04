@@ -7,8 +7,12 @@ import { Zap, Check } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
 import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
 import { onMounted, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const { isAuthenticated } = storeToRefs(authStore)
 const showCookieBanner = ref(false)
 
 onMounted(() => {
@@ -48,7 +52,11 @@ const handleNavigation = (path) => {
 }
 
 const navigateToLogin = () => {
-  router.push('/login')
+  if (isAuthenticated.value) {
+    router.push('/dashboard')
+  } else {
+    router.push('/login')
+  }
 }
 </script>
 
@@ -68,10 +76,10 @@ const navigateToLogin = () => {
 
       <template #actions>
         <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="navigateToLogin">
-          Masuk
+          {{ isAuthenticated ? 'Dashboard' : 'Masuk' }}
         </Button>
         <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="navigateToLogin">
-          Mulai Gratis
+          {{ isAuthenticated ? 'Buka Dashboard' : 'Mulai Gratis' }}
         </Button>
       </template>
     </Navbar>
@@ -115,7 +123,7 @@ const navigateToLogin = () => {
             class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
             @click="navigateToLogin"
           >
-            Mulai Gratis Sekarang
+            {{ isAuthenticated ? 'Lanjutkan ke Dashboard' : 'Mulai Gratis Sekarang' }}
           </Button>
           <Button 
             variant="ghost"
@@ -173,7 +181,9 @@ const navigateToLogin = () => {
                 <Check class="w-5 h-5 text-zinc-500" /> Laporan Standar
               </li>
             </ul>
-            <Button variant="ghost" class="w-full h-12 rounded-xl border border-zinc-800 text-white hover:bg-zinc-800/50">Mulai Basic</Button>
+            <Button variant="ghost" class="w-full h-12 rounded-xl border border-zinc-800 text-white hover:bg-zinc-800/50" @click="navigateToLogin">
+              {{ isAuthenticated ? 'Dashboard' : 'Mulai Basic' }}
+            </Button>
           </div>
           
           <!-- Pro Plan -->
@@ -200,7 +210,9 @@ const navigateToLogin = () => {
                 <Check class="w-5 h-5 text-primary" /> Integrasi E-Commerce
               </li>
             </ul>
-            <Button class="w-full h-12 rounded-xl bg-white text-zinc-900 hover:scale-[1.02] transition-transform duration-300 font-medium shadow-xl shadow-white/10">Pilih Pro</Button>
+            <Button class="w-full h-12 rounded-xl bg-white text-zinc-900 hover:scale-[1.02] transition-transform duration-300 font-medium shadow-xl shadow-white/10" @click="navigateToLogin">
+              {{ isAuthenticated ? 'Dashboard' : 'Pilih Pro' }}
+            </Button>
           </div>
           
           <!-- Enterprise Plan -->

@@ -33,10 +33,10 @@ export const useAuthStore = defineStore('auth', () => {
     ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
     : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
 
-  const accessToken  = ref(loadString('access_token', offlineAccessToken))
+  const accessToken = ref(loadString('access_token', offlineAccessToken))
   const refreshToken = ref(loadString('refresh_token', offlineRefreshToken))
-  const user         = shallowRef(loadJson('auth_user', offlineUser))
-  const permissions  = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
+  const user = shallowRef(loadJson('auth_user', offlineUser))
+  const permissions = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
 
   const isAuthenticated = computed(() => !!accessToken.value)
 
@@ -47,13 +47,13 @@ export const useAuthStore = defineStore('auth', () => {
       const me = res.data.data
       // Assign baru agar shallowRef trigger reaktivitas
       user.value = {
-        id:       me.id,
+        id: me.id,
         username: me.username,
         fullname: me.fullname,
-        roles:    me.roles ?? [],
+        roles: me.roles ?? [],
       }
       permissions.value = me.permissions ?? []
-      localStorage.setItem('auth_user',        JSON.stringify(user.value))
+      localStorage.setItem('auth_user', JSON.stringify(user.value))
       localStorage.setItem('auth_permissions', JSON.stringify(permissions.value))
     } catch (_) {
       // silently ignore (token might just be expired — logout will handle it)
@@ -64,9 +64,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username, password) {
     const res = await api.post('/api/v1/auth/login', { username, password })
     const { accessToken: at, refreshToken: rt } = res.data.data
-    accessToken.value  = at
+    accessToken.value = at
     refreshToken.value = rt
-    localStorage.setItem('access_token',  at)
+    localStorage.setItem('access_token', at)
     localStorage.setItem('refresh_token', rt)
     await fetchMe()
   }
@@ -80,10 +80,10 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (_) {
       // ignore logout errors
     } finally {
-      accessToken.value  = null
+      accessToken.value = null
       refreshToken.value = null
-      user.value         = null
-      permissions.value  = []
+      user.value = null
+      permissions.value = []
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
