@@ -32,6 +32,9 @@ import {
   Book,
   Palette,
   Check,
+  ArrowLeftRight,
+  MapPin,
+  ShoppingCart,
   Search,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'

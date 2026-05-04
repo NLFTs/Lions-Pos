@@ -6,12 +6,10 @@ import Button from '@/components/ui/Button.vue'
 import { Zap } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
 import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
-import AboutModal from '@/components/dashboard/AboutModal.vue'
 import { onMounted, ref } from 'vue'
 
 const router = useRouter()
 const showCookieBanner = ref(false)
-const isAboutModalOpen = ref(false)
 
 onMounted(() => {
   const hasAccepted = localStorage.getItem('gaptek_cookies_accepted')
@@ -37,13 +35,11 @@ const navigationItems = [
   { name: 'Layanan Kami', path: '#offer', hasDropdown: true },
   { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
   { name: 'Harga', path: '#pricing' },
-  { name: 'Tentang Kami', path: 'about-modal' }
+  { name: 'Tentang Kami', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
-  if (path === 'about-modal') {
-    isAboutModalOpen.value = true
-  } else if (path.startsWith('#')) {
+  if (path.startsWith('#')) {
     const el = document.querySelector(path)
     if (el) el.scrollIntoView({ behavior: 'smooth' })
   } else {
@@ -177,11 +173,7 @@ const navigateToLogin = () => {
       </div>
     </Transition>
 
-    <!-- About Modal -->
-    <AboutModal 
-      :is-open="isAboutModalOpen" 
-      @close="isAboutModalOpen = false" 
-    />
+
   </LandingLayout>
 </template>
 

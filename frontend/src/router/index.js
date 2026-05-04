@@ -158,6 +158,11 @@ export const routes = [
     },
   },
 
+  {
+    path: '/about',
+    name: 'about',
+    component: () => import('@/pages/AboutPage.vue'),
+  },
   // Catch-all
   {
     path: '/:pathMatch(.*)*',
