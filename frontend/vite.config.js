@@ -23,7 +23,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
         fs.rmSync(fullPath, { recursive: true, force: true })
       }
     })
-    console.log('✅ Cleaned static folder (preserved: scalar-ui)')
+    console.log('Cleaned static folder (preserved: scalar-ui)')
   }
 
   return {
