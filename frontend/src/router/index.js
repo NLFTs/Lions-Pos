@@ -50,6 +50,39 @@ export const routes = [
     },
   },
   {
+    path: '/dashboard/stock-mutations',
+    name: 'stock-mutations',
+    component: () => import('@/pages/StockMutationsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Mutasi Stok',
+      pageSubtitle: 'Pantau riwayat pergerakan stok barang.',
+    },
+  },
+  {
+    path: '/dashboard/partners',
+    name: 'partners',
+    component: () => import('@/pages/PartnersPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Manajemen Partner',
+      pageSubtitle: 'Kelola data supplier dan customer.',
+    },
+  },
+  {
+    path: '/dashboard/locations',
+    name: 'locations',
+    component: () => import('@/pages/LocationsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Manajemen Lokasi',
+      pageSubtitle: 'Atur data gudang dan cabang.',
+    },
+  },
+  {
     path: '/dashboard/roles',
     name: 'roles',
     component: () => import('@/pages/RolesPage.vue'),
@@ -125,6 +158,11 @@ export const routes = [
     },
   },
 
+  {
+    path: '/about',
+    name: 'about',
+    component: () => import('@/pages/AboutPage.vue'),
+  },
   // Catch-all
   {
     path: '/:pathMatch(.*)*',

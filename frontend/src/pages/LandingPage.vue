@@ -35,7 +35,7 @@ const navigationItems = [
   { name: 'Layanan Kami', path: '#offer', hasDropdown: true },
   { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
   { name: 'Harga', path: '#pricing' },
-  { name: 'Tentang Kami', path: '#about' }
+  { name: 'Tentang Kami', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
@@ -172,6 +172,8 @@ const navigateToLogin = () => {
         </div>
       </div>
     </Transition>
+
+
   </LandingLayout>
 </template>
 

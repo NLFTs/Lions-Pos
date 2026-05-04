@@ -6,6 +6,7 @@ import StatCard from '@/components/dashboard/StatCard.vue'
 import DashboardCard from '@/components/dashboard/Card.vue'
 import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import MobileSummaryTabs from '@/components/dashboard/MobileSummaryTabs.vue'
+import AboutModal from '@/components/dashboard/AboutModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import api from '@/lib/api'
@@ -40,6 +41,9 @@ const lastRefresh = ref(null)
 // Stats toolbar state
 const searchQuery = ref('')
 const statsViewMode = ref('grid') // 'grid' | 'list'
+
+// About Modal state
+const isAboutModalOpen = ref(false)
 
 // Dropdown "Buat Baru"
 const dropdownOpen = ref(false)
@@ -272,9 +276,18 @@ function formatTime(dt) {
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Selamat datang, {{ user?.fullname || user?.username }}! 👋</h1>
-          <p class="text-sm text-muted-foreground mt-1">
-            Berikut ringkasan data dan aktivitas aplikasi hari ini.
-          </p>
+          <div class="flex items-center gap-2 mt-1">
+            <p class="text-sm text-muted-foreground">
+              Berikut ringkasan data dan aktivitas aplikasi hari ini.
+            </p>
+            <span class="text-zinc-300 dark:text-zinc-700">•</span>
+            <button 
+              @click="isAboutModalOpen = true"
+              class="text-xs font-semibold text-primary hover:underline transition-all"
+            >
+              Tentang Kami
+            </button>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-muted-foreground">
@@ -581,5 +594,11 @@ function formatTime(dt) {
         </div>
       </template>
     </div>
+
+    <!-- About Modal -->
+    <AboutModal 
+      :is-open="isAboutModalOpen" 
+      @close="isAboutModalOpen = false" 
+    />
   </AppLayout>
 </template>
