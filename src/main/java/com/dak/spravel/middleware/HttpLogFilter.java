@@ -1,8 +1,8 @@
 package com.dak.spravel.middleware;
 
 import com.dak.spravel.model.system.LogHttp;
-import com.dak.spravel.repository.LogHttpRepository;
-import com.dak.spravel.repository.UserRepository;
+import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.system.LogHttpRepository;
 import com.dak.spravel.util.ConfigConstant;
 import com.dak.spravel.util.StringUtil;
 import jakarta.servlet.*;
@@ -44,6 +44,7 @@ public class HttpLogFilter implements Filter {
         var req = (HttpServletRequest) request;
         var res = (HttpServletResponse) response;
 
+        Date requestAt = new Date();
         long startProcess = System.currentTimeMillis();
         log.info("◉—————————————————————————————————————————————————————————————————◉");
         log.info("⚪ Process Started, 🌐 {} {}", req.getMethod(), req.getRequestURI());
@@ -54,7 +55,9 @@ public class HttpLogFilter implements Filter {
             ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(res);
             chain.doFilter(requestWrapper, responseWrapper);
 
-            LogHttp logInfo = createLogRecord(req, requestWrapper, responseWrapper);
+            Date responseAt = new Date();
+
+            LogHttp logInfo = createLogRecord(req, requestWrapper, responseWrapper, requestAt, responseAt);
             logHttpRepository.save(logInfo);
             responseWrapper.copyBodyToResponse();
 
@@ -76,14 +79,15 @@ public class HttpLogFilter implements Filter {
     private LogHttp createLogRecord(
             HttpServletRequest req,
             ContentCachingRequestWrapper requestWrapper,
-            ContentCachingResponseWrapper responseWrapper) {
+            ContentCachingResponseWrapper responseWrapper,
+            Date requestAt, Date responseAt) {
         LogHttp logInfo = new LogHttp();
         String uri = req.getRequestURI().toLowerCase();
 
         logInfo.setType(ConfigConstant.HTTP_LOG_INCOMING);
         logInfo.setServiceName(ConfigConstant.SERVICE_NAME);
-        logInfo.setRequestAt(new Date());
-        logInfo.setResponseAt(new Date());
+        logInfo.setRequestAt(requestAt);
+        logInfo.setResponseAt(responseAt);
         logInfo.setMethod(requestWrapper.getMethod());
         logInfo.setUrl(req.getRequestURI());
         logInfo.setUserAgent(req.getHeader("User-Agent"));

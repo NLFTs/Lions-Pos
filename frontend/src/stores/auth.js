@@ -2,10 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, shallowRef, computed } from 'vue'
 import axios from 'axios'
 import api from '@/lib/api'
-import router from '@/router'
+import { FULL_PERMISSIONS, isEmptyMode, isMockMode } from '@/lib/appMode'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function loadJson(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(key)
     return raw ? JSON.parse(raw) : fallback
@@ -14,22 +15,28 @@ function loadJson(key, fallback) {
   }
 }
 
+function loadString(key, fallback) {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // ─── State ─────────────────────────────────────────────────────────────────
   // shallowRef: user & permissions tidak perlu deep reactive — hanya di-replace keseluruhan
-  const isMock = import.meta.env.VITE_MOCK_API === 'true'
-  const accessToken  = ref(localStorage.getItem('access_token')  || (isMock ? 'mock-access-token' : null))
-  const refreshToken = ref(localStorage.getItem('refresh_token') || (isMock ? 'mock-refresh-token' : null))
-  const user         = shallowRef(loadJson('auth_user', isMock ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null))
-  const permissions  = shallowRef(loadJson('auth_permissions', isMock ? [
-    'user.index', 'user.store', 'user.update', 'user.destroy',
-    'post.index', 'post.store', 'post.update', 'post.destroy',
-    'category.index', 'category.store', 'category.update', 'category.destroy',
-    'role.index', 'role.store', 'role.update', 'role.destroy',
-    'permission.index', 'permission.store', 'permission.update', 'permission.destroy',
-    'module.index', 'module.store', 'module.update', 'module.destroy',
-    'log.index'
-  ] : []))
+  const offlineAccessToken = isEmptyMode ? 'empty-access-token' : (isMockMode ? 'mock-access-token' : null)
+  const offlineRefreshToken = isEmptyMode ? 'empty-refresh-token' : (isMockMode ? 'mock-refresh-token' : null)
+  const offlineUser = isEmptyMode
+    ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
+    : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
+
+  const accessToken  = ref(loadString('access_token', offlineAccessToken))
+  const refreshToken = ref(loadString('refresh_token', offlineRefreshToken))
+  const user         = shallowRef(loadJson('auth_user', offlineUser))
+  const permissions  = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
 
   const isAuthenticated = computed(() => !!accessToken.value)
 
@@ -81,7 +88,9 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth_user')
       localStorage.removeItem('auth_permissions')
-      router.push('/login')
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
     }
   }
 

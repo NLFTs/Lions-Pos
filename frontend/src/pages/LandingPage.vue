@@ -3,28 +3,39 @@ import { useRouter } from 'vue-router'
 import LandingLayout from '@/components/section/landingpage/LandingLayout.vue'
 import Navbar from '@/components/section/landingpage/Navbar.vue'
 import Button from '@/components/ui/Button.vue'
-import { Zap, Sun, Moon } from 'lucide-vue-next'
+import { Zap } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
-import { useThemeStore } from '@/stores/theme'
+import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
+import { onMounted, ref } from 'vue'
 
 const router = useRouter()
-const themeStore = useThemeStore()
+const showCookieBanner = ref(false)
+
+onMounted(() => {
+  const hasAccepted = localStorage.getItem('gaptek_cookies_accepted')
+  if (!hasAccepted) {
+    showCookieBanner.value = true
+  }
+})
+
+const hideCookieBanner = () => {
+  localStorage.setItem('gaptek_cookies_accepted', 'true')
+  showCookieBanner.value = false
+}
 
 // GSAP Structure
 useGsap((gsap, ScrollTrigger) => {
   // GSAP animations can be added here
-  // For example:
-  // gsap.from('.hero-title', { opacity: 0, y: 30, duration: 1, ease: 'power3.out' })
 })
 
 // Configuration for Landing Page
-const brandName = 'Spravel'
+const brandName = 'gaptek'
 
 const navigationItems = [
-  { name: 'Home', path: '/' },
-  { name: 'Features', path: '#features' },
-  { name: 'About', path: '#about' },
-  { name: 'Pricing', path: '#pricing' }
+  { name: 'Layanan Kami', path: '#offer', hasDropdown: true },
+  { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
+  { name: 'Harga', path: '#pricing' },
+  { name: 'Tentang Kami', path: '#about' }
 ]
 
 const handleNavigation = (path) => {
@@ -50,43 +61,117 @@ const navigateToLogin = () => {
       @navigate="handleNavigation"
     >
       <template #logo>
-        <Zap class="h-6 w-6 text-primary-foreground transition-colors duration-300" />
+        <div class="h-full w-full bg-zinc-100 flex items-center justify-center">
+          <Zap class="h-4 w-4 text-zinc-900" />
+        </div>
       </template>
 
       <template #actions>
-        <!-- Theme Toggle -->
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          class="text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300 rounded-full mr-2" 
-          @click="themeStore.toggleDark()"
-        >
-          <Sun v-if="!themeStore.isDark" class="h-5 w-5" />
-          <Moon v-else class="h-5 w-5" />
-        </Button>
-
-        <Button variant="ghost" class="font-bold text-zinc-600 dark:text-zinc-300 hover:text-primary transition-colors duration-300" @click="navigateToLogin">
+        <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="navigateToLogin">
           Masuk
         </Button>
-        <Button class="font-bold px-6 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95" @click="navigateToLogin">
+        <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="navigateToLogin">
           Mulai Gratis
         </Button>
       </template>
     </Navbar>
 
-    <!-- Content Sections -->
-    <main class="flex-grow flex flex-col items-center justify-center text-center px-8 py-32">
-      <div class="space-y-8 max-w-4xl mx-auto">
-        <h1 class="text-5xl md:text-7xl font-black font-lexend tracking-tighter text-zinc-900 dark:text-zinc-100 leading-[1.1] transition-colors duration-300">
-          Ready to Build <br class="md:hidden" />
-          <span class="text-primary inline-block transition-colors duration-300">Something Great?</span>
+    <!-- Hero Section -->
+    <main class="relative flex-grow flex flex-col items-center pt-24 pb-32 px-6 overflow-hidden">
+      <!-- Background Gradient Blinds -->
+      <div class="absolute inset-0 z-0 opacity-100 pointer-events-none">
+        <GradientBlinds
+          :gradient-colors="['#1EA03F', '#182FFF']"
+          :angle="0"
+          :noise="0.3"
+          :blind-count="12"
+          :blind-min-width="50"
+          :spotlight-radius="0.5"
+          :spotlight-softness="1"
+          :spotlight-opacity="1"
+          :mouse-dampening="0.15"
+          :distort-amount="0"
+          shine-direction="left"
+          mix-blend-mode="screen"
+        />
+      </div>
+      
+      <div class="relative z-10 space-y-10 max-w-5xl mx-auto text-center">
+        <!-- Headline -->
+        <h1 class="text-6xl md:text-8xl font-medium font-serif tracking-tight text-white leading-[1.05]">
+          Platform All-in-One<br /> 
+          untuk <span class="italic text-primary">Retail & F&B </span> modern
         </h1>
-        <p class="text-lg md:text-xl text-zinc-500 dark:text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed transition-colors duration-300">
-          Struktur layout, GSAP, dan Smooth Scroll telah siap. <br />
-          Silakan tambahkan section berikutnya sesuai kebutuhan.
+
+        <!-- Subheadline -->
+        <p class="text-lg md:text-xl text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed">
+          Manajemen proyek bertenaga AI yang membantu Anda <br class="hidden md:block" />
+          membangun aplikasi impian lebih cepat dan terorganisir.
         </p>
+
+        <!-- CTA Buttons -->
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <Button 
+            class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
+            @click="navigateToLogin"
+          >
+            Mulai Gratis Sekarang
+          </Button>
+          <Button 
+            variant="ghost"
+            class="h-12 px-8 rounded-full border border-zinc-800 text-white hover:bg-zinc-900 transition-colors duration-300"
+          >
+            Lihat Demo
+          </Button>
+        </div>
+      </div>
+
+      <!-- Integrated Dashboard Preview (Enlarged) -->
+      <div class="relative mt-24 w-full max-w-7xl mx-auto px-4 md:px-0">
+        <!-- Ambient Glow behind the box -->
+        <div class="absolute -inset-4 bg-primary/10 blur-3xl rounded-[3rem] pointer-events-none"></div>
+
+        <div class="relative bg-zinc-950 border border-white/10 rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] aspect-[16/10] overflow-hidden flex flex-col overscroll-contain">
+          <!-- Real Dashboard Iframe (Integrated & Fixed for Scroll Jitter) -->
+          <div class="flex-grow relative bg-[#09090b] overflow-hidden overscroll-none">
+             <!-- Scaled Iframe with will-change to prevent jitter -->
+             <iframe 
+               src="/dashboard" 
+               class="absolute top-0 left-0 w-[117.6%] h-[117.6%] border-none origin-top-left scale-[0.85] will-change-transform"
+               style="scrollbar-width: none;"
+               scrolling="no"
+             ></iframe>
+          </div>
+        </div>
       </div>
     </main>
+
+    <!-- Cookie Banner -->
+    <Transition
+      enter-active-class="transition duration-500 ease-out"
+      enter-from-class="transform translate-y-20 opacity-0"
+      enter-to-class="transform translate-y-0 opacity-100"
+      leave-active-class="transition duration-300 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100"
+      leave-to-class="transform translate-y-20 opacity-0"
+    >
+      <div v-if="showCookieBanner" class="fixed bottom-8 right-8 z-[60] max-w-sm">
+        <div class="bg-white text-zinc-900 p-5 rounded-2xl shadow-2xl flex items-center justify-between gap-8 backdrop-blur-xl bg-opacity-95 border border-black/5">
+          <div class="space-y-1">
+            <p class="text-[11px] leading-relaxed font-semibold">Kebijakan Cookie</p>
+            <p class="text-[10px] leading-relaxed opacity-70">
+              Kami menggunakan cookie untuk mempersonalisasi konten, menjalankan iklan, dan menganalisis lalu lintas.
+            </p>
+          </div>
+          <button 
+            @click="hideCookieBanner"
+            class="shrink-0 px-5 py-2 bg-zinc-900 text-white rounded-xl text-[10px] font-bold hover:bg-black transition-all active:scale-95 shadow-lg shadow-black/10"
+          >
+            Oke
+          </button>
+        </div>
+      </div>
+    </Transition>
   </LandingLayout>
 </template>
 

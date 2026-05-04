@@ -13,7 +13,7 @@ import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, ShieldCheck, Loader2, X, LayoutGrid, ChevronDown } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, ShieldCheck, Loader2, X, LayoutGrid, ChevronDown, Check } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -48,8 +48,8 @@ watch(searchQuery, () => {
   page.value = 1
 })
 
-// Modal state
-const showModal  = ref(false)
+// Drawer state
+const showDrawer = ref(false)
 const modalMode  = ref('create')   // 'create' | 'edit'
 const saving     = ref(false)
 const formError  = ref(null)
@@ -105,21 +105,25 @@ function isChecked(module, action) {
 function togglePerm(module, action) {
   const p = getPermission(module, action)
   if (!p) return
-  if (selectedPermIds.value.has(p.id)) {
-    selectedPermIds.value.delete(p.id)
+  const next = new Set(selectedPermIds.value)
+  if (next.has(p.id)) {
+    next.delete(p.id)
   } else {
-    selectedPermIds.value.add(p.id)
+    next.add(p.id)
   }
+  selectedPermIds.value = next
 }
 
 function toggleAllInModule(module) {
   const list = permissionsMap.value[module] || []
   const allChecked = list.every((p) => selectedPermIds.value.has(p.id))
+  const next = new Set(selectedPermIds.value)
   if (allChecked) {
-    list.forEach((p) => selectedPermIds.value.delete(p.id))
+    list.forEach((p) => next.delete(p.id))
   } else {
-    list.forEach((p) => selectedPermIds.value.add(p.id))
+    list.forEach((p) => next.add(p.id))
   }
+  selectedPermIds.value = next
 }
 
 function isModuleAllChecked(module) {
@@ -142,7 +146,7 @@ function openCreate() {
   form.value = { id: null, name: '', slug: '' }
   selectedPermIds.value = new Set()
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
 function openEdit(role) {
@@ -150,11 +154,11 @@ function openEdit(role) {
   form.value = { id: role.id, name: role.name, slug: role.slug }
   selectedPermIds.value = new Set((role.permissions || []).map((p) => p.id))
   formError.value = null
-  showModal.value = true
+  showDrawer.value = true
 }
 
-function closeModal() {
-  showModal.value = false
+function closeDrawer() {
+  showDrawer.value = false
 }
 
 function onNameInput() {
@@ -192,7 +196,7 @@ async function saveRole() {
       toast.success('Role updated!')
     }
 
-    showModal.value = false
+    showDrawer.value = false
     fetchRoles()
   } catch (err) {
     formError.value = err.response?.data?.message || 'Failed to save role.'
@@ -322,84 +326,161 @@ async function doDelete(role) {
       </Card>
     </div>
 
-    <!-- ─── Create / Edit Modal ──────────────────────────────────────────────── -->
+    <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-black/50" @click="closeModal" />
+      <!-- Backdrop -->
+      <Transition name="fade">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
+          @click="closeDrawer"
+        />
+      </Transition>
 
-        <div class="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-card shadow-xl border">
-          <div class="flex items-center justify-between border-b px-6 py-4">
-            <h3 class="font-semibold text-lg">
-              {{ modalMode === 'create' ? 'New Role' : 'Edit Role' }}
-            </h3>
-            <button @click="closeModal" class="text-muted-foreground hover:text-foreground transition-colors">
-              <X class="h-5 w-5" />
-            </button>
+      <!-- Panel -->
+      <Transition name="slide-right">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[500px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <h3 class="font-semibold text-base">
+                {{ modalMode === 'create' ? 'Tambah Role' : 'Edit Role' }}
+              </h3>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ modalMode === 'create' ? 'Isi detail role dan pilih permission.' : 'Perbarui informasi role dan permission.' }}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeDrawer">
+              <X class="h-4 w-4" />
+            </Button>
           </div>
 
-          <div class="px-6 py-4 space-y-5">
-            <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+          <!-- Body (scrollable) -->
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+            <Alert v-if="formError" variant="destructive">
+              <p class="text-sm">{{ formError }}</p>
+            </Alert>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <Label for="roleName">Name</Label>
-                <Input id="roleName" v-model="form.name" placeholder="e.g. Editor" @input="onNameInput" />
+                <Label for="roleName">Nama Role <span class="text-destructive">*</span></Label>
+                <Input id="roleName" v-model="form.name" placeholder="Contoh: Editor" @input="onNameInput" :disabled="saving" />
               </div>
               <div class="space-y-1.5">
-                <Label for="roleSlug">Slug <span class="ml-1 text-xs text-muted-foreground font-normal">(lowercase, a-z 0-9 _ -)</span></Label>
-                <Input id="roleSlug" v-model="form.slug" placeholder="e.g. editor" class="font-mono" />
+                <Label for="roleSlug">Slug</Label>
+                <Input id="roleSlug" v-model="form.slug" placeholder="contoh_role" class="font-mono text-xs" :disabled="saving" />
               </div>
             </div>
 
             <!-- Permission Matrix -->
-            <div>
-              <p class="text-sm font-medium mb-3">Permissions</p>
-
-              <div v-if="modules.length === 0" class="text-sm text-muted-foreground py-4 text-center">
-                Loading permissions…
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <Label class="text-sm font-semibold">Hak Akses (Permissions)</Label>
+                <span class="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  {{ selectedPermIds.size }} dipilih
+                </span>
               </div>
 
-              <div v-else class="rounded-md border overflow-hidden">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="bg-muted/40 border-b">
-                      <th class="px-4 py-2 text-left font-medium text-muted-foreground w-32">Module</th>
-                      <th class="px-3 py-2 text-center font-medium text-muted-foreground capitalize w-20" v-for="action in ACTIONS" :key="action">
-                        {{ action }}
-                      </th>
-                      <th class="px-3 py-2 text-center font-medium text-muted-foreground w-16">All</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="module in modules" :key="module" class="border-b last:border-0 hover:bg-muted/20">
-                      <td class="px-4 py-3 font-medium capitalize">{{ module }}</td>
-                      <td v-for="action in ACTIONS" :key="action" class="px-3 py-3 text-center">
-                        <template v-if="getPermission(module, action)">
-                          <input type="checkbox" :checked="isChecked(module, action)" @change="togglePerm(module, action)" class="h-4 w-4 cursor-pointer accent-primary" />
-                        </template>
-                        <template v-else>
-                          <span class="text-muted-foreground/40 text-xs">—</span>
-                        </template>
-                      </td>
-                      <td class="px-3 py-3 text-center">
-                        <input type="checkbox" :checked="isModuleAllChecked(module)" @change="toggleAllInModule(module)" class="h-4 w-4 cursor-pointer accent-primary" />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-if="modules.length === 0" class="flex items-center justify-center py-10 border rounded-lg bg-muted/20">
+                <Loader2 class="h-5 w-5 animate-spin text-muted-foreground/50 mr-2" />
+                <span class="text-sm text-muted-foreground">Memuat data hak akses…</span>
+              </div>
+
+              <div v-else class="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs">
+                    <thead>
+                      <tr class="bg-muted/50 border-b border-zinc-200 dark:border-zinc-800">
+                        <th class="px-4 py-2.5 text-left font-semibold text-zinc-600 dark:text-zinc-400">Modul</th>
+                        <th class="px-2 py-2.5 text-center font-semibold text-zinc-600 dark:text-zinc-400 capitalize" v-for="action in ACTIONS" :key="action">
+                          {{ action }}
+                        </th>
+                        <th class="px-3 py-2.5 text-center font-semibold text-zinc-600 dark:text-zinc-400">Semua</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                      <tr v-for="module in modules" :key="module" class="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
+                        <td class="px-4 py-3 font-medium capitalize text-zinc-900 dark:text-zinc-100">{{ module }}</td>
+                        <td v-for="action in ACTIONS" :key="action" class="px-2 py-4 text-center">
+                          <div v-if="getPermission(module, action)" class="flex justify-center">
+                            <button 
+                              type="button"
+                              @click="togglePerm(module, action)"
+                              class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
+                              :class="isChecked(module, action) 
+                                ? 'bg-primary/10 border-primary shadow-sm' 
+                                : 'bg-transparent border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'"
+                            >
+                              <div 
+                                class="h-4 w-4 rounded-sm border flex items-center justify-center transition-all"
+                                :class="isChecked(module, action) ? 'border-primary bg-white dark:bg-zinc-900' : 'border-zinc-300 dark:border-zinc-700'"
+                              >
+                                <Check v-if="isChecked(module, action)" class="h-3 w-3 text-primary stroke-[4]" />
+                              </div>
+                            </button>
+                          </div>
+                          <div v-else class="text-zinc-200 dark:text-zinc-800 select-none text-[10px]">—</div>
+                        </td>
+                        <td class="px-3 py-4 text-center bg-zinc-50/30 dark:bg-zinc-900/10">
+                          <div class="flex justify-center">
+                            <button 
+                              type="button"
+                              @click="toggleAllInModule(module)"
+                              class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
+                              :class="isModuleAllChecked(module) 
+                                ? 'bg-primary/10 border-primary shadow-sm' 
+                                : 'bg-transparent border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'"
+                            >
+                              <div 
+                                class="h-4 w-4 rounded-sm border flex items-center justify-center transition-all"
+                                :class="isModuleAllChecked(module) ? 'border-primary bg-white dark:bg-zinc-900' : 'border-zinc-300 dark:border-zinc-700'"
+                              >
+                                <Check v-if="isModuleAllChecked(module)" class="h-3 w-3 text-primary stroke-[4]" />
+                              </div>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 border-t px-6 py-4">
-            <Button variant="outline" @click="closeModal">Cancel</Button>
-            <Button :disabled="saving" @click="saveRole">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-1 animate-spin" />
-              {{ modalMode === 'create' ? 'Create Role' : 'Save Changes' }}
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+            <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
+            <Button @click="saveRole" :disabled="saving">
+              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+              {{ modalMode === 'create' ? 'Simpan Role' : 'Simpan Perubahan' }}
             </Button>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>

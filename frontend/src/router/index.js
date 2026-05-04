@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const routes = [
+export const routes = [
   // Root redirect
   {
     path: '/',
@@ -28,14 +28,14 @@ const routes = [
     },
   },
   {
-    path: '/dashboard/posts',
-    name: 'posts',
+    path: '/dashboard/products',
+    name: 'products',
     component: () => import('@/pages/PostsPage.vue'),
     meta: {
       requiresAuth: true,
       permission: 'post.index',
-      pageTitle: 'Manajemen Post',
-      pageSubtitle: 'Kelola konten post, status publish, dan kategori.',
+      pageTitle: 'Manajemen Produk',
+      pageSubtitle: 'Kelola produk, status, dan kategori.',
     },
   },
   {
@@ -114,6 +114,16 @@ const routes = [
       pageSubtitle: 'Log aktivitas HTTP pada sistem.',
     },
   },
+  {
+    path: '/dashboard/kasir',
+    name: 'kasir',
+    component: () => import('@/pages/KasirPage.vue'),
+    meta: {
+      requiresAuth: true,
+      pageTitle: 'Kasir',
+      pageSubtitle: 'Sistem Point of Sale',
+    },
+  },
 
   // Catch-all
   {
@@ -127,25 +137,20 @@ const routes = [
 const isProd = import.meta.env.PROD
 const base = isProd ? '/_/' : '/'
 
-const router = createRouter({
-  history: createWebHistory(base),
-  routes,
-})
+export const setupRouterGuards = (router) => {
+  router.beforeEach((to, _from) => {
+    const auth = useAuthStore()
 
-router.beforeEach((to, _from) => {
-  const auth = useAuthStore()
+    if (to.meta.requiresAuth && !auth.isAuthenticated) {
+      return { name: 'login' }
+    }
 
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login' }
-  }
+    if (to.meta.guest && auth.isAuthenticated) {
+      return { name: 'dashboard' }
+    }
 
-  if (to.meta.guest && auth.isAuthenticated) {
-    return { name: 'dashboard' }
-  }
-
-  if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
-    return { name: 'dashboard' }
-  }
-})
-
-export default router
+    if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
+      return { name: 'dashboard' }
+    }
+  })
+}

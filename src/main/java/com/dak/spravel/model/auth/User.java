@@ -25,6 +25,7 @@ public class User extends BaseEntity {
 
     private String password;
     
+    private String email;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

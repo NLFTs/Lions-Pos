@@ -44,7 +44,7 @@ const pageNumbers = computed(() => {
     <!-- Rows per page -->
     <div class="flex items-center gap-3">
       <div class="relative group">
-        <div class="flex h-9 w-[72px] items-center justify-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm font-medium group-focus-within:ring-2 group-focus-within:ring-primary/20">
+        <div class="flex h-9 w-[72px] items-center justify-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm font-medium group-focus-within:ring-2 group-focus-within:ring-primary/20">
           <span>{{ pageSize }}</span>
           <ChevronDown class="h-4 w-4 text-zinc-500" />
         </div>
@@ -53,7 +53,7 @@ const pageNumbers = computed(() => {
           @change="emit('update:pageSize', Number($event.target.value))"
           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         >
-          <option v-for="size in [10, 20, 30, 50, 100]" :key="size" :value="size">
+          <option v-for="size in [10, 20, 30, 50, 100]" :key="size" :value="size" class="text-zinc-900 dark:text-zinc-100 dark:bg-zinc-950">
             {{ size }}
           </option>
         </select>

@@ -46,8 +46,8 @@ watch(searchQuery, () => {
   page.value = 1
 })
 
-// Modal
-const showModal = ref(false)
+// Drawer
+const showDrawer = ref(false)
 const modalMode = ref('create')
 const saving = ref(false)
 const formError = ref(null)
@@ -74,14 +74,18 @@ function openCreate() {
   form.value = { id: null, name: '', description: '' }
   formError.value = null
   modalMode.value = 'create'
-  showModal.value = true
+  showDrawer.value = true
+}
+
+function closeDrawer() {
+  showDrawer.value = false
 }
 
 function openEdit(cat) {
   form.value = { id: cat.id, name: cat.name, description: cat.description || '' }
   formError.value = null
   modalMode.value = 'edit'
-  showModal.value = true
+  showDrawer.value = true
 }
 
 async function saveCategory() {
@@ -95,7 +99,7 @@ async function saveCategory() {
       await api.put(`/api/v1/categories/${form.value.id}`, { name: form.value.name, description: form.value.description })
       toast.success('Category updated!')
     }
-    showModal.value = false
+    showDrawer.value = false
     fetchCategories()
   } catch (err) {
     formError.value = err.response?.data?.data?.message
@@ -221,50 +225,92 @@ function formatDate(dt) {
     </Card>
     </div>
 
-    <!-- ─── Create / Edit Modal ─── -->
+    <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/50" @click="showModal = false" />
-        <div class="relative z-10 w-full max-w-md mx-4 bg-card rounded-lg shadow-xl border">
-          <div class="flex items-center justify-between p-6 border-b">
-            <h3 class="font-semibold text-lg">{{ modalMode === 'create' ? 'New Category' : 'Edit Category' }}</h3>
-            <Button variant="ghost" size="icon" @click="showModal = false">
+      <!-- Backdrop -->
+      <Transition name="fade">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
+          @click="closeDrawer"
+        />
+      </Transition>
+
+      <!-- Panel -->
+      <Transition name="slide-right">
+        <div
+          v-if="showDrawer"
+          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+        >
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+            <div>
+              <h3 class="font-semibold text-base">
+                {{ modalMode === 'create' ? 'Tambah Kategori' : 'Edit Kategori' }}
+              </h3>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ modalMode === 'create' ? 'Isi detail kategori baru.' : 'Perbarui informasi kategori.' }}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" @click="closeDrawer">
               <X class="h-4 w-4" />
             </Button>
           </div>
 
-          <div class="p-6 space-y-4">
+          <!-- Body (scrollable) -->
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
             <Alert v-if="formError" variant="destructive">
               <p class="text-sm">{{ formError }}</p>
             </Alert>
 
-            <div class="space-y-2">
-              <Label for="c-name">Name <span class="text-destructive">*</span></Label>
-              <Input id="c-name" v-model="form.name" placeholder="Category name" :disabled="saving" />
+            <div class="space-y-1.5">
+              <Label for="c-name">Nama Kategori <span class="text-destructive">*</span></Label>
+              <Input id="c-name" v-model="form.name" placeholder="Nama kategori" :disabled="saving" />
             </div>
 
-            <div class="space-y-2">
-              <Label for="c-desc">Description</Label>
+            <div class="space-y-1.5">
+              <Label for="c-desc">Deskripsi</Label>
               <textarea
                 id="c-desc"
                 v-model="form.description"
-                rows="3"
+                rows="4"
                 :disabled="saving"
-                placeholder="Optional description..."
-                class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                placeholder="Deskripsi opsional..."
+                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
               />
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 p-6 border-t">
-            <Button variant="outline" @click="showModal = false" :disabled="saving">Cancel</Button>
+          <!-- Footer -->
+          <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+            <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
             <Button @click="saveCategory" :disabled="saving">
               <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-              {{ modalMode === 'create' ? 'Create' : 'Save Changes' }}
+              {{ modalMode === 'create' ? 'Simpan Kategori' : 'Simpan Perubahan' }}
             </Button>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+</style>
