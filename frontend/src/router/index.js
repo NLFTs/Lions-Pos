@@ -12,7 +12,8 @@ export const routes = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/pages/LoginPage.vue'), meta: { guest: true },
+    component: () => import('@/pages/LoginPage.vue'), 
+    meta: { guest: true },
   },
 
   // Authenticated area — all under /dashboard
@@ -184,6 +185,11 @@ export const setupRouterGuards = (router) => {
     if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
       return { name: 'dashboard' }
     }
+
+    if (to.meta.guest && auth.isAuthenticated) {
+  return { name: 'dashboard' }
+}
+
   })
 }
 
