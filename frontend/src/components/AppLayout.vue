@@ -33,6 +33,7 @@ import {
   MapPin,
   ShoppingCart,
   Search,
+  Ticket,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -99,6 +100,7 @@ const MENU_GROUPS = [
           { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: null },
           { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: null },
           { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: null },
+          { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: null },
         ],
       },
     ],
