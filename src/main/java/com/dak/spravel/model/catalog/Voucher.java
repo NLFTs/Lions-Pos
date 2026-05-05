@@ -1,22 +1,20 @@
 package com.dak.spravel.model.catalog;
 
-import com.dak.spravel.model.base.BaseEntity;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "vouchers",indexes=@Index(name = "idx_vouchers_code", columnList = "code"))
-public class Voucher extends BaseEntity {
+public class Voucher  {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -53,10 +51,31 @@ public class Voucher extends BaseEntity {
 
     private Integer used_count = 0;
 
-    private LocalDate valid_from;
+    private LocalDateTime valid_from;
 
-    private LocalDate valid_until;
+    private LocalDateTime valid_until;
 
     private Boolean is_active = true;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    private User deletedBy;
     
 }

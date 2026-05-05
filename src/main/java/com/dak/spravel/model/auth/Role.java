@@ -3,11 +3,11 @@ package com.dak.spravel.model.auth;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
-import com.dak.spravel.model.base.BaseEntity;
 /**
  * Role entity representing a role in the system.
  * Roles group permissions and can be assigned to users.
@@ -15,10 +15,9 @@ import com.dak.spravel.model.base.BaseEntity;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "roles", uniqueConstraints = @UniqueConstraint(columnNames = "slug"))
-public class Role extends BaseEntity {
+public class Role   {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,4 +43,24 @@ public class Role extends BaseEntity {
     )
     private Set<Permission> permissions = new HashSet<>();
 
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    private User deletedBy;
 }
