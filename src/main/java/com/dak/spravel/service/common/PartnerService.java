@@ -52,6 +52,16 @@ public class PartnerService {
                 .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
         partner.setIsActive(false);
 
+        AuditHelper.setDeleted(partner);
+        return partnerRepository.save(partner);
+    }
+
+    
+    public Partners restorePartner(Long id) {
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
+        partner.setIsActive(true);
+
         AuditHelper.setUpdated(partner);
         return partnerRepository.save(partner);
     }

@@ -55,4 +55,11 @@ public class PartnerController {
         Partners updatedPartner = partnerService.softDeletePartner(id);
         return ResponseBuilder.ok(updatedPartner);
     }
+
+    @PutMapping("/restore/{id}")
+    public ResponseEntity<ResData<Partners>> restorePartner(@PathVariable Long id) {
+        log.info("[PUT] /api/v1/partners/restore/{}", id);
+        Partners updatedPartner = partnerService.restorePartner(id);
+        return ResponseBuilder.ok(updatedPartner);
+    }
 }

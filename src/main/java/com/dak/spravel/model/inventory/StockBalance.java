@@ -1,6 +1,7 @@
 package com.dak.spravel.model.inventory;
 
 import com.dak.spravel.model.catalog.Product;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,7 +26,7 @@ public class StockBalance {
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
 
-        @ManyToOne(fetch = FetchType.LAZY)
+        @ManyToOne(fetch = FetchType.EAGER)
         @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
         private Product product;
 
@@ -84,7 +85,8 @@ public class StockBalance {
         @Column(name = "updated_at")
         private LocalDateTime updatedAt;
 
-        @ManyToOne(fetch = FetchType.LAZY)
+        @ManyToOne(fetch = FetchType.EAGER)
         @JoinColumn(name = "updated_by", referencedColumnName = "id", insertable = false, updatable = false)
+        @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
         private User updatedBy;
 }
