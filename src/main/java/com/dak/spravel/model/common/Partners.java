@@ -1,22 +1,21 @@
 package com.dak.spravel.model.common;
 
-import com.dak.spravel.model.base.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import java.util.Map;
+import java.time.LocalDateTime;
 
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Data
-@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "partners")
-public class Partners extends BaseEntity{
+@EntityListeners(AuditingEntityListener.class)
+public class Partners {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -29,14 +28,6 @@ public class Partners extends BaseEntity{
 
     public enum Plan {
         BASIC, PRO, ENTERPRISE;
-
-        @JsonCreator
-        public static Plan fromObject(Map<String, Object> obj) {
-            if (obj != null && obj.containsKey("name")) {
-                return Plan.valueOf(obj.get("name").toString().toUpperCase());
-            }
-            return null;
-        }
     }
 
     @Enumerated(EnumType.STRING)
@@ -45,4 +36,25 @@ public class Partners extends BaseEntity{
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    private User deletedBy;
 }
+

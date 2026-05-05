@@ -1,17 +1,16 @@
 package com.dak.spravel.model.auth;
 
-import com.dak.spravel.model.base.BaseEntity;
+import java.time.LocalDateTime;
+
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @Entity
 @Table(name = "modules")
-public class Module extends BaseEntity {
+public class Module   {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -27,4 +26,25 @@ public class Module extends BaseEntity {
     /** Optional description shown in the permission management UI. */
     @Column
     private String description;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    private User deletedBy;
 }

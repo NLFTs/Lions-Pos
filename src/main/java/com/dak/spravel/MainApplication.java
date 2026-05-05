@@ -17,8 +17,8 @@ import java.util.TimeZone;
  * Spring Boot main entry point with JPA auditing and timezone configuration.
  */
 @SpringBootApplication
-@EnableJpaAuditing(auditorAwareRef = "auditorAwareImpl")
 @Slf4j
+@EnableJpaAuditing(auditorAwareRef = "auditorAwareImpl")
 public class MainApplication implements ApplicationRunner {
 
 	@Value("${app.version}")

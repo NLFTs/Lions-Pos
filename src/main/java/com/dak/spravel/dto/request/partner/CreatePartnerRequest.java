@@ -13,6 +13,5 @@ public class CreatePartnerRequest {
     
     @NotBlank(message = "Name is required")
     private String name;
-
     private Plan plan; 
 }
