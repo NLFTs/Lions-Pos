@@ -2,8 +2,8 @@ package com.dak.spravel.service.common;
 
 import java.util.List;
 
-// import org.apache.logging.log4j.LogManager;
-// import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PartnerService {
-    // private final Logger log = LogManager.getLogger(PartnerService.class);
+    private final Logger log = LogManager.getLogger(PartnerService.class);
     private final PartnerRepository partnerRepository;
 
     public List<Partners> getAllPartners() {
@@ -45,9 +45,20 @@ public class PartnerService {
     @Transactional
     public Partners softDeletePartner(Long id) {
         Partners partner = partnerRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
+            .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
+
+        log.info("Soft deleting partner: {}", partner.toString());
         partner.setIsActive(false);
         return partnerRepository.save(partner);
     }
-    
+
+    public Partners updatePartnesr(Long id, CreatePartnerRequest request) {
+        Partners partner = partnerRepository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
+
+        log.info("Updating partner: {}", partner.toString());
+        partner.setName(request.getName());
+        partner.setPlan(request.getPlan());
+        return partnerRepository.save(partner);
+    }
 }

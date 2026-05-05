@@ -50,9 +50,17 @@ public class PartnerController {
     }
     
     @PutMapping("/soft-delete/{id}")
-    public ResponseEntity<ResData<Partners>> softDeletePartner(@PathVariable Long id) {
+    public ResponseEntity<ResData<Partners>> softDeletePartner(@Valid @PathVariable Long id) {
         log.info("[PUT] /api/v1/partners/soft-delete/{}", id);
-        Partners updatedPartner = partnerService.softDeletePartner(id);
+        Partners deletedPartner = partnerService.softDeletePartner(id);
+        return ResponseBuilder.ok(deletedPartner);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ResData<Partners>> updatePartner(@Valid @PathVariable Long id,@RequestBody CreatePartnerRequest request) {
+        log.info("[PUT] /api/v1/partners/{} - Request: {}", id, request);
+        Partners updatedPartner = partnerService.updatePartnesr(id, request);
         return ResponseBuilder.ok(updatedPartner);
     }
+
 }

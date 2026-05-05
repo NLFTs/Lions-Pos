@@ -1,22 +1,26 @@
 package com.dak.spravel.model.common;
 
-import com.dak.spravel.model.base.BaseEntity;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import java.util.Map;
-
+import java.time.LocalDateTime;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import com.dak.spravel.model.auth.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Entity
 @Data
-@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "partners")
-public class Partners extends BaseEntity{
+public class Partners {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -24,25 +28,39 @@ public class Partners extends BaseEntity{
     @Column(nullable = false)
     private String name;
 
-    @Column(unique = true, nullable = false)
+    @Column(unique = true)
     private String slug;
 
     public enum Plan {
         BASIC, PRO, ENTERPRISE;
-
-        @JsonCreator
-        public static Plan fromObject(Map<String, Object> obj) {
-            if (obj != null && obj.containsKey("name")) {
-                return Plan.valueOf(obj.get("name").toString().toUpperCase());
-            }
-            return null;
-        }
     }
 
     @Enumerated(EnumType.STRING)
     private Plan plan;
 
-    @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @CreatedDate
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime deletedAt;
+
+    @CreatedBy
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    private User createdBy;
+
+    @LastModifiedBy
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    private User updatedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    private User deletedBy;
 
 }
