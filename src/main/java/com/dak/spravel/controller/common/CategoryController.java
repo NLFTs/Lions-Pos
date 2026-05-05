@@ -1,10 +1,10 @@
 package com.dak.spravel.controller.common;
 
 import com.dak.spravel.dto.response.ResData;
-import com.dak.spravel.service.common.CategoryService;
 import com.dak.spravel.dto.request.user.CreateCategoryRequest;
 import com.dak.spravel.dto.request.user.UpdateCategoryRequest;
 import com.dak.spravel.dto.response.CategoryResponse;
+import com.dak.spravel.service.common.CategoryService;
 import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;

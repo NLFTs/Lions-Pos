@@ -16,7 +16,8 @@ import lombok.Data;
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy"})
-public abstract class BaseEntity {
+public abstract class
+BaseEntity {
 
     @Column(updatable = false)
     @CreatedDate
