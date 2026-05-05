@@ -165,8 +165,8 @@ function onNameInput() {
   if (modalMode.value === 'create') {
     form.value.slug = form.value.name
       .toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
   }
 }
 
@@ -371,7 +371,7 @@ async function doDelete(role) {
               </div>
               <div class="space-y-1.5">
                 <Label for="roleSlug">Slug</Label>
-                <Input id="roleSlug" v-model="form.slug" placeholder="contoh_role" class="font-mono text-xs" :disabled="saving" />
+                <Input id="roleSlug" v-model="form.slug" placeholder="contoh-role" class="font-mono text-xs" :disabled="saving" />
               </div>
             </div>
 

@@ -6,7 +6,7 @@ export const isEmptyMode = appMode === 'empty'
 
 export const FULL_PERMISSIONS = [
   'user.index', 'user.store', 'user.update', 'user.delete', 'user.destroy',
-  'post.index', 'post.store', 'post.update', 'post.delete', 'post.destroy',
+  'produk.index', 'produk.store', 'produk.update', 'produk.delete', 'produk.destroy',
   'category.index', 'category.store', 'category.update', 'category.delete', 'category.destroy',
   'role.index', 'role.store', 'role.update', 'role.delete', 'role.destroy',
   'permission.index', 'permission.store', 'permission.update', 'permission.delete', 'permission.destroy',

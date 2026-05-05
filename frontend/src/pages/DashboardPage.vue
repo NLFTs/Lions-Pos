@@ -169,7 +169,7 @@ const statCards = computed(() => {
       description: `${recentUsers.value.length} terbaru ditampilkan`,
     })
   }
-  if (can('post.index')) {
+  if (can('produk.index')) {
     cards.push({
       label: 'Total Post',
       value: stats.value.totalPosts,
@@ -226,13 +226,13 @@ const statCards = computed(() => {
 })
 
 // Hanya Buat Post yang tersisa
-const canCreatePost = computed(() => can('post.store'))
+const canCreatePost = computed(() => can('produk.store'))
 
 // Menu "Buat Baru" dropdown — tampilkan item sesuai permission
 const createMenuItems = computed(() => {
   const items = []
   if (can('user.store'))       items.push({ label: 'User',       icon: Users,       to: '/dashboard/users' })
-  if (can('post.store'))       items.push({ label: 'Post',        icon: FileText,    to: '/dashboard/posts' })
+  if (can('produk.store'))       items.push({ label: 'Post',        icon: FileText,    to: '/dashboard/posts' })
   if (can('category.store'))   items.push({ label: 'Kategori',   icon: Boxes,       to: '/dashboard/categories' })
   if (can('role.store'))       items.push({ label: 'Role',        icon: ShieldCheck, to: '/dashboard/roles' })
   if (can('permission.store')) items.push({ label: 'Permission', icon: KeyRound,    to: '/dashboard/permissions' })
