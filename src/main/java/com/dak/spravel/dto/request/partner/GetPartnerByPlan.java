@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class GetPartnerByPlan {
+public class
+GetPartnerByPlan {
     private Plan plan;
 }

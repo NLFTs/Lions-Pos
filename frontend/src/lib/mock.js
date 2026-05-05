@@ -3,7 +3,7 @@
  * This allows the frontend to run without a backend.
  */
 
-const permissionModules = ['user', 'post', 'category', 'role', 'permission', 'module']
+const permissionModules = ['user', 'post', 'category', 'stock_mutation', 'partner', 'location', 'voucher', 'role', 'permission', 'module']
 const permissionActions = ['index', 'show', 'store', 'update', 'delete']
 
 const mockPermissionsMap = permissionModules.reduce((acc, module) => {
@@ -106,6 +106,10 @@ const mockData = {
           'user.index', 'user.store', 'user.update', 'user.delete', 'user.destroy',
           'post.index', 'post.store', 'post.update', 'post.delete', 'post.destroy',
           'category.index', 'category.store', 'category.update', 'category.delete', 'category.destroy',
+          'stock_mutation.index', 'stock_mutation.store', 'stock_mutation.update', 'stock_mutation.delete', 'stock_mutation.destroy',
+          'partner.index', 'partner.store', 'partner.update', 'partner.delete', 'partner.destroy',
+          'location.index', 'location.store', 'location.update', 'location.delete', 'location.destroy',
+          'voucher.index', 'voucher.store', 'voucher.update', 'voucher.delete', 'voucher.destroy',
           'role.index', 'role.store', 'role.update', 'role.delete', 'role.destroy',
           'permission.index', 'permission.store', 'permission.update', 'permission.delete', 'permission.destroy',
           'module.index', 'module.store', 'module.update', 'module.delete', 'module.destroy',

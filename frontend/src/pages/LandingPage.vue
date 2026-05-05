@@ -185,3 +185,5 @@ const navigateToLogin = () => {
 <style scoped>
 /* No styles here as per requirement */
 </style>
+
+
