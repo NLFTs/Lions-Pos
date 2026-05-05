@@ -615,6 +615,31 @@ onBeforeUnmount(() => {
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger class="flex w-full justify-between items-center px-2 py-2 text-sm cursor-pointer outline-none">
+                  <span>Display Mode</span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent side="right" align="start" class="min-w-[140px]">
+                    <DropdownMenuItem @click="setThemePreference('light')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
+                      <Sun class="h-4 w-4 text-zinc-500" />
+                      <span class="flex-1">Siang (Light)</span>
+                      <Check v-if="themePreference === 'light'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @click="setThemePreference('dark')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
+                      <Moon class="h-4 w-4 text-zinc-500" />
+                      <span class="flex-1">Malam (Dark)</span>
+                      <Check v-if="themePreference === 'dark'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
+                    </DropdownMenuItem>
+                    <DropdownMenuItem @click="setThemePreference('system')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
+                      <Monitor class="h-4 w-4 text-zinc-500" />
+                      <span class="flex-1">Sistem</span>
+                      <Check v-if="themePreference === 'system'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
                 <span>Log Out</span>
                 <LogOut class="h-4 w-4 text-zinc-500" />
