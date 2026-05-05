@@ -82,6 +82,17 @@ export const routes = [
     },
   },
   {
+    path: '/dashboard/vouchers',
+    name: 'vouchers',
+    component: () => import('@/pages/VouchersPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Manajemen Voucer',
+      pageSubtitle: 'Kelola kode promo dan diskon.',
+    },
+  },
+  {
     path: '/dashboard/roles',
     name: 'roles',
     component: () => import('@/pages/RolesPage.vue'),
