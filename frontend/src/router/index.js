@@ -12,8 +12,7 @@ export const routes = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/pages/LoginPage.vue'),
-    meta: { guest: true },
+    component: () => import('@/pages/LoginPage.vue'), meta: { guest: true },
   },
 
   // Authenticated area — all under /dashboard
@@ -30,7 +29,7 @@ export const routes = [
   {
     path: '/dashboard/products',
     name: 'products',
-    component: () => import('@/pages/PostsPage.vue'),
+    component: () => import('@/pages/ProductPage.vue'),
     meta: {
       requiresAuth: true,
       permission: 'post.index',
@@ -163,21 +162,20 @@ export const routes = [
     name: 'about',
     component: () => import('@/pages/AboutPage.vue'),
   },
-  // Catch-all
   {
     path: '/:pathMatch(.*)*',
     redirect: '/login',
   },
 ]
 
-// Dev mode: base '/' (no prefix)
-// Prod build: base '/_/' (Spring Boot prefix)
 const isProd = import.meta.env.PROD
 const base = isProd ? '/_/' : '/'
 
+
 export const setupRouterGuards = (router) => {
-  router.beforeEach((to, _from) => {
+  router.beforeEach((to, from) => {
     const auth = useAuthStore()
+
 
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
       return { name: 'login' }
@@ -188,3 +186,12 @@ export const setupRouterGuards = (router) => {
     }
   })
 }
+
+const router = createRouter({
+  history: createWebHistory(base),
+  routes,
+})
+
+setupRouterGuards(router)
+
+export default router

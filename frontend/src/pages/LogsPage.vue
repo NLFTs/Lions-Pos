@@ -360,5 +360,3 @@ function getStatusTextColor(status) {
     </Teleport>
   </AppLayout>
 </template>
-
-
