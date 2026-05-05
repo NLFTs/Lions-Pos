@@ -6,11 +6,13 @@ import java.util.List;
 // import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
 import com.dak.spravel.dto.request.partner.GetPartnerByPlan;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.util.AuditHelper;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -31,6 +33,8 @@ public class PartnerService {
         Partners partner = new Partners();
         partner.setName(request.getName());
         partner.setPlan(request.getPlan());
+
+        AuditHelper.setCreated(partner);
        
         String generateSlug = request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-");
         partner.setSlug(generateSlug);
@@ -47,6 +51,8 @@ public class PartnerService {
         Partners partner = partnerRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Partner with id " + id + " not found"));
         partner.setIsActive(false);
+
+        AuditHelper.setUpdated(partner);
         return partnerRepository.save(partner);
     }
     
