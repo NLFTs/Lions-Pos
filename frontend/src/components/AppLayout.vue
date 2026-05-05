@@ -97,10 +97,10 @@ const MENU_GROUPS = [
         children: [
           { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'post.index' },
           { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
-          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: null },
-          { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: null },
-          { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: null },
-          { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: null },
+          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock_mutation.index' },
+          { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
+          { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'location.index' },
+          { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
         ],
       },
     ],
@@ -156,9 +156,12 @@ const MENU_GROUPS = [
 
 // Filter menu by permission
 function filterMenu(groups) {
+  const userRoles = user.value?.roles || []
+  const isAdmin = userRoles.includes('ADMIN') || userRoles.some(r => r.name === 'ADMIN')
+
   return groups.reduce((acc, group) => {
     const filteredItems = group.items.reduce((items, item) => {
-      if (item.permission && !can(item.permission)) return items
+      if (item.permission && !isAdmin && !can(item.permission)) return items
       const filtered = { ...item }
       if (filtered.children) {
         filtered.children = filterMenu([{ label: '', items: filtered.children }])[0]?.items || []
