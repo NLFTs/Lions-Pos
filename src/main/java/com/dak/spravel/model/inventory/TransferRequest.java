@@ -2,12 +2,12 @@ package com.dak.spravel.model.inventory;
 
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.ToString;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -22,7 +22,7 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Partners partner;
     /**
@@ -65,30 +65,30 @@ public class TransferRequest {
     @Column(name = "received_at")
     private LocalDateTime receivedAt;
 
-    @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
+    private LocalDateTime createdAt = LocalDateTime.now();
+    
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    // --- Relationships ---
-
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ToString.Exclude 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    private User updatedBy;
+    
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    private User createdByUser;
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    private User createdBy;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "updated_by", referencedColumnName = "id", updatable = false)
-    private User updatedByUser;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "deleted_by", referencedColumnName = "id", updatable = false)
-    private User deletedByUser;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    private User deletedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approved_by", referencedColumnName = "id", updatable = false)

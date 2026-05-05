@@ -19,11 +19,11 @@ public class BranchWarehouses {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "branches_id", referencedColumnName = "id", nullable = false)
     private Branches branches;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "warehouses_id", referencedColumnName = "id", nullable = false)
     private Warehouses warehouses;
 
@@ -31,7 +31,8 @@ public class BranchWarehouses {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", referencedColumnName = "id", updatable = false)
     private User createdBy;
 

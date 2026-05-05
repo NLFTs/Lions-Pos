@@ -2,6 +2,7 @@ package com.dak.spravel.model.inventory;
 
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
@@ -53,8 +54,9 @@ public class StockOpnameItem {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "counted_by", referencedColumnName = "id")
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User countedBy;
 
     @Column(name = "counted_at")

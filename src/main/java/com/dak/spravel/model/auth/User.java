@@ -3,15 +3,17 @@ package com.dak.spravel.model.auth;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Data
 @NoArgsConstructor
 @Entity
 @Table(name = "users")
+@JsonIgnoreProperties({"permission", "password", "roles"})
 public class User   {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,16 +44,4 @@ public class User   {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "updated_by", referencedColumnName = "id")
-    private User updatedBy;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    private User createdBy;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "deleted_by", referencedColumnName = "id")
-    private User deletedBy;
 }
