@@ -647,11 +647,11 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Upgrade Button -->
-            <div class="px-3 pb-3">
+            <!-- <div class="px-3 pb-3">
               <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
                 Upgrade to Pro
               </Button>
-            </div>
+            </div> -->
 
             <div class="border-t border-border bg-zinc-50/50 dark:bg-zinc-900/50 px-3 py-2.5 flex items-center justify-between rounded-b-md">
               <div class="flex flex-col">
