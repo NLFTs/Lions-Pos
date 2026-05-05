@@ -25,11 +25,8 @@ import {
   Moon,
   Sun,
   HelpCircle,
-  SmilePlus,
   Home,
   Pencil,
-  LifeBuoy,
-  Book,
   Palette,
   Check,
   ArrowLeftRight,
@@ -588,26 +585,6 @@ onBeforeUnmount(() => {
 
             <!-- Main actions -->
             <div class="p-1">
-              <DropdownMenuItem class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Feedback</span>
-                <SmilePlus class="h-4 w-4 text-zinc-500" />
-              </DropdownMenuItem>
-
-              <div class="flex items-center justify-between px-2 py-1.5 text-sm">
-                <span>Theme</span>
-                <div class="flex items-center gap-1 border border-border rounded-full p-0.5">
-                  <button @click="setThemePreference('system')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'system', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'system' }">
-                    <Monitor class="h-3.5 w-3.5" />
-                  </button>
-                  <button @click="setThemePreference('light')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'light', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'light' }">
-                    <Sun class="h-3.5 w-3.5" />
-                  </button>
-                  <button @click="setThemePreference('dark')" class="p-1 rounded-full transition-colors" :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm': themePreference === 'dark', 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100': themePreference !== 'dark' }">
-                    <Moon class="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-
               <DropdownMenuItem @click="router.push('/')" class="justify-between px-2 py-2 text-sm cursor-pointer">
                 <span>Home Page</span>
                 <Home class="h-4 w-4 text-zinc-500" />
@@ -635,21 +612,6 @@ onBeforeUnmount(() => {
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
-
-              <DropdownMenuItem @click="router.push('/help')" class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Help</span>
-                <LifeBuoy class="h-4 w-4 text-zinc-500" />
-              </DropdownMenuItem>
-
-              <DropdownMenuItem @click="router.push('/docs')" class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Docs</span>
-                <Book class="h-4 w-4 text-zinc-500" />
-              </DropdownMenuItem>
-
-              <DropdownMenuItem @click="isAboutModalOpen = true" class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Tentang Kami</span>
-                <Zap class="h-4 w-4 text-zinc-500" />
-              </DropdownMenuItem>
 
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
                 <span>Log Out</span>
