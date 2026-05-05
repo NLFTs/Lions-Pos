@@ -181,10 +181,6 @@ export const setupRouterGuards = (router) => {
       return { name: 'login' }
     }
 
-    if (to.meta.guest && auth.isAuthenticated) {
-      return { name: 'dashboard' }
-    }
-
     if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
       return { name: 'dashboard' }
     }

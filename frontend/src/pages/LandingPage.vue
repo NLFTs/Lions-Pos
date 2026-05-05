@@ -7,8 +7,12 @@ import { Zap, Check } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
 import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
 import { onMounted, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const { isAuthenticated } = storeToRefs(authStore)
 const showCookieBanner = ref(false)
 
 onMounted(() => {
@@ -173,7 +177,9 @@ const navigateToLogin = () => {
                 <Check class="w-5 h-5 text-zinc-500" /> Laporan Standar
               </li>
             </ul>
-            <Button variant="ghost" class="w-full h-12 rounded-xl border border-zinc-800 text-white hover:bg-zinc-800/50">Mulai Basic</Button>
+            <Button variant="ghost" class="w-full h-12 rounded-xl border border-zinc-800 text-white hover:bg-zinc-800/50" @click="navigateToLogin">
+              Mulai Basic
+            </Button>
           </div>
           
           <!-- Pro Plan -->
@@ -200,7 +206,9 @@ const navigateToLogin = () => {
                 <Check class="w-5 h-5 text-primary" /> Integrasi E-Commerce
               </li>
             </ul>
-            <Button class="w-full h-12 rounded-xl bg-white text-zinc-900 hover:scale-[1.02] transition-transform duration-300 font-medium shadow-xl shadow-white/10">Pilih Pro</Button>
+            <Button class="w-full h-12 rounded-xl bg-white text-zinc-900 hover:scale-[1.02] transition-transform duration-300 font-medium shadow-xl shadow-white/10" @click="navigateToLogin">
+              Pilih Pro
+            </Button>
           </div>
           
           <!-- Enterprise Plan -->
