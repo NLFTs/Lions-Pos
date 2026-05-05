@@ -55,7 +55,7 @@ export const routes = [
     component: () => import('@/pages/StockMutationsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: null,
+      permission: 'stock_mutation.index',
       pageTitle: 'Mutasi Stok',
       pageSubtitle: 'Pantau riwayat pergerakan stok barang.',
     },
@@ -66,7 +66,7 @@ export const routes = [
     component: () => import('@/pages/PartnersPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: null,
+      permission: 'partner.index',
       pageTitle: 'Manajemen Partner',
       pageSubtitle: 'Kelola data supplier dan customer.',
     },
@@ -77,7 +77,7 @@ export const routes = [
     component: () => import('@/pages/LocationsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: null,
+      permission: 'location.index',
       pageTitle: 'Manajemen Lokasi',
       pageSubtitle: 'Atur data gudang dan cabang.',
     },
@@ -88,7 +88,7 @@ export const routes = [
     component: () => import('@/pages/VouchersPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: null,
+      permission: 'voucher.index',
       pageTitle: 'Manajemen Voucer',
       pageSubtitle: 'Kelola kode promo dan diskon.',
     },
@@ -193,8 +193,12 @@ export const setupRouterGuards = (router) => {
       return { name: 'login' }
     }
 
-    if (to.meta.permission && !auth.permissions.includes(to.meta.permission)) {
-      return { name: 'dashboard' }
+    if (to.meta.permission) {
+      const userRoles = auth.user?.roles || []
+      const isAdmin = userRoles.includes('ADMIN') || userRoles.some(r => r.name === 'ADMIN')
+      if (!isAdmin && !auth.permissions.includes(to.meta.permission)) {
+        return { name: 'dashboard' }
+      }
     }
 
     if (to.meta.guest && auth.isAuthenticated) {
