@@ -3,7 +3,7 @@
  * This allows the frontend to run without a backend.
  */
 
-const permissionModules = ['user', 'post', 'category', 'stock_mutation', 'partner', 'location', 'voucher', 'role', 'permission', 'module']
+const permissionModules = ['user', 'produk', 'category', 'stock-mutation', 'partner', 'location', 'voucher', 'role', 'permission', 'module']
 const permissionActions = ['index', 'show', 'store', 'update', 'delete']
 
 const mockPermissionsMap = permissionModules.reduce((acc, module) => {
@@ -23,7 +23,7 @@ const mockPermissionsMap = permissionModules.reduce((acc, module) => {
 
 const allMockPermissions = Object.values(mockPermissionsMap).flat()
 const editorPermissions = allMockPermissions.filter((permission) => (
-  ['post', 'category'].includes(permission.module)
+  ['produk', 'category'].includes(permission.module)
   || permission.slug === 'log.index'
 ))
 
@@ -104,9 +104,9 @@ const mockData = {
         roles: ['ADMIN'],
         permissions: [
           'user.index', 'user.store', 'user.update', 'user.delete', 'user.destroy',
-          'post.index', 'post.store', 'post.update', 'post.delete', 'post.destroy',
+          'produk.index', 'produk.store', 'produk.update', 'produk.delete', 'produk.destroy',
           'category.index', 'category.store', 'category.update', 'category.delete', 'category.destroy',
-          'stock_mutation.index', 'stock_mutation.store', 'stock_mutation.update', 'stock_mutation.delete', 'stock_mutation.destroy',
+          'stock-mutation.index', 'stock-mutation.store', 'stock-mutation.update', 'stock-mutation.delete', 'stock-mutation.destroy',
           'partner.index', 'partner.store', 'partner.update', 'partner.delete', 'partner.destroy',
           'location.index', 'location.store', 'location.update', 'location.delete', 'location.destroy',
           'voucher.index', 'voucher.store', 'voucher.update', 'voucher.delete', 'voucher.destroy',

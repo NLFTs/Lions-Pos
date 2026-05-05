@@ -33,7 +33,7 @@ export const routes = [
     component: () => import('@/pages/ProductPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'post.index',
+      permission: 'produk.index',
       pageTitle: 'Manajemen Produk',
       pageSubtitle: 'Kelola produk, status, dan kategori.',
     },
@@ -55,7 +55,7 @@ export const routes = [
     component: () => import('@/pages/StockMutationsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'stock_mutation.index',
+      permission: 'stock-mutation.index',
       pageTitle: 'Mutasi Stok',
       pageSubtitle: 'Pantau riwayat pergerakan stok barang.',
     },

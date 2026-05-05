@@ -95,9 +95,9 @@ const MENU_GROUPS = [
         icon: FileText,
         permission: null,
         children: [
-          { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'post.index' },
+          { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
           { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
-          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock_mutation.index' },
+          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
           { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
           { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'location.index' },
           { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
