@@ -36,8 +36,6 @@ useGsap((gsap, ScrollTrigger) => {
 const brandName = 'gaptek'
 
 const navigationItems = [
-  { name: 'Layanan', path: '#offer', hasDropdown: true },
-  { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
   { name: 'Harga', path: '#pricing' },
   { name: 'Tentang Gaptek', path: '/about' }
 ]
@@ -71,11 +69,8 @@ const navigateToLogin = () => {
       </template>
 
       <template #actions>
-        <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="navigateToLogin">
-          Masuk
-        </Button>
         <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="navigateToLogin">
-          Mulai Gratis
+          Masuk
         </Button>
       </template>
     </Navbar>
@@ -119,7 +114,7 @@ const navigateToLogin = () => {
             class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
             @click="navigateToLogin"
           >
-            Mulai Gratis Sekarang
+            Masuk
           </Button>
           <Button 
             variant="ghost"
@@ -138,7 +133,7 @@ const navigateToLogin = () => {
              <!-- Scaled Iframe with will-change to prevent jitter -->
              <iframe 
                src="/dashboard" 
-               class="absolute top-0 left-0 w-[117.6%] h-[117.6%] border-none origin-top-left scale-[0.85] will-change-transform"
+               class="absolute top-0 left-0 w-[117.6%] h-[117.6%] border-none origin-top-left scale-[0.85] will-change-transform pointer-events-none"
                style="scrollbar-width: none;"
                scrolling="no"
              ></iframe>
