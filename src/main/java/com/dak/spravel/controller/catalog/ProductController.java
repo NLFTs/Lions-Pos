@@ -41,10 +41,45 @@ public class ProductController {
         return ResponseBuilder.ok(product);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ResData<Product>> update(@PathVariable Long id, @RequestBody ProductRequest request) {
+        log.info("[PUT] /api/v1/products/{}", id);
+        Product product = productService.updateProduct(id, request);
+        return ResponseBuilder.ok(product);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ResData<String>> delete(@PathVariable Long id) {
         log.info("[DELETE] /api/v1/products/{}", id);
         productService.delete(id);
         return ResponseBuilder.ok("Product deleted successfully");
+    }
+
+    @PutMapping("/soft-delete/{id}")
+    public ResponseEntity<ResData<Product>> softDelete(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/products/{}", id);
+        Product product = productService.softDeleteProduct(id);
+        return ResponseBuilder.ok(product);
+    }
+
+    @PutMapping("/restore/{id}")
+    public ResponseEntity<ResData<Product>> restore(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/products/restore/{}", id);
+        Product product = productService.restoreProduct(id);
+        return ResponseBuilder.ok(product);
+    }
+
+    @PutMapping("/set-true-track-stock/{id}")
+    public ResponseEntity<ResData<Product>> setTrueTrackStock(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/products/set-true-track-stock/{}", id);
+        Product product = productService.setTrueTrackStock(id);
+        return ResponseBuilder.ok(product);
+    }
+
+    @PutMapping("/set-false-track-stock/{id}")
+    public ResponseEntity<ResData<Product>> setFalseTrackStock(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/products/set-false-track-stock/{}", id);
+        Product product = productService.setFalseTrackStock(id);
+        return ResponseBuilder.ok(product);
     }
 }

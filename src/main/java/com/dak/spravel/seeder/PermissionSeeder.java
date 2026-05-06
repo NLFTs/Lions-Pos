@@ -35,6 +35,8 @@ public class PermissionSeeder {
     private static final String[][] ALL_MODULES = {
         {"post",       "Post",       "Manage blog posts"},
         {"category",   "Category",   "Manage post categories"},
+        {"partner",    "Partner",    "Manage blog partners"},
+        {"category_product", "Category Product", "Manage product categories"},
         {"role",       "Role",       "Manage user roles"},
         {"permission", "Permission", "Manage system permissions"},
         {"module",     "Module",     "Manage permission modules"},
@@ -50,12 +52,24 @@ public class PermissionSeeder {
         {"post.update",     "Update Post",             "post"},
         {"post.delete",     "Delete Post",             "post"},
 
+        {"partner.index",      "View All Partners",          "partner"},
+        {"partner.show",       "View Partner Detail",        "partner"},
+        {"partner.store",      "Create Partner",             "partner"},
+        {"partner.update",     "Update Partner",             "partner"},
+        {"partner.delete",     "Delete Partner",             "partner"},
+
+        {"category_product.index",  "View All Categories",     "category_product"},
+        {"category_product.show",   "View Category Detail",    "category_product"},
+        {"category_product.store",  "Create Category",         "category_product"},
+        {"category_product.update", "Update Category",         "category_product"},
+        {"category_product.delete", "Delete Category",         "category_product"}, 
+
         {"category.index",  "View All Categories",     "category"},
         {"category.show",   "View Category Detail",    "category"},
         {"category.store",  "Create Category",         "category"},
         {"category.update", "Update Category",         "category"},
         {"category.delete", "Delete Category",         "category"},
-
+        
         {"role.index",      "View All Roles",          "role"},
         {"role.show",       "View Role Detail",        "role"},
         {"role.store",      "Create Role",             "role"},

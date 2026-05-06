@@ -6,6 +6,8 @@ import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.util.AuditHelper;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,12 +51,24 @@ public class CategoryProductService {
                     .orElseThrow(() -> new ResourceNotFoundException("Parent category", request.getParentId()));
         }
 
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+
+        if (categoryProductRepository.existsByNameAndPartnerId(request.getName(), request.getPartnerId())) {
+            throw new IllegalArgumentException("Category with the name " + request.getName() + " already exists for this partner");
+        }
+
+
+
         CategoryProduct category = new CategoryProduct();
         category.setPartner(partner);
         category.setParent(parent);
         category.setName(request.getName());
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
+
+        AuditHelper.setCreated(category);
 
         return categoryProductRepository.save(category);
     }
@@ -73,11 +87,22 @@ public class CategoryProductService {
                     .orElseThrow(() -> new ResourceNotFoundException("Parent category", request.getParentId()));
         }
 
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+
+        if (categoryProductRepository.existsByNameAndPartnerId(request.getName(), request.getPartnerId())
+                && !category.getName().equals(request.getName())) {
+            throw new IllegalArgumentException("Category with the name " + request.getName() + " already exists for this partner");
+        }
+
         category.setPartner(partner);
         category.setParent(parent);
         category.setName(request.getName());
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
+
+        AuditHelper.setUpdated(category);
 
         return categoryProductRepository.save(category);
     }

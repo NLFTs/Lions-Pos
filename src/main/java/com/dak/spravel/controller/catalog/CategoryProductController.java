@@ -45,7 +45,7 @@ public class CategoryProductController {
         log.info("[GET] /api/v1/category-products/{}", id);
         return ResponseEntity.ok(categoryProductService.findById(id));
     }
-
+    
     @PostMapping
     @PreAuthorize("hasAuthority('category_product.store')")
     public ResponseEntity<CategoryProduct> store(

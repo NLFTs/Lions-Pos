@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
 import com.dak.spravel.dto.request.partner.GetPartnerByPlan;
 import com.dak.spravel.model.common.Partners;
-import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.util.AuditHelper;
 

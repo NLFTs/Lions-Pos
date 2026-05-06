@@ -7,4 +7,6 @@ import com.dak.spravel.model.catalog.CategoryProduct;
 
 @Repository
 public interface CategoryProductRepository extends JpaRepository<CategoryProduct, Long> {
+    boolean existsByName(String name);
+    boolean existsByNameAndPartnerId(String name, Long partnerId);
 }

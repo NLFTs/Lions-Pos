@@ -1,6 +1,7 @@
 package com.dak.spravel.controller.common;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,7 @@ public class PartnerController {
     private final PartnerService partnerService;
 
     @PostMapping
+    @PreAuthorize("hasAuthority('partner.store')")
     public ResponseEntity<ResData<Partners>> createPartner(
             @Valid @RequestBody CreatePartnerRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -36,6 +38,7 @@ public class PartnerController {
     }
 
     @GetMapping("/plan/{plan}")
+    @PreAuthorize("hasAuthority('partner.show')")
     public ResponseEntity<ResData<Iterable<Partners>>> getPartnersByPlan(@PathVariable Partners.Plan plan) {
         log.info("[GET] /api/v1/partners/plan/{}", plan);
         Iterable<Partners> partners = partnerService.getPartnersByPlan(new GetPartnerByPlan(plan));
@@ -43,6 +46,7 @@ public class PartnerController {
     }
 
     @GetMapping("/all")
+    @PreAuthorize("hasAuthority('partner.show')")
     public ResponseEntity<ResData<Iterable<Partners>>> getAllPartners() {
         log.info("[GET] /api/v1/partners/all");
         Iterable<Partners> partners = partnerService.getAllPartners();
@@ -50,6 +54,7 @@ public class PartnerController {
     }
     
     @PutMapping("/soft-delete/{id}")
+    @PreAuthorize("hasAuthority('partner.update')")
     public ResponseEntity<ResData<Partners>> softDeletePartner(@PathVariable Long id) {
         log.info("[PUT] /api/v1/partners/soft-delete/{}", id);
         Partners updatedPartner = partnerService.softDeletePartner(id);
@@ -57,6 +62,7 @@ public class PartnerController {
     }
 
     @PutMapping("/restore/{id}")
+    @PreAuthorize("hasAuthority('partner.update')")
     public ResponseEntity<ResData<Partners>> restorePartner(@PathVariable Long id) {
         log.info("[PUT] /api/v1/partners/restore/{}", id);
         Partners updatedPartner = partnerService.restorePartner(id);
