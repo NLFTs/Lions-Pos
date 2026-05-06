@@ -1,5 +1,5 @@
 <template>
-  <nav class="h-20 flex items-center justify-between px-6 md:px-12 sticky top-0 bg-white/50 dark:bg-zinc-950/50 backdrop-blur-xl z-50 transition-colors duration-300 w-full">
+  <nav class="h-20 flex items-center justify-between px-6 md:px-12 sticky top-0 bg-white/50 dark:bg-black/50 backdrop-blur-xl z-50 transition-colors duration-300 w-full border-b border-white/20">
     <!-- Logo Section -->
     <div class="flex items-center gap-2 cursor-pointer group" @click="$emit('navigate', '/')">
       <div class="h-8 w-8 bg-white dark:bg-zinc-100 rounded-full flex items-center justify-center overflow-hidden border border-zinc-200 dark:border-zinc-800">
