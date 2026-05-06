@@ -327,7 +327,7 @@ async function doDelete(perm) {
                 @change="onModuleSelect"
                 :disabled="saving"
               >
-                <option :value="null" disabled>— Pilih modul —</option>
+                <option :value="null" disabled> Pilih modul </option>
                 <option v-for="mod in modules" :key="mod.id" :value="mod.id">{{ mod.name }} ({{ mod.slug }})</option>
               </select>
             </div>

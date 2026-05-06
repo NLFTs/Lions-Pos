@@ -87,9 +87,14 @@ function closeDrawer() {
   showDrawer.value = false
 }
 
+// Bagian yang diubah: Menggunakan '-' (dash)
 function onNameInput() {
   if (modalMode.value !== 'create') return
-  form.value.slug = form.value.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  form.value.slug = form.value.name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // Mengganti karakter non-alfanumerik dengan dash
+    .replace(/^-+|-+$/g, '')    // Menghapus dash di awal atau akhir
 }
 
 async function saveModule() {
@@ -153,7 +158,7 @@ async function doDelete(mod) {
         <DataTableSearch
           v-model="searchQuery"
           placeholder="Search modules..."
-          class="w-full max-w-sm"
+          class="w-full max-sm"
           input-class="h-9 text-xs"
         />
         <div class="flex items-center gap-2 w-full sm:w-auto">
@@ -272,10 +277,10 @@ async function doDelete(mod) {
               <Label for="modSlug">
                 Slug 
                 <span class="ml-1 text-[10px] text-muted-foreground font-normal">
-                  {{ modalMode === 'create' ? '(otomatis, huruf kecil/angka/_)' : '(tidak dapat diubah)' }}
+                  {{ modalMode === 'create' ? '(otomatis, huruf kecil/angka/-)' : '(tidak dapat diubah)' }}
                 </span>
               </Label>
-              <Input id="modSlug" v-model="form.slug" :disabled="modalMode === 'edit' || saving" placeholder="contoh_modul" class="font-mono text-xs" :class="modalMode === 'edit' ? 'bg-muted' : ''" />
+              <Input id="modSlug" v-model="form.slug" :disabled="modalMode === 'edit' || saving" placeholder="contoh-modul" class="font-mono text-xs" :class="modalMode === 'edit' ? 'bg-muted' : ''" />
             </div>
 
             <div class="space-y-1.5">
@@ -304,23 +309,3 @@ async function doDelete(mod) {
     </Teleport>
   </AppLayout>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.slide-right-enter-from,
-.slide-right-leave-to {
-  transform: translateX(100%);
-}
-</style>

@@ -46,6 +46,8 @@ const activeFilterCount = computed(() => {
   return count
 })
 
+const togglingStatus = ref(null)
+
 function clearFilters() {
   sortBy.value = 'terbaru'
   filterStatus.value = 'all'
@@ -309,6 +311,31 @@ async function confirmDelete() {
   }
 }
 
+async function toggleStatus(product) {
+  if (!can('produk.update')) {
+    toast.error('Anda tidak memiliki izin untuk mengubah status produk.')
+    return
+  }
+  
+  if (togglingStatus.value === product.id) return
+  
+  togglingStatus.value = product.id
+  const originalStatus = product.isActive
+  product.isActive = !product.isActive // Optimistic update
+  
+  try {
+    await api.patch(`/api/v1/products/${product.id}`, {
+      isActive: product.isActive
+    })
+    toast.success(`Status ${product.name} berhasil diperbarui menjadi ${product.isActive ? 'Aktif' : 'Nonaktif'}.`)
+  } catch (err) {
+    product.isActive = originalStatus // Rollback
+    toast.error(err.response?.data?.message || 'Gagal memperbarui status produk.')
+  } finally {
+    togglingStatus.value = null
+  }
+}
+
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function formatCurrency(value) {
   if (value == null || value === '') return '-'
@@ -543,13 +570,22 @@ function productAvatarStyle(name = '') {
                     >
                       {{ product.categoryName }}
                     </span>
-                    <span
-                      class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                      :class="product.isActive ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'"
+                    <button
+                      type="button"
+                      role="switch"
+                      :aria-checked="product.isActive"
+                      :disabled="togglingStatus === product.id"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                      @click.stop="toggleStatus(product)"
                     >
-                      <span class="w-1 h-1 rounded-full" :class="product.isActive ? 'bg-primary' : 'bg-zinc-400'" />
-                      {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
-                    </span>
+                      <span
+                        class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                        :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                      >
+                        <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -630,15 +666,22 @@ function productAvatarStyle(name = '') {
 
                     <!-- Status Aktif -->
                     <TableCell class="py-3 text-center">
-                      <span
-                        class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-                        :class="product.isActive
-                          ? 'bg-primary/10 text-primary border border-primary/20'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'"
+                      <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="product.isActive"
+                        :disabled="togglingStatus === product.id"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mx-auto"
+                        :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                        @click.stop="toggleStatus(product)"
                       >
-                        <span class="w-1.5 h-1.5 rounded-full" :class="product.isActive ? 'bg-primary' : 'bg-zinc-400'" />
-                        {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
-                      </span>
+                        <span
+                          class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                          :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                        >
+                          <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
+                        </span>
+                      </button>
                     </TableCell>
 
                     <!-- Tanggal -->
@@ -829,28 +872,6 @@ function productAvatarStyle(name = '') {
               </button>
             </div>
 
-            <!-- Status Aktif -->
-            <div class="flex items-center justify-between rounded-lg border p-4">
-              <div class="space-y-0.5">
-                <Label class="text-sm font-medium cursor-pointer" for="f-is-active">Produk Aktif</Label>
-                <p class="text-xs text-muted-foreground">Produk nonaktif disembunyikan.</p>
-              </div>
-              <button
-                id="f-is-active"
-                type="button"
-                role="switch"
-                :aria-checked="form.isActive"
-                :disabled="saving"
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :class="form.isActive ? 'bg-primary' : 'bg-input'"
-                @click="form.isActive = !form.isActive"
-              >
-                <span
-                  class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform"
-                  :class="form.isActive ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </button>
-            </div>
           </div>
 
           <!-- Footer -->
