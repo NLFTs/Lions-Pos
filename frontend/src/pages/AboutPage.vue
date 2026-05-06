@@ -10,8 +10,6 @@ import { useGsap } from '@/hooks/useGsap'
 const router = useRouter()
 
 const navigationItems = [
-  { name: 'Layanan', path: '/#offer', hasDropdown: true },
-  { name: 'Untuk Siapa', path: '/#target', hasDropdown: true },
   { name: 'Harga', path: '/#pricing' },
   { name: 'Tentang Gaptek', path: '/about' }
 ]
@@ -57,11 +55,8 @@ useGsap((gsap, ScrollTrigger) => {
         </div>
       </template>
       <template #actions>
-        <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="router.push('/login')">
-          Masuk
-        </Button>
         <Button class="font-bold px-6 py-2 rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="router.push('/login')">
-          Mulai Gratis
+          Masuk
         </Button>
       </template>
     </Navbar>

@@ -178,40 +178,89 @@ function formatDate(dt) {
           <Button v-if="can('category.store') && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Create your first category</Button>
         </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b bg-muted/40">
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground w-12">#</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Created</th>
-                <th class="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="cat in paginatedCategories"
-                :key="cat.id"
-                class="border-b last:border-0 hover:bg-muted/30 transition-colors"
-              >
-                <td class="px-4 py-3 text-muted-foreground">{{ cat.id }}</td>
-                <td class="px-4 py-3 font-medium">{{ cat.name }}</td>
-                <td class="px-4 py-3 text-muted-foreground max-w-[320px] truncate">{{ cat.description || '-' }}</td>
-                <td class="px-4 py-3 text-muted-foreground">{{ formatDate(cat.createdAt) }}</td>
-                <td class="px-4 py-3 text-right">
-                  <div class="flex justify-end gap-2">
-                    <Button v-if="can('category.update')" variant="ghost" size="icon" @click="openEdit(cat)">
-                      <Pencil class="h-4 w-4" />
-                    </Button>
-                    <Button v-if="can('category.delete')" variant="ghost" size="icon" class="text-destructive hover:text-destructive" @click="doDelete(cat)">
-                      <Trash2 class="h-4 w-4" />
-                    </Button>
+        <div v-else>
+          <!-- ─── Mobile List View ─── -->
+          <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+            <div
+              v-for="cat in paginatedCategories"
+              :key="'mobile-' + cat.id"
+              class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 border border-zinc-200 dark:border-zinc-800/50">
+                    {{ cat.name?.charAt(0).toUpperCase() }}
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <div>
+                    <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ cat.name }}</h4>
+                    <p class="text-xs text-zinc-500 line-clamp-1 mt-0.5">{{ cat.description || '-' }}</p>
+                  </div>
+                </div>
+                
+                <div class="flex items-center gap-1 shrink-0">
+                  <Button
+                    v-if="can('category.update')"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                    @click="openEdit(cat)"
+                  >
+                    <Pencil class="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    v-if="can('category.delete')"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                    @click="doDelete(cat)"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between mt-1">
+                <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">ID: {{ cat.id }}</span>
+                <span class="text-[10px] text-zinc-400">{{ formatDate(cat.createdAt) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── Desktop Table ─── -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b bg-muted/40">
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px] w-16">#</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Kategori</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Deskripsi</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Dibuat</th>
+                  <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="cat in paginatedCategories"
+                  :key="cat.id"
+                  class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                >
+                  <td class="px-5 py-3 text-muted-foreground font-mono text-xs">{{ cat.id }}</td>
+                  <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ cat.name }}</td>
+                  <td class="px-5 py-3 text-muted-foreground max-w-[400px] truncate">{{ cat.description || '-' }}</td>
+                  <td class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
+                  <td class="px-5 py-3 text-right">
+                    <div class="flex justify-end gap-1">
+                      <Button v-if="can('category.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
+                        <Pencil class="h-3.5 w-3.5" />
+                      </Button>
+                      <Button v-if="can('category.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         <DataTablePagination
           v-if="filteredCategories.length > 0 && !loading"
