@@ -29,7 +29,7 @@ public class CategoryProductController {
         return ResponseEntity.ok(categoryProductService.findAll());
     }
 
-    //new
+
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('category_product.index')")
     public ResponseEntity<Page<CategoryProduct>> paginated(

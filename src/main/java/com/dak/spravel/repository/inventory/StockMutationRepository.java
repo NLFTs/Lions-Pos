@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface StockMutationRepository extends JpaRepository<StockMutation,Long> {
+public interface StockMutationRepository extends JpaRepository<StockMutation, Long> {
 
     List<StockMutation> findByProductId(Long productId);
 
