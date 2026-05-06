@@ -53,7 +53,7 @@ const emptyForm = () => ({
   id: null,
   name: '',
   slug: '',
-  plan: 'free', // 'free' | 'pro' | 'enterprise'
+  plan: 'basic', // 'basic' | 'pro' | 'enterprise'
   is_active: true,
 })
 
@@ -108,7 +108,7 @@ async function fetchPartners() {
   } catch (err) {
     if (import.meta.env.DEV) {
       partners.value = [
-        { id: '1', name: 'Partner Free', slug: 'partner-free', plan: 'free', is_active: true },
+        { id: '1', name: 'Partner Basic', slug: 'partner-basic', plan: 'basic', is_active: true },
         { id: '2', name: 'Partner Pro', slug: 'partner-pro', plan: 'pro', is_active: true },
         { id: '3', name: 'Partner Enterprise', slug: 'partner-enterprise', plan: 'enterprise', is_active: false },
       ]
@@ -358,7 +358,7 @@ onMounted(fetchPartners)
             <div class="space-y-1.5">
               <Label for="plan">Tipe Plan <span class="text-destructive">*</span></Label>
               <select id="plan" v-model="form.plan" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all">
-                <option value="free">Free</option>
+                <option value="free">Basic</option>
                 <option value="pro">Pro</option>
                 <option value="enterprise">Enterprise</option>
               </select>
