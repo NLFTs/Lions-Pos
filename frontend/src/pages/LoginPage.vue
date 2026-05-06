@@ -1,8 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
-import Card from '@/components/ui/Card.vue'
+import { useRouter } from 'vue-router'  
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
 import Label from '@/components/ui/Label.vue'
