@@ -281,12 +281,6 @@ function formatTime(dt) {
               Berikut ringkasan data dan aktivitas aplikasi hari ini.
             </p>
             <span class="text-zinc-300 dark:text-zinc-700">•</span>
-            <button 
-              @click="isAboutModalOpen = true"
-              class="text-xs font-semibold text-primary hover:underline transition-all"
-            >
-              Tentang Kami
-            </button>
           </div>
         </div>
         <div class="flex items-center gap-2">

@@ -36,10 +36,10 @@ useGsap((gsap, ScrollTrigger) => {
 const brandName = 'gaptek'
 
 const navigationItems = [
-  { name: 'Layanan Kami', path: '#offer', hasDropdown: true },
+  { name: 'Layanan', path: '#offer', hasDropdown: true },
   { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
   { name: 'Harga', path: '#pricing' },
-  { name: 'Tentang Kami', path: '/about' }
+  { name: 'Tentang Gaptek', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
@@ -131,11 +131,8 @@ const navigateToLogin = () => {
       </div>
 
       <!-- Integrated Dashboard Preview (Enlarged) -->
-      <div class="relative mt-24 w-full max-w-7xl mx-auto px-4 md:px-0">
-        <!-- Ambient Glow behind the box -->
-        <div class="absolute -inset-4 bg-primary/10 blur-3xl rounded-[3rem] pointer-events-none"></div>
-
-        <div class="relative bg-zinc-950 border border-white/10 rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] aspect-[16/10] overflow-hidden flex flex-col overscroll-contain">
+      <div class="relative mt-32 w-full mx-auto px-4 md:px-40 border-t border-white/20 pt-32">
+        <div class="relative bg-black border border-white/20 rounded-3xl aspect-[16/10] overflow-hidden flex flex-col overscroll-contain">
           <!-- Real Dashboard Iframe (Integrated & Fixed for Scroll Jitter) -->
           <div class="flex-grow relative bg-[#09090b] overflow-hidden overscroll-none">
              <!-- Scaled Iframe with will-change to prevent jitter -->
