@@ -68,6 +68,7 @@ public class PermissionSeeder {
         {"permission.update", "Update Permission",      "permission"},
         {"permission.delete", "Delete Permission",      "permission"},
 
+
         {"module.index",  "View All Modules",   "module"},
         {"module.show",   "View Module Detail", "module"},
         {"module.store",  "Create Module",      "module"},
