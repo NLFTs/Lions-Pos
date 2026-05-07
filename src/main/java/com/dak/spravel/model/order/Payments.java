@@ -39,7 +39,7 @@ public class Payments   {
     private Status status = Status.PENDING;
 
     public enum Status {
-        PENDING, COMPLETED, FAILED
+        PENDING, COMPLETED, VERIFIED, FAILED
     }
 
     @Column(nullable = false , precision = 19, scale = 4)
