@@ -30,13 +30,26 @@ export const useAuthStore = defineStore('auth', () => {
   const offlineAccessToken = isEmptyMode ? 'empty-access-token' : (isMockMode ? 'mock-access-token' : null)
   const offlineRefreshToken = isEmptyMode ? 'empty-refresh-token' : (isMockMode ? 'mock-refresh-token' : null)
   const offlineUser = isEmptyMode
-    ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin' }
-    : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin' } : null)
+    ? { id: 'empty-user', username: 'admin', fullname: 'Empty Admin', roles: ['ADMIN'] }
+    : (isMockMode ? { id: 'mock-1', username: 'admin', fullname: 'Mock Admin', roles: ['ADMIN'] } : null)
 
-  const accessToken = ref(loadString('access_token', null))
-  const refreshToken = ref(loadString('refresh_token', null))
-  const user = shallowRef(loadJson('auth_user', null))
-  const permissions = shallowRef(loadJson('auth_permissions', []))
+  const accessToken = ref(loadString('access_token', isMockMode ? offlineAccessToken : null))
+  const refreshToken = ref(loadString('refresh_token', isMockMode ? offlineRefreshToken : null))
+  const user = shallowRef(loadJson('auth_user', (isMockMode || isEmptyMode) ? offlineUser : null))
+  const permissions = shallowRef(loadJson('auth_permissions', (isMockMode || isEmptyMode) ? FULL_PERMISSIONS : []))
+
+  // ─── Auto-sync mock data ───────────────────────────────────────────────────
+  // Jika dalam mode mock/empty tapi user tidak punya role atau token kosong,
+  // paksa gunakan data offline agar dashboard tampil penuh.
+  if (isMockMode || isEmptyMode) {
+    const hasRoles = user.value?.roles && user.value.roles.length > 0
+    if (!hasRoles || !accessToken.value) {
+      user.value = offlineUser
+      permissions.value = FULL_PERMISSIONS
+      if (!accessToken.value) accessToken.value = offlineAccessToken
+      if (!refreshToken.value) refreshToken.value = offlineRefreshToken
+    }
+  }
 
   const isAuthenticated = computed(() => !!accessToken.value)
 

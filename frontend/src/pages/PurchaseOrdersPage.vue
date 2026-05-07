@@ -11,6 +11,7 @@ import Label from '@/components/ui/Label.vue'
 import Alert from '@/components/ui/Alert.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { Plus, Loader2, X, ClipboardList, Eye, Trash2 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -19,6 +20,17 @@ const pos = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref('all')
+const statusOptions = [
+  { value: 'all', label: 'Semua Status' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'ordered', label: 'Dipesan' },
+  { value: 'received', label: 'Diterima' },
+  { value: 'cancelled', label: 'Batal' }
+]
+const locationTypeOptions = [
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'branch', label: 'Branch' }
+]
 const page = ref(1)
 const pageSize = ref(10)
 const showDrawer = ref(false)
@@ -84,9 +96,7 @@ onMounted(fetchPOs)
         <div><h1 class="text-2xl font-bold tracking-tight">Purchase Order</h1><p class="text-muted-foreground text-sm mt-1">Kelola pesanan pembelian barang.</p></div>
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="w-full sm:w-72"><DataTableSearch v-model="searchQuery" placeholder="Cari PO..." /></div>
-          <select v-model="statusFilter" class="h-9 rounded-md border border-border bg-background px-3 text-sm">
-            <option value="all">Semua</option><option value="draft">Draft</option><option value="ordered">Dipesan</option><option value="received">Diterima</option><option value="cancelled">Batal</option>
-          </select>
+          <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" label="Filter Status" />
           <Button v-if="can('purchase-order.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary text-primary-foreground"><Plus class="h-4 w-4" /><span>Buat PO</span></Button>
         </div>
       </div>
@@ -141,7 +151,9 @@ onMounted(fetchPOs)
               <div class="space-y-1.5"><Label>Supplier *</Label><Input v-model="form.supplierName" placeholder="Nama supplier" /></div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5"><Label>Tujuan Lokasi</Label><Input v-model="form.locationName" placeholder="Gudang/Cabang" /></div>
-                <div class="space-y-1.5"><Label>Tipe</Label><select v-model="form.locationType" class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="warehouse">Warehouse</option><option value="branch">Branch</option></select></div>
+                <div class="space-y-1.5"><Label>Tipe</Label>
+                  <CustomSelect v-model="form.locationType" :options="locationTypeOptions" :show-icon="false" align="start" class="w-full h-10" />
+                </div>
               </div>
               <div>
                 <div class="flex items-center justify-between mb-2"><Label>Item Pesanan</Label><Button variant="outline" size="sm" @click="addItem"><Plus class="h-3 w-3 mr-1" />Item</Button></div>
