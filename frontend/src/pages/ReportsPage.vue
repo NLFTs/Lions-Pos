@@ -350,7 +350,35 @@ const filters = ['7 hari', '14 hari', '30 hari']
           </button>
         </div>
         
-        <div class="overflow-x-auto">
+        <!-- Mobile List View -->
+        <div class="md:hidden space-y-4">
+          <div v-for="product in bestSellers" :key="'mobile-' + product.id" class="p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/30 dark:bg-zinc-900/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <ShoppingBag class="w-5 h-5" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="font-bold text-zinc-900 dark:text-zinc-50 truncate">{{ product.name }}</h4>
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-muted-foreground uppercase tracking-wider">
+                  {{ product.category }}
+                </span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800/60">
+              <div class="flex flex-col">
+                <span class="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">TERJUAL</span>
+                <span class="text-sm font-bold text-zinc-900 dark:text-zinc-50">{{ product.sold }} unit</span>
+              </div>
+              <div class="flex flex-col text-right">
+                <span class="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">PENDAPATAN</span>
+                <span class="text-sm font-bold text-primary">{{ product.revenue }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="hidden md:block overflow-x-auto">
           <table class="w-full text-sm text-left">
             <thead class="text-xs text-muted-foreground uppercase bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800/60">
               <tr>
