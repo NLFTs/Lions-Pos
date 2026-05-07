@@ -3,44 +3,61 @@ import { ref, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft, Banknote, ArrowRightLeft, X, Ticket, Check } from 'lucide-vue-next'
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft, Banknote, ArrowRightLeft, X, Ticket, Check, Scan } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 
 const { toast } = useToast()
 
 const MOCK_PRODUCTS = [
-  { id: '1', name: 'Kaos Polos Putih', sku: 'KPP-001', price: 85000, categoryName: 'Pakaian', isActive: true, imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80' },
-  { id: '2', name: 'Celana Chino Beige', sku: 'CCB-002', price: 195000, categoryName: 'Pakaian', isActive: true, imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=300&q=80' },
-  { id: '3', name: 'Sepatu Sneakers Hitam', sku: 'SSH-003', price: 450000, categoryName: 'Alas Kaki', isActive: true, imageUrl: null },
-  { id: '5', name: 'Jaket Bomber Olive', sku: 'JBO-005', price: 320000, categoryName: 'Pakaian', isActive: true, imageUrl: null },
-  { id: '6', name: 'Tas Selempang Canvas', sku: 'TSC-006', price: 135000, categoryName: 'Tas', isActive: true, imageUrl: null },
-  { id: '7', name: 'Kemeja Flannel Kotak', sku: 'KFK-007', price: 210000, categoryName: 'Pakaian', isActive: true, imageUrl: null },
-  { id: '8', name: 'Kaos Kaki Sport (3 pcs)', sku: 'KKS-008', price: 45000, categoryName: 'Aksesoris', isActive: true, imageUrl: null },
-  { id: '9', name: 'Sabuk Kulit Coklat', sku: 'SKC-009', price: 98000, categoryName: 'Aksesoris', isActive: true, imageUrl: null },
+  { id: '1', name: 'Kaos Polos Putih', sku: 'KPP-001', price: 85000, categoryName: 'Pakaian', isActive: true, stock: 45, imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80' },
+  { id: '2', name: 'Celana Chino Beige', sku: 'CCB-002', price: 195000, categoryName: 'Pakaian', isActive: true, stock: 12, imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=300&q=80' },
+  { id: '3', name: 'Sepatu Sneakers Hitam', sku: 'SSH-003', price: 450000, categoryName: 'Alas Kaki', isActive: true, stock: 5, imageUrl: null },
+  { id: '5', name: 'Jaket Bomber Olive', sku: 'JBO-005', price: 320000, categoryName: 'Pakaian', isActive: true, stock: 8, imageUrl: null },
+  { id: '6', name: 'Tas Selempang Canvas', sku: 'TSC-006', price: 135000, categoryName: 'Tas', isActive: true, stock: 24, imageUrl: null },
+  { id: '7', name: 'Kemeja Flannel Kotak', sku: 'KFK-007', price: 210000, categoryName: 'Pakaian', isActive: true, stock: 15, imageUrl: null },
+  { id: '8', name: 'Kaos Kaki Sport (3 pcs)', sku: 'KKS-008', price: 45000, categoryName: 'Aksesoris', isActive: true, stock: 50, imageUrl: null },
+  { id: '9', name: 'Sabuk Kulit Coklat', sku: 'SKC-009', price: 98000, categoryName: 'Aksesoris', isActive: true, stock: 0, imageUrl: null },
 ]
 
 const searchQuery = ref('')
+const activeCategory = ref('Semua')
+const orderType = ref('Dine In')
 
-const groupedProducts = computed(() => {
+const uniqueCategories = computed(() => {
+  const cats = new Set(MOCK_PRODUCTS.filter(p => p.isActive).map(p => p.categoryName || 'Lainnya'))
+  return ['Semua', ...Array.from(cats).sort()]
+})
+
+const filteredProducts = computed(() => {
   let result = MOCK_PRODUCTS.filter(p => p.isActive)
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
   }
-  const groups = {}
-  result.forEach(p => {
-    const cat = p.categoryName || 'Lainnya'
-    if (!groups[cat]) groups[cat] = []
-    groups[cat].push(p)
-  })
-  return Object.keys(groups).map(key => ({ category: key, products: groups[key] })).sort((a, b) => a.category.localeCompare(b.category))
+  if (activeCategory.value !== 'Semua') {
+    result = result.filter(p => (p.categoryName || 'Lainnya') === activeCategory.value)
+  }
+  return result
 })
 
 const cart = ref([])
 
 function addToCart(product) {
+  if (product.stock <= 0) {
+    toast.error('Stok produk habis!')
+    return
+  }
+
   const existing = cart.value.find(item => item.id === product.id)
-  if (existing) { existing.qty++ } else { cart.value.push({ ...product, qty: 1 }) }
+  if (existing) {
+    if (existing.qty < product.stock) {
+      existing.qty++
+    } else {
+      toast.error('Stok tidak mencukupi!')
+    }
+  } else {
+    cart.value.push({ ...product, qty: 1 })
+  }
 }
 
 function getCartQty(id) {
@@ -48,7 +65,14 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-function increaseQty(item) { item.qty++ }
+function increaseQty(item) {
+  const product = MOCK_PRODUCTS.find(p => p.id === item.id)
+  if (product && item.qty < product.stock) {
+    item.qty++
+  } else {
+    toast.error('Stok tidak mencukupi!')
+  }
+}
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
@@ -118,53 +142,77 @@ function avatarStyle(name = '') {
 <template>
   <AppLayout>
     <div class="pos-root">
-
+      
       <!-- ── Product panel ── -->
-      <div class="pos-panel">
-
+      <div class="flex flex-col bg-white dark:bg-[#09090b] flex-1 min-w-0 min-h-0">
+        
         <!-- Header -->
-        <div class="pos-header">
-          <div class="pos-header-row">
-            <div>
-              <h1 class="pos-title">Kasir</h1>
-              <p class="pos-sub">Sistem Point of Sale</p>
-            </div>
+        <div class="px-3 pt-3 lg:px-5 lg:pt-5 shrink-0 z-10">
+          <div class="hidden lg:block mb-4">
+            <h1 class="text-xl font-black text-zinc-900 dark:text-white tracking-tight">Kasir</h1>
+            <p class="text-xs text-zinc-500 font-medium mt-0.5">Sistem Point of Sale</p>
           </div>
-          <div class="pos-search">
-            <Search class="pos-search-ic" />
-            <Input v-model="searchQuery" placeholder="Cari produk..."
-              class="pl-9 bg-zinc-100 dark:bg-zinc-900 border-transparent focus:bg-white dark:focus:bg-zinc-950" />
+          
+          <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
+            <div class="flex-1 flex items-center pl-3">
+              <Search class="h-[18px] w-[18px] text-zinc-400" />
+              <Input v-model="searchQuery" placeholder="Cari produk atau SKU..."
+                class="w-full bg-transparent border-none shadow-none text-[13px] font-medium focus-visible:ring-0 px-2 h-9" />
+            </div>
+            <Button size="sm" variant="outline" class="h-[34px] rounded-xl px-3 bg-white dark:bg-zinc-700 shadow-sm border-none font-bold gap-1.5 mr-0.5 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50">
+              <Scan class="h-3.5 w-3.5" /> Scan
+            </Button>
+          </div>
+
+          <div class="flex bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl mb-3 lg:mb-4">
+            <button v-for="type in ['Dine In', 'Take Away', 'Delivery']" :key="type"
+              class="flex-1 text-[13px] font-bold py-2 rounded-[10px] transition-all"
+              :class="orderType === type ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'"
+              @click="orderType = type">
+              {{ type }}
+            </button>
+          </div>
+
+          <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+            <button v-for="cat in uniqueCategories" :key="cat"
+              class="px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all border"
+              :class="activeCategory === cat ? 'bg-zinc-900 border-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 shadow-md shadow-zinc-900/20' : 'bg-white border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 hover:bg-zinc-50'"
+              @click="activeCategory = cat">
+              {{ cat }}
+            </button>
           </div>
         </div>
 
         <!-- Grid -->
-        <div class="pos-grid-wrap custom-scrollbar">
-          <div v-if="!groupedProducts.length" class="pos-empty">
+        <div class="flex-1 overflow-y-auto no-scrollbar bg-zinc-50 dark:bg-[#09090b]">
+          <div v-if="!filteredProducts.length" class="h-full flex flex-col items-center justify-center text-zinc-400">
             <ShoppingBag class="h-12 w-12 opacity-20 mb-3" />
-            <p class="text-sm">Produk tidak ditemukan.</p>
+            <p class="text-[13px] font-medium">Produk tidak ditemukan.</p>
           </div>
-          <div v-else class="pos-groups">
-            <div v-for="g in groupedProducts" :key="g.category" class="pos-group">
-              <h2 class="pos-cat">
-                <span>{{ g.category }}</span>
-                <div class="pos-cat-line" />
-              </h2>
-              <div class="pos-grid">
-                <div
-                  v-for="p in g.products" :key="p.id"
-                  class="pos-card" :class="{ 'pos-card--on': getCartQty(p.id) > 0 }"
-                  @click="addToCart(p)"
-                >
-                  <div v-if="getCartQty(p.id) > 0" class="pos-badge">{{ getCartQty(p.id) }}</div>
-                  <div class="pos-thumb">
-                    <img v-if="p.imageUrl" :src="p.imageUrl" class="pos-thumb-img" />
-                    <div v-else class="pos-thumb-av" :style="avatarStyle(p.name)">{{ p.name.charAt(0).toUpperCase() }}</div>
-                  </div>
-                  <div class="pos-info">
-                    <p class="pos-name">{{ p.name }}</p>
-                    <span class="pos-price">{{ formatCurrency(p.price) }}</span>
-                  </div>
+          <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
+            <div v-for="p in filteredProducts" :key="p.id"
+              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden cursor-pointer transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
+              :class="{ 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0, 'opacity-60 grayscale-[0.5]': p.stock <= 0 }"
+              @click="p.stock > 0 && addToCart(p)">
+              
+              <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
+                {{ getCartQty(p.id) }}
+              </div>
+              
+              <div class="aspect-[4/3] lg:aspect-square bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
+                <img v-if="p.imageUrl" :src="p.imageUrl" class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex items-center justify-center text-3xl font-black opacity-80" :style="avatarStyle(p.name)">{{ p.name.charAt(0) }}</div>
+              </div>
+              
+              <div class="p-3 flex flex-col gap-1.5 flex-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ p.sku || 'N/A' }}</span>
+                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md" :class="p.stock > 0 ? 'bg-emerald-100/50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-red-100/50 text-red-600 dark:bg-red-900/30'">
+                    {{ p.stock > 0 ? `STOK ${p.stock}` : 'HABIS' }}
+                  </span>
                 </div>
+                <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ p.name }}</h4>
+                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.price) }}</div>
               </div>
             </div>
           </div>
@@ -172,80 +220,56 @@ function avatarStyle(name = '') {
       </div>
 
       <!-- ── Cart panel ── -->
-      <div class="pos-cart">
-
-        <!-- Cart header -->
-        <div class="pos-cart-hd">
-          <div class="pos-cart-hd-left">
-            <h2 class="pos-cart-title">Pesanan</h2>
-            <span class="pos-cart-count">{{ totalItems }} Item</span>
+      <div class="flex flex-col bg-white dark:bg-[#09090b] border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 max-h-[42vh] lg:max-h-none lg:w-[380px] shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] lg:shadow-none z-20 rounded-t-[24px] lg:rounded-none">
+        
+        <div class="flex items-center justify-between px-4 py-3.5 lg:p-5 border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">
+          <div class="flex items-center gap-2">
+            <h2 class="text-[15px] lg:text-lg font-black text-zinc-900 dark:text-white">Pesanan</h2>
+            <span class="text-[10px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2.5 py-1 rounded-full">{{ totalItems }}</span>
           </div>
-          <button v-if="cart.length" class="pos-clear" @click="cart = []">Kosongkan</button>
+          <button v-if="cart.length" class="text-[11px] font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-md" @click="cart = []">Kosongkan</button>
         </div>
 
-        <!-- Cart items -->
-        <div class="pos-cart-body custom-scrollbar">
-          <div v-if="!cart.length" class="pos-cart-empty">
-            <div class="pos-cart-empty-ic">
-              <ShoppingCart class="h-8 w-8 opacity-20" />
-            </div>
-            <p class="text-sm">Keranjang masih kosong</p>
+        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar bg-zinc-50/50 dark:bg-[#09090b]/50 p-3 lg:p-5">
+          <div v-if="!cart.length" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+             <div class="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center"><ShoppingCart class="h-6 w-6 opacity-40" /></div>
+             <p class="text-[13px] font-semibold">Belum ada pesanan</p>
           </div>
-          <div v-else class="pos-items">
+          <div v-else class="flex flex-col gap-2.5">
             <TransitionGroup name="list">
-              <div v-for="item in cart" :key="item.id" class="pos-item">
-                <div class="pos-item-top">
-                  <div class="pos-item-info">
-                    <h4 class="pos-item-name">{{ item.name }}</h4>
-                    <p class="pos-item-unit">{{ formatCurrency(item.price) }}</p>
+              <div v-for="item in cart" :key="item.id" class="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-[16px] p-3 flex flex-col gap-3 shadow-sm hover:border-zinc-300 transition-colors">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex-1 min-w-0 pt-0.5">
+                    <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
+                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.price) }}</p>
                   </div>
-                  <button class="pos-item-del" @click="removeFromCart(item)">
-                    <Trash2 class="h-3.5 w-3.5" />
-                    <span>Hapus</span>
+                  <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
+                    <Trash2 class="h-[14px] w-[14px]" />
                   </button>
                 </div>
-                <div class="pos-item-bot">
-                  <div class="pos-qty">
-                    <button class="pos-qty-btn" @click="decreaseQty(item)"><Minus class="h-[10px] w-[10px]" /></button>
-                    <span class="pos-qty-val">{{ item.qty }}</span>
-                    <button class="pos-qty-btn" @click="increaseQty(item)"><Plus class="h-[10px] w-[10px]" /></button>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
+                    <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="decreaseQty(item)"><Minus class="h-3 w-3" /></button>
+                    <span class="w-8 text-center text-[13px] font-black">{{ item.qty }}</span>
+                    <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
                   </div>
-                  <span class="pos-item-sub">{{ formatCurrency(item.price * item.qty) }}</span>
+                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(item.price * item.qty) }}</span>
                 </div>
               </div>
             </TransitionGroup>
           </div>
         </div>
 
-        <!-- Voucher + Summary + checkout -->
-        <div v-if="cart.length > 0" class="pos-cart-ft">
-          <!-- Voucher -->
-          <div class="pos-voucher">
-            <div v-if="appliedVoucher" class="pos-voucher-applied">
-              <div class="flex items-center gap-1.5">
-                <Ticket class="h-3.5 w-3.5 text-primary" />
-                <span class="text-xs font-semibold text-primary">{{ appliedVoucher.code }}</span>
-                <span class="text-[10px] text-muted-foreground">(-{{ formatCurrency(discountAmount) }})</span>
-              </div>
-              <button class="pos-voucher-rm" @click="removeVoucher"><X class="h-3 w-3" /></button>
+        <div class="p-4 lg:p-5 bg-white dark:bg-[#09090b] border-t border-zinc-100 dark:border-zinc-800 shrink-0 z-10 relative">
+          <div class="flex items-center justify-between">
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Tagihan</span>
+              <span class="text-[20px] lg:text-[24px] font-black text-primary leading-none mt-1">{{ formatCurrency(total) }}</span>
             </div>
-            <div v-else class="pos-voucher-input">
-              <Input v-model="voucherCode" placeholder="Kode voucher" class="h-8 text-xs flex-1" @keyup.enter="applyVoucher" />
-              <Button size="sm" variant="outline" class="h-8 text-xs px-2.5 shrink-0" @click="applyVoucher">Pakai</Button>
-            </div>
+            <Button class="h-11 lg:h-12 px-7 lg:px-8 rounded-[14px] font-bold text-[14px] shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all active:scale-95" :disabled="cart.length === 0" @click="openPayment">
+              Bayar
+            </Button>
           </div>
-          <div class="pos-sum-rows">
-            <div class="pos-sum-row"><span>Subtotal</span><span>{{ formatCurrency(subtotal) }}</span></div>
-            <div v-if="discountAmount > 0" class="pos-sum-row text-red-500"><span>Diskon</span><span>-{{ formatCurrency(discountAmount) }}</span></div>
-          </div>
-          <div class="pos-sum-total">
-            <span class="pos-sum-lbl">Total</span>
-            <span class="pos-sum-total-val">{{ formatCurrency(total) }}</span>
-          </div>
-          <Button class="pos-pay-btn" :disabled="!cart.length" @click="openPayment">
-            <CreditCard class="h-4 w-4 mr-1.5" />
-            Bayar
-          </Button>
         </div>
       </div>
 
@@ -256,58 +280,102 @@ function avatarStyle(name = '') {
       <Transition name="fade"><div v-if="showPayment" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closePayment" /></Transition>
       <Transition name="scale">
         <div v-if="showPayment" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-          <div class="bg-card rounded-xl shadow-2xl w-full max-w-md border border-border pointer-events-auto overflow-hidden">
-            <div class="flex items-center justify-between px-5 py-4 border-b">
-              <h3 class="font-semibold text-base">Pembayaran</h3>
-              <button @click="closePayment" class="p-1 rounded hover:bg-muted"><X class="h-4 w-4" /></button>
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+              <h3 class="font-black text-[15px]">Detail Pembayaran</h3>
+              <button @click="closePayment" class="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"><X class="h-4 w-4" /></button>
             </div>
-            <div class="px-5 py-4 space-y-4">
-              <div class="flex items-center justify-between text-lg font-bold">
-                <span>Total</span><span class="text-primary">{{ formatCurrency(total) }}</span>
-              </div>
-              <!-- Method tabs -->
-              <div class="flex rounded-lg border border-border overflow-hidden">
-                <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors', payMethod === 'cash' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-                  <Banknote class="h-4 w-4" />Tunai
-                </button>
-                <button @click="payMethod = 'transfer'" :class="['flex-1 py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors border-l border-border', payMethod === 'transfer' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-                  <ArrowRightLeft class="h-4 w-4" />Transfer
-                </button>
-              </div>
-              <!-- Cash fields -->
-              <template v-if="payMethod === 'cash'">
-                <div class="space-y-1.5">
-                  <label class="text-sm font-medium">Uang Diterima</label>
-                  <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
-                    <Input v-model="cashTendered" type="number" min="0" class="pl-9" placeholder="0" />
+            
+            <div class="px-6 py-5 flex flex-col gap-5 overflow-y-auto max-h-[70vh] no-scrollbar">
+              
+              <!-- Bill Summary & Voucher -->
+              <div class="flex flex-col gap-3">
+                <div class="flex items-center justify-between text-[14px] font-bold text-zinc-700 dark:text-zinc-300">
+                  <span>Subtotal Pesanan</span>
+                  <span>{{ formatCurrency(subtotal) }}</span>
+                </div>
+                
+                <!-- Voucher Block -->
+                <div class="bg-zinc-50 dark:bg-zinc-800/60 rounded-[16px] p-3 border border-zinc-200/60 dark:border-zinc-700/50">
+                  <div v-if="appliedVoucher" class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <div class="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Ticket class="w-[18px] h-[18px]" /></div>
+                      <div class="flex flex-col">
+                        <span class="text-[13px] font-black text-emerald-600">{{ appliedVoucher.code }}</span>
+                        <span class="text-[10px] font-bold text-zinc-500">{{ appliedVoucher.name }}</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <span class="text-[13px] font-black text-red-500">-{{ formatCurrency(discountAmount) }}</span>
+                      <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
+                    </div>
+                  </div>
+                  <div v-else class="flex gap-2">
+                    <Input v-model="voucherCode" placeholder="Masukkan kode voucher..." class="h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" @keyup.enter="applyVoucher" />
+                    <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm" @click="applyVoucher">Pakai</Button>
                   </div>
                 </div>
-                <div v-if="Number(cashTendered) >= total" class="flex items-center justify-between p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
-                  <span class="text-sm font-medium text-emerald-700 dark:text-emerald-400">Kembalian</span>
-                  <span class="text-lg font-bold text-emerald-700 dark:text-emerald-400">{{ formatCurrency(changeDue) }}</span>
+
+                <div class="flex items-center justify-between text-[18px] font-black text-zinc-900 dark:text-white pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                  <span>Total Tagihan</span>
+                  <span class="text-primary">{{ formatCurrency(total) }}</span>
                 </div>
-                <!-- Quick amounts -->
-                <div class="flex flex-wrap gap-2">
-                  <button v-for="amt in [total, Math.ceil(total/10000)*10000, Math.ceil(total/50000)*50000, Math.ceil(total/100000)*100000].filter((v,i,a) => a.indexOf(v) === i)" :key="amt" @click="cashTendered = amt"
-                    class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border hover:bg-muted transition-colors">{{ formatCurrency(amt) }}</button>
+              </div>
+
+              <!-- Payment Methods -->
+              <div class="flex flex-col gap-2">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>
+                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
+                  <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'cash' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
+                    <Banknote class="h-[14px] w-[14px]" />Tunai
+                  </button>
+                  <button @click="payMethod = 'transfer'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'transfer' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
+                    <ArrowRightLeft class="h-[14px] w-[14px]" />Transfer
+                  </button>
                 </div>
-              </template>
-              <!-- Transfer fields -->
-              <template v-else>
-                <div class="space-y-1.5">
-                  <label class="text-sm font-medium">Nama Bank</label>
-                  <Input v-model="bankName" placeholder="BCA, Mandiri, BNI..." />
-                </div>
-                <div class="space-y-1.5">
-                  <label class="text-sm font-medium">No. Referensi *</label>
-                  <Input v-model="referenceNo" placeholder="Nomor referensi transfer" />
-                </div>
-              </template>
+              </div>
+
+              <!-- Payment Fields -->
+              <div class="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <template v-if="payMethod === 'cash'">
+                  <div class="space-y-2">
+                    <label class="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">Uang Diterima</label>
+                    <div class="relative">
+                      <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] font-black text-zinc-400">Rp</span>
+                      <Input v-model="cashTendered" type="number" min="0" class="pl-10 h-12 text-lg font-black rounded-[14px] border-zinc-200 shadow-sm" placeholder="0" />
+                    </div>
+                  </div>
+                  
+                  <div class="flex flex-wrap gap-2 pt-1">
+                    <button v-for="amt in [total, Math.ceil(total/10000)*10000, Math.ceil(total/50000)*50000, Math.ceil(total/100000)*100000].filter((v,i,a) => a.indexOf(v) === i)" :key="amt" @click="cashTendered = amt"
+                      class="px-3.5 py-2 text-[13px] font-bold rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                      {{ formatCurrency(amt) }}
+                    </button>
+                  </div>
+
+                  <div v-if="Number(cashTendered) >= total" class="flex items-center justify-between p-4 rounded-[16px] bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40 mt-2">
+                    <span class="text-[13px] font-bold text-emerald-700 dark:text-emerald-400">Kembalian</span>
+                    <span class="text-xl font-black text-emerald-700 dark:text-emerald-400">{{ formatCurrency(changeDue) }}</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="space-y-2">
+                    <label class="text-[13px] font-bold text-zinc-700">Nama Bank</label>
+                    <Input v-model="bankName" placeholder="BCA, Mandiri, BNI..." class="h-11 rounded-[12px]" />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-[13px] font-bold text-zinc-700">No. Referensi *</label>
+                    <Input v-model="referenceNo" placeholder="Nomor referensi transfer" class="h-11 rounded-[12px]" />
+                  </div>
+                </template>
+              </div>
             </div>
-            <div class="px-5 py-4 border-t bg-muted/30">
-              <Button class="w-full h-11 font-bold text-sm" @click="checkout">
-                <Check class="h-4 w-4 mr-1.5" />Konfirmasi Pembayaran
+
+            <div class="px-6 py-5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 mt-auto">
+              <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout">
+                <Check class="h-[18px] w-[18px] mr-2" /> Konfirmasi Pembayaran
               </Button>
             </div>
           </div>
@@ -318,235 +386,30 @@ function avatarStyle(name = '') {
 </template>
 
 <style scoped>
-/* Root */
 .pos-root {
   display: flex;
   flex-direction: column;
   margin: -20px; /* Counteract AppLayout p-5 padding */
   height: calc(100dvh - 48px);
   overflow: hidden;
-  background: #f9f9f9;
+  background: #f4f4f5;
 }
 @media (min-width: 1024px) {
-  .pos-root { 
-    flex-direction: row; 
-  }
+  .pos-root { flex-direction: row; background: #09090b; }
 }
 :root.dark .pos-root { background: #09090b; }
 
-/* ── Product panel ── */
-.pos-panel {
-  display: flex;
-  flex-direction: column;
-  background: white;
-  flex: 1;
-  min-height: 0;
-}
-@media (min-width: 1024px) {
-  .pos-panel {
-    min-width: 0;
-  }
-}
-:root.dark .pos-panel { background: #09090b; }
-
-.pos-header {
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid #e4e4e7;
-  flex-shrink: 0;
-}
-:root.dark .pos-header { border-color: #27272a; }
-.pos-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-.pos-title { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.025em; color: #18181b; }
-:root.dark .pos-title { color: #f4f4f5; }
-.pos-sub { font-size: 11px; color: #a1a1aa; margin-top: 1px; }
-.pos-search { position: relative; }
-.pos-search-ic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); height: 15px; width: 15px; color: #a1a1aa; z-index: 1; }
-
-.pos-grid-wrap { padding: 12px 16px; flex: 1; overflow-y: auto; }
-.pos-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #a1a1aa; padding: 40px 0; }
-.pos-groups { display: flex; flex-direction: column; gap: 20px; }
-.pos-cat {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
-  color: #71717a; display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-}
-:root.dark .pos-cat { color: #a1a1aa; }
-.pos-cat-line { flex: 1; height: 1px; background: #e4e4e7; }
-:root.dark .pos-cat-line { background: #27272a; }
-
-.pos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-@media (min-width: 480px)  { .pos-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 768px)  { .pos-grid { grid-template-columns: repeat(4, 1fr); } }
-@media (min-width: 1024px) { .pos-grid { grid-template-columns: repeat(5, 1fr); } }
-@media (min-width: 1280px) { .pos-grid { grid-template-columns: repeat(6, 1fr); } }
-
-.pos-card {
-  position: relative; display: flex; flex-direction: column;
-  background: white; border: 1.5px solid #e4e4e7;
-  border-radius: 10px; overflow: hidden; cursor: pointer;
-  transition: all 0.18s ease;
-}
-:root.dark .pos-card { background: #18181b; border-color: #27272a; }
-.pos-card:active { transform: scale(0.96); }
-.pos-card--on { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary)/0.15); }
-
-.pos-badge {
-  position: absolute; top: 6px; right: 6px; z-index: 2;
-  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-  font-size: 10px; font-weight: 700; min-width: 20px; height: 20px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 999px; padding: 0 5px;
-}
-
-.pos-thumb {
-  height: 72px; background: #f4f4f5;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden; flex-shrink: 0;
-}
-:root.dark .pos-thumb { background: #27272a; }
-.pos-thumb-img { width: 100%; height: 100%; object-fit: cover; }
-.pos-thumb-av {
-  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-  font-size: 1.4rem; font-weight: 700; opacity: 0.85;
-}
-
-.pos-info { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
-.pos-name {
-  font-size: 11px; font-weight: 600; line-height: 1.3; color: #18181b;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-}
-:root.dark .pos-name { color: #f4f4f5; }
-.pos-price { font-size: 10px; font-weight: 700; color: hsl(var(--primary)); margin-top: auto; }
-
-/* ── Cart panel ── */
-.pos-cart {
-  display: flex; flex-direction: column;
-  background: white;
-  border-top: 1px solid #e4e4e7;
-  max-height: 38vh;
-  flex-shrink: 0;
-}
-@media (min-width: 1024px) {
-  .pos-cart {
-    width: 340px;
-    height: 100%;
-    max-height: none;
-    border-top: none;
-    border-left: 1px solid #e4e4e7;
-  }
-}
-:root.dark .pos-cart { background: #09090b; border-color: #27272a; }
-
-.pos-cart-hd {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e4e4e7;
-  display: flex; align-items: center; justify-content: space-between;
-  flex-shrink: 0;
-}
-:root.dark .pos-cart-hd { border-color: #27272a; }
-.pos-cart-hd-left { display: flex; align-items: center; gap: 8px; }
-.pos-cart-title { font-size: 1.1rem; font-weight: 800; color: #18181b; }
-:root.dark .pos-cart-title { color: #f4f4f5; }
-.pos-cart-count {
-  background: #f4f4f5; color: #71717a;
-  font-size: 10px; font-weight: 700;
-  padding: 2px 8px; border-radius: 999px;
-}
-:root.dark .pos-cart-count { background: #27272a; color: #a1a1aa; }
-.pos-clear {
-  font-size: 11px; font-weight: 600; color: #ef4444;
-  background: none; border: none; cursor: pointer;
-  padding: 4px 8px; border-radius: 6px;
-}
-.pos-clear:hover { background: #fef2f2; }
-:root.dark .pos-clear:hover { background: rgba(239,68,68,0.1); }
-
-.pos-cart-body { padding: 12px 16px; background: #fafafa; flex: 1; overflow-y: auto; }
-:root.dark .pos-cart-body { background: #09090b; }
-.pos-cart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #a1a1aa; padding: 20px 0; }
-.pos-cart-empty-ic { width: 48px; height: 48px; border-radius: 50%; background: #f4f4f5; display: flex; align-items: center; justify-content: center; }
-:root.dark .pos-cart-empty-ic { background: #18181b; }
-
-.pos-items { display: flex; flex-direction: column; gap: 10px; }
-.pos-item {
-  background: white; border: 1px solid #e4e4e7;
-  border-radius: 10px; padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 8px;
-}
-:root.dark .pos-item { background: #18181b; border-color: #27272a; }
-.pos-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.pos-item-info { flex: 1; min-width: 0; }
-.pos-item-name { font-size: 12px; font-weight: 600; color: #18181b; line-height: 1.3; }
-:root.dark .pos-item-name { color: #f4f4f5; }
-.pos-item-unit { font-size: 10px; color: hsl(var(--primary)); font-weight: 600; margin-top: 2px; }
-.pos-item-del {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px; border-radius: 6px; background: #fef2f2; border: none; cursor: pointer;
-  color: #ef4444; flex-shrink: 0; font-size: 11px; font-weight: 600;
-}
-:root.dark .pos-item-del { background: rgba(239,68,68,0.1); color: #f87171; }
-.pos-item-del:hover { background: #fee2e2; }
-:root.dark .pos-item-del:hover { background: rgba(239,68,68,0.2); }
-
-.pos-item-bot { display: flex; align-items: center; justify-content: space-between; }
-.pos-qty {
-  display: flex; align-items: center;
-  background: #f4f4f5; border: 1px solid #e4e4e7;
-  border-radius: 6px; overflow: hidden;
-}
-:root.dark .pos-qty { background: #27272a; border-color: #3f3f46; }
-.pos-qty-btn {
-  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer; color: #52525b;
-}
-:root.dark .pos-qty-btn { color: #d4d4d8; }
-.pos-qty-btn:hover { background: #e4e4e7; }
-:root.dark .pos-qty-btn:hover { background: #3f3f46; }
-.pos-qty-val { width: 28px; text-align: center; font-size: 11px; font-weight: 700; color: #18181b; }
-:root.dark .pos-qty-val { color: #f4f4f5; }
-.pos-item-sub { font-size: 12px; font-weight: 700; color: #18181b; }
-:root.dark .pos-item-sub { color: #f4f4f5; }
-
-/* Summary */
-.pos-cart-ft {
-  padding: 10px 16px; border-top: 1px solid #e4e4e7; flex-shrink: 0;
-  background: white;
-  display: flex; flex-direction: column; gap: 8px;
-}
-:root.dark .pos-cart-ft { border-color: #27272a; background: #09090b; }
-
-.pos-voucher { }
-.pos-voucher-applied { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: hsl(var(--primary)/0.05); border: 1px solid hsl(var(--primary)/0.15); }
-.pos-voucher-rm { padding: 4px; border-radius: 4px; background: none; border: none; cursor: pointer; color: #a1a1aa; }
-.pos-voucher-rm:hover { color: #ef4444; }
-.pos-voucher-input { display: flex; gap: 6px; }
-.pos-sum-rows { display: flex; flex-direction: column; gap: 2px; }
-.pos-sum-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; }
-.pos-sum-total { display: flex; justify-content: space-between; align-items: center; line-height: 1.2; }
-.pos-sum-lbl { font-size: 13px; font-weight: 700; color: #71717a; }
-:root.dark .pos-sum-lbl { color: #a1a1aa; }
-.pos-sum-total-val { font-size: 1.15rem; font-weight: 900; color: hsl(var(--primary)); }
-.pos-pay-btn { height: 40px; padding: 0 20px; font-size: 14px; font-weight: 700; border-radius: 10px; flex-shrink: 0; width: 100%; }
-
-@media (min-width: 1024px) {
-  .pos-cart-ft { padding: 16px; gap: 10px; }
-  .pos-sum-total-val { font-size: 1.25rem; }
-  .pos-pay-btn { height: 44px; }
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Transitions */
-.list-enter-active, .list-leave-active { transition: all 0.25s ease; }
-.list-enter-from, .list-leave-to { opacity: 0; transform: translateX(20px); }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.scale-enter-active, .scale-leave-active { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
-.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95); }
+.list-enter-active, .list-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px) scale(0.98); }
 
-/* Scrollbar */
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 10px; }
-:root.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d4d4d8; }
-:root.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #52525b; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
 </style>
 
