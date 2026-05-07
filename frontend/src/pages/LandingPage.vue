@@ -6,9 +6,16 @@ import Button from '@/components/ui/Button.vue'
 import { Zap, Check } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
 import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+
+// Async components for better performance
+const Features = defineAsyncComponent(() => import('@/components/section/landingpage/Features.vue'))
+const BrandMarquee = defineAsyncComponent(() => import('@/components/section/landingpage/BrandMarquee.vue'))
+const Steps = defineAsyncComponent(() => import('@/components/section/landingpage/Steps.vue'))
+const Pricing = defineAsyncComponent(() => import('@/components/section/landingpage/Pricing.vue'))
+const Footer = defineAsyncComponent(() => import('@/components/section/landingpage/Footer.vue'))
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -36,6 +43,7 @@ useGsap((gsap, ScrollTrigger) => {
 const brandName = 'gaptek'
 
 const navigationItems = [
+  { name: 'Fitur', path: '#features' },
   { name: 'Harga', path: '#pricing' },
   { name: 'Tentang Gaptek', path: '/about' }
 ]
@@ -127,6 +135,15 @@ const navigateToLogin = () => {
 
 
     </main>
+
+    <!-- Content Sections -->
+    <BrandMarquee />
+    <Features />
+    <Steps />
+    <Pricing />
+
+    <!-- Footer -->
+    <Footer />
 
     
     <!-- Cookie Banner -->
