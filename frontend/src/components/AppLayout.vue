@@ -221,16 +221,6 @@ const userInitial = computed(() => {
 })
 
 // ─── Language Switcher ────────────────────────────────────────────────
-const languages = [
-  { code: 'ID', label: 'ID' },
-  { code: 'EN', label: 'EN' },
-]
-const currentLang = ref('EN')
-
-function switchLang(code) {
-  currentLang.value = code
-  // TODO: Implement actual language switching logic
-}
 
 // Get active color based on theme
 const activeLanguageColor = computed(() => {
@@ -605,30 +595,36 @@ onBeforeUnmount(() => {
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger class="flex w-full justify-between items-center px-2 py-2 text-sm cursor-pointer outline-none">
-                  <span>Display Mode</span>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuPortal>
-                  <DropdownMenuSubContent side="right" align="start" class="min-w-[140px]">
-                    <DropdownMenuItem @click="setThemePreference('light')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
-                      <Sun class="h-4 w-4 text-zinc-500" />
-                      <span class="flex-1">Siang (Light)</span>
-                      <Check v-if="themePreference === 'light'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="setThemePreference('dark')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
-                      <Moon class="h-4 w-4 text-zinc-500" />
-                      <span class="flex-1">Malam (Dark)</span>
-                      <Check v-if="themePreference === 'dark'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="setThemePreference('system')" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
-                      <Monitor class="h-4 w-4 text-zinc-500" />
-                      <span class="flex-1">Sistem</span>
-                      <Check v-if="themePreference === 'system'" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
-                    </DropdownMenuItem>
-                  </DropdownMenuSubContent>
-                </DropdownMenuPortal>
-              </DropdownMenuSub>
+              <!-- Display Mode: Direct Icons -->
+              <div class="px-2 py-2 flex items-center justify-between border-t border-border mt-1 pt-3">
+                <span class="text-sm">Display Mode</span>
+                <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  <button 
+                    @click="setThemePreference('light')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'light' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Siang"
+                  >
+                    <Sun class="h-3.5 w-3.5" />
+                  </button>
+                  <button 
+                    @click="setThemePreference('dark')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'dark' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Malam"
+                  >
+                    <Moon class="h-3.5 w-3.5" />
+                  </button>
+                  <button 
+                    @click="setThemePreference('system')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'system' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Sistem"
+                  >
+                    <Monitor class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
 
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
                 <span>Log Out</span>
@@ -677,24 +673,6 @@ onBeforeUnmount(() => {
 
         <!-- Right: Language + Help -->
         <div class="flex items-center justify-end gap-3 w-1/3">
-          <!-- Language Switcher -->
-          <div class="flex items-center gap-2 text-[11px] font-medium tracking-tight">
-            <button
-              @click="switchLang('ID')"
-              class="transition-colors px-1"
-              :class="currentLang === 'ID' ? 'font-semibold text-primary' : 'text-zinc-400 hover:text-zinc-600'"
-            >
-              ID
-            </button>
-            <span class="text-zinc-300 dark:text-zinc-700">|</span>
-            <button
-              @click="switchLang('EN')"
-              class="transition-colors px-1"
-              :class="currentLang === 'EN' ? 'font-semibold text-primary' : 'text-zinc-400 hover:text-zinc-600'"
-            >
-              EN
-            </button>
-          </div>
 
           <!-- Help Button -->
           <button

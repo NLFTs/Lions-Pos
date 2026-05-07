@@ -108,6 +108,7 @@ public class VoucherService {
         voucher.setDiscountValue(request.getDiscountValue());
         voucher.setMinPurchase(request.getMinPurchase());
         voucher.setMaxDiscount(request.getMaxDiscount());
+        voucher.setQuota(request.getQuota());
     }
 
     private void validateRequest(VoucherRequest request) {

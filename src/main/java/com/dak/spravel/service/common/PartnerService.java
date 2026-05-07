@@ -1,5 +1,6 @@
 package com.dak.spravel.service.common;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
+import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
@@ -28,72 +30,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PartnerService {
 
-    private final PartnerRepository partnerRepository; 
+    private final PartnerRepository partnerRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // --- LOGIC UTAMA ---
-
-    @Transactional
-    public Partners createPartner(CreatePartnerRequest request) {   
-        User currentUser = getAuthenticatedUser();
-
-        log.info("[DEBUG] User: {} mencoba create partner dengan role slug: admin", currentUser.getUsername());
-
-        // KARENA SLUG LO 'admin', MAKA CEKNYA KE 'admin'
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Cuma user dengan role 'admin' yang bisa bikin Partner!");
-        }
-
-        if (partnerRepository.existsByName(request.getName())) {
-            throw new IllegalArgumentException("Nama Partner sudah ada, cari nama lain Mip!");
-        }
-
-        // 1. Save Partner
-        Partners partner = new Partners();
-        partner.setName(request.getName());
-        partner.setPlan(request.getPlan());
-        partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
-        partner.setIsActive(true);
-        
-        AuditHelper.setCreated(partner); 
-        Partners savedPartner = partnerRepository.save(partner);
-
-        // 2. Buat User Admin Partner (Slug: admin-partners)
-        createInternalUser(request.getAdmin(), savedPartner, "admin-partners");
-
-        // 3. Buat User Karyawan (Slug: employee-partners)
-        if (request.getEmployees() != null && !request.getEmployees().isEmpty()) {
-            for (CreatePartnerRequest.UserRequest empReq : request.getEmployees()) {
-                createInternalUser(empReq, savedPartner, "employee-partners");
-            }
-        }
-
-        return savedPartner;
-    }
-
     // --- HELPER METHODS ---
-
-    private void createInternalUser(CreatePartnerRequest.UserRequest userReq, Partners partner, String roleSlug) {
-        if (userRepository.existsByUsername(userReq.getUsername())) {
-            throw new IllegalArgumentException("Username " + userReq.getUsername() + " udah kepake!");
-        }
-
-        User user = new User();
-        user.setUsername(userReq.getUsername());
-        user.setEmail(userReq.getEmail());
-        user.setPassword(passwordEncoder.encode(userReq.getPassword()));
-        user.setPartner(partner);
-
-        Role role = roleRepository.findBySlug(roleSlug)
-                .orElseThrow(() -> new RuntimeException("Role " + roleSlug + " gak ada di DB, cek Seeder lo!"));
-        user.setRoles(Collections.singleton(role));
-
-        AuditHelper.setCreated(user);
-
-        userRepository.save(user);
-    }
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -114,10 +56,117 @@ public class PartnerService {
         Partners partner = partnerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Partner", id));
 
-        if (!isAdmin(currentUser) && !partner.getCreatedBy().getId().equals(currentUser.getId())) {
-            throw new RuntimeException("Bukan data lo, gak boleh akses!");
+        if (!isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Cuma admin yang bisa akses data partner!");
         }
 
         return partner;
+    }
+
+    private void createInternalUser(CreatePartnerRequest.UserRequest userReq, Partners partner, String roleSlug) {
+        if (userRepository.existsByUsername(userReq.getUsername())) {
+            throw new IllegalArgumentException("Username " + userReq.getUsername() + " udah kepake!");
+        }
+
+        User user = new User();
+        user.setUsername(userReq.getUsername());
+        user.setEmail(userReq.getEmail());
+        user.setPassword(passwordEncoder.encode(userReq.getPassword()));
+        user.setPartner(partner);
+
+        Role role = roleRepository.findBySlug(roleSlug)
+                .orElseThrow(() -> new RuntimeException("Role " + roleSlug + " gak ada di DB, cek Seeder lo!"));
+        user.setRoles(Collections.singleton(role));
+
+        AuditHelper.setCreated(user);
+        userRepository.save(user);
+    }
+
+    // --- LOGIC UTAMA ---
+
+    // GET ALL
+    public List<Partners> findAll() {
+        getAuthenticatedUser();
+        return partnerRepository.findByDeletedAtIsNull(Sort.by("name").ascending());
+    }
+
+    // GET BY ID
+    public Partners findById(Long id) {
+        return getValidatedPartner(id);
+    }
+
+    // CREATE
+    @Transactional
+    public Partners createPartner(CreatePartnerRequest request) {
+        User currentUser = getAuthenticatedUser();
+
+        log.info("[DEBUG] User: {} mencoba create partner dengan role slug: admin", currentUser.getUsername());
+
+        if (!isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Cuma user dengan role 'admin' yang bisa bikin Partner!");
+        }
+
+        if (partnerRepository.existsByName(request.getName())) {
+            throw new IllegalArgumentException("Nama Partner sudah ada, cari nama lain!");
+        }
+
+        // 1. Save Partner
+        Partners partner = new Partners();
+        partner.setName(request.getName());
+        partner.setPlan(request.getPlan());
+        partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
+        partner.setIsActive(true);
+
+        AuditHelper.setCreated(partner);
+        Partners savedPartner = partnerRepository.save(partner);
+
+        // 2. Buat User Admin Partner
+        createInternalUser(request.getAdmin(), savedPartner, "admin-partners");
+
+        // 3. Buat User Karyawan (opsional)
+        if (request.getEmployees() != null && !request.getEmployees().isEmpty()) {
+            for (CreatePartnerRequest.UserRequest empReq : request.getEmployees()) {
+                createInternalUser(empReq, savedPartner, "employee-partners");
+            }
+        }
+
+        return savedPartner;
+    }
+
+    // UPDATE
+    @Transactional
+    public Partners update(Long id, UpdatePartnerRequest request) {
+        Partners partner = getValidatedPartner(id);
+
+        if (request.getName() != null) {
+            if (!request.getName().equals(partner.getName()) &&
+                    partnerRepository.existsByName(request.getName())) {
+                throw new IllegalArgumentException("Nama Partner sudah ada!");
+            }
+            partner.setName(request.getName());
+            partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
+        }
+
+        if (request.getPlan() != null) partner.setPlan(request.getPlan());
+        if (request.getIsActive() != null) partner.setIsActive(request.getIsActive());
+
+        AuditHelper.setUpdated(partner);
+        return partnerRepository.save(partner);
+    }
+
+    // SOFT DELETE
+    @Transactional
+    public void softDelete(Long id) {
+        Partners partner = getValidatedPartner(id);
+        partner.setDeletedAt(LocalDateTime.now());
+        AuditHelper.setUpdated(partner);
+        partnerRepository.save(partner);
+    }
+
+    // HARD DELETE
+    @Transactional
+    public void hardDelete(Long id) {
+        Partners partner = getValidatedPartner(id);
+        partnerRepository.delete(partner);
     }
 }

@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface StockBalanceRepository extends JpaRepository<StockBalance, Long> {
     Optional<StockBalance>findByProductIdAndLocationTypeAndLocationId(Long productId, String locationType, Long locationId);
 
+    List<StockBalance> findByProductPartnerId(Long partnerId);
+
     List<StockBalance> findByProductId(Long productId);
 
     List<StockBalance> findByLocationTypeAndLocationId(String locationType, Long locationId);
