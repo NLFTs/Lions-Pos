@@ -13,7 +13,7 @@ export const routes = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/pages/LoginPage.vue'), 
+    component: () => import('@/pages/LoginPage.vue'),
     meta: { guest: true },
   },
 
@@ -37,6 +37,17 @@ export const routes = [
       permission: 'produk.index',
       pageTitle: 'Manajemen Produk',
       pageSubtitle: 'Kelola produk, status, dan kategori.',
+    },
+  },
+  {
+    path: '/dashboard/reports',
+    name: 'reports',
+    component: () => import('@/pages/ReportsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Laporan Performa',
+      pageSubtitle: 'Analisis performa bisnis dengan filter periode fleksibel.',
     },
   },
   {
@@ -258,8 +269,8 @@ export const setupRouterGuards = (router) => {
     }
 
     if (to.meta.guest && auth.isAuthenticated) {
-  return { name: 'dashboard' }
-}
+      return { name: 'dashboard' }
+    }
 
   })
 }

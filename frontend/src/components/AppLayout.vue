@@ -34,6 +34,7 @@ import {
   ShoppingCart,
   Search,
   Ticket,
+  BarChart3,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -92,18 +93,11 @@ const MENU_GROUPS = [
   {
     label: 'Inventaris',
     items: [
-      {
-        label: 'Produk & Stok',
-        icon: FileText,
-        permission: null,
-        children: [
-          { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
-          { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
-          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
-          { label: 'Transfer Stok', icon: Repeat2, to: '/dashboard/transfer-requests', permission: 'transfer-request.index' },
-          { label: 'Stock Opname', icon: PackageSearch, to: '/dashboard/stock-opname', permission: 'stock-opname.index' },
-        ],
-      },
+      { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
+      { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
+      { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
+      { label: 'Transfer Stok', icon: Repeat2, to: '/dashboard/transfer-requests', permission: 'transfer-request.index' },
+      { label: 'Stock Opname', icon: PackageSearch, to: '/dashboard/stock-opname', permission: 'stock-opname.index' },
     ],
   },
   {
@@ -135,6 +129,12 @@ const MENU_GROUPS = [
     label: 'Master Data',
     items: [
       { label: 'Audit Log', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
+    ],
+  },
+  {
+    label: 'Wawasan',
+    items: [
+      { label: 'Laporan', icon: BarChart3, to: '/dashboard/reports', permission: null },
     ],
   },
 ]
