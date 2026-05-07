@@ -221,16 +221,6 @@ const userInitial = computed(() => {
 })
 
 // ─── Language Switcher ────────────────────────────────────────────────
-const languages = [
-  { code: 'ID', label: 'ID' },
-  { code: 'EN', label: 'EN' },
-]
-const currentLang = ref('EN')
-
-function switchLang(code) {
-  currentLang.value = code
-  // TODO: Implement actual language switching logic
-}
 
 // Get active color based on theme
 const activeLanguageColor = computed(() => {
@@ -677,24 +667,6 @@ onBeforeUnmount(() => {
 
         <!-- Right: Language + Help -->
         <div class="flex items-center justify-end gap-3 w-1/3">
-          <!-- Language Switcher -->
-          <div class="flex items-center gap-2 text-[11px] font-medium tracking-tight">
-            <button
-              @click="switchLang('ID')"
-              class="transition-colors px-1"
-              :class="currentLang === 'ID' ? 'font-semibold text-primary' : 'text-zinc-400 hover:text-zinc-600'"
-            >
-              ID
-            </button>
-            <span class="text-zinc-300 dark:text-zinc-700">|</span>
-            <button
-              @click="switchLang('EN')"
-              class="transition-colors px-1"
-              :class="currentLang === 'EN' ? 'font-semibold text-primary' : 'text-zinc-400 hover:text-zinc-600'"
-            >
-              EN
-            </button>
-          </div>
 
           <!-- Help Button -->
           <button
