@@ -1,4 +1,3 @@
-import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { components } from 'reka-ui/constant'
 
@@ -210,11 +209,19 @@ export const setupRouterGuards = (router) => {
   })
 }
 
+import {
+  createRouter,
+  createMemoryHistory,
+  createWebHistory
+} from 'vue-router'
+
 const router = createRouter({
-  history: createWebHistory(base),
+  history: import.meta.env.SSR
+    ? createMemoryHistory()
+    : createWebHistory(),
+
   routes,
 })
-
 setupRouterGuards(router)
 
 export default router
