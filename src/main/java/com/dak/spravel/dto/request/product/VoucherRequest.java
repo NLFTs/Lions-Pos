@@ -3,8 +3,9 @@ package com.dak.spravel.dto.request.product;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
@@ -31,9 +32,11 @@ public class VoucherRequest {
     @JsonProperty("max_discount")
     private BigDecimal maxDiscount;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @JsonProperty("valid_from")
-    private LocalDate validFrom;
+    private LocalDateTime validFrom;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @JsonProperty("valid_until")
-    private LocalDate validUntil;
+    private LocalDateTime validUntil;
 }

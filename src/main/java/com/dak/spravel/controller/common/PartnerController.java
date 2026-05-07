@@ -1,23 +1,19 @@
-package com.dak.spravel.controller.common;
+    package com.dak.spravel.controller.common;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
-import com.dak.spravel.dto.request.partner.GetPartnerByPlan;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
 import com.dak.spravel.util.ResponseBuilder;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 
 
 @Slf4j
@@ -31,41 +27,19 @@ public class PartnerController {
     @PreAuthorize("hasAuthority('partner.store')")
     public ResponseEntity<ResData<Partners>> createPartner(
             @Valid @RequestBody CreatePartnerRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails, Authentication auth) {
+
+        if (auth != null) {
+            log.info("=== DEBUG SECURITY ===");
+            log.info("User: {}", auth.getName());
+            log.info("Authorities: {}", auth.getAuthorities());
+            log.info("=======================");
+        } else {
+            System.out.println("=== AUTH NULL (Token Gak Valid / Gak Masuk Filter) ===");
+        }
+
         log.info("[POST] /api/v1/partners - Request: {}", request);
         Partners createdPartner = partnerService.createPartner(request);
         return ResponseBuilder.ok(createdPartner);
-    }
-
-    @GetMapping("/plan/{plan}")
-    @PreAuthorize("hasAuthority('partner.show')")
-    public ResponseEntity<ResData<Iterable<Partners>>> getPartnersByPlan(@PathVariable Partners.Plan plan) {
-        log.info("[GET] /api/v1/partners/plan/{}", plan);
-        Iterable<Partners> partners = partnerService.getPartnersByPlan(new GetPartnerByPlan(plan));
-        return ResponseBuilder.ok(partners);
-    }
-
-    @GetMapping("/all")
-    @PreAuthorize("hasAuthority('partner.show')")
-    public ResponseEntity<ResData<Iterable<Partners>>> getAllPartners() {
-        log.info("[GET] /api/v1/partners/all");
-        Iterable<Partners> partners = partnerService.getAllPartners();
-        return ResponseBuilder.ok(partners);
-    }
-    
-    @PutMapping("/soft-delete/{id}")
-    @PreAuthorize("hasAuthority('partner.update')")
-    public ResponseEntity<ResData<Partners>> softDeletePartner(@PathVariable Long id) {
-        log.info("[PUT] /api/v1/partners/soft-delete/{}", id);
-        Partners updatedPartner = partnerService.softDeletePartner(id);
-        return ResponseBuilder.ok(updatedPartner);
-    }
-
-    @PutMapping("/restore/{id}")
-    @PreAuthorize("hasAuthority('partner.update')")
-    public ResponseEntity<ResData<Partners>> restorePartner(@PathVariable Long id) {
-        log.info("[PUT] /api/v1/partners/restore/{}", id);
-        Partners updatedPartner = partnerService.restorePartner(id);
-        return ResponseBuilder.ok(updatedPartner);
     }
 }

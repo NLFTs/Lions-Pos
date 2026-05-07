@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -30,7 +31,12 @@ public class User   {
     private String password;
     
     @JsonIgnore
+    @Column(unique = true)
     private String email;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id")
+    private Partners partner;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

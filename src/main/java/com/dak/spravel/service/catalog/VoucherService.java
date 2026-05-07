@@ -6,10 +6,9 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.util.AuditHelper;
-
+import java.security.SecureRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
 @Service
@@ -88,6 +87,18 @@ public class VoucherService {
         voucher.setPartner(partner);
         voucher.setCode(request.getCode());
 
+        if(request.getCode() == null || request.getCode().isEmpty()) {
+            String randomCode = generateRandomVoucherCode(10);
+
+            while (voucherRepository.existsByCode(randomCode)) {
+                randomCode = generateRandomVoucherCode(10);
+            }
+
+            voucher.setCode(randomCode);
+        } else {
+            voucher.setCode(request.getCode().trim());
+        }
+
         voucher.setName(request.getName());
 
         voucher.setDiscountType(
@@ -114,5 +125,17 @@ public class VoucherService {
                 throw new RuntimeException("validFrom cannot be after validUntil");
             }
         }
+    }
+
+    private String generateRandomVoucherCode(int length) {
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder result = new StringBuilder();
+        SecureRandom random = new SecureRandom();
+
+        for (int i = 0; i < length; i++) {
+            int index = random.nextInt(characters.length());
+            result.append(characters.charAt(index));
+        }
+        return result.toString();
     }
 }

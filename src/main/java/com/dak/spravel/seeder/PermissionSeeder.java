@@ -37,6 +37,7 @@ public class PermissionSeeder {
         {"category",   "Category",   "Manage post categories"},
         {"partner",    "Partner",    "Manage blog partners"},
         {"category_product", "Category Product", "Manage product categories"},
+        {"product",    "Product",    "Manage blog products"},
         {"role",       "Role",       "Manage user roles"},
         {"permission", "Permission", "Manage system permissions"},
         {"module",     "Module",     "Manage permission modules"},
@@ -140,23 +141,92 @@ public class PermissionSeeder {
         roleRepository.save(adminRole);
 
         // 4. Create "editor" role with post.* + category read
-        Set<Permission> editorPerms = new HashSet<>();
+        Set<Permission> adminPartnersPerms = new HashSet<>();
         for (Permission p : allPerms) {
             String moduleSlug = p.getModule().getSlug();
+            if (moduleSlug.equals("user") || 
+                p.getSlug().equals("user.index") ||
+                p.getSlug().equals("user.show") || 
+                p.getSlug().equals("user.store") ||
+                p.getSlug().equals("user.update") ||
+                p.getSlug().equals("user.delete")){
+                adminPartnersPerms.add(p);
+            }
+
             if (moduleSlug.equals("post") ||
                 p.getSlug().equals("category.index") ||
-                p.getSlug().equals("category.show")) {
-                editorPerms.add(p);
+                p.getSlug().equals("category.show"))  {
+                adminPartnersPerms.add(p);
             }
+
+            if (moduleSlug.equals("category_product") ||
+                p.getSlug().equals("category_product.index") ||
+                p.getSlug().equals("category_product.show") || 
+                p.getSlug().equals("category_product.store") ||
+                p.getSlug().equals("category_product.update") ||
+                p.getSlug().equals("category_product.delete"))  {
+                adminPartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("product") ||
+                p.getSlug().equals("product.index") ||
+                p.getSlug().equals("product.show") || 
+                p.getSlug().equals("product.store") ||
+                p.getSlug().equals("product.update") ||
+                p.getSlug().equals("product.delete")) {
+                adminPartnersPerms.add(p);
+            }
+
+
         }
-        Role editorRole = roleRepository.findBySlug("editor").orElseGet(() -> {
+        Role adminPartnersRole = roleRepository.findBySlug("admin-partners").orElseGet(() -> {
             Role r = new Role();
-            r.setSlug("editor");
-            r.setName("Editor");
+            r.setSlug("admin-partners");
+            r.setName("Admin Partners");
             return r;
         });
-        editorRole.setPermissions(editorPerms);
-        roleRepository.save(editorRole);
+        adminPartnersRole.setPermissions(adminPartnersPerms);
+        roleRepository.save(adminPartnersRole);
+
+        Set<Permission> employeePartnersPerms = new HashSet<>();
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            
+
+            if (moduleSlug.equals("post") ||
+                p.getSlug().equals("category.index") ||
+                p.getSlug().equals("category.show"))  {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("category_product") ||
+                p.getSlug().equals("category_product.index") ||
+                p.getSlug().equals("category_product.show") || 
+                p.getSlug().equals("category_product.store") ||
+                p.getSlug().equals("category_product.update") ||
+                p.getSlug().equals("category_product.delete"))  {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("product") ||
+                p.getSlug().equals("product.index") ||
+                p.getSlug().equals("product.show") || 
+                p.getSlug().equals("product.store") ||
+                p.getSlug().equals("product.update") ||
+                p.getSlug().equals("product.delete")) {
+                employeePartnersPerms.add(p);
+            }
+
+
+        }
+        Role employeePartnersRole = roleRepository.findBySlug("employee-partners").orElseGet(() -> {
+            Role r = new Role();
+            r.setSlug("employee-partners");
+            r.setName("Employee Partners");
+            return r;
+        });
+        employeePartnersRole.setPermissions(employeePartnersPerms);
+        roleRepository.save(employeePartnersRole);
 
         // 5. Assign "admin" role to user "su"
         userRepository.findByUsername("su").ifPresent(su -> {

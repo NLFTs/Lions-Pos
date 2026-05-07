@@ -22,9 +22,9 @@ public class ProductService {
     private final PartnerRepository partnerRepository;
     private final CategoryProductRepository categoryRepository;
 
-    public Product create(ProductRequest request) {
+    public Product create(ProductRequest request, Long partnerId) {
 
-        Partners partner = partnerRepository.findById(request.getPartnerId())
+        Partners partner = partnerRepository.findById(partnerId)
                 .orElseThrow(() -> new RuntimeException("Partner not found"));
 
         CategoryProduct category = null;
@@ -42,21 +42,21 @@ public class ProductService {
 
         if (request.getSku() != null && !request.getSku().trim().isEmpty()) {
             // Validasi manual SKU: Cek apakah SKU manual sudah ada di DB
-            if (productRepository.existsBySku(request.getSku().trim().toUpperCase())) {
+            if (productRepository.existsBySkuAndPartnerId(request.getSku().trim().toUpperCase(), partnerId)) {
                 throw new RuntimeException("SKU " + request.getSku() + " sudah terdaftar!");
             }
         }
 
         if (product.getSku() == null || product.getSku().trim().isEmpty()) {
             // Jika tidak diinput, generate otomatis
-            String generatedSku = generateUniqueSku(product.getName());
+            String generatedSku = generateUniqueSku(product.getName(), partnerId);
             product.setSku(generatedSku);
         } else {
             // Jika diinput manual, pastikan dalam format Uppercase (Opsional tapi disarankan)
             product.setSku(product.getSku().trim().toUpperCase());
             
             // 2. Validasi manual SKU: Cek apakah SKU manual sudah ada di DB
-            if (productRepository.existsBySku(product.getSku())) {
+            if (productRepository.existsBySkuAndPartnerId(product.getSku(), partnerId)) {
                 throw new RuntimeException("SKU " + product.getSku() + " sudah terdaftar!");
             }
         }
@@ -66,7 +66,7 @@ public class ProductService {
         return productRepository.save(product);
     }
 
-    private String generateUniqueSku(String name) {
+    private String generateUniqueSku(String name, Long partnerId) {
         String newSku;
         do {
             String cleanName = name.replaceAll("[^a-zA-Z]", "").toUpperCase();
@@ -79,35 +79,35 @@ public class ProductService {
 
             int randomDigits = (int) (Math.random() * 900) + 100;
             newSku = prefix + "-" + randomDigits;
-        } while (productRepository.existsBySku(newSku));
+        } while (productRepository.existsBySkuAndPartnerId(newSku, partnerId));
 
         return newSku;
     }
 
-    public List<Product> findAll() {
-        return productRepository.findAll();
+    public List<Product> findAll(Long partnerId) {
+        return productRepository.findAllByPartnerId(partnerId);
     }
 
-    public Product findById(Long id) {
-        return productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product findById(Long id, Long partnerId) {
+        return productRepository.findByIdAndPartnerId(id, partnerId);
     }
 
-    public void delete(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
+    public void delete(Long id, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
         productRepository.delete(product);
     }
 
-    public Product updateProduct(Long id, ProductRequest request) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product updateProduct(Long id, ProductRequest request, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
 
-        if (request.getPartnerId() != null) {
-            Partners partner = partnerRepository.findById(request.getPartnerId())
-                    .orElseThrow(() -> new RuntimeException("Partner not found"));
-            product.setPartner(partner);
+        if (request.getPartnerId() != null && !request.getPartnerId().equals(partnerId)) {
+            throw new RuntimeException("Cannot change partner");
         }
 
         if (request.getCategoryId() != null) {
@@ -124,38 +124,46 @@ public class ProductService {
         return productRepository.save(product);
     }
 
-    public Product softDeleteProduct(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product softDeleteProduct(Long id, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
         product.setIsActive(false);
 
         AuditHelper.setDeleted(product);
         return productRepository.save(product);
     }
 
-    public Product restoreProduct(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product restoreProduct(Long id, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
         product.setIsActive(true);
 
         AuditHelper.setUpdated(product);
         return productRepository.save(product);
     }
 
-    public Product setFalseTrackStock(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product setFalseTrackStock(Long id, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
         product.setTrackStock(false);
 
         AuditHelper.setUpdated(product);
         return productRepository.save(product);
     }
 
-    public Product setTrueTrackStock(Long id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+    public Product setTrueTrackStock(Long id, Long partnerId) {
+        Product product = productRepository.findByIdAndPartnerId(id, partnerId);
+        if (product == null) {
+            throw new RuntimeException("Product not found");
+        }
         product.setTrackStock(true);
-    
+
         AuditHelper.setUpdated(product);
         return productRepository.save(product);
     }
