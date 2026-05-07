@@ -1,5 +1,6 @@
 package com.dak.spravel.dto.request.inventory;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
@@ -14,7 +15,7 @@ public class StockMutationRequestDTO {
     @NotNull(message = "Partner ID tidak boleh kosong")
     private Long partnerId;
 
-    @NotNull(message = "Type tidak boleh kosong")
+    @NotBlank(message = "Type tidak boleh kosong")
     @Pattern(regexp = "sale_out|purchase_in|transfer|adjustment|return",
             message = "Type harus 'sale_out', 'purchase_in', 'transfer', 'adjustment', atau 'return'")
     private String type;

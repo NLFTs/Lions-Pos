@@ -1,5 +1,6 @@
 package com.dak.spravel.dto.request.inventory;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
@@ -12,7 +13,7 @@ public class StockOpnameRequestDTO {
     @NotNull(message = "Partner ID tidak boleh kosong")
     private Long partnerId;
 
-    @NotNull(message = "Location type tidak boleh kosong")
+    @NotBlank(message = "Location type tidak boleh kosong")
     @Pattern(regexp = "branch|warehouse",
             message = "Location type harus 'branch' atau 'warehouse'")
     private String location;
