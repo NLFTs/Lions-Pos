@@ -28,6 +28,7 @@ import {
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 
 const { can } = usePermission()
 const { toast } = useToast()
@@ -340,20 +341,28 @@ onMounted(() => {
             <!-- Produk -->
             <div class="space-y-1.5">
               <Label for="product">Produk <span class="text-destructive">*</span></Label>
-              <select id="product" v-model="form.product_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="" disabled>Pilih Produk...</option>
-                <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
-              </select>
+              <CustomSelect 
+                v-model="form.product_id" 
+                :options="products.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` }))" 
+                placeholder="Pilih Produk..." 
+                :show-icon="false"
+                align="start"
+                class="w-full h-10"
+              />
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <!-- Partner -->
               <div class="space-y-1.5">
                 <Label for="partner">Partner (Supplier/Cust)</Label>
-                <select id="partner" v-model="form.partner_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="">None</option>
-                  <option v-for="p in partners" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
+                <CustomSelect 
+                  v-model="form.partner_id" 
+                  :options="[{ value: '', label: 'None' }, ...partners.map(p => ({ value: p.id, label: p.name }))]" 
+                  placeholder="None" 
+                  :show-icon="false"
+                  align="start"
+                  class="w-full h-10"
+                />
               </div>
               <!-- Qty -->
               <div class="space-y-1.5">
@@ -369,17 +378,25 @@ onMounted(() => {
               <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                   <Label>Asal (From)</Label>
-                  <select v-model="form.from_location_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="">None</option>
-                    <option v-for="l in locations" :key="l.id" :value="l.id">[{{ l.type }}] {{ l.name }}</option>
-                  </select>
+                  <CustomSelect 
+                    v-model="form.from_location_id" 
+                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
+                    placeholder="None" 
+                    :show-icon="false"
+                    align="start"
+                    class="w-full h-10"
+                  />
                 </div>
                 <div class="space-y-1.5">
                   <Label>Tujuan (To)</Label>
-                  <select v-model="form.to_location_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="">None</option>
-                    <option v-for="l in locations" :key="l.id" :value="l.id">[{{ l.type }}] {{ l.name }}</option>
-                  </select>
+                  <CustomSelect 
+                    v-model="form.to_location_id" 
+                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
+                    placeholder="None" 
+                    :show-icon="false"
+                    align="start"
+                    class="w-full h-10"
+                  />
                 </div>
               </div>
             </div>
@@ -388,10 +405,14 @@ onMounted(() => {
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <Label>Tipe Referensi</Label>
-                <select v-model="form.reference_type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="">None</option>
-                  <option v-for="r in referenceTypes" :key="r.value" :value="r.value">{{ r.label }}</option>
-                </select>
+                <CustomSelect 
+                  v-model="form.reference_type" 
+                  :options="[{ value: '', label: 'None' }, ...referenceTypes]" 
+                  placeholder="None" 
+                  :show-icon="false"
+                  align="start"
+                  class="w-full h-10"
+                />
               </div>
               <div class="space-y-1.5">
                 <Label>ID Referensi</Label>

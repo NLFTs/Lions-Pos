@@ -11,6 +11,7 @@ import Label from '@/components/ui/Label.vue'
 import Alert from '@/components/ui/Alert.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { Plus, Loader2, X, Repeat2, Eye, Check, Truck } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -19,6 +20,16 @@ const transfers = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref('all')
+const statusOptions = [
+  { value: 'all', label: 'Semua Status' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Disetujui' },
+  { value: 'received', label: 'Diterima' }
+]
+const locationTypeOptions = [
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'branch', label: 'Branch' }
+]
 const page = ref(1)
 const pageSize = ref(10)
 const showDrawer = ref(false)
@@ -83,9 +94,7 @@ onMounted(fetchTRs)
         <div><h1 class="text-2xl font-bold tracking-tight">Transfer Stok</h1><p class="text-muted-foreground text-sm mt-1">Kelola permintaan transfer antar lokasi.</p></div>
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="w-full sm:w-72"><DataTableSearch v-model="searchQuery" placeholder="Cari transfer..." /></div>
-          <select v-model="statusFilter" class="h-9 rounded-md border border-border bg-background px-3 text-sm">
-            <option value="all">Semua</option><option value="pending">Pending</option><option value="approved">Disetujui</option><option value="received">Diterima</option>
-          </select>
+          <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" label="Filter Status" />
           <Button v-if="can('transfer-request.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary text-primary-foreground"><Plus class="h-4 w-4" />Buat</Button>
         </div>
       </div>
@@ -136,11 +145,15 @@ onMounted(fetchTRs)
               <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5"><Label>Asal *</Label><Input v-model="form.fromName" placeholder="Gudang/Cabang" /></div>
-                <div class="space-y-1.5"><Label>Tipe</Label><select v-model="form.fromType" class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="warehouse">Warehouse</option><option value="branch">Branch</option></select></div>
+                <div class="space-y-1.5"><Label>Tipe</Label>
+                  <CustomSelect v-model="form.fromType" :options="locationTypeOptions" :show-icon="false" align="start" class="w-full h-10" />
+                </div>
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="space-y-1.5"><Label>Tujuan *</Label><Input v-model="form.toName" placeholder="Gudang/Cabang" /></div>
-                <div class="space-y-1.5"><Label>Tipe</Label><select v-model="form.toType" class="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="warehouse">Warehouse</option><option value="branch">Branch</option></select></div>
+                <div class="space-y-1.5"><Label>Tipe</Label>
+                  <CustomSelect v-model="form.toType" :options="locationTypeOptions" :show-icon="false" align="start" class="w-full h-10" />
+                </div>
               </div>
               <div class="space-y-1.5"><Label>Catatan</Label><textarea v-model="form.notes" rows="2" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></div>
               <div>
