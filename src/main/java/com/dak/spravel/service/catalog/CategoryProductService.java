@@ -33,7 +33,7 @@ public class CategoryProductService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
+        
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
@@ -60,11 +60,11 @@ public class CategoryProductService {
 
         // VALIDASI 2: Cross-Partner Check
         // Bandingkan Partner ID milik kategori dengan Partner ID milik user login
-        if (currentUser.getPartner() == null ||
-                !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        if (currentUser.getPartner() == null || 
+            !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses kategori dari partner lain.");
         }
-
+        
         return category;
     }
 
@@ -111,14 +111,14 @@ public class CategoryProductService {
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
 
-        AuditHelper.setCreated(category);
+        AuditHelper.setCreated(category); 
         return categoryProductRepository.save(category);
     }
 
     @Transactional
     public CategoryProduct update(Long id, CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
-
+        
         // Cari kategori yang mau diupdate + validasi kepemilikan partner
         CategoryProduct category = getValidatedCategory(id, currentUser);
 
