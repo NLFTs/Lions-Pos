@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request DTO for creating a user via POST endpoint.
@@ -21,6 +22,12 @@ public class CreateUserRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
+
+    @NotBlank(message = "Email is required")
+    private String email;
+
+    @JsonProperty("partner_id")
+    private Long partnerId;
 
     private List<Long> roleIds;
 }

@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,7 +85,7 @@ public class PermissionCacheService {
      */
     private Set<String> loadFromDatabase(String username) {
         log.debug("[Cache] MISS — loading permissions for '{}' from DB", username);
-        return userRepository.findByUsername(username)
+        return userRepository.findByUsernameWithRoles(username)
                 .map(user -> user.getRoles().stream()
                         .flatMap(role -> role.getPermissions().stream())
                         .map(perm -> perm.getSlug())

@@ -3,6 +3,7 @@ package com.dak.spravel.config;
 import com.dak.spravel.handler.CustomAccessDeniedHandler;
 import com.dak.spravel.handler.CustomAuthEntryPoint;
 import com.dak.spravel.middleware.JwtAuthFilter;
+import com.dak.spravel.middleware.UserContextFilter;
 import com.dak.spravel.service.auth.PermissionCacheService;
 import com.dak.spravel.util.JwtUtil;
 import org.springframework.context.annotation.Bean;
@@ -31,6 +32,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final PermissionCacheService permissionCacheService;
     private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final UserContextFilter userContextFilter; // Inject UserContextFilter
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -88,6 +90,7 @@ public class SecurityConfig {
                 .addFilterBefore(
                         new JwtAuthFilter(jwtUtil, permissionCacheService, java.util.Arrays.asList(jwtExcludedPaths)),
                         UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(userContextFilter, JwtAuthFilter.class) 
                 .build();
     }
 

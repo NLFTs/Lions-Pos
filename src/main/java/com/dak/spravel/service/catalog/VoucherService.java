@@ -5,9 +5,10 @@ import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.util.AuditHelper;
+import java.security.SecureRandom;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
 @Service
@@ -32,6 +33,8 @@ public class VoucherService {
         Voucher voucher = new Voucher();
         mapToEntity(voucher, request, partner);
 
+        AuditHelper.setCreated(voucher);
+
         return voucherRepository.save(voucher);
     }
 
@@ -52,6 +55,8 @@ public class VoucherService {
 
         mapToEntity(voucher, request, partner);
 
+        AuditHelper.setUpdated(voucher);
+                
         return voucherRepository.save(voucher);
     }
 
@@ -73,6 +78,7 @@ public class VoucherService {
 
     public void delete(Long id) {
         Voucher voucher = getById(id);
+        AuditHelper.setDeleted(voucher);
         voucherRepository.delete(voucher);
     }
 
@@ -80,6 +86,19 @@ public class VoucherService {
     private void mapToEntity(Voucher voucher, VoucherRequest request, Partners partner) {
         voucher.setPartner(partner);
         voucher.setCode(request.getCode());
+
+        if(request.getCode() == null || request.getCode().isEmpty()) {
+            String randomCode = generateRandomVoucherCode(10);
+
+            while (voucherRepository.existsByCode(randomCode)) {
+                randomCode = generateRandomVoucherCode(10);
+            }
+
+            voucher.setCode(randomCode);
+        } else {
+            voucher.setCode(request.getCode().trim());
+        }
+
         voucher.setName(request.getName());
 
         voucher.setDiscountType(
@@ -89,9 +108,6 @@ public class VoucherService {
         voucher.setDiscountValue(request.getDiscountValue());
         voucher.setMinPurchase(request.getMinPurchase());
         voucher.setMaxDiscount(request.getMaxDiscount());
-        voucher.setQuota(request.getQuota());
-        voucher.setValid_from(request.getValidFrom());
-        voucher.setValid_until(request.getValidUntil());
     }
 
     private void validateRequest(VoucherRequest request) {
@@ -109,9 +125,17 @@ public class VoucherService {
                 throw new RuntimeException("validFrom cannot be after validUntil");
             }
         }
+    }
 
-        if (request.getQuota() != null && request.getQuota() < 0) {
-            throw new RuntimeException("Quota cannot be negative");
+    private String generateRandomVoucherCode(int length) {
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder result = new StringBuilder();
+        SecureRandom random = new SecureRandom();
+
+        for (int i = 0; i < length; i++) {
+            int index = random.nextInt(characters.length());
+            result.append(characters.charAt(index));
         }
+        return result.toString();
     }
 }
