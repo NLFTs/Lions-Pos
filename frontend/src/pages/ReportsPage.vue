@@ -189,7 +189,10 @@ const bestSellers = [
   { id: 2, name: 'Celana Chino Beige', category: 'Pakaian', sold: 315, revenue: 'Rp 61.425.000' },
   { id: 3, name: 'Sepatu Sneakers Hitam', category: 'Alas Kaki', sold: 280, revenue: 'Rp 126.000.000' },
   { id: 4, name: 'Jaket Bomber Olive', category: 'Pakaian', sold: 210, revenue: 'Rp 67.200.000' },
-  { id: 5, name: 'Dompet Kulit Minimalis', category: 'Aksesori', sold: 195, revenue: 'Rp 32.175.000' }
+  { id: 5, name: 'Dompet Kulit Minimalis', category: 'Aksesori', sold: 195, revenue: 'Rp 32.175.000' },
+  { id: 6, name: 'Tas Selempang Canvas', category: 'Tas', sold: 154, revenue: 'Rp 20.790.000' },
+  { id: 7, name: 'Kemeja Flannel Kotak', category: 'Pakaian', sold: 128, revenue: 'Rp 26.880.000' },
+  { id: 8, name: 'Topi Baseball Biru Navy', category: 'Aksesori', sold: 95, revenue: 'Rp 7.125.000' }
 ]
 
 const activeFilter = ref('14 hari')
@@ -382,10 +385,10 @@ const filters = ['7 hari', '14 hari', '30 hari']
         </div>
         
         <div class="mt-6 flex justify-center">
-          <button class="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+          <RouterLink to="/dashboard/products" class="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
             Lihat semua produk
             <ArrowUpRight class="w-4 h-4" />
-          </button>
+          </RouterLink>
         </div>
       </div>
 
