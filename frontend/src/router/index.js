@@ -169,6 +169,61 @@ export const routes = [
       pageSubtitle: 'Sistem Point of Sale',
     },
   },
+  {
+    path: '/dashboard/orders',
+    name: 'orders',
+    component: () => import('@/pages/OrdersPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'order.index',
+      pageTitle: 'Riwayat Order',
+      pageSubtitle: 'Lihat riwayat transaksi penjualan.',
+    },
+  },
+  {
+    path: '/dashboard/suppliers',
+    name: 'suppliers',
+    component: () => import('@/pages/SuppliersPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'supplier.index',
+      pageTitle: 'Manajemen Supplier',
+      pageSubtitle: 'Kelola data supplier dan pemasok.',
+    },
+  },
+  {
+    path: '/dashboard/purchase-orders',
+    name: 'purchase-orders',
+    component: () => import('@/pages/PurchaseOrdersPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'purchase-order.index',
+      pageTitle: 'Purchase Order',
+      pageSubtitle: 'Kelola pesanan pembelian barang.',
+    },
+  },
+  {
+    path: '/dashboard/transfer-requests',
+    name: 'transfer-requests',
+    component: () => import('@/pages/TransferRequestsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'transfer-request.index',
+      pageTitle: 'Transfer Stok',
+      pageSubtitle: 'Kelola permintaan transfer antar lokasi.',
+    },
+  },
+  {
+    path: '/dashboard/stock-opname',
+    name: 'stock-opname',
+    component: () => import('@/pages/StockOpnamePage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'stock-opname.index',
+      pageTitle: 'Stock Opname',
+      pageSubtitle: 'Hitung dan rekonsiliasi stok fisik.',
+    },
+  },
 
   {
     path: '/about',

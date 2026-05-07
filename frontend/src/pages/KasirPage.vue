@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft } from 'lucide-vue-next'
+import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft, Banknote, ArrowRightLeft, X, Ticket, Check } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 
 const { toast } = useToast()
@@ -60,12 +60,47 @@ function formatCurrency(value) {
 }
 
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
-const total      = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty, 0))
+const subtotal   = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty, 0))
+
+// Voucher
+const voucherCode = ref('')
+const appliedVoucher = ref(null)
+const MOCK_VOUCHERS = [
+  { code: 'DISC10', name: 'Diskon 10%', discountType: 'percent', discountValue: 10, maxDiscount: 50000 },
+  { code: 'HEMAT20K', name: 'Potongan 20rb', discountType: 'fixed', discountValue: 20000 },
+]
+function applyVoucher() {
+  const v = MOCK_VOUCHERS.find(v => v.code === voucherCode.value.toUpperCase())
+  if (v) { appliedVoucher.value = v; toast.success(`Voucher "${v.name}" diterapkan!`) }
+  else { toast.error('Kode voucher tidak valid.'); appliedVoucher.value = null }
+}
+function removeVoucher() { appliedVoucher.value = null; voucherCode.value = '' }
+
+const discountAmount = computed(() => {
+  if (!appliedVoucher.value) return 0
+  const v = appliedVoucher.value
+  if (v.discountType === 'percent') { const d = subtotal.value * v.discountValue / 100; return v.maxDiscount ? Math.min(d, v.maxDiscount) : d }
+  return v.discountValue
+})
+const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
+
+// Payment Dialog
+const showPayment = ref(false)
+const payMethod = ref('cash')
+const cashTendered = ref('')
+const bankName = ref('')
+const referenceNo = ref('')
+const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
+
+function openPayment() { if (!cart.value.length) return; showPayment.value = true; payMethod.value = 'cash'; cashTendered.value = ''; bankName.value = ''; referenceNo.value = '' }
+function closePayment() { showPayment.value = false }
 
 function checkout() {
-  if (!cart.value.length) return
-  toast.success(`Pembayaran berhasil! Total: ${formatCurrency(total.value)}`)
-  cart.value = []
+  if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { toast.error('Uang yang diberikan kurang!'); return }
+  if (payMethod.value === 'transfer' && !referenceNo.value) { toast.error('Nomor referensi wajib diisi!'); return }
+  const orderNum = `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(Math.random()*9999)+1).padStart(4,'0')}`
+  toast.success(`Pembayaran berhasil! ${orderNum} — ${formatCurrency(total.value)}`)
+  cart.value = []; appliedVoucher.value = null; voucherCode.value = ''; showPayment.value = false
 }
 
 const AVATAR_COLORS = [
@@ -182,13 +217,32 @@ function avatarStyle(name = '') {
           </div>
         </div>
 
-        <!-- Summary & checkout -->
+        <!-- Voucher + Summary + checkout -->
         <div v-if="cart.length > 0" class="pos-cart-ft">
+          <!-- Voucher -->
+          <div class="pos-voucher">
+            <div v-if="appliedVoucher" class="pos-voucher-applied">
+              <div class="flex items-center gap-1.5">
+                <Ticket class="h-3.5 w-3.5 text-primary" />
+                <span class="text-xs font-semibold text-primary">{{ appliedVoucher.code }}</span>
+                <span class="text-[10px] text-muted-foreground">(-{{ formatCurrency(discountAmount) }})</span>
+              </div>
+              <button class="pos-voucher-rm" @click="removeVoucher"><X class="h-3 w-3" /></button>
+            </div>
+            <div v-else class="pos-voucher-input">
+              <Input v-model="voucherCode" placeholder="Kode voucher" class="h-8 text-xs flex-1" @keyup.enter="applyVoucher" />
+              <Button size="sm" variant="outline" class="h-8 text-xs px-2.5 shrink-0" @click="applyVoucher">Pakai</Button>
+            </div>
+          </div>
+          <div class="pos-sum-rows">
+            <div class="pos-sum-row"><span>Subtotal</span><span>{{ formatCurrency(subtotal) }}</span></div>
+            <div v-if="discountAmount > 0" class="pos-sum-row text-red-500"><span>Diskon</span><span>-{{ formatCurrency(discountAmount) }}</span></div>
+          </div>
           <div class="pos-sum-total">
             <span class="pos-sum-lbl">Total</span>
             <span class="pos-sum-total-val">{{ formatCurrency(total) }}</span>
           </div>
-          <Button class="pos-pay-btn" :disabled="!cart.length" @click="checkout">
+          <Button class="pos-pay-btn" :disabled="!cart.length" @click="openPayment">
             <CreditCard class="h-4 w-4 mr-1.5" />
             Bayar
           </Button>
@@ -196,6 +250,70 @@ function avatarStyle(name = '') {
       </div>
 
     </div>
+
+    <!-- Payment Dialog -->
+    <Teleport to="body">
+      <Transition name="fade"><div v-if="showPayment" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closePayment" /></Transition>
+      <Transition name="scale">
+        <div v-if="showPayment" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+          <div class="bg-card rounded-xl shadow-2xl w-full max-w-md border border-border pointer-events-auto overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b">
+              <h3 class="font-semibold text-base">Pembayaran</h3>
+              <button @click="closePayment" class="p-1 rounded hover:bg-muted"><X class="h-4 w-4" /></button>
+            </div>
+            <div class="px-5 py-4 space-y-4">
+              <div class="flex items-center justify-between text-lg font-bold">
+                <span>Total</span><span class="text-primary">{{ formatCurrency(total) }}</span>
+              </div>
+              <!-- Method tabs -->
+              <div class="flex rounded-lg border border-border overflow-hidden">
+                <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors', payMethod === 'cash' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
+                  <Banknote class="h-4 w-4" />Tunai
+                </button>
+                <button @click="payMethod = 'transfer'" :class="['flex-1 py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors border-l border-border', payMethod === 'transfer' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
+                  <ArrowRightLeft class="h-4 w-4" />Transfer
+                </button>
+              </div>
+              <!-- Cash fields -->
+              <template v-if="payMethod === 'cash'">
+                <div class="space-y-1.5">
+                  <label class="text-sm font-medium">Uang Diterima</label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+                    <Input v-model="cashTendered" type="number" min="0" class="pl-9" placeholder="0" />
+                  </div>
+                </div>
+                <div v-if="Number(cashTendered) >= total" class="flex items-center justify-between p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
+                  <span class="text-sm font-medium text-emerald-700 dark:text-emerald-400">Kembalian</span>
+                  <span class="text-lg font-bold text-emerald-700 dark:text-emerald-400">{{ formatCurrency(changeDue) }}</span>
+                </div>
+                <!-- Quick amounts -->
+                <div class="flex flex-wrap gap-2">
+                  <button v-for="amt in [total, Math.ceil(total/10000)*10000, Math.ceil(total/50000)*50000, Math.ceil(total/100000)*100000].filter((v,i,a) => a.indexOf(v) === i)" :key="amt" @click="cashTendered = amt"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border hover:bg-muted transition-colors">{{ formatCurrency(amt) }}</button>
+                </div>
+              </template>
+              <!-- Transfer fields -->
+              <template v-else>
+                <div class="space-y-1.5">
+                  <label class="text-sm font-medium">Nama Bank</label>
+                  <Input v-model="bankName" placeholder="BCA, Mandiri, BNI..." />
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-sm font-medium">No. Referensi *</label>
+                  <Input v-model="referenceNo" placeholder="Nomor referensi transfer" />
+                </div>
+              </template>
+            </div>
+            <div class="px-5 py-4 border-t bg-muted/30">
+              <Button class="w-full h-11 font-bold text-sm" @click="checkout">
+                <Check class="h-4 w-4 mr-1.5" />Konfirmasi Pembayaran
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AppLayout>
 </template>
 
@@ -392,29 +510,36 @@ function avatarStyle(name = '') {
 .pos-cart-ft {
   padding: 10px 16px; border-top: 1px solid #e4e4e7; flex-shrink: 0;
   background: white;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; flex-direction: column; gap: 8px;
 }
 :root.dark .pos-cart-ft { border-color: #27272a; background: #09090b; }
-.pos-sum-total { display: flex; flex-direction: column; line-height: 1.2; }
-.pos-sum-lbl { font-size: 11px; font-weight: 700; color: #71717a; text-transform: uppercase; }
+
+.pos-voucher { }
+.pos-voucher-applied { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 8px; background: hsl(var(--primary)/0.05); border: 1px solid hsl(var(--primary)/0.15); }
+.pos-voucher-rm { padding: 4px; border-radius: 4px; background: none; border: none; cursor: pointer; color: #a1a1aa; }
+.pos-voucher-rm:hover { color: #ef4444; }
+.pos-voucher-input { display: flex; gap: 6px; }
+.pos-sum-rows { display: flex; flex-direction: column; gap: 2px; }
+.pos-sum-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; }
+.pos-sum-total { display: flex; justify-content: space-between; align-items: center; line-height: 1.2; }
+.pos-sum-lbl { font-size: 13px; font-weight: 700; color: #71717a; }
 :root.dark .pos-sum-lbl { color: #a1a1aa; }
 .pos-sum-total-val { font-size: 1.15rem; font-weight: 900; color: hsl(var(--primary)); }
-.pos-pay-btn { height: 40px; padding: 0 20px; font-size: 14px; font-weight: 700; border-radius: 10px; flex-shrink: 0; }
+.pos-pay-btn { height: 40px; padding: 0 20px; font-size: 14px; font-weight: 700; border-radius: 10px; flex-shrink: 0; width: 100%; }
 
 @media (min-width: 1024px) {
-  .pos-cart-ft {
-    flex-direction: column; align-items: stretch; gap: 12px;
-    padding: 16px;
-  }
-  .pos-sum-total { flex-direction: row; justify-content: space-between; align-items: center; }
-  .pos-sum-lbl { font-size: 13px; text-transform: none; }
+  .pos-cart-ft { padding: 16px; gap: 10px; }
   .pos-sum-total-val { font-size: 1.25rem; }
-  .pos-pay-btn { height: 44px; width: 100%; }
+  .pos-pay-btn { height: 44px; }
 }
 
 /* Transitions */
 .list-enter-active, .list-leave-active { transition: all 0.25s ease; }
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateX(20px); }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.scale-enter-active, .scale-leave-active { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95); }
 
 /* Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
