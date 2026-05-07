@@ -28,6 +28,7 @@ import {
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 
 const { can } = usePermission()
 const { toast } = useToast()
@@ -206,44 +207,81 @@ onMounted(() => {
             <p class="text-sm">Belum ada data mutasi stok.</p>
           </div>
 
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-muted/40 border-b">
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Tanggal</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Produk</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Tipe</th>
-                  <th class="px-4 py-3 text-right font-medium text-muted-foreground">Qty</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Keterangan</th>
-                  <th class="px-4 py-3 text-right font-medium text-muted-foreground">Oleh</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="m in paginatedMutations" :key="m.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td class="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                    {{ new Date(m.createdAt).toLocaleString('id-ID') }}
-                  </td>
-                  <td class="px-4 py-3 font-medium">{{ m.productName }}</td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
-                      <div :class="['p-1 rounded-md', getTypeInfo(m.type).color]">
-                        <component :is="getTypeInfo(m.type).icon" class="h-3 w-3" />
-                      </div>
-                      <span class="text-xs font-medium">{{ getTypeInfo(m.type).label }}</span>
+          <div v-else>
+            <!-- ─── Mobile List View ─── -->
+            <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div
+                v-for="m in paginatedMutations"
+                :key="'mobile-' + m.id"
+                class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div :class="['p-2 rounded-lg shrink-0', getTypeInfo(m.type).color]">
+                      <component :is="getTypeInfo(m.type).icon" class="h-4 w-4" />
                     </div>
-                  </td>
-                  <td class="px-4 py-3 text-right font-semibold" :class="m.type.endsWith('_in') ? 'text-emerald-600' : 'text-red-600'">
-                    {{ m.type.endsWith('_in') ? '+' : '-' }}{{ m.qty }}
-                  </td>
-                  <td class="px-4 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
-                    {{ m.notes || '—' }}
-                  </td>
-                  <td class="px-4 py-3 text-right text-xs">
-                    {{ m.createdBy }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <div>
+                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ m.productName }}</h4>
+                      <span class="text-[10px] text-zinc-500">{{ new Date(m.createdAt).toLocaleString('id-ID') }}</span>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <div class="text-sm font-bold" :class="m.type.endsWith('_in') ? 'text-emerald-600' : 'text-red-600'">
+                      {{ m.type.endsWith('_in') ? '+' : '-' }}{{ m.qty }}
+                    </div>
+                    <span class="text-[10px] font-medium text-zinc-400 uppercase tracking-tighter">{{ getTypeInfo(m.type).label }}</span>
+                  </div>
+                </div>
+                <div v-if="m.notes" class="text-xs text-zinc-500 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded border border-zinc-100 dark:border-zinc-800/60 line-clamp-2">
+                  {{ m.notes }}
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-zinc-400">
+                  <span>Oleh: {{ m.createdBy }}</span>
+                  <span>ID: {{ m.id }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── Desktop Table ─── -->
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-muted/40 border-b">
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tanggal</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Produk</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tipe</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Qty</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Keterangan</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Oleh</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="m in paginatedMutations" :key="m.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td class="px-5 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                      {{ new Date(m.createdAt).toLocaleString('id-ID') }}
+                    </td>
+                    <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ m.productName }}</td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-2">
+                        <div :class="['p-1 rounded-md', getTypeInfo(m.type).color]">
+                          <component :is="getTypeInfo(m.type).icon" class="h-3 w-3" />
+                        </div>
+                        <span class="text-xs font-medium">{{ getTypeInfo(m.type).label }}</span>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3 text-right font-semibold" :class="m.type.endsWith('_in') ? 'text-emerald-600' : 'text-red-600'">
+                      {{ m.type.endsWith('_in') ? '+' : '-' }}{{ m.qty }}
+                    </td>
+                    <td class="px-5 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
+                      {{ m.notes || '—' }}
+                    </td>
+                    <td class="px-5 py-3 text-right text-xs text-muted-foreground">
+                      {{ m.createdBy }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <DataTablePagination
@@ -303,20 +341,28 @@ onMounted(() => {
             <!-- Produk -->
             <div class="space-y-1.5">
               <Label for="product">Produk <span class="text-destructive">*</span></Label>
-              <select id="product" v-model="form.product_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                <option value="" disabled>Pilih Produk...</option>
-                <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
-              </select>
+              <CustomSelect 
+                v-model="form.product_id" 
+                :options="products.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` }))" 
+                placeholder="Pilih Produk..." 
+                :show-icon="false"
+                align="start"
+                class="w-full h-10"
+              />
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <!-- Partner -->
               <div class="space-y-1.5">
                 <Label for="partner">Partner (Supplier/Cust)</Label>
-                <select id="partner" v-model="form.partner_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="">None</option>
-                  <option v-for="p in partners" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
+                <CustomSelect 
+                  v-model="form.partner_id" 
+                  :options="[{ value: '', label: 'None' }, ...partners.map(p => ({ value: p.id, label: p.name }))]" 
+                  placeholder="None" 
+                  :show-icon="false"
+                  align="start"
+                  class="w-full h-10"
+                />
               </div>
               <!-- Qty -->
               <div class="space-y-1.5">
@@ -332,17 +378,25 @@ onMounted(() => {
               <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                   <Label>Asal (From)</Label>
-                  <select v-model="form.from_location_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="">None</option>
-                    <option v-for="l in locations" :key="l.id" :value="l.id">[{{ l.type }}] {{ l.name }}</option>
-                  </select>
+                  <CustomSelect 
+                    v-model="form.from_location_id" 
+                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
+                    placeholder="None" 
+                    :show-icon="false"
+                    align="start"
+                    class="w-full h-10"
+                  />
                 </div>
                 <div class="space-y-1.5">
                   <Label>Tujuan (To)</Label>
-                  <select v-model="form.to_location_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="">None</option>
-                    <option v-for="l in locations" :key="l.id" :value="l.id">[{{ l.type }}] {{ l.name }}</option>
-                  </select>
+                  <CustomSelect 
+                    v-model="form.to_location_id" 
+                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
+                    placeholder="None" 
+                    :show-icon="false"
+                    align="start"
+                    class="w-full h-10"
+                  />
                 </div>
               </div>
             </div>
@@ -351,10 +405,14 @@ onMounted(() => {
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <Label>Tipe Referensi</Label>
-                <select v-model="form.reference_type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="">None</option>
-                  <option v-for="r in referenceTypes" :key="r.value" :value="r.value">{{ r.label }}</option>
-                </select>
+                <CustomSelect 
+                  v-model="form.reference_type" 
+                  :options="[{ value: '', label: 'None' }, ...referenceTypes]" 
+                  placeholder="None" 
+                  :show-icon="false"
+                  align="start"
+                  class="w-full h-10"
+                />
               </div>
               <div class="space-y-1.5">
                 <Label>ID Referensi</Label>

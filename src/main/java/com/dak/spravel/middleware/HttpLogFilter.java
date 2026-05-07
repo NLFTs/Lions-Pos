@@ -155,12 +155,27 @@ public class HttpLogFilter implements Filter {
     }
 
     private void processResponseBody(ContentCachingResponseWrapper responseWrapper, LogHttp logInfo) {
-        String responseBody = new String(responseWrapper.getContentAsByteArray());
-        if (!responseBody.isEmpty()) {
+        byte[] content = responseWrapper.getContentAsByteArray();
+        if (content.length > 0) {
+            String responseBody = new String(content);
+            String trimmedBody = responseBody.trim();
+
             try {
-                logInfo.setResponse(StringUtil.maskingJson(new JSONObject(responseBody)).toString());
+                if (trimmedBody.startsWith("{")) {
+                    // Jika Object, lakukan masking seperti biasa
+                    logInfo.setResponse(StringUtil.maskingJson(new JSONObject(trimmedBody)).toString());
+                } else if (trimmedBody.startsWith("[")) {
+                    // Jika Array, maskingJson mungkin perlu penyesuaian (tergantung implementasi StringUtil)
+                    // Jika StringUtil hanya support JSONObject, log apa adanya atau proses per elemen
+                    logInfo.setResponse(trimmedBody); 
+                } else {
+                    // Jika bukan JSON (plain text/HTML), simpan sebagai string biasa
+                    logInfo.setResponse(trimmedBody);
+                }
             } catch (Exception e) {
-                log.debug("Failed to process response body", e);
+                // Log error tanpa menghentikan flow, simpan body asli jika gagal parse
+                log.warn("Failed to parse response body as JSON: {}", e.getMessage());
+                logInfo.setResponse(responseBody);
             }
         }
     }

@@ -14,6 +14,7 @@ public class AuditHelper {
     public static void setUpdated(Object entity) {
         User user = UserContext.getUser();
         setField(entity, "updatedBy", user);
+        setField(entity, "updatedAt", LocalDateTime.now());
     }
 
     public static void setDeleted(Object entity) {

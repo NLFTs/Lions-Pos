@@ -186,38 +186,87 @@ onMounted(fetchLocations)
             <p class="text-sm">Belum ada data lokasi.</p>
           </div>
 
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-muted/40 border-b">
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Nama Lokasi</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Tipe</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Alamat</th>
-                  <th class="px-4 py-3 text-right font-medium text-muted-foreground">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="l in paginatedLocations" :key="l.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td class="px-4 py-3 font-medium">{{ l.name }}</td>
-                  <td class="px-4 py-3 capitalize text-xs">
-                    <Badge :variant="l.type === 'warehouse' ? 'default' : 'secondary'">{{ l.type }}</Badge>
-                  </td>
-                  <td class="px-4 py-3 text-xs text-muted-foreground max-w-[250px] truncate">
-                    {{ l.address }}
-                  </td>
-                  <td class="px-4 py-3 text-right">
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" @click="openEdit(l)">
-                        <Pencil class="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" class="text-destructive" @click="doDelete(l)">
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
+          <div v-else>
+            <!-- ─── Mobile List View ─── -->
+            <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div
+                v-for="l in paginatedLocations"
+                :key="'mobile-' + l.id"
+                class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 shrink-0 border border-zinc-200 dark:border-zinc-800/50">
+                      <MapPin class="h-5 w-5" />
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <div>
+                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ l.name }}</h4>
+                      <Badge :variant="l.type === 'warehouse' ? 'default' : 'secondary'" class="text-[10px] px-1.5 py-0 mt-1 capitalize">{{ l.type }}</Badge>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="openEdit(l)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="doDelete(l)"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div v-if="l.address" class="text-xs text-zinc-500 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded border border-zinc-100 dark:border-zinc-800/60 line-clamp-2">
+                  {{ l.address }}
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-zinc-400">
+                  <span class="uppercase tracking-wider font-semibold text-[9px]">ID: {{ l.id }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── Desktop Table ─── -->
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-muted/40 border-b">
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Lokasi</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tipe</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Alamat</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="l in paginatedLocations" :key="l.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ l.name }}</td>
+                    <td class="px-5 py-3 capitalize text-xs">
+                      <Badge :variant="l.type === 'warehouse' ? 'default' : 'secondary'" class="text-[10px] px-2 py-0.5">{{ l.type }}</Badge>
+                    </td>
+                    <td class="px-5 py-3 text-xs text-muted-foreground max-w-[300px] truncate">
+                      {{ l.address || '-' }}
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
+                          <Pencil class="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                          <Trash2 class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <DataTablePagination

@@ -3,6 +3,7 @@ package com.dak.spravel.model.common;
 import java.time.LocalDateTime;
 import org.hibernate.annotations.SQLDelete;
 import com.dak.spravel.model.auth.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -37,29 +38,32 @@ public class Partners {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @JsonIgnore
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
     
+    @JsonIgnore
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @JsonIgnore
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
     @ToString.Exclude 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    @JsonIgnoreProperties({ "updatedBy", "deletedBy", "password", "roles"})
     private User updatedBy;
     
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    @JsonIgnoreProperties({ "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY   )
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    @JsonIgnoreProperties({ "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
 }
 

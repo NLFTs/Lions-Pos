@@ -22,8 +22,9 @@ public class Voucher  {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "plan", "slug", "isActive", "hibernateLazyInitializer"})
     private Partners partner;
 
     @Column(nullable = false, unique = true)
@@ -54,9 +55,9 @@ public class Voucher  {
 
     private Integer used_count = 0;
 
-    private LocalDateTime valid_from;
+    private LocalDateTime validFrom;
 
-    private LocalDateTime valid_until;
+    private LocalDateTime validUntil;
 
     private Boolean is_active = true;
 
@@ -70,17 +71,17 @@ public class Voucher  {
     private LocalDateTime deletedAt;
 
     @ToString.Exclude 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User updatedBy;
     
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;

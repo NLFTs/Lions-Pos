@@ -10,8 +10,4 @@ import java.util.List;
 public interface TransferRequestItemRepository extends JpaRepository<TransferRequestItem, Long> {
 
     List<TransferRequestItem> findByTransferRequestId(Long transferRequestId);
-
-    List<TransferRequestItem> findByProductId(Long productId);
-
-    List<TransferRequestItem> findByTransferRequestIdAndProductId(Long transferRequestId, Long productId);
 }

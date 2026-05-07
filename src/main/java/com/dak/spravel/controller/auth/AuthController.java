@@ -41,6 +41,7 @@ public class AuthController {
     @Value("${app.jwt.refresh-token-expiration}")
     private long refreshTokenExpirationMs;
 
+
     /**
      * GET /api/v1/auth/me
      * Get current authenticated user details.

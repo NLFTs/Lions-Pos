@@ -67,21 +67,50 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private void setAuthenticationContext(String token, HttpServletRequest request) {
         String username = jwtUtil.getUsernameFromToken(token);
+        // 1. Ambil semua string authority (bisa Permission + Role) dari Cache
+        
+        List<String> rawAuthorities = new java.util.ArrayList<>(permissionCacheService.getPermissions(username));
+        
+        log.info("[DEBUG] Raw Authorities dari Cache untuk {}: {}", username, rawAuthorities);
 
-        // Resolve permissions from Caffeine cache (falls back to DB on cache miss)
-        var authorities = permissionCacheService.getPermissions(username).stream()
-                .map(SimpleGrantedAuthority::new)
-                .toList();
+        // 2. Map ke SimpleGrantedAuthority
+        // Kita tambahin logic: kalau authority-nya 'admin', kita daftarin dua kali (pake ROLE_ dan nggak) biar aman
+        List<SimpleGrantedAuthority> authorities = new java.util.ArrayList<>();
+        for (String authStr : rawAuthorities) {
+            authorities.add(new SimpleGrantedAuthority(authStr));
+            // Spring Security @PreAuthorize("hasRole('admin')") nyari "ROLE_admin"
+            if (!authStr.startsWith("ROLE_")) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + authStr));
+            }
+        }
 
-        // BUAT OBJEK USER DETAILS DISINI (dari org.springframework.security.core.userdetails.User)
         UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(username)
-                .password("") // Kosongkan karena sudah terautentikasi via JWT
+                .password("") 
                 .authorities(authorities)
                 .build();
 
         var auth = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
         auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(auth);
+        
+        log.info("[DEBUG] Final Authorities di SecurityContext: {}", authorities);
+        
+
+        // // Resolve permissions from Caffeine cache (falls back to DB on cache miss)
+        // var authorities = permissionCacheService.getPermissions(username).stream()
+        //         .map(SimpleGrantedAuthority::new)
+        //         .toList();
+
+        // // BUAT OBJEK USER DETAILS DISINI (dari org.springframework.security.core.userdetails.User)
+        // UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
+        //         .username(username)
+        //         .password("") // Kosongkan karena sudah terautentikasi via JWT
+        //         .authorities(authorities)
+        //         .build();
+
+        // var auth = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
+        // auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        // SecurityContextHolder.getContext().setAuthentication(auth);
     }
 }

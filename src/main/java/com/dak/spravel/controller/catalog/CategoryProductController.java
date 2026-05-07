@@ -29,7 +29,7 @@ public class CategoryProductController {
         return ResponseEntity.ok(categoryProductService.findAll());
     }
 
-    //new
+
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('category_product.index')")
     public ResponseEntity<Page<CategoryProduct>> paginated(
@@ -38,14 +38,7 @@ public class CategoryProductController {
         log.info("[GET] /api/v1/category-products/page page={} size={}", page, size);
         return ResponseEntity.ok(categoryProductService.findAll(page, size));
     }
-
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('category_product.show')")
-    public ResponseEntity<CategoryProduct> show(@PathVariable Long id) {
-        log.info("[GET] /api/v1/category-products/{}", id);
-        return ResponseEntity.ok(categoryProductService.findById(id));
-    }
-
+    
     @PostMapping
     @PreAuthorize("hasAuthority('category_product.store')")
     public ResponseEntity<CategoryProduct> store(

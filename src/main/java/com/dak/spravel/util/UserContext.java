@@ -3,7 +3,7 @@ package com.dak.spravel.util;
 import com.dak.spravel.model.auth.User;
 
 public class UserContext {
-    private static final ThreadLocal<User> currentUser = new ThreadLocal<>();
+    private static final ThreadLocal<User> currentUser = new InheritableThreadLocal<>();
 
     public static void setUser(User user) {
         currentUser.set(user);

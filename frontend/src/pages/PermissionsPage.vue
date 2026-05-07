@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -11,7 +11,7 @@ import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, KeyRound, LayoutGrid, ChevronDown } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, KeyRound, LayoutGrid, ChevronDown, Filter, Check } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -28,10 +28,30 @@ const filterModule = ref('')
 const searchQuery  = ref('')
 const page         = ref(1)
 const pageSize     = ref(10)
+const showFilter   = ref(false)
+const filterRef    = ref(null)
 
-// Drawer
-const showDrawer = ref(false)
-const modalMode = ref('create')
+const activeFilterCount = computed(() => {
+  return filterModule.value ? 1 : 0
+})
+
+function handleOutsideClick(e) {
+  if (filterRef.value && !filterRef.value.contains(e.target)) {
+    showFilter.value = false
+  }
+}
+
+onMounted(() => {
+  fetchPermissions()
+  fetchModules()
+  document.addEventListener('click', handleOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
+})
+const showDrawer   = ref(false)
+const modalMode    = ref('create')
 const saving    = ref(false)
 const formError = ref(null)
 const form      = ref({ id: null, slug: '', name: '', moduleId: null })
@@ -82,10 +102,7 @@ async function fetchModules() {
   } catch { /* non-critical */ }
 }
 
-onMounted(() => {
-  fetchPermissions()
-  fetchModules()
-})
+
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 function openCreate() {
@@ -190,11 +207,64 @@ async function doDelete(perm) {
           input-class="h-9 text-xs"
         />
         <div class="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 border-zinc-200">
-            <LayoutGrid class="h-3.5 w-3.5" />
-            <span>Customize Columns</span>
-            <ChevronDown class="h-3 w-3 text-zinc-400" />
-          </Button>
+          <!-- Filter Dropdown -->
+          <div ref="filterRef" class="relative flex-1 sm:flex-none">
+            <button
+              @click="showFilter = !showFilter"
+              class="w-full flex items-center justify-center gap-2 h-9 px-3 rounded-md border border-border bg-background hover:bg-accent text-foreground text-sm font-medium transition-colors"
+            >
+              <Filter class="h-3.5 w-3.5" />
+              <span>Filter</span>
+              <!-- Active count badge -->
+              <span v-if="activeFilterCount > 0" class="inline-flex items-center justify-center h-4.5 min-w-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none">
+                {{ activeFilterCount }}
+              </span>
+              <ChevronDown class="h-3 w-3 text-muted-foreground" :class="showFilter ? 'rotate-180' : ''" style="transition: transform 0.2s" />
+            </button>
+
+            <!-- Dropdown Panel -->
+            <Transition name="fade">
+              <div
+                v-if="showFilter"
+                class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-[calc(100vw-2.5rem)] sm:w-64 max-w-[280px] sm:max-w-none bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+              >
+                <!-- Header -->
+                <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
+                  <span class="text-xs font-semibold text-foreground uppercase tracking-wide">Filter</span>
+                  <button
+                    v-if="activeFilterCount > 0"
+                    @click="filterModule = ''"
+                    class="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+                  >Clear all</button>
+                </div>
+
+                <!-- Module Section -->
+                <div class="px-3 pt-3 pb-3">
+                  <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Modul</p>
+                  <div class="space-y-1 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
+                    <button
+                      @click="filterModule = ''"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none text-left"
+                    >
+                      <span class="text-sm font-medium text-foreground select-none">Semua Modul</span>
+                      <Check v-if="filterModule === ''" class="h-4 w-4 text-foreground" />
+                    </button>
+                    <button
+                      v-for="mod in modules"
+                      :key="mod.slug"
+                      @click="filterModule = mod.slug"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none text-left"
+                    >
+                      <span class="text-sm font-medium text-foreground select-none capitalize">{{ mod.name }}</span>
+                      <Check v-if="filterModule === mod.slug" class="h-4 w-4 text-foreground" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+          <!-- /Filter Dropdown -->
+
           <Button v-if="can('permission.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Add Permission</span>
@@ -203,25 +273,6 @@ async function doDelete(perm) {
       </div>
 
       <Alert v-if="error" variant="destructive" class="mb-4">{{ error }}</Alert>
-
-      <!-- Module filter -->
-    <div class="mb-4 flex items-center gap-3">
-      <span class="text-sm text-muted-foreground">Filter by module:</span>
-      <div class="flex flex-wrap gap-2">
-        <button
-          class="rounded-full px-3 py-1 text-xs font-medium border transition-colors"
-          :class="filterModule === '' ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:bg-accent'"
-          @click="filterModule = ''"
-        >All</button>
-        <button
-          v-for="mod in modules"
-          :key="mod.slug"
-          class="rounded-full px-3 py-1 text-xs font-medium border capitalize transition-colors"
-          :class="filterModule === mod.slug ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-muted-foreground hover:bg-accent'"
-          @click="filterModule = mod.slug"
-        >{{ mod.name }}</button>
-      </div>
-    </div>
 
     <!-- Table -->
     <Card>
@@ -235,38 +286,89 @@ async function doDelete(perm) {
           <p class="text-sm">No permissions found.</p>
         </div>
 
-        <div v-else class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b bg-muted/40">
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Slug</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                <th class="px-4 py-3 text-left font-medium text-muted-foreground">Module</th>
-                <th class="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="perm in paginatedPermissions" :key="perm.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                <td class="px-4 py-3 font-mono text-xs">{{ perm.slug }}</td>
-                <td class="px-4 py-3">{{ perm.name }}</td>
-                <td class="px-4 py-3">
-                  <span class="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs capitalize">
-                    {{ perm.moduleSlug }}
-                  </span>
-                </td>
-                <td class="px-4 py-3 text-right">
-                  <div class="flex justify-end gap-2">
-                    <Button v-if="can('permission.update')" variant="ghost" size="icon" @click="openEdit(perm)">
-                      <Pencil class="h-4 w-4" />
-                    </Button>
-                    <Button v-if="can('permission.delete')" variant="ghost" size="icon" class="text-destructive hover:text-destructive" @click="doDelete(perm)">
-                      <Trash2 class="h-4 w-4" />
-                    </Button>
+        <div v-else>
+          <!-- ─── Mobile List View ─── -->
+          <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+            <div
+              v-for="perm in paginatedPermissions"
+              :key="'mobile-' + perm.id"
+              class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 border border-zinc-200 dark:border-zinc-800/50">
+                    <KeyRound class="h-5 w-5" />
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <div>
+                    <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100 leading-tight">{{ perm.name }}</h4>
+                    <span class="font-mono text-[10px] text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10 mt-1.5 block w-fit tracking-tight">{{ perm.slug }}</span>
+                  </div>
+                </div>
+                
+                <div class="flex items-center gap-1 shrink-0">
+                  <Button
+                    v-if="can('permission.update')"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                    @click="openEdit(perm)"
+                  >
+                    <Pencil class="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    v-if="can('permission.delete')"
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                    @click="doDelete(perm)"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between mt-1">
+                <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Modul</span>
+                <span class="inline-block rounded-full bg-zinc-100 dark:bg-zinc-800/80 px-2 py-0.5 text-[10px] capitalize font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200/50 dark:border-zinc-800/50">
+                  {{ perm.moduleSlug }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── Desktop Table ─── -->
+          <div class="hidden md:block overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b bg-muted/40">
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Permission</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Modul</th>
+                  <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="perm in paginatedPermissions" :key="perm.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                  <td class="px-5 py-3 font-mono text-xs text-primary">{{ perm.slug }}</td>
+                  <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ perm.name }}</td>
+                  <td class="px-5 py-3 text-xs">
+                    <span class="inline-block rounded-full bg-muted px-2.5 py-0.5 text-xs capitalize text-zinc-600 dark:text-zinc-400 font-medium">
+                      {{ perm.moduleSlug }}
+                    </span>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <div class="flex justify-end gap-1">
+                      <Button v-if="can('permission.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(perm)">
+                        <Pencil class="h-3.5 w-3.5" />
+                      </Button>
+                      <Button v-if="can('permission.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(perm)">
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         <DataTablePagination
           v-if="filtered.length > 0 && !loading"
@@ -327,7 +429,7 @@ async function doDelete(perm) {
                 @change="onModuleSelect"
                 :disabled="saving"
               >
-                <option :value="null" disabled>— Pilih modul —</option>
+                <option :value="null" disabled> Pilih modul </option>
                 <option v-for="mod in modules" :key="mod.id" :value="mod.id">{{ mod.name }} ({{ mod.slug }})</option>
               </select>
             </div>

@@ -249,78 +249,152 @@ onMounted(() => {
             <p class="text-sm">Belum ada data voucer.</p>
           </div>
 
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-muted/40 border-b">
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Voucer</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Diskon</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Kuota / Terpakai</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Masa Berlaku</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                  <th class="px-4 py-3 text-right font-medium text-muted-foreground">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="v in paginatedVouchers" :key="v.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td class="px-4 py-3">
-                    <div class="flex flex-col">
-                      <span class="font-mono text-xs font-bold text-primary">{{ v.code }}</span>
-                      <span class="font-medium">{{ v.name }}</span>
-                      <span class="text-[10px] text-muted-foreground">{{ getPartnerName(v.partner_id) }}</span>
+          <div v-else>
+            <!-- ─── Mobile List View ─── -->
+            <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div
+                v-for="v in paginatedVouchers"
+                :key="'mobile-' + v.id"
+                class="p-4 flex flex-col gap-4 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <!-- Header (Code, Name, Actions) -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
+                      <Ticket class="h-5 w-5" />
                     </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex flex-col">
-                      <span class="font-semibold">
-                        {{ v.discount_type === 'percent' ? v.discount_value + '%' : formatCurrency(v.discount_value) }}
-                      </span>
-                      <span v-if="v.min_purchase > 0" class="text-[10px] text-muted-foreground">
-                        Min. {{ formatCurrency(v.min_purchase) }}
-                      </span>
+                    <div>
+                      <span class="font-mono text-xs font-bold text-primary block tracking-wider">{{ v.code }}</span>
+                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100 leading-tight mt-0.5">{{ v.name }}</h4>
                     </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex flex-col">
-                      <span>{{ v.quota || '∞' }} / {{ v.used_count || 0 }}</span>
-                      <div class="w-24 h-1.5 bg-muted rounded-full mt-1 overflow-hidden">
-                        <div 
-                          class="h-full bg-primary" 
-                          :style="{ width: v.quota ? Math.min((v.used_count / v.quota) * 100, 100) + '%' : '0%' }"
-                        />
+                  </div>
+                  
+                  <div class="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="openEdit(v)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="doDelete(v)"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <!-- Info Grid -->
+                <div class="grid grid-cols-2 gap-y-3 gap-x-4 p-3 bg-zinc-50 dark:bg-zinc-900/40 rounded-xl border border-zinc-100 dark:border-zinc-800/60">
+                  <div class="space-y-1">
+                    <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Diskon</span>
+                    <div class="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                      {{ v.discount_type === 'percent' ? v.discount_value + '%' : formatCurrency(v.discount_value) }}
+                    </div>
+                  </div>
+                  <div class="space-y-1">
+                    <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Kuota</span>
+                    <div class="text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                      {{ v.quota || '∞' }} / {{ v.used_count || 0 }}
+                    </div>
+                  </div>
+                  <div class="space-y-1 col-span-2">
+                    <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Berlaku Sampai</span>
+                    <div class="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                      <Calendar class="h-3 w-3" />
+                      <span>{{ v.valid_until || 'Selamanya' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] text-muted-foreground">{{ getPartnerName(v.partner_id) }}</span>
+                  <Badge :variant="v.is_active ? 'default' : 'secondary'" class="text-[9px] px-1.5 py-0">
+                    {{ v.is_active ? 'Aktif' : 'Nonaktif' }}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── Desktop Table ─── -->
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-muted/40 border-b">
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Voucer</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Diskon</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Kuota / Terpakai</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Masa Berlaku</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Status</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="v in paginatedVouchers" :key="v.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td class="px-5 py-3">
+                      <div class="flex flex-col">
+                        <span class="font-mono text-xs font-bold text-primary">{{ v.code }}</span>
+                        <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ v.name }}</span>
+                        <span class="text-[10px] text-muted-foreground">{{ getPartnerName(v.partner_id) }}</span>
                       </div>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-xs">
-                    <div class="flex flex-col gap-0.5">
-                      <div class="flex items-center gap-1">
-                        <Calendar class="h-3 w-3 text-muted-foreground" />
-                        <span>{{ v.valid_from || '-' }}</span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex flex-col">
+                        <span class="font-semibold text-zinc-800 dark:text-zinc-200">
+                          {{ v.discount_type === 'percent' ? v.discount_value + '%' : formatCurrency(v.discount_value) }}
+                        </span>
+                        <span v-if="v.min_purchase > 0" class="text-[10px] text-muted-foreground">
+                          Min. {{ formatCurrency(v.min_purchase) }}
+                        </span>
                       </div>
-                      <div class="flex items-center gap-1">
-                        <Calendar class="h-3 w-3 text-muted-foreground" />
-                        <span>{{ v.valid_until || '-' }}</span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex flex-col">
+                        <span class="text-xs">{{ v.quota || '∞' }} / {{ v.used_count || 0 }}</span>
+                        <div class="w-24 h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
+                          <div 
+                            class="h-full bg-primary" 
+                            :style="{ width: v.quota ? Math.min((v.used_count / v.quota) * 100, 100) + '%' : '0%' }"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3">
-                    <Badge :variant="v.is_active ? 'default' : 'secondary'">
-                      {{ v.is_active ? 'Aktif' : 'Nonaktif' }}
-                    </Badge>
-                  </td>
-                  <td class="px-4 py-3 text-right">
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" @click="openEdit(v)">
-                        <Pencil class="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" class="text-destructive" @click="doDelete(v)">
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    </td>
+                    <td class="px-5 py-3 text-xs">
+                      <div class="flex flex-col gap-0.5 text-muted-foreground">
+                        <div class="flex items-center gap-1">
+                          <Calendar class="h-3 w-3" />
+                          <span>{{ v.valid_from || '-' }}</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                          <Calendar class="h-3 w-3" />
+                          <span>{{ v.valid_until || '-' }}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3">
+                      <Badge :variant="v.is_active ? 'default' : 'secondary'" class="text-[10px] px-2 py-0.5">
+                        {{ v.is_active ? 'Aktif' : 'Nonaktif' }}
+                      </Badge>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(v)">
+                          <Pencil class="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(v)">
+                          <Trash2 class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <DataTablePagination

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -9,9 +9,10 @@ import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
+import Badge from '@/components/ui/Badge.vue'
 import Alert from '@/components/ui/Alert.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, Users, Search, ChevronDown } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, Users, Search, ChevronDown, Check, Globe } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -32,8 +33,8 @@ const filteredPartners = computed(() => {
   const q = searchQuery.value.toLowerCase()
   return partners.value.filter(p => 
     p.name.toLowerCase().includes(q) || 
-    p.code?.toLowerCase().includes(q) ||
-    p.type?.toLowerCase().includes(q)
+    p.slug?.toLowerCase().includes(q) ||
+    p.plan?.toLowerCase().includes(q)
   )
 })
 
@@ -50,12 +51,10 @@ const formError = ref(null)
 
 const emptyForm = () => ({
   id: null,
-  code: '',
   name: '',
-  type: 'supplier', // 'supplier' | 'customer' | 'both'
-  phone: '',
-  email: '',
-  address: '',
+  slug: '',
+  plan: 'basic', // 'basic' | 'pro' | 'enterprise'
+  is_active: true,
 })
 
 const form = ref(emptyForm())
@@ -109,8 +108,9 @@ async function fetchPartners() {
   } catch (err) {
     if (import.meta.env.DEV) {
       partners.value = [
-        { id: '1', code: 'SUP-001', name: 'Supplier Utama', type: 'supplier', phone: '0812345678', email: 'sup@mail.com' },
-        { id: '2', code: 'CUS-001', name: 'Customer Retail', type: 'customer', phone: '0812999999', email: 'cus@mail.com' },
+        { id: '1', name: 'Partner Basic', slug: 'partner-basic', plan: 'basic', is_active: true },
+        { id: '2', name: 'Partner Pro', slug: 'partner-pro', plan: 'pro', is_active: true },
+        { id: '3', name: 'Partner Enterprise', slug: 'partner-enterprise', plan: 'enterprise', is_active: false },
       ]
     } else {
       error.value = 'Gagal memuat data partner.'
@@ -138,11 +138,12 @@ async function savePartner() {
   saving.value = true
   formError.value = null
   try {
+    const payload = { ...form.value }
     if (modalMode.value === 'create') {
-      await api.post('/api/v1/partners', form.value)
+      await api.post('/api/v1/partners', payload)
       toast.success('Partner berhasil ditambahkan!')
     } else {
-      await api.put(`/api/v1/partners/${form.value.id}`, form.value)
+      await api.put(`/api/v1/partners/${form.value.id}`, payload)
       toast.success('Partner berhasil diperbarui!')
     }
     showDrawer.value = false
@@ -152,6 +153,22 @@ async function savePartner() {
   } finally {
     saving.value = false
   }
+}
+
+// Auto-generate slug from name
+watch(() => form.value.name, (newName) => {
+  if (modalMode.value === 'create') {
+    form.value.slug = (newName || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
+  }
+})
+
+function getPlanBadgeVariant(plan) {
+  if (plan === 'enterprise') return 'default'
+  if (plan === 'pro') return 'secondary'
+  return 'outline'
 }
 
 
@@ -165,7 +182,7 @@ onMounted(fetchPartners)
       <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manajemen Partner</h1>
-          <p class="text-xs text-zinc-500 mt-0.5">Kelola data supplier dan customer.</p>
+          <p class="text-xs text-zinc-500 mt-0.5">Kelola data partner dan lisensi mereka.</p>
         </div>
         <Button @click="openCreate" class="bg-primary hover:bg-primary/90 flex items-center gap-2">
           <Plus class="h-4 w-4" />
@@ -188,41 +205,107 @@ onMounted(fetchPartners)
             <p class="text-sm">Belum ada data partner.</p>
           </div>
 
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="bg-muted/40 border-b">
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Kode</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Nama</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Tipe</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Kontak</th>
-                  <th class="px-4 py-3 text-right font-medium text-muted-foreground">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="p in paginatedPartners" :key="p.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                  <td class="px-4 py-3 font-mono text-xs">{{ p.code }}</td>
-                  <td class="px-4 py-3 font-medium">{{ p.name }}</td>
-                  <td class="px-4 py-3 capitalize text-xs">
-                    <Badge variant="outline">{{ p.type }}</Badge>
-                  </td>
-                  <td class="px-4 py-3 text-xs text-muted-foreground">
-                    <div>{{ p.phone }}</div>
-                    <div>{{ p.email }}</div>
-                  </td>
-                  <td class="px-4 py-3 text-right">
-                    <div class="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" @click="openEdit(p)">
-                        <Pencil class="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" class="text-destructive" @click="doDelete(p)">
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
+          <div v-else>
+            <!-- ─── Mobile List View ─── -->
+            <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div
+                v-for="p in paginatedPartners"
+                :key="'mobile-' + p.id"
+                class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 border border-zinc-200 dark:border-zinc-800/50">
+                      {{ p.name?.charAt(0).toUpperCase() }}
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <div>
+                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ p.name }}</h4>
+                      <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+                        <Globe class="h-3 w-3" />
+                        <span>{{ p.slug }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="openEdit(p)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="doDelete(p)"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                  <Badge :variant="getPlanBadgeVariant(p.plan)" class="capitalize text-[10px] px-1.5 py-0">
+                    {{ p.plan }}
+                  </Badge>
+                  <div class="flex items-center gap-2">
+                    <div :class="['h-2 w-2 rounded-full', p.is_active ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700']" />
+                    <span class="text-[10px]">{{ p.is_active ? 'Aktif' : 'Nonaktif' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ─── Desktop Table ─── -->
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-muted/40 border-b">
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Partner</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug / Subdomain</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Plan</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Status</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="p in paginatedPartners" :key="p.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
+                    <td class="px-5 py-3">
+                      <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ p.name }}</div>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Globe class="h-3 w-3" />
+                        <span>{{ p.slug }}</span>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3">
+                      <Badge :variant="getPlanBadgeVariant(p.plan)" class="capitalize text-[10px] px-1.5 py-0">
+                        {{ p.plan }}
+                      </Badge>
+                    </td>
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-2">
+                        <div :class="['h-2 w-2 rounded-full', p.is_active ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700']" />
+                        <span class="text-xs">{{ p.is_active ? 'Aktif' : 'Nonaktif' }}</span>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(p)">
+                          <Pencil class="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(p)">
+                          <Trash2 class="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <DataTablePagination
@@ -248,7 +331,7 @@ onMounted(fetchPartners)
           <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
             <div>
               <h3 class="font-semibold text-base">{{ modalMode === 'create' ? 'Tambah Partner' : 'Edit Partner' }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">Kelola data supplier/customer.</p>
+              <p class="text-xs text-muted-foreground mt-0.5">Kelola detail partner dan lisensi.</p>
             </div>
             <Button variant="ghost" size="icon" @click="showDrawer = false">
               <X class="h-4 w-4" />
@@ -260,37 +343,40 @@ onMounted(fetchPartners)
 
             <div class="space-y-1.5">
               <Label for="name">Nama Partner <span class="text-destructive">*</span></Label>
-              <Input id="name" v-model="form.name" placeholder="Nama supplier/customer..." />
+              <Input id="name" v-model="form.name" placeholder="Contoh: Gaptek Solution" />
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <Label for="code">Kode</Label>
-                <Input id="code" v-model="form.code" placeholder="SUP-001" />
+            <div class="space-y-1.5">
+              <Label for="slug">Slug / Subdomain <span class="text-destructive">*</span></Label>
+              <div class="relative">
+                <Globe class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input id="slug" v-model="form.slug" class="pl-9" placeholder="partner-slug" />
               </div>
-              <div class="space-y-1.5">
-                <Label for="type">Tipe</Label>
-                <select id="type" v-model="form.type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="supplier">Supplier</option>
-                  <option value="customer">Customer</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
+              <p class="text-[10px] text-muted-foreground italic">Digunakan sebagai identitas URL unik.</p>
             </div>
 
             <div class="space-y-1.5">
-              <Label for="phone">No. Telepon</Label>
-              <Input id="phone" v-model="form.phone" placeholder="081..." />
+              <Label for="plan">Tipe Plan <span class="text-destructive">*</span></Label>
+              <select id="plan" v-model="form.plan" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all">
+                <option value="free">Basic</option>
+                <option value="pro">Pro</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
             </div>
 
-            <div class="space-y-1.5">
-              <Label for="email">Email</Label>
-              <Input id="email" type="email" v-model="form.email" placeholder="partner@mail.com" />
-            </div>
-
-            <div class="space-y-1.5">
-              <Label for="address">Alamat</Label>
-              <textarea id="address" v-model="form.address" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" placeholder="Alamat lengkap..." />
+            <div class="pt-2">
+              <label class="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                <div class="relative flex items-center">
+                  <input type="checkbox" v-model="form.is_active" class="peer h-5 w-5 opacity-0 absolute cursor-pointer" />
+                  <div class="h-5 w-5 rounded border border-input bg-background peer-checked:bg-primary peer-checked:border-primary transition-all flex items-center justify-center">
+                    <Check v-if="form.is_active" class="h-3.5 w-3.5 text-primary-foreground" />
+                  </div>
+                </div>
+                <div>
+                  <div class="text-sm font-medium">Partner Aktif</div>
+                  <div class="text-xs text-muted-foreground">Izinkan partner untuk mengakses sistem.</div>
+                </div>
+              </label>
             </div>
           </div>
 

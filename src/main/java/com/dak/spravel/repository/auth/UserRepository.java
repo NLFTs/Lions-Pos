@@ -17,8 +17,13 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
 
+    boolean existsByUsername(String username);
+
     @Query("SELECT u FROM User u WHERE " +
            "LOWER(u.username) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.fullname) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<User> search(@Param("search") String search, Pageable pageable);
+
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions WHERE u.username = :username")
+    Optional<User> findByUsernameWithRoles(@Param("username") String username);
 }
