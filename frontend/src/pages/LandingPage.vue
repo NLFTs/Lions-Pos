@@ -125,21 +125,7 @@ const navigateToLogin = () => {
         </div>
       </div>
 
-      <!-- Integrated Dashboard Preview (Enlarged) -->
-      <div class="relative mt-32 w-full mx-auto px-4 md:px-40 border-t border-white/20 pt-32">
-        <div class="relative bg-black border border-white/20 rounded-3xl aspect-[16/10] overflow-hidden flex flex-col overscroll-contain">
-          <!-- Real Dashboard Iframe (Integrated & Fixed for Scroll Jitter) -->
-          <div class="flex-grow relative bg-[#09090b] overflow-hidden overscroll-none">
-             <!-- Scaled Iframe with will-change to prevent jitter -->
-             <iframe 
-               src="/dashboard" 
-               class="absolute top-0 left-0 w-[117.6%] h-[117.6%] border-none origin-top-left scale-[0.85] will-change-transform pointer-events-none"
-               style="scrollbar-width: none;"
-               scrolling="no"
-             ></iframe>
-          </div>
-        </div>
-      </div>
+
     </main>
 
     
