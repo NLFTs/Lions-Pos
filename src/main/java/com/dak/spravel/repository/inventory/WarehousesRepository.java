@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface WarehousesRepository extends JpaRepository<Warehouses, Long> {
 
-    List<Warehouses> findByPartnerId(Long partnerId);
+    List<Warehouses> findByPartnersId(Long partnerId);
 
     List<Warehouses> findByIsActive(Boolean isActive);
 }
