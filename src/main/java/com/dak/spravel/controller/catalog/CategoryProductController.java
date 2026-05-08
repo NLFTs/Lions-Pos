@@ -1,6 +1,7 @@
 package com.dak.spravel.controller.catalog;
 
 import com.dak.spravel.dto.request.catalog.CategoryProductCreate;
+import com.dak.spravel.dto.response.catalogresponse.CategoryProductResponse;
 import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.service.catalog.CategoryProductService;
 import jakarta.validation.Valid;
@@ -24,7 +25,7 @@ public class CategoryProductController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('category_product.index')")
-    public ResponseEntity<List<CategoryProduct>> index() {
+    public ResponseEntity<List<CategoryProductResponse>> index() {
         log.info("[GET] /api/v1/category-products");
         return ResponseEntity.ok(categoryProductService.findAll());
     }
@@ -32,7 +33,7 @@ public class CategoryProductController {
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('category_product.index')")
-    public ResponseEntity<Page<CategoryProduct>> paginated(
+    public ResponseEntity<Page<CategoryProductResponse>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/category-products/page page={} size={}", page, size);
@@ -41,7 +42,7 @@ public class CategoryProductController {
     
     @PostMapping
     @PreAuthorize("hasAuthority('category_product.store')")
-    public ResponseEntity<CategoryProduct> store(
+    public ResponseEntity<CategoryProductResponse> store(
             @Valid @RequestBody CategoryProductCreate request) {
         log.info("[POST] /api/v1/category-products name={}", request.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(categoryProductService.create(request));
@@ -49,7 +50,7 @@ public class CategoryProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('category_product.update')")
-    public ResponseEntity<CategoryProduct> update(
+    public ResponseEntity<CategoryProductResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody CategoryProductCreate request) {
         log.info("[PUT] /api/v1/category-products/{}", id);

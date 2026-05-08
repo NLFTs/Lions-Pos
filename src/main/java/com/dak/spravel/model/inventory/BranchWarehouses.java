@@ -33,7 +33,11 @@ public class BranchWarehouses {
 
 
     @ManyToOne(fetch = FetchType.LAZY)
+<<<<<<< HEAD
     @JoinColumn(name = "user_id", referencedColumnName = "id", updatable = false)
+=======
+    @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
     private User createdBy;
 
     // Disimpan di service saat membuat relasi baru

@@ -3,13 +3,22 @@ package com.dak.spravel.service.procurement;
 import com.dak.spravel.dto.request.procurement.PurchaseOrderItemDTO;
 import com.dak.spravel.dto.request.procurement.PurchaseOrderRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
+<<<<<<< HEAD
+=======
+import com.dak.spravel.model.auth.User;
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.procurement.PurchaseOrder;
 import com.dak.spravel.model.procurement.PurchaseOrderItems;
 import com.dak.spravel.model.procurement.Supplier;
+<<<<<<< HEAD
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+=======
+import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
 import com.dak.spravel.repository.procurement.SupplierRepository;
@@ -17,6 +26,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+<<<<<<< HEAD
+=======
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +45,7 @@ public class PurchaseOrderService {
 
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PurchaseOrderItemsRepository purchaseOrderItemsRepository;
+<<<<<<< HEAD
     private final PartnerRepository partnersRepository;
     private final SupplierRepository supplierRepository;
     private final ProductRepository productRepository;
@@ -56,10 +71,90 @@ public class PurchaseOrderService {
     public PurchaseOrder create(PurchaseOrderRequestDTO request) {
         Partners partner = partnersRepository.findById(request.getPartnerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Partner", request.getPartnerId()));
+=======
+    private final SupplierRepository supplierRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("User tidak terautentikasi");
+        }
+
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+
+        if (isAdmin(user)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Purchase Order.");
+        }
+
+        return user;
+    }
+
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
+        PurchaseOrder po = purchaseOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
+
+        if (currentUser.getPartner() == null ||
+                !po.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Purchase order bukan milik partner Anda.");
+        }
+
+        return po;
+    }
+
+    // GET ALL
+    public List<PurchaseOrder> findAll() {
+        User currentUser = getAuthenticatedUser();
+        return purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+    }
+
+    // GET ALL PAGINATED
+    public Page<PurchaseOrder> findAll(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        return purchaseOrderRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
+    }
+
+    // GET BY ID
+    public PurchaseOrder findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        return getValidatedPurchaseOrder(id, currentUser);
+    }
+
+    // GET ITEMS
+    public List<PurchaseOrderItems> findItemsByOrderId(Long orderId) {
+        User currentUser = getAuthenticatedUser();
+        getValidatedPurchaseOrder(orderId, currentUser);
+        return purchaseOrderItemsRepository.findByPurchaseOrderId(orderId);
+    }
+
+    // CREATE
+    @Transactional
+    public PurchaseOrder create(PurchaseOrderRequestDTO request) {
+        User currentUser = getAuthenticatedUser();
+
+        Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+        }
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
         Supplier supplier = supplierRepository.findById(request.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", request.getSupplierId()));
 
+<<<<<<< HEAD
+=======
+        if (!supplier.getPartner().getId().equals(partner.getId())) {
+            throw new RuntimeException("Akses Ditolak: Supplier bukan milik partner Anda.");
+        }
+
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         PurchaseOrder po = new PurchaseOrder();
         po.setPartner(partner);
         po.setSupplier(supplier);
@@ -73,16 +168,30 @@ public class PurchaseOrderService {
 
         PurchaseOrder saved = purchaseOrderRepository.save(po);
 
+<<<<<<< HEAD
         // Save items
+=======
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         List<PurchaseOrderItems> items = new ArrayList<>();
         for (PurchaseOrderItemDTO itemDTO : request.getItems()) {
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
 
+<<<<<<< HEAD
             PurchaseOrderItems item = new PurchaseOrderItems();
             item.setPurchaseOrder(saved);
             item.setProduct(product);
             item.setProductName(product.getName()); // snapshot
+=======
+            if (!product.getPartner().getId().equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
+            }
+
+            PurchaseOrderItems item = new PurchaseOrderItems();
+            item.setPurchaseOrder(saved);
+            item.setProduct(product);
+            item.setProductName(product.getName());
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
             item.setQtyOrdered(itemDTO.getQtyOrdered());
             item.setUnitCost(itemDTO.getUnitCost());
             item.setSubtotal(itemDTO.getQtyOrdered().multiply(itemDTO.getUnitCost()));
@@ -90,7 +199,10 @@ public class PurchaseOrderService {
         }
         purchaseOrderItemsRepository.saveAll(items);
 
+<<<<<<< HEAD
         // Update total
+=======
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         saved.setTotal(items.stream()
                 .map(PurchaseOrderItems::getSubtotal)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
@@ -99,17 +211,31 @@ public class PurchaseOrderService {
         return saved;
     }
 
+<<<<<<< HEAD
     public PurchaseOrder updateStatus(Long id, String status) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
 
+=======
+    // UPDATE STATUS
+    public PurchaseOrder updateStatus(Long id, String status) {
+        User currentUser = getAuthenticatedUser();
+        PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         po.setStatus(PurchaseOrder.Status.valueOf(status.toUpperCase()));
         return purchaseOrderRepository.save(po);
     }
 
+<<<<<<< HEAD
     public void delete(Long id) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
+=======
+    // SOFT DELETE
+    public void delete(Long id) {
+        User currentUser = getAuthenticatedUser();
+        PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         po.setDeletedAt(LocalDateTime.now());
         purchaseOrderRepository.save(po);
     }

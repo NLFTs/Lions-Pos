@@ -189,7 +189,14 @@ const bestSellers = [
   { id: 2, name: 'Celana Chino Beige', category: 'Pakaian', sold: 315, revenue: 'Rp 61.425.000' },
   { id: 3, name: 'Sepatu Sneakers Hitam', category: 'Alas Kaki', sold: 280, revenue: 'Rp 126.000.000' },
   { id: 4, name: 'Jaket Bomber Olive', category: 'Pakaian', sold: 210, revenue: 'Rp 67.200.000' },
+<<<<<<< HEAD
   { id: 5, name: 'Dompet Kulit Minimalis', category: 'Aksesori', sold: 195, revenue: 'Rp 32.175.000' }
+=======
+  { id: 5, name: 'Dompet Kulit Minimalis', category: 'Aksesori', sold: 195, revenue: 'Rp 32.175.000' },
+  { id: 6, name: 'Tas Selempang Canvas', category: 'Tas', sold: 154, revenue: 'Rp 20.790.000' },
+  { id: 7, name: 'Kemeja Flannel Kotak', category: 'Pakaian', sold: 128, revenue: 'Rp 26.880.000' },
+  { id: 8, name: 'Topi Baseball Biru Navy', category: 'Aksesori', sold: 95, revenue: 'Rp 7.125.000' }
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 ]
 
 const activeFilter = ref('14 hari')
@@ -347,7 +354,39 @@ const filters = ['7 hari', '14 hari', '30 hari']
           </button>
         </div>
         
+<<<<<<< HEAD
         <div class="overflow-x-auto">
+=======
+        <!-- Mobile List View -->
+        <div class="md:hidden space-y-4">
+          <div v-for="product in bestSellers" :key="'mobile-' + product.id" class="p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/30 dark:bg-zinc-900/20">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <ShoppingBag class="w-5 h-5" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="font-bold text-zinc-900 dark:text-zinc-50 truncate">{{ product.name }}</h4>
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-muted-foreground uppercase tracking-wider">
+                  {{ product.category }}
+                </span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-3 border-t border-zinc-100 dark:border-zinc-800/60">
+              <div class="flex flex-col">
+                <span class="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">TERJUAL</span>
+                <span class="text-sm font-bold text-zinc-900 dark:text-zinc-50">{{ product.sold }} unit</span>
+              </div>
+              <div class="flex flex-col text-right">
+                <span class="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">PENDAPATAN</span>
+                <span class="text-sm font-bold text-primary">{{ product.revenue }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Table View -->
+        <div class="hidden md:block overflow-x-auto">
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
           <table class="w-full text-sm text-left">
             <thead class="text-xs text-muted-foreground uppercase bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800/60">
               <tr>
@@ -382,10 +421,17 @@ const filters = ['7 hari', '14 hari', '30 hari']
         </div>
         
         <div class="mt-6 flex justify-center">
+<<<<<<< HEAD
           <button class="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
             Lihat semua produk
             <ArrowUpRight class="w-4 h-4" />
           </button>
+=======
+          <RouterLink to="/dashboard/products" class="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+            Lihat semua produk
+            <ArrowUpRight class="w-4 h-4" />
+          </RouterLink>
+>>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         </div>
       </div>
 

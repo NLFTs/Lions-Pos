@@ -4,6 +4,8 @@ import lombok.Data;
 import java.math.BigDecimal;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @Data
 public class ProductRequest {
 
