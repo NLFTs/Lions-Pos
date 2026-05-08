@@ -1,22 +1,22 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { FileText, Users, Activity, UserPlus, ArrowRight, ChevronRight } from 'lucide-vue-next'
+import { Package, Users, Activity, UserPlus, ArrowRight, ChevronRight } from 'lucide-vue-next'
 
 const props = defineProps({
-  recentPosts: { type: Array, default: () => [] },
+  recentProducts: { type: Array, default: () => [] },
   recentUsers: { type: Array, default: () => [] },
   recentActivities: { type: Array, default: () => [] },
   formatDate: { type: Function, required: true },
 })
 
 const tabs = [
-  { key: 'posts',      label: 'Post Terbaru',  icon: FileText,  actionTo: '/dashboard/posts',  actionLabel: 'Lihat Semua' },
+  { key: 'products',   label: 'Produk Terbaru', icon: Package,   actionTo: '/dashboard/products', actionLabel: 'Lihat Semua' },
   { key: 'users',      label: 'User Terbaru',   icon: UserPlus,  actionTo: '/dashboard/users',  actionLabel: 'Lihat Semua' },
   { key: 'activities', label: 'Aktivitas',       icon: Activity,  actionTo: null,                actionLabel: '' },
 ]
 
-const activeTab = ref('posts')
+const activeTab = ref('products')
 const activeTabData = computed(() => tabs.find(t => t.key === activeTab.value))
 </script>
 
@@ -46,8 +46,8 @@ const activeTabData = computed(() => tabs.find(t => t.key === activeTab.value))
       class="flex items-center justify-between px-4 py-2 bg-muted/20 border-b border-border/40"
     >
       <span class="text-xs text-muted-foreground">
-        {{ activeTab === 'posts'
-            ? `${recentPosts.length} post ditampilkan`
+        {{ activeTab === 'products'
+            ? `${recentProducts.length} produk ditampilkan`
             : activeTab === 'users'
             ? `${recentUsers.length} user ditampilkan`
             : '' }}
@@ -66,37 +66,37 @@ const activeTabData = computed(() => tabs.find(t => t.key === activeTab.value))
          Hanya CSS opacity + display yang berubah → tidak ada geter. -->
     <div class="p-4">
 
-      <!-- Post Terbaru -->
-      <div :class="['tab-panel', { 'tab-panel--active': activeTab === 'posts' }]">
-        <div v-if="recentPosts.length > 0" class="space-y-2">
+      <!-- Produk Terbaru -->
+      <div :class="['tab-panel', { 'tab-panel--active': activeTab === 'products' }]">
+        <div v-if="recentProducts.length > 0" class="space-y-2">
           <RouterLink
-            v-for="post in recentPosts"
-            :key="post.id"
-            to="/dashboard/posts"
+            v-for="product in recentProducts"
+            :key="product.id"
+            to="/dashboard/products"
             class="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all group"
           >
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                {{ post.title }}
+                {{ product.name }}
               </p>
               <div class="flex items-center gap-2 mt-1">
                 <span
                   class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                  :class="post.status === 'published'
+                  :class="product.isActive
                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                     : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
                 >
-                  {{ post.status === 'published' ? 'Published' : 'Draft' }}
+                  {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
                 </span>
-                <span class="text-xs text-muted-foreground">{{ formatDate(post.createdAt) }}</span>
+                <span class="text-xs text-muted-foreground">{{ formatDate(product.createdAt) }}</span>
               </div>
             </div>
             <ArrowRight class="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
           </RouterLink>
         </div>
         <div v-else class="py-10 text-center">
-          <FileText class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-          <p class="text-sm text-muted-foreground">Belum ada post.</p>
+          <Package class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+          <p class="text-sm text-muted-foreground">Belum ada produk.</p>
         </div>
       </div>
 

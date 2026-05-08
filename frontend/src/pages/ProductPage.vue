@@ -18,7 +18,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableCell from '@/components/ui/TableCell.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, Filter, Package, Upload, ChevronDown } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, Filter, Package, Upload, ChevronDown, Check } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -45,6 +45,8 @@ const activeFilterCount = computed(() => {
   if (filterStock.value !== 'all') count++
   return count
 })
+
+const togglingStatus = ref(null)
 
 function clearFilters() {
   sortBy.value = 'terbaru'
@@ -309,6 +311,31 @@ async function confirmDelete() {
   }
 }
 
+async function toggleStatus(product) {
+  if (!can('produk.update')) {
+    toast.error('Anda tidak memiliki izin untuk mengubah status produk.')
+    return
+  }
+  
+  if (togglingStatus.value === product.id) return
+  
+  togglingStatus.value = product.id
+  const originalStatus = product.isActive
+  product.isActive = !product.isActive // Optimistic update
+  
+  try {
+    await api.patch(`/api/v1/products/${product.id}`, {
+      isActive: product.isActive
+    })
+    toast.success(`Status ${product.name} berhasil diperbarui menjadi ${product.isActive ? 'Aktif' : 'Nonaktif'}.`)
+  } catch (err) {
+    product.isActive = originalStatus // Rollback
+    toast.error(err.response?.data?.message || 'Gagal memperbarui status produk.')
+  } finally {
+    togglingStatus.value = null
+  }
+}
+
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function formatCurrency(value) {
   if (value == null || value === '') return '-'
@@ -355,6 +382,7 @@ function productAvatarStyle(name = '') {
             <DataTableSearch v-model="searchQuery" placeholder="Cari produk..." />
           </div>
           <div class="flex items-center gap-2 w-full sm:w-auto">
+          <!-- Filter Dropdown -->
           <div ref="filterRef" class="relative flex-1 sm:flex-none">
             <button
               @click="showFilter = !showFilter"
@@ -373,7 +401,7 @@ function productAvatarStyle(name = '') {
             <Transition name="fade">
               <div
                 v-if="showFilter"
-                class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-64 bg-card border border-border rounded-lg shadow-xl overflow-hidden"
+                class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-[calc(100vw-2.5rem)] sm:w-64 max-w-[280px] sm:max-w-none bg-card border border-border rounded-lg shadow-xl overflow-hidden"
               >
                 <!-- Header -->
                 <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
@@ -389,18 +417,15 @@ function productAvatarStyle(name = '') {
                 <div class="px-3 pt-3 pb-2">
                   <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Urutkan</p>
                   <div class="space-y-1">
-                    <label v-for="sortOption in [{val: 'terbaru', label: 'Terbaru'}, {val: 'harga-termahal', label: 'Harga Tertinggi'}, {val: 'harga-termurah', label: 'Harga Terendah'}]" :key="sortOption.val"
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    <button
+                      v-for="sortOption in [{val: 'terbaru', label: 'Terbaru'}, {val: 'harga-termahal', label: 'Harga Tertinggi'}, {val: 'harga-termurah', label: 'Harga Terendah'}]"
+                      :key="sortOption.val"
+                      @click="sortBy = sortOption.val"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="sortBy === sortOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="sortBy = sortOption.val"
-                      >
-                        <svg v-if="sortBy === sortOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="sortBy = sortOption.val">{{ sortOption.label }}</span>
-                    </label>
+                      <span class="text-sm font-medium text-foreground select-none">{{ sortOption.label }}</span>
+                      <Check v-if="sortBy === sortOption.val" class="h-4 w-4 text-foreground" />
+                    </button>
                   </div>
                 </div>
 
@@ -410,18 +435,15 @@ function productAvatarStyle(name = '') {
                 <div class="px-3 pt-2 pb-2">
                   <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Status</p>
                   <div class="space-y-1">
-                    <label v-for="statusOption in [{val: 'all', label: 'Semua Status'}, {val: 'aktif', label: 'Aktif'}, {val: 'nonaktif', label: 'Nonaktif'}]" :key="statusOption.val"
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    <button
+                      v-for="statusOption in [{val: 'all', label: 'Semua Status'}, {val: 'aktif', label: 'Aktif'}, {val: 'nonaktif', label: 'Nonaktif'}]"
+                      :key="statusOption.val"
+                      @click="filterStatus = statusOption.val"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="filterStatus === statusOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="filterStatus = statusOption.val"
-                      >
-                        <svg v-if="filterStatus === statusOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="filterStatus = statusOption.val">{{ statusOption.label }}</span>
-                    </label>
+                      <span class="text-sm font-medium text-foreground select-none">{{ statusOption.label }}</span>
+                      <Check v-if="filterStatus === statusOption.val" class="h-4 w-4 text-foreground" />
+                    </button>
                   </div>
                 </div>
 
@@ -431,18 +453,15 @@ function productAvatarStyle(name = '') {
                 <div class="px-3 pt-2 pb-3">
                   <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Stok</p>
                   <div class="space-y-1">
-                    <label v-for="stockOption in [{val: 'all', label: 'Semua Stok'}, {val: 'dilacak', label: 'Dilacak'}, {val: 'bebas', label: 'Bebas'}]" :key="stockOption.val"
-                      class="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                    <button
+                      v-for="stockOption in [{val: 'all', label: 'Semua Stok'}, {val: 'dilacak', label: 'Dilacak'}, {val: 'bebas', label: 'Bebas'}]"
+                      :key="stockOption.val"
+                      @click="filterStock = stockOption.val"
+                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
                     >
-                      <div
-                        class="relative h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-all"
-                        :class="filterStock === stockOption.val ? 'bg-primary border-primary' : 'border-border bg-background'"
-                        @click="filterStock = stockOption.val"
-                      >
-                        <svg v-if="filterStock === stockOption.val" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span class="text-sm text-foreground select-none" @click="filterStock = stockOption.val">{{ stockOption.label }}</span>
-                    </label>
+                      <span class="text-sm font-medium text-foreground select-none">{{ stockOption.label }}</span>
+                      <Check v-if="filterStock === stockOption.val" class="h-4 w-4 text-foreground" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -543,13 +562,22 @@ function productAvatarStyle(name = '') {
                     >
                       {{ product.categoryName }}
                     </span>
-                    <span
-                      class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-                      :class="product.isActive ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'"
+                    <button
+                      type="button"
+                      role="switch"
+                      :aria-checked="product.isActive"
+                      :disabled="togglingStatus === product.id"
+                      class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                      @click.stop="toggleStatus(product)"
                     >
-                      <span class="w-1 h-1 rounded-full" :class="product.isActive ? 'bg-primary' : 'bg-zinc-400'" />
-                      {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
-                    </span>
+                      <span
+                        class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                        :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                      >
+                        <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -630,15 +658,22 @@ function productAvatarStyle(name = '') {
 
                     <!-- Status Aktif -->
                     <TableCell class="py-3 text-center">
-                      <span
-                        class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-                        :class="product.isActive
-                          ? 'bg-primary/10 text-primary border border-primary/20'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'"
+                      <button
+                        type="button"
+                        role="switch"
+                        :aria-checked="product.isActive"
+                        :disabled="togglingStatus === product.id"
+                        class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mx-auto"
+                        :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                        @click.stop="toggleStatus(product)"
                       >
-                        <span class="w-1.5 h-1.5 rounded-full" :class="product.isActive ? 'bg-primary' : 'bg-zinc-400'" />
-                        {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
-                      </span>
+                        <span
+                          class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                          :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                        >
+                          <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
+                        </span>
+                      </button>
                     </TableCell>
 
                     <!-- Tanggal -->
@@ -829,28 +864,6 @@ function productAvatarStyle(name = '') {
               </button>
             </div>
 
-            <!-- Status Aktif -->
-            <div class="flex items-center justify-between rounded-lg border p-4">
-              <div class="space-y-0.5">
-                <Label class="text-sm font-medium cursor-pointer" for="f-is-active">Produk Aktif</Label>
-                <p class="text-xs text-muted-foreground">Produk nonaktif disembunyikan.</p>
-              </div>
-              <button
-                id="f-is-active"
-                type="button"
-                role="switch"
-                :aria-checked="form.isActive"
-                :disabled="saving"
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :class="form.isActive ? 'bg-primary' : 'bg-input'"
-                @click="form.isActive = !form.isActive"
-              >
-                <span
-                  class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform"
-                  :class="form.isActive ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </button>
-            </div>
           </div>
 
           <!-- Footer -->

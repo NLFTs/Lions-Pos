@@ -6,9 +6,16 @@ import Button from '@/components/ui/Button.vue'
 import { Zap, Check } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
 import GradientBlinds from '@/components/ui/background/GradientBlinds.vue'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, defineAsyncComponent } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
+
+// Async components for better performance
+const Features = defineAsyncComponent(() => import('@/components/section/landingpage/Features.vue'))
+const BrandMarquee = defineAsyncComponent(() => import('@/components/section/landingpage/BrandMarquee.vue'))
+const Steps = defineAsyncComponent(() => import('@/components/section/landingpage/Steps.vue'))
+const Pricing = defineAsyncComponent(() => import('@/components/section/landingpage/Pricing.vue'))
+const Footer = defineAsyncComponent(() => import('@/components/section/landingpage/Footer.vue'))
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -36,10 +43,9 @@ useGsap((gsap, ScrollTrigger) => {
 const brandName = 'gaptek'
 
 const navigationItems = [
-  { name: 'Layanan Kami', path: '#offer', hasDropdown: true },
-  { name: 'Untuk Siapa', path: '#target', hasDropdown: true },
+  { name: 'Fitur', path: '#features' },
   { name: 'Harga', path: '#pricing' },
-  { name: 'Tentang Kami', path: '/about' }
+  { name: 'Tentang Gaptek', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
@@ -71,11 +77,8 @@ const navigateToLogin = () => {
       </template>
 
       <template #actions>
-        <Button variant="ghost" class="hidden sm:inline-flex font-bold text-zinc-300 hover:text-white transition-colors duration-300" @click="navigateToLogin">
-          Masuk
-        </Button>
         <Button class="font-bold px-3 sm:px-6 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="navigateToLogin">
-          Mulai Gratis
+          Masuk
         </Button>
       </template>
     </Navbar>
@@ -119,7 +122,7 @@ const navigateToLogin = () => {
             class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
             @click="navigateToLogin"
           >
-            Mulai Gratis Sekarang
+            Masuk
           </Button>
           <Button 
             variant="ghost"
@@ -130,25 +133,17 @@ const navigateToLogin = () => {
         </div>
       </div>
 
-      <!-- Integrated Dashboard Preview (Enlarged) -->
-      <div class="relative mt-24 w-full max-w-7xl mx-auto px-4 md:px-0">
-        <!-- Ambient Glow behind the box -->
-        <div class="absolute -inset-4 bg-primary/10 blur-3xl rounded-[3rem] pointer-events-none"></div>
 
-        <div class="relative bg-zinc-950 border border-white/10 rounded-3xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] aspect-[16/10] overflow-hidden flex flex-col overscroll-contain">
-          <!-- Real Dashboard Iframe (Integrated & Fixed for Scroll Jitter) -->
-          <div class="flex-grow relative bg-[#09090b] overflow-hidden overscroll-none">
-             <!-- Scaled Iframe with will-change to prevent jitter -->
-             <iframe 
-               src="/dashboard" 
-               class="absolute top-0 left-0 w-[117.6%] h-[117.6%] border-none origin-top-left scale-[0.85] will-change-transform"
-               style="scrollbar-width: none;"
-               scrolling="no"
-             ></iframe>
-          </div>
-        </div>
-      </div>
     </main>
+
+    <!-- Content Sections -->
+    <BrandMarquee />
+    <Features />
+    <Steps />
+    <Pricing />
+
+    <!-- Footer -->
+    <Footer />
 
     
     <!-- Cookie Banner -->

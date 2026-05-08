@@ -10,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -22,5 +24,15 @@ public class PaymentsController {
     public ResponseEntity<ResData<Payments>> pay(@RequestBody PaymentsRequest request) {
         log.info("[POST] /api/v1/payments - Request: {}", request);
         return ResponseBuilder.ok(paymentService.pay(request));
+    }
+
+    @GetMapping public ResponseEntity<ResData<List<Payments>>> findAll() {
+        log.info("[GET] /api/v1/payments");
+        return ResponseBuilder.ok(paymentService.findAll());
+    }
+
+    @DeleteMapping public ResponseEntity<ResData<String>> delete(@RequestParam Long id) {
+        log.info("[DELETE] /api/v1/payments - id: {}", id); paymentService.delete(id);
+        return ResponseBuilder.ok("Payment deleted successfully");
     }
 }

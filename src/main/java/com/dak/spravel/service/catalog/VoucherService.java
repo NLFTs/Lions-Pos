@@ -1,12 +1,19 @@
 package com.dak.spravel.service.catalog;
 
 import com.dak.spravel.dto.request.product.VoucherRequest;
+import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -16,100 +23,122 @@ public class VoucherService {
 
     private final VoucherRepository voucherRepository;
     private final PartnerRepository partnerRepository;
+    private final UserRepository userRepository;
 
 
-     public Voucher create(VoucherRequest request) {
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        validateRequest(request);
-
-        if (voucherRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Voucher code already exists");
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("User tidak terautentikasi");
         }
 
-        Partners partner = partnerRepository.findById(request.getPartnerId())
-                .orElseThrow(() -> new RuntimeException("Partner not found"));
+        User user = userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+
+        if (isAdmin(user)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak boleh mengelola Voucher");
+        }
+
+        return user;
+    }
+
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equals("super_admin")
+                                || role.getSlug().equals("admin")
+                );
+    }
+
+    private Voucher getValidatedVoucher(Long id, User user) {
+        Voucher voucher = voucherRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Voucher", id));
+
+        if (user.getPartner() == null ||
+                !voucher.getPartner().getId().equals(user.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: beda partner");
+        }
+
+        return voucher;
+    }
+
+
+    public List<Voucher> findAll() {
+        User user = getAuthenticatedUser();
+        return voucherRepository.findAllByPartnerId(user.getPartner().getId());
+    }
+
+    public Voucher findById(Long id) {
+        User user = getAuthenticatedUser();
+        return getValidatedVoucher(id, user);
+    }
+
+
+    @Transactional
+    public Voucher create(VoucherRequest request) {
+
+        User user = getAuthenticatedUser();
+
+        Partners partner = user.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("User tidak punya partner");
+        }
 
         Voucher voucher = new Voucher();
-        mapToEntity(voucher, request, partner);
+
+        voucher.setPartner(partner);
+        voucher.setCode(request.getCode());
+        voucher.setName(request.getName());
+        voucher.setDiscountType(Voucher.DiscountType.valueOf(request.getDiscountType().toUpperCase()));
+        voucher.setDiscountValue(request.getDiscountValue());
+        voucher.setMinPurchase(request.getMinPurchase());
+        voucher.setMaxDiscount(request.getMaxDiscount());
+        voucher.setValidFrom(request.getValidFrom());
+        voucher.setValidUntil(request.getValidUntil());
+        voucher.setQuota(0);
+        voucher.setUsed_count(0);
+        voucher.setIs_active(true);
+
+        AuditHelper.setCreated(voucher);
 
         return voucherRepository.save(voucher);
     }
 
 
+    @Transactional
     public Voucher update(Long id, VoucherRequest request) {
 
-        validateRequest(request);
+        User user = getAuthenticatedUser();
 
-        Voucher voucher = getById(id);
+        Voucher voucher = getValidatedVoucher(id, user);
 
-        if (!voucher.getCode().equals(request.getCode())
-                && voucherRepository.existsByCode(request.getCode())) {
-            throw new RuntimeException("Voucher code already exists");
-        }
+        voucher.setCode(request.getCode());
+        voucher.setName(request.getName());
+        voucher.setDiscountType(Voucher.DiscountType.valueOf(request.getDiscountType().toUpperCase()));
+        voucher.setDiscountValue(request.getDiscountValue());
+        voucher.setMinPurchase(request.getMinPurchase());
+        voucher.setMaxDiscount(request.getMaxDiscount());
+        voucher.setValidFrom(request.getValidFrom());
+        voucher.setValidUntil(request.getValidUntil());
 
-        Partners partner = partnerRepository.findById(request.getPartnerId())
-                .orElseThrow(() -> new RuntimeException("Partner not found"));
-
-        mapToEntity(voucher, request, partner);
+        AuditHelper.setUpdated(voucher);
 
         return voucherRepository.save(voucher);
     }
 
 
-    public Voucher getById(Long id) {
-        return voucherRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
-    }
-
-    public Voucher getByCode(String code) {
-        return voucherRepository.findByCode(code)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
-    }
-
-    public List<Voucher> getAll() {
-        return voucherRepository.findAll();
-    }
-
-
+    @Transactional
     public void delete(Long id) {
-        Voucher voucher = getById(id);
+
+        User user = getAuthenticatedUser();
+
+        Voucher voucher = getValidatedVoucher(id, user);
+
         voucherRepository.delete(voucher);
     }
 
 
-    private void mapToEntity(Voucher voucher, VoucherRequest request, Partners partner) {
-        voucher.setPartner(partner);
-        voucher.setCode(request.getCode());
-        voucher.setName(request.getName());
 
-        voucher.setDiscountType(
-                Voucher.DiscountType.valueOf(request.getDiscountType().toUpperCase())
-        );
-
-        voucher.setDiscountValue(request.getDiscountValue());
-        voucher.setMinPurchase(request.getMinPurchase());
-        voucher.setMaxDiscount(request.getMaxDiscount());
-        voucher.setQuota(request.getQuota());
-    }
-
-    private void validateRequest(VoucherRequest request) {
-
-        if (request.getDiscountType() == null) {
-            throw new RuntimeException("Discount type is required");
-        }
-
-        if (request.getDiscountValue() == null) {
-            throw new RuntimeException("Discount value is required");
-        }
-
-        if (request.getValidFrom() != null && request.getValidUntil() != null) {
-            if (request.getValidFrom().isAfter(request.getValidUntil())) {
-                throw new RuntimeException("validFrom cannot be after validUntil");
-            }
-        }
-
-        if (request.getQuota() != null && request.getQuota() < 0) {
-            throw new RuntimeException("Quota cannot be negative");
-        }
-    }
 }

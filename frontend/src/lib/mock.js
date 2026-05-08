@@ -3,7 +3,7 @@
  * This allows the frontend to run without a backend.
  */
 
-const permissionModules = ['user', 'produk', 'category', 'stock-mutation', 'partner', 'location', 'voucher', 'role', 'permission', 'module']
+const permissionModules = ['user', 'produk', 'category', 'stock-mutation', 'partner', 'location', 'voucher', 'role', 'permission', 'module', 'supplier', 'order', 'purchase-order', 'transfer-request', 'stock-opname']
 const permissionActions = ['index', 'show', 'store', 'update', 'delete']
 
 const mockPermissionsMap = permissionModules.reduce((acc, module) => {
@@ -113,6 +113,11 @@ const mockData = {
           'role.index', 'role.store', 'role.update', 'role.delete', 'role.destroy',
           'permission.index', 'permission.store', 'permission.update', 'permission.delete', 'permission.destroy',
           'module.index', 'module.store', 'module.update', 'module.delete', 'module.destroy',
+          'supplier.index', 'supplier.store', 'supplier.update', 'supplier.delete', 'supplier.destroy',
+          'order.index', 'order.store', 'order.update', 'order.delete', 'order.destroy',
+          'purchase-order.index', 'purchase-order.store', 'purchase-order.update', 'purchase-order.delete', 'purchase-order.destroy',
+          'transfer-request.index', 'transfer-request.store', 'transfer-request.update', 'transfer-request.delete', 'transfer-request.destroy',
+          'stock-opname.index', 'stock-opname.store', 'stock-opname.update', 'stock-opname.delete', 'stock-opname.destroy',
           'log.index'
         ]
       }

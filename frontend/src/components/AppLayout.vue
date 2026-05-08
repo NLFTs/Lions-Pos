@@ -34,6 +34,7 @@ import {
   ShoppingCart,
   Search,
   Ticket,
+  BarChart3,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -73,81 +74,67 @@ function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
 }
 
+import {
+  Truck,
+  ClipboardList,
+  PackageSearch,
+  Repeat2,
+} from 'lucide-vue-next'
+
 // ─── Menu Groups (dengan section header) ────────────────────────────────────
 const MENU_GROUPS = [
   {
+    label: 'Transaksi',
+    items: [
+      { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: null },
+      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
+    ],
+  },
+  {
+    label: 'Inventaris',
+    items: [
+      { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
+      { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
+      { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
+      { label: 'Transfer Stok', icon: Repeat2, to: '/dashboard/transfer-requests', permission: 'transfer-request.index' },
+      { label: 'Stock Opname', icon: PackageSearch, to: '/dashboard/stock-opname', permission: 'stock-opname.index' },
+    ],
+  },
+  {
+    label: 'Procurement',
+    items: [
+      { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
+      { label: 'Purchase Order', icon: ClipboardList, to: '/dashboard/purchase-orders', permission: 'purchase-order.index' },
+    ],
+  },
+  {
     label: 'Management',
     items: [
-      {
-        label: 'Dashboard',
-        icon: LayoutDashboard,
-        to: '/dashboard',
-        permission: null,
-      },
-      {
-        label: 'User Management',
-        icon: Users,
-        to: '/dashboard/users',
-        permission: 'user.index',
-      },
-      {
-        label: 'Konten',
-        icon: FileText,
-        permission: null,
-        children: [
-          { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
-          { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
-          { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
-          { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
-          { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'location.index' },
-          { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
-        ],
-      },
+      { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null },
+      { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
+      { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
+      { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'location.index' },
+      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
     label: 'Access Control',
     items: [
-      {
-        label: 'Roles',
-        icon: ShieldCheck,
-        to: '/dashboard/roles',
-        permission: 'role.index',
-      },
-      {
-        label: 'Permissions',
-        icon: KeyRound,
-        to: '/dashboard/permissions',
-        permission: 'permission.index',
-      },
-      {
-        label: 'Modul',
-        icon: Zap,
-        to: '/dashboard/modules',
-        permission: 'module.index',
-      },
-    ],
-  },
-  {
-    label: 'Transaksi',
-    items: [
-      {
-        label: 'Kasir',
-        icon: ShoppingCart,
-        to: '/dashboard/kasir',
-        permission: null,
-      },
+      { label: 'Roles', icon: ShieldCheck, to: '/dashboard/roles', permission: 'role.index' },
+      { label: 'Permissions', icon: KeyRound, to: '/dashboard/permissions', permission: 'permission.index' },
+      { label: 'Modul', icon: Zap, to: '/dashboard/modules', permission: 'module.index' },
     ],
   },
   {
     label: 'Master Data',
     items: [
-      {
-        label: 'Audit Log',
-        icon: Activity,
-        to: '/dashboard/logs',
-        permission: 'log.index',
-      },
+      { label: 'Audit Log', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
+    ],
+  },
+  {
+    label: 'Wawasan',
+    items: [
+      { label: 'Laporan', icon: BarChart3, to: '/dashboard/reports', permission: null },
     ],
   },
 ]

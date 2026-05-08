@@ -7,13 +7,15 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.dak.spravel.model.common.Partners;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Data
 @NoArgsConstructor
 @Entity
 @Table(name = "users")
-@JsonIgnoreProperties({"permission", "password", "roles"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "roles"})
 public class User   {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -21,14 +23,22 @@ public class User   {
 
     private String username;
 
+    @JsonIgnore
     @Column(name = "full_name")
     private String fullname;
 
+    @JsonIgnore
     private String password;
     
+    @JsonIgnore
+    @Column(unique = true)
     private String email;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id")
+    private Partners partner;
+
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_roles",
         joinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id"),
@@ -37,11 +47,14 @@ public class User   {
     private Set<Role> roles = new HashSet<>();
     
     @Column(name = "created_at", updatable = false)
+    @JsonIgnore
     private LocalDateTime createdAt = LocalDateTime.now();
     
     @Column(name = "updated_at")
+    @JsonIgnore
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
+    @JsonIgnore
     private LocalDateTime deletedAt;
 }

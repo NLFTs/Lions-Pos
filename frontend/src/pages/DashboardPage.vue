@@ -28,6 +28,11 @@ import {
   LayoutGrid,
   List,
   ChevronDown,
+  Package,
+  ArrowRightLeft,
+  Handshake,
+  MapPin,
+  Ticket,
 } from 'lucide-vue-next'
 
 const auth = useAuthStore()
@@ -59,17 +64,17 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 // Stats from backend
 const stats = ref({
   totalUsers: 0,
-  totalPosts: 0,
+  totalProducts: 0,
   totalCategories: 0,
   totalRoles: 0,
   totalPermissions: 0,
   totalModules: 0,
-  publishedPosts: 0,
-  draftPosts: 0,
+  activeProducts: 0,
+  inactiveProducts: 0,
 })
 
 const recentUsers = ref([])
-const recentPosts = ref([])
+const recentProducts = ref([])
 const recentActivities = ref([])
 
 async function fetchStats() {
@@ -78,7 +83,7 @@ async function fetchStats() {
   try {
     const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes] = await Promise.allSettled([
       api.get('/api/v1/users'),
-      api.get('/api/v1/posts?page=0&size=5'),
+      api.get('/api/v1/products?page=0&size=5'),
       api.get('/api/v1/categories'),
       api.get('/api/v1/roles'),
       api.get('/api/v1/permissions'),
@@ -91,11 +96,11 @@ async function fetchStats() {
       recentUsers.value = Array.isArray(users) ? users.slice(0, 5) : []
     }
     if (postsRes.status === 'fulfilled') {
-      const postsData = postsRes.value.data.data
-      stats.value.totalPosts = postsData?.totalElements ?? 0
-      stats.value.publishedPosts = postsData?.content?.filter(p => p.status === 'published').length ?? 0
-      stats.value.draftPosts = postsData?.content?.filter(p => p.status === 'draft').length ?? 0
-      recentPosts.value = postsData?.content?.slice(0, 5) ?? []
+      const productsData = postsRes.value.data.data
+      stats.value.totalProducts = productsData?.totalElements ?? 0
+      stats.value.activeProducts = productsData?.content?.filter(p => p.isActive).length ?? 0
+      stats.value.inactiveProducts = productsData?.content?.filter(p => !p.isActive).length ?? 0
+      recentProducts.value = productsData?.content?.slice(0, 5) ?? []
     }
     if (categoriesRes.status === 'fulfilled') {
       const cats = categoriesRes.value.data.data
@@ -139,12 +144,12 @@ function generateRecentActivities() {
     })
   })
 
-  // Recent posts as activities
-  recentPosts.value.slice(0, 2).forEach(p => {
+  // Recent products as activities
+  recentProducts.value.slice(0, 2).forEach(p => {
     activities.push({
-      title: `Post: ${p.title}`,
-      description: `Status: ${p.status === 'published' ? 'Published' : 'Draft'}`,
-      icon: FileText,
+      title: `Produk: ${p.name}`,
+      description: `Status: ${p.isActive ? 'Aktif' : 'Nonaktif'}`,
+      icon: Package,
       color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
       time: formatDate(p.createdAt),
     })
@@ -171,14 +176,14 @@ const statCards = computed(() => {
   }
   if (can('produk.index')) {
     cards.push({
-      label: 'Total Post',
-      value: stats.value.totalPosts,
-      icon: FileText,
-      to: '/dashboard/posts',
+      label: 'Total Produk',
+      value: stats.value.totalProducts,
+      icon: Package,
+      to: '/dashboard/products',
       color: 'text-emerald-600',
       bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-      trend: `${stats.value.publishedPosts} published`,
-      description: `${stats.value.draftPosts} draft menunggu`,
+      trend: `${stats.value.activeProducts} aktif`,
+      description: `${stats.value.inactiveProducts} nonaktif`,
     })
   }
   if (can('category.index')) {
@@ -225,18 +230,22 @@ const statCards = computed(() => {
   return cards
 })
 
-// Hanya Buat Post yang tersisa
-const canCreatePost = computed(() => can('produk.store'))
+// Hanya Buat Produk yang tersisa
+const canCreateProduct = computed(() => can('produk.store'))
 
 // Menu "Buat Baru" dropdown — tampilkan item sesuai permission
 const createMenuItems = computed(() => {
   const items = []
-  if (can('user.store'))       items.push({ label: 'User',       icon: Users,       to: '/dashboard/users' })
-  if (can('produk.store'))       items.push({ label: 'Post',        icon: FileText,    to: '/dashboard/posts' })
-  if (can('category.store'))   items.push({ label: 'Kategori',   icon: Boxes,       to: '/dashboard/categories' })
-  if (can('role.store'))       items.push({ label: 'Role',        icon: ShieldCheck, to: '/dashboard/roles' })
-  if (can('permission.store')) items.push({ label: 'Permission', icon: KeyRound,    to: '/dashboard/permissions' })
-  if (can('module.store'))     items.push({ label: 'Modul',      icon: Zap,         to: '/dashboard/modules' })
+  if (can('user.store'))            items.push({ label: 'User',            icon: Users,          to: '/dashboard/users' })
+  if (can('produk.store'))          items.push({ label: 'Produk',          icon: Package,        to: '/dashboard/products' })
+  if (can('stock-mutation.store'))  items.push({ label: 'Mutasi Stok',      icon: ArrowRightLeft, to: '/dashboard/stock-mutations' })
+  if (can('partner.store'))         items.push({ label: 'Partner',         icon: Handshake,      to: '/dashboard/partners' })
+  if (can('location.store'))        items.push({ label: 'Lokasi',          icon: MapPin,         to: '/dashboard/locations' })
+  if (can('voucher.store'))         items.push({ label: 'Voucer',          icon: Ticket,         to: '/dashboard/vouchers' })
+  if (can('category.store'))        items.push({ label: 'Kategori',        icon: Boxes,          to: '/dashboard/categories' })
+  if (can('role.store'))            items.push({ label: 'Role',            icon: ShieldCheck,    to: '/dashboard/roles' })
+  if (can('permission.store'))      items.push({ label: 'Permission',      icon: KeyRound,       to: '/dashboard/permissions' })
+  if (can('module.store'))          items.push({ label: 'Modul',           icon: Zap,            to: '/dashboard/modules' })
   return items
 })
 
@@ -281,12 +290,6 @@ function formatTime(dt) {
               Berikut ringkasan data dan aktivitas aplikasi hari ini.
             </p>
             <span class="text-zinc-300 dark:text-zinc-700">•</span>
-            <button 
-              @click="isAboutModalOpen = true"
-              class="text-xs font-semibold text-primary hover:underline transition-all"
-            >
-              Tentang Kami
-            </button>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -397,7 +400,7 @@ function formatTime(dt) {
         <!-- Sembunyikan saat ada pencarian aktif -->
         <MobileSummaryTabs
           v-if="!searchQuery"
-          :recent-posts="recentPosts"
+          :recent-products="recentProducts"
           :recent-users="recentUsers"
           :recent-activities="recentActivities"
           :format-date="formatDate"
@@ -426,43 +429,43 @@ function formatTime(dt) {
         <div v-if="!searchQuery" class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Left Column: Recent Items (1/3 width) -->
           <div class="space-y-6 lg:col-span-1">
-            <!-- Post Terbaru -->
+            <!-- Produk Terbaru -->
             <DashboardCard
-              title="Post Terbaru"
-              subtitle="5 post terakhir"
-              :icon="FileText"
+              title="Produk Terbaru"
+              subtitle="5 produk terakhir"
+              :icon="Package"
               action-label="Lihat Semua"
-              action-to="/dashboard/posts"
+              action-to="/dashboard/products"
             >
-              <div v-if="recentPosts.length > 0" class="space-y-3">
+              <div v-if="recentProducts.length > 0" class="space-y-3">
                 <RouterLink
-                  v-for="post in recentPosts"
-                  :key="post.id"
-                  :to="`/dashboard/posts`"
+                  v-for="product in recentProducts"
+                  :key="product.id"
+                  :to="`/dashboard/products`"
                   class="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all group"
                 >
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                      {{ post.title }}
+                      {{ product.name }}
                     </p>
                     <div class="flex items-center gap-2 mt-1">
                       <span
                         class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        :class="post.status === 'published'
+                        :class="product.isActive
                           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
                           : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
                       >
-                        {{ post.status === 'published' ? 'Published' : 'Draft' }}
+                        {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
                       </span>
-                      <span class="text-xs text-muted-foreground">{{ formatDate(post.createdAt) }}</span>
+                      <span class="text-xs text-muted-foreground">{{ formatDate(product.createdAt) }}</span>
                     </div>
                   </div>
                   <ArrowRight class="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </RouterLink>
               </div>
               <div v-else class="py-8 text-center">
-                <FileText class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-                <p class="text-sm text-muted-foreground">Belum ada post.</p>
+                <Package class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
+                <p class="text-sm text-muted-foreground">Belum ada produk.</p>
               </div>
             </DashboardCard>
 

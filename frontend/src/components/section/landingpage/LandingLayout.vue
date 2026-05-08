@@ -1,7 +1,7 @@
 <template>
   <div class="dark">
-    <div class="min-h-screen bg-zinc-950 flex justify-center text-zinc-100 selection:bg-primary/10 transition-colors duration-300">
-      <div class="w-full min-h-screen flex flex-col bg-zinc-950 transition-colors duration-300">
+    <div class="min-h-screen bg-black flex justify-center text-zinc-100 selection:bg-primary/10 transition-colors duration-300">
+      <div class="w-full max-w-[1728px] min-h-screen flex flex-col bg-black border-x border-white/20 transition-colors duration-300 relative">
         <slot />
       </div>
     </div>
