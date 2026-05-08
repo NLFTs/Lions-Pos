@@ -3,6 +3,8 @@ package com.dak.spravel.model.auth;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;

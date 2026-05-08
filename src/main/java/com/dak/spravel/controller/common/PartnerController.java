@@ -1,5 +1,6 @@
 package com.dak.spravel.controller.common;
 
+import org.springframework.data.repository.query.parser.Part;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -46,14 +47,12 @@ public class PartnerController {
             @Valid @RequestBody CreatePartnerRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
             Authentication auth) {
-
-        if (auth != null) {
-            log.info("=== DEBUG SECURITY ===");
-            log.info("User: {}", auth.getName());
-            log.info("Authorities: {}", auth.getAuthorities());
-            log.info("=======================");
-        }
-
+        // if (auth != null) {
+        //     log.info("=== DEBUG SECURITY ===");
+        //     log.info("User: {}", auth.getName());
+        //     log.info("Authorities: {}", auth.getAuthorities());
+        //     log.info("=======================");
+        // }
         log.info("[POST] /api/v1/partners - Request: {}", request);
         return ResponseBuilder.ok(partnerService.createPartner(request));
     }
@@ -67,12 +66,20 @@ public class PartnerController {
         return ResponseBuilder.ok(partnerService.update(id, request));
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('partner.delete')")
-    public ResponseEntity<ResData<Void>> softDelete(@PathVariable Long id) {
-        log.info("[DELETE] /api/v1/partners/{}", id);
+    @PutMapping("soft-delete/{id}")
+    @PreAuthorize("hasAuthority('partner.update')")
+    public ResponseEntity<ResData<Partners>> softDelete(@PathVariable Long id) {
+        log.info("[SOFT-DELETE] /api/v1/partners/{}", id);
         partnerService.softDelete(id);
-        return ResponseBuilder.ok();
+        return ResponseBuilder.ok(partnerService.softDelete(id));
+    }
+
+    @PutMapping("restore/{id}")
+    @PreAuthorize("hasAuthority('partner.update')")
+    public ResponseEntity<ResData<Partners>> restore(@PathVariable Long id) {
+        log.info("[RESTORE] /api/v1/partners/{}", id);
+        partnerService.restore(id);
+        return ResponseBuilder.ok(partnerService.restore(id));
     }
 
     @DeleteMapping("/{id}/force")

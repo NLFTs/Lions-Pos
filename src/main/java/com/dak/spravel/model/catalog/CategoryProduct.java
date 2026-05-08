@@ -25,12 +25,10 @@ public class CategoryProduct  {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "plan", "slug", "isActive", "hibernateLazyInitializer"})
     private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id", referencedColumnName = "id")
-    @JsonIgnoreProperties({"parent", "partner", "description","createdBy", "updatedBy", "deletedBy", "createdAt", "updatedAt", "deletedAt", "sortOrder"})
     private CategoryProduct parent;
 
     @Column(nullable = false)
@@ -54,16 +52,13 @@ public class CategoryProduct  {
     @ToString.Exclude 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User updatedBy;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
 }
