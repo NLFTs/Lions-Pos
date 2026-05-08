@@ -20,6 +20,9 @@ public class VoucherRequest {
     @JsonProperty("name")
     private String name;
 
+    @JsonProperty("quota")
+    private Integer quota;
+
     @JsonProperty("discount_type")
     private String discountType; // "PERCENT" / "FIXED"
 

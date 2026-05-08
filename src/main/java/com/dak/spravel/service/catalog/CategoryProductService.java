@@ -1,6 +1,9 @@
 package com.dak.spravel.service.catalog;
 
 import com.dak.spravel.dto.request.catalog.CategoryProductCreate;
+import com.dak.spravel.dto.response.catalogresponse.CategoryProductResponse;
+import com.dak.spravel.dto.response.components.PartnerSimpleDto;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.CategoryProduct;
@@ -33,7 +36,7 @@ public class CategoryProductService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
+        
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
@@ -60,31 +63,37 @@ public class CategoryProductService {
 
         // VALIDASI 2: Cross-Partner Check
         // Bandingkan Partner ID milik kategori dengan Partner ID milik user login
-        if (currentUser.getPartner() == null ||
-                !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        if (currentUser.getPartner() == null || 
+            !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses kategori dari partner lain.");
         }
-
+        
         return category;
     }
 
-    public List<CategoryProduct> findAll() {
+    public List<CategoryProductResponse> findAll() {
         User currentUser = getAuthenticatedUser();
         Sort sort = Sort.by("name").ascending();
 
         // Admin sudah mental di getAuthenticatedUser, jadi di sini pasti user partner
-        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), sort);
+        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), sort)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
-    public Page<CategoryProduct> findAll(int page, int size) {
+    public Page<CategoryProductResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
+
+        
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
 
-        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), pageRequest);
+        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), pageRequest)
+                .map(this::mapToResponse);
     }
 
     @Transactional
-    public CategoryProduct create(CategoryProductCreate request) {
+    public CategoryProductResponse create(CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
 
         // Ambil partner dari user yang sedang login (biar aman, jangan percaya request.getPartnerId())
@@ -111,14 +120,15 @@ public class CategoryProductService {
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
 
-        AuditHelper.setCreated(category);
-        return categoryProductRepository.save(category);
+        AuditHelper.setCreated(category); 
+        
+        return mapToResponse(categoryProductRepository.save(category));
     }
 
     @Transactional
-    public CategoryProduct update(Long id, CategoryProductCreate request) {
+    public CategoryProductResponse update(Long id, CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
-
+        
         // Cari kategori yang mau diupdate + validasi kepemilikan partner
         CategoryProduct category = getValidatedCategory(id, currentUser);
 
@@ -132,9 +142,10 @@ public class CategoryProductService {
         category.setName(request.getName());
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
+        category.setUpdatedBy(currentUser);
 
         AuditHelper.setUpdated(category);
-        return categoryProductRepository.save(category);
+        return mapToResponse(categoryProductRepository.save(category));
     }
 
     @Transactional
@@ -142,5 +153,41 @@ public class CategoryProductService {
         User currentUser = getAuthenticatedUser();
         CategoryProduct category = getValidatedCategory(id, currentUser);
         categoryProductRepository.delete(category);
+    }
+
+    public CategoryProductResponse mapToResponse(CategoryProduct categoryProduct) {
+        if (categoryProduct == null) return null;
+
+        CategoryProductResponse response = new CategoryProductResponse();
+        response.setId(categoryProduct.getId());
+        response.setName(categoryProduct.getName());
+        response.setDescription(categoryProduct.getDescription());
+        response.setSortOrder(categoryProduct.getSortOrder());
+
+        if (categoryProduct.getPartner() != null) {
+            PartnerSimpleDto ptDto = new PartnerSimpleDto();
+            ptDto.setId(categoryProduct.getPartner().getId());
+            ptDto.setName(categoryProduct.getPartner().getName());
+            response.setPartner(ptDto);
+        }
+
+        if (categoryProduct.getParent() != null) {
+            CategoryProductResponse.ParentDto pDto = new CategoryProductResponse.ParentDto();
+            pDto.setId(categoryProduct.getParent().getId());
+            pDto.setName(categoryProduct.getParent().getName());
+            response.setParent(pDto);
+        }
+        response.setCreatedBy(mapUserToDto(categoryProduct.getCreatedBy()));
+        response.setUpdatedBy(mapUserToDto(categoryProduct.getUpdatedBy()));
+        response.setDeletedBy(mapUserToDto(categoryProduct.getDeletedBy()));
+
+        return response;
+    }
+    private UserSimpleDto mapUserToDto(User user) {
+        if (user == null) return null;
+        UserSimpleDto dto = new UserSimpleDto();
+        dto.setId(user. getId());
+        dto.setUsername(user.getUsername());
+        return dto;
     }
 }

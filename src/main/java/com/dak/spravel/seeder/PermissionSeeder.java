@@ -65,6 +65,13 @@ public class PermissionSeeder {
         {"category_product.update", "Update Category",         "category_product"},
         {"category_product.delete", "Delete Category",         "category_product"}, 
 
+        {"product.index",      "View All Products",          "product"},
+        {"product.show",       "View Product Detail",        "product"},
+        {"product.store",      "Create Product",             "product"},
+        {"product.update",     "Update Product",             "product"},
+        {"product.delete",     "Delete Product",             "product"},
+        
+
         {"category.index",  "View All Categories",     "category"},
         {"category.show",   "View Category Detail",    "category"},
         {"category.store",  "Create Category",         "category"},

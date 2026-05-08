@@ -88,7 +88,6 @@ public class BranchesService {
         branch.setPartners(partner);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
-        branch.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
 
         return branchesRepository.save(branch);
     }
@@ -100,7 +99,6 @@ public class BranchesService {
 
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
-        if (request.getIsActive() != null) branch.setIsActive(request.getIsActive());
 
         return branchesRepository.save(branch);
     }

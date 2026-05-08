@@ -7,8 +7,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.common.Partners;
 

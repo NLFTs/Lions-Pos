@@ -12,7 +12,7 @@ import { storeToRefs } from 'pinia'
 
 // Async components for better performance
 const Features = defineAsyncComponent(() => import('@/components/section/landingpage/Features.vue'))
-const BrandMarquee = defineAsyncComponent(() => import('@/components/section/landingpage/BrandMarquee.vue'))
+
 const Steps = defineAsyncComponent(() => import('@/components/section/landingpage/Steps.vue'))
 const Pricing = defineAsyncComponent(() => import('@/components/section/landingpage/Pricing.vue'))
 const Footer = defineAsyncComponent(() => import('@/components/section/landingpage/Footer.vue'))
@@ -137,7 +137,7 @@ const navigateToLogin = () => {
     </main>
 
     <!-- Content Sections -->
-    <BrandMarquee />
+
     <Features />
     <Steps />
     <Pricing />

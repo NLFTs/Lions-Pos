@@ -28,13 +28,6 @@ public class ProductPhotoController {
         return ResponseEntity.ok(productPhotoService.findByProductId(productId));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('product_photo.show')")
-    public ResponseEntity<ProductPhoto> show(@PathVariable Long id) {
-        log.info("[GET] /api/v1/product-photos/{}", id);
-        return ResponseEntity.ok(productPhotoService.findById(id));
-    }
-
     @PostMapping
     @PreAuthorize("hasAuthority('product_photo.store')")
     public ResponseEntity<ProductPhoto> store(
