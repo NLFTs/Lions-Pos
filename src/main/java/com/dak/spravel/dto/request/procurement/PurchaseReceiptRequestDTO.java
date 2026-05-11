@@ -1,22 +1,14 @@
 package com.dak.spravel.dto.request.procurement;
 
-<<<<<<< HEAD
-=======
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
 public class PurchaseReceiptRequestDTO {
-<<<<<<< HEAD
-    private Long purchaseOrderId;
-    private LocalDateTime receivedDate;
-    private String notes;
-=======
 
     @NotNull(message = "Purchase Order ID tidak boleh kosong")
     private Long purchaseOrderId;
@@ -29,6 +21,5 @@ public class PurchaseReceiptRequestDTO {
     @NotNull(message = "Items tidak boleh kosong")
     @NotEmpty(message = "Minimal harus ada 1 item")
     @Valid
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
     private List<PurchaseReceiptItemDTO> items;
 }

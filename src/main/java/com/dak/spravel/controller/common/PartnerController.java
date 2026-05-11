@@ -1,6 +1,5 @@
-    package com.dak.spravel.controller.common;
+package com.dak.spravel.controller.common;
 
-import org.springframework.data.repository.query.parser.Part;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -45,7 +44,8 @@ public class PartnerController {
     @PreAuthorize("hasAuthority('partner.store')")
     public ResponseEntity<ResData<Partners>> createPartner(
             @Valid @RequestBody CreatePartnerRequest request,
-            @AuthenticationPrincipal UserDetails userDetails, Authentication auth) {
+            @AuthenticationPrincipal UserDetails userDetails,
+            Authentication auth) {
 
         if (auth != null) {
             log.info("=== DEBUG SECURITY ===");
@@ -53,17 +53,9 @@ public class PartnerController {
             log.info("Authorities: {}", auth.getAuthorities());
             log.info("=======================");
         } else {
-            System.out.println("=== AUTH NULL (Token Gak Valid / Gak Masuk Filter) ===");
+            log.info("=== AUTH NULL (Token Gak Valid / Gak Masuk Filter) ===");
         }
 
-            @AuthenticationPrincipal UserDetails userDetails,
-            Authentication auth) {
-        // if (auth != null) {
-        //     log.info("=== DEBUG SECURITY ===");
-        //     log.info("User: {}", auth.getName());
-        //     log.info("Authorities: {}", auth.getAuthorities());
-        //     log.info("=======================");
-        // }
         log.info("[POST] /api/v1/partners - Request: {}", request);
         return ResponseBuilder.ok(partnerService.createPartner(request));
     }

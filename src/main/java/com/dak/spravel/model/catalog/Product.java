@@ -56,10 +56,7 @@ public class Product{
 
     @Column(name = "is_active")
     private Boolean isActive = true;
-<<<<<<< HEAD
 
-=======
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
     @ToString.Exclude 
     @ManyToOne(fetch = FetchType.LAZY)

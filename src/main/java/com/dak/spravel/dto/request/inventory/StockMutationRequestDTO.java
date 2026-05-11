@@ -1,29 +1,14 @@
 package com.dak.spravel.dto.request.inventory;
 
-<<<<<<< HEAD
-=======
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import lombok.Data;
 import java.math.BigDecimal;
 
 @Data
 public class StockMutationRequestDTO {
-<<<<<<< HEAD
-    private Long productId;
-    private Long partnerId;
-    private String type;
-    private String fromLocationType;
-    private Long fromLocationId;
-    private String toLocationType;
-    private Long toLocationId;
-    private BigDecimal qty;
-    private String referenceType;
-    private Long referenceId;
-    private String notes;
-=======
+
 
     @NotNull(message = "Product ID tidak boleh kosong")
     private Long productId;
@@ -58,5 +43,4 @@ public class StockMutationRequestDTO {
     private Long referenceId; // opsional
 
     private String notes; // opsional
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 }

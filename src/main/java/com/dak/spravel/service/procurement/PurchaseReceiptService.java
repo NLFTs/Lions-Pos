@@ -3,30 +3,21 @@ package com.dak.spravel.service.procurement;
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptItemDTO;
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
-<<<<<<< HEAD
-=======
 import com.dak.spravel.model.auth.User;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.procurement.PurchaseOrder;
 import com.dak.spravel.model.procurement.PurchaseOrderItems;
 import com.dak.spravel.model.procurement.PurchaseReceipt;
 import com.dak.spravel.model.procurement.PurchaseReceiptItem;
-<<<<<<< HEAD
-=======
 import com.dak.spravel.repository.auth.UserRepository;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
 import com.dak.spravel.repository.procurement.PurchaseReceiptItemRepository;
 import com.dak.spravel.repository.procurement.PurchaseReceiptRepository;
 import lombok.RequiredArgsConstructor;
-<<<<<<< HEAD
-=======
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,26 +36,6 @@ public class PurchaseReceiptService {
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final PurchaseOrderItemsRepository purchaseOrderItemsRepository;
     private final ProductRepository productRepository;
-<<<<<<< HEAD
-
-    public List<PurchaseReceipt> findByOrderId(Long purchaseOrderId) {
-        return purchaseReceiptRepository.findByPurchaseOrderId(purchaseOrderId);
-    }
-
-    public PurchaseReceipt findById(Long id) {
-        return purchaseReceiptRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("PurchaseReceipt", id));
-    }
-
-    public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
-        return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
-    }
-
-    @Transactional
-    public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
-        PurchaseOrder po = purchaseOrderRepository.findById(request.getPurchaseOrderId())
-                .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", request.getPurchaseOrderId()));
-=======
     private final UserRepository userRepository;
 
     private User getAuthenticatedUser() {
@@ -124,7 +95,7 @@ public class PurchaseReceiptService {
     // GET ITEMS
     public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
         User currentUser = getAuthenticatedUser();
-        findById(receiptId); // validasi kepemilikan
+        findById(receiptId);
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
 
@@ -134,7 +105,6 @@ public class PurchaseReceiptService {
         User currentUser = getAuthenticatedUser();
 
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
         PurchaseReceipt receipt = new PurchaseReceipt();
         receipt.setPurchaseOrder(po);
@@ -144,12 +114,9 @@ public class PurchaseReceiptService {
 
         PurchaseReceipt saved = purchaseReceiptRepository.save(receipt);
 
-<<<<<<< HEAD
-        // Save items
-=======
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         List<PurchaseReceiptItem> items = new ArrayList<>();
         for (PurchaseReceiptItemDTO itemDTO : request.getItems()) {
+
             PurchaseOrderItems poItem = purchaseOrderItemsRepository.findById(itemDTO.getPurchaseOrderItemId())
                     .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrderItem", itemDTO.getPurchaseOrderItemId()));
 
@@ -161,27 +128,16 @@ public class PurchaseReceiptService {
             item.setPurchaseOrderItem(poItem);
             item.setProduct(product);
             item.setQtyReceived(itemDTO.getQtyReceived());
-<<<<<<< HEAD
-            item.setUnitCost(poItem.getUnitCost()); // snapshot dari PO item
-            item.setNotes(itemDTO.getNotes());
-
-            // Update qtyReceived di PO item
-=======
             item.setUnitCost(poItem.getUnitCost());
             item.setNotes(itemDTO.getNotes());
 
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
             poItem.setQtyReceived(poItem.getQtyReceived().add(itemDTO.getQtyReceived()));
             purchaseOrderItemsRepository.save(poItem);
 
             items.add(item);
         }
-        purchaseReceiptItemRepository.saveAll(items);
 
-<<<<<<< HEAD
-        // Update status PO
-=======
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
+        purchaseReceiptItemRepository.saveAll(items);
         updatePoStatus(po);
 
         return saved;
@@ -189,8 +145,10 @@ public class PurchaseReceiptService {
 
     private void updatePoStatus(PurchaseOrder po) {
         List<PurchaseOrderItems> poItems = purchaseOrderItemsRepository.findByPurchaseOrderId(po.getId());
+
         boolean allReceived = poItems.stream()
                 .allMatch(i -> i.getQtyReceived().compareTo(i.getQtyOrdered()) >= 0);
+
         boolean anyReceived = poItems.stream()
                 .anyMatch(i -> i.getQtyReceived().compareTo(java.math.BigDecimal.ZERO) > 0);
 
@@ -199,6 +157,7 @@ public class PurchaseReceiptService {
         } else if (anyReceived) {
             po.setStatus(PurchaseOrder.Status.PARTIAL);
         }
+
         purchaseOrderRepository.save(po);
     }
 

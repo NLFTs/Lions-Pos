@@ -3,34 +3,21 @@ package com.dak.spravel.service.inventory;
 import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
 import com.dak.spravel.dto.request.inventory.TransferRequestItemDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
-<<<<<<< HEAD
-=======
 import com.dak.spravel.model.auth.User;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
-<<<<<<< HEAD
-import com.dak.spravel.repository.catalog.ProductRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
-import com.dak.spravel.repository.inventory.TransferRequestRepository;
-import com.dak.spravel.repository.inventory.TransferRequestItemRepository;
-=======
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.TransferRequestItemRepository;
 import com.dak.spravel.repository.inventory.TransferRequestRepository;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-<<<<<<< HEAD
-=======
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,19 +31,13 @@ public class TransferRequestService {
 
     private final TransferRequestRepository transferRequestRepository;
     private final TransferRequestItemRepository transferRequestItemRepository;
-<<<<<<< HEAD
-    private final PartnerRepository partnersRepository;
-    private final ProductRepository productRepository;
-
-    // GET ALL
-    public List<TransferRequest> findAll() {
-        return transferRequestRepository.findByDeletedAtIsNull();
-=======
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
+    // AUTH
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
@@ -91,36 +72,26 @@ public class TransferRequestService {
     // GET ALL
     public List<TransferRequest> findAll() {
         User currentUser = getAuthenticatedUser();
-        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
+        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(
+                currentUser.getPartner().getId()
+        );
     }
 
-    // GET ALL PAGINATED
+    // PAGINATED
     public Page<TransferRequest> findAll(int page, int size) {
-<<<<<<< HEAD
         return transferRequestRepository.findAll(
-                PageRequest.of(page, size, Sort.by("createdAt").descending()));
-=======
-        User currentUser = getAuthenticatedUser();
-        return transferRequestRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
+                PageRequest.of(page, size, Sort.by("createdAt").descending())
+        );
     }
 
     // GET BY ID
     public TransferRequest findById(Long id) {
-<<<<<<< HEAD
-        return transferRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
-=======
         User currentUser = getAuthenticatedUser();
         return getValidatedTransferRequest(id, currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
     }
 
     // GET BY PARTNER
     public List<TransferRequest> findByPartnerId(Long partnerId) {
-<<<<<<< HEAD
-=======
         User currentUser = getAuthenticatedUser();
 
         if (currentUser.getPartner() == null ||
@@ -128,24 +99,19 @@ public class TransferRequestService {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
         }
 
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(partnerId);
     }
 
     // CREATE
     @Transactional
     public TransferRequest create(TransferRequestDTO request) {
-<<<<<<< HEAD
-        Partners partner = partnersRepository.findById(request.getPartnerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Partner", request.getPartnerId()));
-=======
+
         User currentUser = getAuthenticatedUser();
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
         TransferRequest transferRequest = new TransferRequest();
         transferRequest.setPartner(partner);
@@ -159,28 +125,25 @@ public class TransferRequestService {
 
         TransferRequest saved = transferRequestRepository.save(transferRequest);
 
-<<<<<<< HEAD
-        // Save items
-=======
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         List<TransferRequestItem> items = new ArrayList<>();
+
         for (TransferRequestItemDTO itemDTO : request.getItems()) {
+
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
 
-<<<<<<< HEAD
-=======
             if (!product.getPartner().getId().equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
             }
 
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
             TransferRequestItem item = new TransferRequestItem();
             item.setTransferRequest(saved);
             item.setProduct(product);
             item.setQtyRequested(itemDTO.getQtyRequested());
+
             items.add(item);
         }
+
         transferRequestItemRepository.saveAll(items);
         saved.setItems(items);
 
@@ -190,15 +153,13 @@ public class TransferRequestService {
     // UPDATE STATUS
     @Transactional
     public TransferRequest updateStatus(Long id, String status) {
-<<<<<<< HEAD
-        TransferRequest transferRequest = transferRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
-=======
+
         User currentUser = getAuthenticatedUser();
         TransferRequest transferRequest = getValidatedTransferRequest(id, currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
-        TransferRequest.Status newStatus = TransferRequest.Status.valueOf(status.toUpperCase());
+        TransferRequest.Status newStatus =
+                TransferRequest.Status.valueOf(status.toUpperCase());
+
         transferRequest.setStatus(newStatus);
 
         if (newStatus == TransferRequest.Status.APPROVED) {
@@ -210,16 +171,12 @@ public class TransferRequestService {
         return transferRequestRepository.save(transferRequest);
     }
 
-    // SOFT DELETE
+    // DELETE (SOFT DELETE)
     public void delete(Long id) {
-<<<<<<< HEAD
-        TransferRequest transferRequest = transferRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
 
-=======
         User currentUser = getAuthenticatedUser();
         TransferRequest transferRequest = getValidatedTransferRequest(id, currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
+
         transferRequest.setDeletedAt(LocalDateTime.now());
         transferRequestRepository.save(transferRequest);
     }

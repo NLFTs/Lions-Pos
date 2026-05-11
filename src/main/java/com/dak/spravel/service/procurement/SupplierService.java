@@ -2,26 +2,17 @@ package com.dak.spravel.service.procurement;
 
 import com.dak.spravel.dto.request.procurement.SupplierRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
-<<<<<<< HEAD
-import com.dak.spravel.model.common.Partners;
-import com.dak.spravel.model.procurement.Supplier;
-import com.dak.spravel.repository.common.PartnerRepository;
-=======
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.procurement.Supplier;
 import com.dak.spravel.repository.auth.UserRepository;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.repository.procurement.SupplierRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-<<<<<<< HEAD
-=======
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -32,26 +23,6 @@ import java.util.List;
 public class SupplierService {
 
     private final SupplierRepository supplierRepository;
-<<<<<<< HEAD
-    private final PartnerRepository partnersRepository;
-
-    public List<Supplier> findAll() {
-        return supplierRepository.findByDeletedAtIsNull();
-    }
-
-    public Page<Supplier> findAll(int page, int size) {
-        return supplierRepository.findAll(PageRequest.of(page, size, Sort.by("name").ascending()));
-    }
-
-    public Supplier findById(Long id) {
-        return supplierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
-    }
-
-    public Supplier create(SupplierRequestDTO request) {
-        Partners partner = partnersRepository.findById(request.getPartnerId())
-                .orElseThrow(() -> new ResourceNotFoundException("Partner", request.getPartnerId()));
-=======
     private final UserRepository userRepository;
 
     private User getAuthenticatedUser() {
@@ -113,7 +84,6 @@ public class SupplierService {
         if (partner == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
         Supplier supplier = new Supplier();
         supplier.setPartner(partner);
@@ -125,16 +95,10 @@ public class SupplierService {
         return supplierRepository.save(supplier);
     }
 
-<<<<<<< HEAD
-    public Supplier update(Long id, SupplierRequestDTO request) {
-        Supplier supplier = supplierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
-=======
     // UPDATE
     public Supplier update(Long id, SupplierRequestDTO request) {
         User currentUser = getAuthenticatedUser();
         Supplier supplier = getValidatedSupplier(id, currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 
         if (request.getName() != null) supplier.setName(request.getName());
         if (request.getPhone() != null) supplier.setPhone(request.getPhone());
@@ -144,16 +108,11 @@ public class SupplierService {
         return supplierRepository.save(supplier);
     }
 
-<<<<<<< HEAD
-    public void delete(Long id) {
-        Supplier supplier = supplierRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
-=======
     // SOFT DELETE
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
         Supplier supplier = getValidatedSupplier(id, currentUser);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
+
         supplier.setDeletedAt(LocalDateTime.now());
         supplierRepository.save(supplier);
     }

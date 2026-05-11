@@ -20,7 +20,6 @@ public class VoucherRequest {
     @JsonProperty("name")
     private String name;
 
-<<<<<<< HEAD
     @JsonProperty("discount_type")
     private String discountType; // "PERCENT" / "FIXED"
 
@@ -36,23 +35,6 @@ public class VoucherRequest {
     @JsonProperty("quota")
     private Integer quota;
 
-=======
-    @JsonProperty("quota")
-    private Integer quota;
-
-    @JsonProperty("discount_type")
-    private String discountType; // "PERCENT" / "FIXED"
-
-    @JsonProperty("discount_value")
-    private BigDecimal discountValue;
-
-    @JsonProperty("min_purchase")
-    private BigDecimal minPurchase;
-
-    @JsonProperty("max_discount")
-    private BigDecimal maxDiscount;
-
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @JsonProperty("valid_from")
     private LocalDateTime validFrom;

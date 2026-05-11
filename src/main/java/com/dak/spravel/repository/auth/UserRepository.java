@@ -28,10 +28,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions WHERE u.username = :username")
     Optional<User> findByUsernameWithRoles(@Param("username") String username);
-<<<<<<< HEAD
-=======
 
     List<User> findByPartnerId(Long partnerId);
     Page<User> findByPartnerId(Long partnerId, Pageable pageable);
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 }

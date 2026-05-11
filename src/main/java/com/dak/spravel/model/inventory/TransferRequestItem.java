@@ -19,16 +19,9 @@ public class TransferRequestItem {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-<<<<<<< HEAD
     @JoinColumn(name = "transfer_request_id", referencedColumnName = "id", insertable = false, updatable = false)
     private TransferRequest transferRequest;
 
-    
-=======
-    @JoinColumn(name = "transfer_request_id", referencedColumnName = "id", updatable = false)
-    private TransferRequest transferRequest;
-
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Product product;
