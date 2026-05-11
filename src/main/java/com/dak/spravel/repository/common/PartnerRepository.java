@@ -11,7 +11,6 @@ import com.dak.spravel.model.common.Partners;
 @Repository
 public interface PartnerRepository extends JpaRepository<Partners, Long> {
     List<Partners> findAllByCreatedBy(User user, Sort sort);
-    List<Partners> findByDeletedAtIsNull(Sort sort);
     boolean existsByName(String name);
     boolean existsBySlug(String slug);
     List<Partners> findByPlan(Partners.Plan plan);

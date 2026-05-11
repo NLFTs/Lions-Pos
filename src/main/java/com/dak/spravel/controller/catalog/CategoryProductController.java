@@ -2,7 +2,6 @@ package com.dak.spravel.controller.catalog;
 
 import com.dak.spravel.dto.request.catalog.CategoryProductCreate;
 import com.dak.spravel.dto.response.catalogresponse.CategoryProductResponse;
-import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.service.catalog.CategoryProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

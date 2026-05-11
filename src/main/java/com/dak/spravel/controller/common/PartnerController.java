@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
 import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
 import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.common.PartnerResponse;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
 import com.dak.spravel.util.ResponseBuilder;
@@ -29,21 +30,21 @@ public class PartnerController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('partner.index')")
-    public ResponseEntity<ResData<List<Partners>>> findAll() {
+    public ResponseEntity<ResData<List<PartnerResponse>>> findAll() {
         log.info("[GET] /api/v1/partners");
         return ResponseBuilder.ok(partnerService.findAll());
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('partner.show')")
-    public ResponseEntity<ResData<Partners>> findById(@PathVariable Long id) {
+    public ResponseEntity<ResData<PartnerResponse>> findById(@PathVariable Long id) {
         log.info("[GET] /api/v1/partners/{}", id);
         return ResponseBuilder.ok(partnerService.findById(id));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('partner.store')")
-    public ResponseEntity<ResData<Partners>> createPartner(
+    public ResponseEntity<ResData<PartnerResponse>> createPartner(
             @Valid @RequestBody CreatePartnerRequest request,
             @AuthenticationPrincipal UserDetails userDetails,
             Authentication auth) {
@@ -59,7 +60,7 @@ public class PartnerController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('partner.update')")
-    public ResponseEntity<ResData<Partners>> update(
+    public ResponseEntity<ResData<PartnerResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdatePartnerRequest request) {
         log.info("[PUT] /api/v1/partners/{}", id);
@@ -68,7 +69,7 @@ public class PartnerController {
 
     @PutMapping("soft-delete/{id}")
     @PreAuthorize("hasAuthority('partner.update')")
-    public ResponseEntity<ResData<Partners>> softDelete(@PathVariable Long id) {
+    public ResponseEntity<ResData<PartnerResponse>> softDelete(@PathVariable Long id) {
         log.info("[SOFT-DELETE] /api/v1/partners/{}", id);
         partnerService.softDelete(id);
         return ResponseBuilder.ok(partnerService.softDelete(id));
@@ -76,7 +77,7 @@ public class PartnerController {
 
     @PutMapping("restore/{id}")
     @PreAuthorize("hasAuthority('partner.update')")
-    public ResponseEntity<ResData<Partners>> restore(@PathVariable Long id) {
+    public ResponseEntity<ResData<PartnerResponse>> restore(@PathVariable Long id) {
         log.info("[RESTORE] /api/v1/partners/{}", id);
         partnerService.restore(id);
         return ResponseBuilder.ok(partnerService.restore(id));

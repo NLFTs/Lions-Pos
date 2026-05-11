@@ -1,40 +1,24 @@
-package com.dak.spravel.dto.response.catalogresponse;
+package com.dak.spravel.dto.response.common;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
-public class ProductResponse {
+public class PartnerResponse {
     private Long id;
 
-    @JsonProperty("partner_id")
-    private PartnerSimpleDto partnerId;
-
-    @JsonProperty("category_id")
-    private CategoryProductSimpleDto categoryId;
-
     private String name;
-    private String sku;
 
-    @JsonProperty("base_price")
-    private BigDecimal basePrice;
+    private String slug;
 
-    @JsonProperty("track_stock")
-    private boolean trackStock;
+    private String plan;
 
     @JsonProperty("is_active")
-    private boolean isActive;
+    private Boolean isActive;
 
     @JsonProperty("created_at")
     private LocalDateTime createdAt;
@@ -53,11 +37,4 @@ public class ProductResponse {
 
     @JsonProperty("deleted_by")
     private UserSimpleDto deletedBy;
-
-
-    @Data
-    public static class CategoryProductSimpleDto {
-        private Long id;
-        private String name;
-    }
 }
