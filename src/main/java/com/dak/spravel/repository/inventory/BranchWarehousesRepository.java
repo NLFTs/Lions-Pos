@@ -1,6 +1,9 @@
 package com.dak.spravel.repository.inventory;
 
 import com.dak.spravel.model.inventory.BranchWarehouses;
+import com.dak.spravel.model.inventory.Branches;
+import com.dak.spravel.model.inventory.Warehouses;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -13,5 +16,5 @@ public interface BranchWarehousesRepository extends JpaRepository<BranchWarehous
 
     List<BranchWarehouses> findByWarehousesId(Long warehousesId);
 
-    boolean existsByBranchesIdAndWarehousesId(Long branchesId, Long warehousesId);
+    boolean existsByBranchesIdAndWarehousesId(Branches branches, Warehouses warehouses);
 }

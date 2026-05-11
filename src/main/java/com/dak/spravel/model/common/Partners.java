@@ -59,7 +59,7 @@ public class Partners {
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     private User createdBy;
 
-    @ManyToOne(fetch = FetchType.LAZY   )
+    @ManyToOne(fetch = FetchType.LAZY  )
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     private User deletedBy;
 }

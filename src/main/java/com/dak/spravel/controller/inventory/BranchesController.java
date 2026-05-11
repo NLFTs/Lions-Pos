@@ -1,8 +1,9 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
-import com.dak.spravel.model.inventory.Branches;
+import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.service.inventory.BranchesService;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +11,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @Slf4j
@@ -24,14 +31,14 @@ public class BranchesController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<List<Branches>> index() {
+    public ResponseEntity<List<BranchResponse>> index() {
         log.info("[GET] /api/v1/branches");
         return ResponseEntity.ok(branchesService.findAll());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<Page<Branches>> paginated(
+    public ResponseEntity<Page<BranchResponse>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/branches/page page={} size={}", page, size);
@@ -40,21 +47,22 @@ public class BranchesController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('branch.show')")
-    public ResponseEntity<Branches> show(@PathVariable Long id) {
+    public ResponseEntity<BranchResponse> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/branches/{}", id);
         return ResponseEntity.ok(branchesService.findById(id));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('branch.store')")
-    public ResponseEntity<Branches> store(@Valid @RequestBody BranchesRequestDTO request) {
+    public ResponseEntity<BranchResponse> store(@Valid @RequestBody BranchesRequestDTO request) {
+        System.out.println("DEBUG - Nama yang masuk: " + request.getName());
         log.info("[POST] /api/v1/branches name={}", request.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(branchesService.create(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('branch.update')")
-    public ResponseEntity<Branches> update(
+    public ResponseEntity<BranchResponse> update(
             @PathVariable Long id,
             @Valid @RequestBody BranchesRequestDTO request) {
         log.info("[PUT] /api/v1/branches/{}", id);

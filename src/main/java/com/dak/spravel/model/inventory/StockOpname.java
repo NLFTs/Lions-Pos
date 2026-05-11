@@ -16,6 +16,7 @@ import lombok.ToString;
 @AllArgsConstructor
 @Entity
 @Table(name = "stock_opnames")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class StockOpname  {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY) 
@@ -73,16 +74,13 @@ public class StockOpname  {
     @ToString.Exclude 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User updatedBy;
     
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
 }

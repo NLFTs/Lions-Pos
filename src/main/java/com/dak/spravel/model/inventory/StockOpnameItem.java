@@ -3,6 +3,7 @@ package com.dak.spravel.model.inventory;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
@@ -15,6 +16,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "stock_opname_items")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class StockOpnameItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -56,7 +58,6 @@ public class StockOpnameItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "counted_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User countedBy;
 
     @Column(name = "counted_at")
