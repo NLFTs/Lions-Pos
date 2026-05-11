@@ -1,5 +1,6 @@
 package com.dak.spravel.dto.request.inventory;
 
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -13,7 +14,6 @@ public class BranchesRequestDTO {
     @NotBlank(message = "Nama branch tidak boleh kosong")
     private String name;
 
+    @Column(columnDefinition = "TEXT")
     private String address; // opsional
-
-    private Boolean isActive; // opsional, default true di service
 }

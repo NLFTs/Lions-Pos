@@ -3,6 +3,7 @@ package com.dak.spravel.service.inventory;
 import com.dak.spravel.dto.request.inventory.BranchWarehousesRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.BranchWarehouses;
 import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.model.inventory.Warehouses;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,31 +36,27 @@ public class BranchWarehousesService {
         }
 
         User user = userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
-        if (isAdmin(user)) {
+        // Proteksi Admin/Super Admin
+        boolean isAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+
+        if (isAdmin) {
             throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch Warehouse.");
         }
 
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-    }
-
     // GET BY BRANCH
     public List<BranchWarehouses> findByBranchId(Long branchesId) {
         User currentUser = getAuthenticatedUser();
-
-        Branches branch = branchesRepository.findById(branchesId)
-                .orElseThrow(() -> new ResourceNotFoundException("Branch", branchesId));
-
-        if (currentUser.getPartner() == null ||
-                !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
-        }
+        
+        // Cari branch & validasi partner ID sekaligus
+        branchesRepository.findById(branchesId)
+                .filter(b -> b.getPartners().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda."));
 
         return branchWarehousesRepository.findByBranchesId(branchesId);
     }
@@ -67,36 +65,26 @@ public class BranchWarehousesService {
     public List<BranchWarehouses> findByWarehouseId(Long warehousesId) {
         User currentUser = getAuthenticatedUser();
 
-        Warehouses warehouse = warehousesRepository.findById(warehousesId)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse", warehousesId));
-
-        if (currentUser.getPartner() == null ||
-                !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
-        }
+        warehousesRepository.findById(warehousesId)
+                .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda."));
 
         return branchWarehousesRepository.findByWarehousesId(warehousesId);
     }
 
     // ASSIGN
+    @Transactional
     public BranchWarehouses assign(BranchWarehousesRequestDTO request) {
         User currentUser = getAuthenticatedUser();
+        Partners partner = currentUser.getPartner();
 
         Branches branch = branchesRepository.findById(request.getBranchesId())
-                .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchesId()));
+                .filter(b -> b.getPartners().getId().equals(partner.getId()))
+                .orElseThrow(() -> new RuntimeException("Branch bukan milik partner Anda."));
 
         Warehouses warehouse = warehousesRepository.findById(request.getWarehousesId())
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehousesId()));
-
-        // Validasi branch & warehouse milik partner yang sama dengan user login
-        if (currentUser.getPartner() == null ||
-                !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
-        }
-
-        if (!warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
-        }
+                .filter(w -> w.getPartners().getId().equals(partner.getId()))
+                .orElseThrow(() -> new RuntimeException("Warehouse bukan milik partner Anda."));
 
         if (branchWarehousesRepository.existsByBranchesIdAndWarehousesId(
                 request.getBranchesId(), request.getWarehousesId())) {
@@ -112,17 +100,18 @@ public class BranchWarehousesService {
     }
 
     // UNASSIGN
+    @Transactional
     public void unassign(Long id) {
         User currentUser = getAuthenticatedUser();
 
         BranchWarehouses bw = branchWarehousesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("BranchWarehouse", id));
 
-        if (currentUser.getPartner() == null ||
-                !bw.getBranches().getPartners().getId().equals(currentUser.getPartner().getId())) {
+        // Validasi kepemilikan
+        if (!bw.getBranches().getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Data bukan milik partner Anda.");
         }
 
-        branchWarehousesRepository.deleteById(id);
+        branchWarehousesRepository.delete(bw);
     }
 }

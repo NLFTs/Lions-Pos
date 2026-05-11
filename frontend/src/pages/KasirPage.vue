@@ -337,7 +337,6 @@ function avatarStyle(name = '') {
                 </div>
               </div>
 
-              <!-- Payment Fields -->
               <div class="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                 <template v-if="payMethod === 'cash'">
                   <div class="space-y-2">

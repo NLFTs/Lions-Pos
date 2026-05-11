@@ -26,7 +26,7 @@ public class StockBalance {
         @GeneratedValue(strategy = GenerationType.IDENTITY)
         private Long id;
 
-        @ManyToOne(fetch = FetchType.EAGER)
+        @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
         private Product product;
 
@@ -85,7 +85,7 @@ public class StockBalance {
         @Column(name = "updated_at")
         private LocalDateTime updatedAt;
 
-        @ManyToOne(fetch = FetchType.EAGER)
+        @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "updated_by", referencedColumnName = "id", insertable = false, updatable = false)
         @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
         private User updatedBy;
