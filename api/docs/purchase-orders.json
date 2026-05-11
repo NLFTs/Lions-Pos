@@ -1,0 +1,79 @@
+{
+  "module": "Procurement - Purchase Orders",
+  "base_path": "/api/v1/purchase-orders",
+  "order": 3,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "description": "List all purchase orders",
+      "response_sample": [
+        {
+          "id": 1,
+          "poNumber": "PO-20240511-001",
+          "status": "DRAFT",
+          "totalAmount": 25000000,
+          "supplier": { "id": 1, "name": "Supplier A" }
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/page",
+      "description": "List purchase orders with pagination",
+      "query_params": {
+        "page": 0,
+        "size": 10
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/{id}",
+      "description": "Get PO detail"
+    },
+    {
+      "method": "GET",
+      "path": "/{id}/items",
+      "description": "Get list of items in a PO"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "description": "Create new Purchase Order",
+      "request_body": {
+        "supplierId": 1,
+        "locationType": "warehouse",
+        "locationId": 1,
+        "orderDate": "2024-05-11",
+        "expectedDate": "2024-05-15",
+        "notes": "Urgent restock",
+        "items": [
+          {
+            "productId": 5,
+            "qtyOrdered": 10,
+            "unitCost": 2000000
+          }
+        ]
+      },
+      "response_sample": {
+        "id": 101,
+        "poNumber": "PO-20240511-002",
+        "status": "DRAFT",
+        "totalAmount": 20000000
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/{id}/status",
+      "description": "Update PO status (DRAFT, SENT, RECEIVED, CANCELLED)",
+      "query_params": {
+        "status": "SENT"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/{id}",
+      "description": "Delete PO"
+    }
+  ]
+}
