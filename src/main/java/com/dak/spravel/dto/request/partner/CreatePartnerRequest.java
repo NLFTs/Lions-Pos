@@ -21,6 +21,10 @@ public class CreatePartnerRequest {
 
     private List<UserRequest> employees;
 
+    private List<BranchRequest> branches;
+    private List<WarehouseRequest> warehouses;
+    private List<BranchWarehouseMappingRequest> branchWarehouses;
+
     @Data
     public static class UserRequest {
         private String username;

@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 
 import org.springframework.data.domain.Sort;
-import org.springframework.data.repository.query.parser.Part;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,10 +20,21 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.repository.inventory.BranchWarehousesRepository;
+import com.dak.spravel.repository.inventory.BranchesRepository;
+import com.dak.spravel.repository.inventory.WarehousesRepository;
+import com.dak.spravel.model.inventory.Branches;
+import com.dak.spravel.model.inventory.Warehouses;
+import com.dak.spravel.model.inventory.BranchWarehouses;
 import com.dak.spravel.util.AuditHelper;
+import com.dak.spravel.dto.request.partner.BranchRequest;
+import com.dak.spravel.dto.request.partner.BranchWarehouseMappingRequest;
+import com.dak.spravel.dto.request.partner.WarehouseRequest;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +45,9 @@ public class PartnerService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final BranchesRepository branchesRepository;
+    private final WarehousesRepository warehousesRepository;
+    private final BranchWarehousesRepository branchWarehousesRepository;
 
     // --- HELPER METHODS ---
 
@@ -112,7 +125,6 @@ public class PartnerService {
             throw new IllegalArgumentException("Nama Partner sudah ada, cari nama lain!");
         }
 
-        // 1. Save Partner
         Partners partner = new Partners();
         partner.setName(request.getName());
         partner.setPlan(request.getPlan());
@@ -123,17 +135,84 @@ public class PartnerService {
         AuditHelper.setCreated(partner);
         Partners savedPartner = partnerRepository.save(partner);
 
-        // 2. Buat User Admin Partner
         createInternalUser(request.getAdmin(), savedPartner, "admin-partners");
 
-        // 3. Buat User Karyawan (opsional)
         if (request.getEmployees() != null && !request.getEmployees().isEmpty()) {
             for (CreatePartnerRequest.UserRequest empReq : request.getEmployees()) {
                 createInternalUser(empReq, savedPartner, "employee-partners");
             }
         }
 
+        setupPartnerResources(savedPartner, request, currentUser);
+
         return savedPartner;
+    }
+
+    private void setupPartnerResources(Partners partner, CreatePartnerRequest request, User currentUser) {
+        // 1. Buat Branch secara bulk
+        List<Branches> savedBranches = new ArrayList<>();
+        if (request.getBranches() != null && !request.getBranches().isEmpty()) {
+            for (BranchRequest br : request.getBranches()) {
+                Branches branch = new Branches();
+                branch.setPartners(partner);
+                branch.setName(br.getName());
+                branch.setAddress(br.getAddress());
+                savedBranches.add(branchesRepository.save(branch));
+            }
+        } else {
+            Branches defaultBranch = new Branches();
+            defaultBranch.setPartners(partner);
+            defaultBranch.setName("Branch Utama - " + partner.getName());
+            defaultBranch.setAddress("-");
+            savedBranches.add(branchesRepository.save(defaultBranch));
+        }
+
+        // 2. Buat Warehouse secara bulk
+        List<Warehouses> savedWarehouses = new ArrayList<>();
+        if (request.getWarehouses() != null && !request.getWarehouses().isEmpty()) {
+            for (WarehouseRequest wr : request.getWarehouses()) {
+                Warehouses warehouse = new Warehouses();
+                warehouse.setPartners(partner);
+                warehouse.setName(wr.getName());
+                warehouse.setAddress(wr.getAddress());
+                warehouse.setIsActive(true);
+                savedWarehouses.add(warehousesRepository.save(warehouse));
+            }
+        } else {
+            Warehouses defaultWarehouse = new Warehouses();
+            defaultWarehouse.setPartners(partner);
+            defaultWarehouse.setName("Gudang Utama - " + partner.getName());
+            defaultWarehouse.setAddress("-");
+            defaultWarehouse.setIsActive(true);
+            savedWarehouses.add(warehousesRepository.save(defaultWarehouse));
+        }
+
+        // 3. Mapping BranchWarehouse
+        if (request.getBranchWarehouses() != null && !request.getBranchWarehouses().isEmpty()) {
+            for (BranchWarehouseMappingRequest m : request.getBranchWarehouses()) {
+                if (m.getBranchIndex() < 0 || m.getBranchIndex() >= savedBranches.size() ||
+                    m.getWarehouseIndex() < 0 || m.getWarehouseIndex() >= savedWarehouses.size()) {
+                    throw new IllegalArgumentException("Index Branch/Warehouse mapping tidak valid!");
+                }
+
+                BranchWarehouses bw = new BranchWarehouses();
+                bw.setBranches(savedBranches.get(m.getBranchIndex()));
+                bw.setWarehouses(savedWarehouses.get(m.getWarehouseIndex()));
+                bw.setCreatedAt(LocalDateTime.now());
+                bw.setCreatedBy(currentUser);
+                branchWarehousesRepository.save(bw);
+            }
+        } else {
+            Branches firstBranch = savedBranches.get(0);
+            for (Warehouses w : savedWarehouses) {
+                BranchWarehouses bw = new BranchWarehouses();
+                bw.setBranches(firstBranch);
+                bw.setWarehouses(w);
+                bw.setCreatedAt(LocalDateTime.now());
+                bw.setCreatedBy(currentUser);
+                branchWarehousesRepository.save(bw);
+            }
+        }
     }
 
     // UPDATE
