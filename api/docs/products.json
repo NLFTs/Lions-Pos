@@ -1,0 +1,73 @@
+{
+  "module": "Catalog - Products",
+  "base_path": "/api/v1/products",
+  "order": 2,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "description": "List all products",
+      "response_sample": {
+        "status": 200,
+        "message": "Success",
+        "data": [
+          {
+            "id": 1,
+            "name": "Laptop Pro 14",
+            "sku": "LP-14-001",
+            "base_price": 15000000,
+            "track_stock": true,
+            "is_active": true
+          }
+        ]
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "description": "Create a new product",
+      "request_body": {
+        "partner_id": 1,
+        "category_id": 2,
+        "name": "Smartphone Ultra",
+        "sku": "SP-ULTRA-01",
+        "base_price": 8000000
+      },
+      "response_sample": {
+        "status": 200,
+        "message": "Success",
+        "data": {
+          "id": 10,
+          "name": "Smartphone Ultra",
+          "sku": "SP-ULTRA-01",
+          "base_price": 8000000
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/{id}",
+      "description": "Get product by ID"
+    },
+    {
+      "method": "PUT",
+      "path": "/{id}",
+      "description": "Update product details"
+    },
+    {
+      "method": "DELETE",
+      "path": "/{id}",
+      "description": "Hard delete product"
+    },
+    {
+      "method": "PUT",
+      "path": "/soft-delete/{id}",
+      "description": "Soft delete product (set deleted_at)"
+    },
+    {
+      "method": "PUT",
+      "path": "/restore/{id}",
+      "description": "Restore soft-deleted product"
+    }
+  ]
+}

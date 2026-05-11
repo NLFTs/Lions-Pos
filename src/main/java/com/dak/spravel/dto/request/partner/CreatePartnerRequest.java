@@ -28,9 +28,9 @@ public class CreatePartnerRequest {
     @Valid
     private List<UserRequest> employees;
 
-    @Valid
-    @NotNull(message = "Branch data is required")
-    private BranchRequest branch;
+    private List<BranchRequest> branches;
+    private List<WarehouseRequest> warehouses;
+    private List<BranchWarehouseMappingRequest> branchWarehouses;
 
     @Data
     public static class UserRequest {

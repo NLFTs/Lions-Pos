@@ -1,0 +1,37 @@
+{
+  "module": "Inventory - Warehouses",
+  "base_path": "/api/v1/warehouses",
+  "order": 5,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "description": "List all warehouses"
+    },
+    {
+      "method": "GET",
+      "path": "/page",
+      "description": "Paginated list of warehouses"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "description": "Add new warehouse",
+      "request_body": {
+        "name": "Gudang Utama",
+        "code": "WH-JKT-01",
+        "address": "Jakarta Barat"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/{id}",
+      "description": "Update warehouse"
+    },
+    {
+      "method": "DELETE",
+      "path": "/{id}",
+      "description": "Delete warehouse"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "module": "Procurement - Suppliers",
+  "base_path": "/api/v1/suppliers",
+  "order": 4,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "description": "List all suppliers"
+    },
+    {
+      "method": "GET",
+      "path": "/page",
+      "description": "Paginated list of suppliers"
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "description": "Register new supplier",
+      "request_body": {
+        "name": "PT. Sumber Maju",
+        "code": "SUP-001",
+        "email": "contact@sumbermaju.com",
+        "phone": "021-123456",
+        "address": "Jl. Industri No. 10"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/{id}",
+      "description": "Update supplier info"
+    },
+    {
+      "method": "DELETE",
+      "path": "/{id}",
+      "description": "Remove supplier"
+    }
+  ]
+}
