@@ -117,7 +117,7 @@ public class ProductService {
 
     public ProductResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        Partners partner = currentUser.getPartner();
+        Partners partner = currentUser.getPartner(); 
         Product product = getValidatedProduct(id, partner);
         return mapToResponse(product);
     }
@@ -170,7 +170,7 @@ public class ProductService {
         User currentUser = getAuthenticatedUser();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(true);
-        
+         
         product.setUpdatedBy(currentUser);
         AuditHelper.setUpdated(product);
         return mapToResponse(productRepository.save(product));
@@ -253,6 +253,11 @@ public class ProductService {
         resp.setCreatedBy(mapUserToDto(product.getCreatedBy()));
         resp.setUpdatedBy(mapUserToDto(product.getUpdatedBy()));
         resp.setDeletedBy(mapUserToDto(product.getDeletedBy()));
+
+        resp.setCreatedAt(product.getCreatedAt());
+        resp.setUpdatedAt(product.getUpdatedAt());
+        resp.setDeletedAt(product.getDeletedAt());
+
 
         return resp;
     }

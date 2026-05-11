@@ -168,7 +168,7 @@ public class CategoryProductService {
             PartnerSimpleDto ptDto = new PartnerSimpleDto();
             ptDto.setId(categoryProduct.getPartner().getId());
             ptDto.setName(categoryProduct.getPartner().getName());
-            response.setPartner(ptDto);
+            response.setPartnerId(ptDto);
         }
 
         if (categoryProduct.getParent() != null) {

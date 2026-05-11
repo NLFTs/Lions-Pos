@@ -36,6 +36,8 @@ public class PermissionSeeder {
         {"post",       "Post",       "Manage blog posts"},
         {"category",   "Category",   "Manage post categories"},
         {"partner",    "Partner",    "Manage blog partners"},
+        {"branch",     "Branch",     "Manage partner branches"},
+        {"warehouse",  "Warehouse",  "Manage partner warehouses"},
         {"category_product", "Category Product", "Manage product categories"},
         {"product",    "Product",    "Manage blog products"},
         {"role",       "Role",       "Manage user roles"},
@@ -102,6 +104,18 @@ public class PermissionSeeder {
         {"user.store",  "Create User",      "user"},
         {"user.update", "Update User",      "user"},
         {"user.delete", "Delete User",      "user"},
+
+        {"warehouse.index",  "View All Warehouses",   "warehouse"},
+        {"warehouse.show",   "View Warehouse Detail", "warehouse"},
+        {"warehouse.store",  "Create Warehouse",      "warehouse"},
+        {"warehouse.update", "Update Warehouse",      "warehouse"},
+        {"warehouse.delete", "Delete Warehouse",      "warehouse"},
+        
+        {"branch.index",  "View All Branches",   "branch"},
+        {"branch.show",   "View Branch Detail", "branch"},
+        {"branch.store",  "Create Branch",      "branch"},
+        {"branch.update", "Update Branch",      "branch"},
+        {"branch.delete", "Delete Branch",      "branch"},
 
         {"log.index",  "View All Logs",  "log"},
         {"log.show",   "View Log Detail", "log"},
@@ -185,6 +199,24 @@ public class PermissionSeeder {
                 adminPartnersPerms.add(p);
             }
 
+            if (moduleSlug.equals("warehouse") ||
+                p.getSlug().equals("warehouse.index") ||
+                p.getSlug().equals("warehouse.show") || 
+                p.getSlug().equals("warehouse.store") ||
+                p.getSlug().equals("warehouse.update") ||
+                p.getSlug().equals("warehouse.delete")) {
+                adminPartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("branch") ||
+                p.getSlug().equals("branch.index") ||
+                p.getSlug().equals("branch.show") || 
+                p.getSlug().equals("branch.store") ||
+                p.getSlug().equals("branch.update") ||
+                p.getSlug().equals("branch.delete")) {
+                adminPartnersPerms.add(p);
+            }
+
 
         }
         Role adminPartnersRole = roleRepository.findBySlug("admin-partners").orElseGet(() -> {
@@ -222,6 +254,24 @@ public class PermissionSeeder {
                 p.getSlug().equals("product.store") ||
                 p.getSlug().equals("product.update") ||
                 p.getSlug().equals("product.delete")) {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("warehouse") ||
+                p.getSlug().equals("warehouse.index") ||
+                p.getSlug().equals("warehouse.show") || 
+                p.getSlug().equals("warehouse.store") ||
+                p.getSlug().equals("warehouse.update") ||
+                p.getSlug().equals("warehouse.delete")) {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("branch") ||
+                p.getSlug().equals("branch.index") ||
+                p.getSlug().equals("branch.show") || 
+                p.getSlug().equals("branch.store") ||
+                p.getSlug().equals("branch.update") ||
+                p.getSlug().equals("branch.delete")) {
                 employeePartnersPerms.add(p);
             }
 
