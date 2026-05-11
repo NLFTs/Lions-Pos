@@ -1,17 +1,20 @@
 package com.dak.spravel.dto.request.inventory;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class BranchesRequestDTO {
 
-    @NotNull(message = "Partner ID tidak boleh kosong")
-    private Long partnersId;
-
     @NotBlank(message = "Nama branch tidak boleh kosong")
+    @JsonProperty("name")
     private String name;
 
     @Column(columnDefinition = "TEXT")

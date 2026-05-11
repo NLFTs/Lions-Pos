@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(columnNames = {"product_id", "location_type", "location_id"})
         }
 )
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class StockBalance {
         @Id
         @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -87,6 +88,5 @@ public class StockBalance {
 
         @ManyToOne(fetch = FetchType.LAZY)
         @JoinColumn(name = "updated_by", referencedColumnName = "id", insertable = false, updatable = false)
-        @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
         private User updatedBy;
 }

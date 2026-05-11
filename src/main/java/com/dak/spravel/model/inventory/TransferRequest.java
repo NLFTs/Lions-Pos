@@ -11,11 +11,13 @@ import lombok.ToString;
 import java.time.LocalDateTime;
 import java.util.List;
 
+
 @Entity
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "transfer_requests")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class TransferRequest {
 
     @Id
@@ -77,17 +79,14 @@ public class TransferRequest {
     @ToString.Exclude 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User updatedBy;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)

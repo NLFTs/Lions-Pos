@@ -2,6 +2,8 @@ package com.dak.spravel.model.inventory;
 
 
 import com.dak.spravel.model.auth.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.time.LocalDateTime;
 import org.springframework.data.annotation.CreatedDate;
 import jakarta.persistence.*;
@@ -14,6 +16,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "branch_warehouses")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class BranchWarehouses {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

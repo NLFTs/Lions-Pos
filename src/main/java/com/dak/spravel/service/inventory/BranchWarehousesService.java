@@ -58,7 +58,7 @@ public class BranchWarehousesService {
                 .filter(b -> b.getPartners().getId().equals(currentUser.getPartner().getId()))
                 .orElseThrow(() -> new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda."));
 
-        return branchWarehousesRepository.findByBranchesId(branchesId);
+        return branchWarehousesRepository.findByBranchesId(currentUser.getPartner().getId());
     }
 
     // GET BY WAREHOUSE
@@ -86,8 +86,7 @@ public class BranchWarehousesService {
                 .filter(w -> w.getPartners().getId().equals(partner.getId()))
                 .orElseThrow(() -> new RuntimeException("Warehouse bukan milik partner Anda."));
 
-        if (branchWarehousesRepository.existsByBranchesIdAndWarehousesId(
-                request.getBranchesId(), request.getWarehousesId())) {
+        if (branchWarehousesRepository.existsByBranchesIdAndWarehousesId(branch, warehouse)) {
             throw new IllegalArgumentException("Warehouse sudah di-assign ke branch ini.");
         }
 

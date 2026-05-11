@@ -4,7 +4,6 @@ import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -18,6 +17,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "stock_mutations")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class StockMutation {
 
     @Id
@@ -73,6 +73,5 @@ public class StockMutation {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 }

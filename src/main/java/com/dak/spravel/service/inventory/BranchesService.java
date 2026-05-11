@@ -1,6 +1,9 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
+import com.dak.spravel.dto.response.components.PartnerSimpleDto;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
@@ -31,6 +34,13 @@ public class BranchesService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
+
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(role -> role.getAuthority().equals("ROLE_SUPER_ADMIN") || role.getAuthority().equals("ROLE_ADMIN"));
+        
+        if (isAdmin) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
         
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
@@ -58,33 +68,39 @@ public class BranchesService {
     }
 
     // GET ALL (Tanpa Pagination)
-    public List<Branches> findAll() {
+    public List<BranchResponse> findAll() {
         User currentUser = getAuthenticatedUser();
         validatePartnerAccess(currentUser);
 
         // Langsung ambil berdasarkan objek partner yang nempel di user
-        return branchesRepository.findByPartners(currentUser.getPartner());
+        return branchesRepository.findByPartners(currentUser.getPartner())                
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     // GET ALL PAGINATED
-    public Page<Branches> findAll(int page, int size) {
+    public Page<BranchResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
         validatePartnerAccess(currentUser);
 
         // Lebih efisien pake ID-nya aja buat pagination
-        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("name")));
+        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("name").ascending()))
+                .map(this::mapToResponse);
     }
 
     // GET BY ID
-    public Branches findById(Long id) {
+    public BranchResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        return getValidatedBranch(id, currentUser);
+        return mapToResponse(getValidatedBranch(id, currentUser));
     }
 
     // CREATE
     @Transactional
-    public Branches create(BranchesRequestDTO request) {
+    public BranchResponse create(BranchesRequestDTO request) {
+
         User currentUser = getAuthenticatedUser();
+        
         validatePartnerAccess(currentUser);
 
         Partners partner = currentUser.getPartner();
@@ -98,12 +114,12 @@ public class BranchesService {
         branch.setCreatedBy(currentUser);
         // AuditHelper.setCreated(branch); // Jika lu mau pake helper
 
-        return branchesRepository.save(branch);
+        return mapToResponse(branchesRepository.save(branch));
     }
 
     // UPDATE
     @Transactional
-    public Branches update(Long id, BranchesRequestDTO request) {
+    public BranchResponse update(Long id, BranchesRequestDTO request) {
         User currentUser = getAuthenticatedUser();
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -114,7 +130,7 @@ public class BranchesService {
         branch.setUpdatedBy(currentUser);
         // AuditHelper.setUpdated(branch); // Jika ada helpernya
 
-        return branchesRepository.save(branch);
+        return mapToResponse(branchesRepository.save(branch));
     }
 
     // DELETE
@@ -123,5 +139,35 @@ public class BranchesService {
         User currentUser = getAuthenticatedUser();
         Branches branch = getValidatedBranch(id, currentUser);
         branchesRepository.delete(branch);
+    }
+
+    private BranchResponse mapToResponse(Branches branch) {
+        BranchResponse response = new BranchResponse();
+        response.setId(branch.getId());
+        response.setName(branch.getName());
+        response.setAddress(branch.getAddress());
+
+        if (branch.getPartners() != null) {
+            PartnerSimpleDto pDto = new PartnerSimpleDto();
+            pDto.setId(branch.getPartners().getId());
+            pDto.setName(branch.getPartners().getName());
+            response.setPartner(pDto);
+
+        }
+
+        response.setIsActive(branch.getIsActive());
+        response.setCreatedAt(branch.getCreatedAt());
+        response.setUpdatedAt(branch.getUpdatedAt());
+        response.setCreatedBy(mapUserToDto(branch.getCreatedBy()));
+        response.setUpdatedBy(mapUserToDto(branch.getUpdatedBy()));
+        return response;
+    }
+
+    private UserSimpleDto mapUserToDto(User user) {
+        if (user == null) return null;
+        UserSimpleDto dto = new UserSimpleDto();
+        dto.setId(user. getId());
+        dto.setUsername(user.getUsername());
+        return dto;
     }
 }
