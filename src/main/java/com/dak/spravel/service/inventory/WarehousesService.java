@@ -60,7 +60,7 @@ public class WarehousesService {
     // GET ALL
     public List<Warehouses> findAll() {
         User currentUser = getAuthenticatedUser();
-        return warehousesRepository.findByPartners(currentUser.getPartner());
+        return warehousesRepository.findByPartnerId(currentUser.getPartner().getId());
     }
 
     // GET ALL PAGINATED

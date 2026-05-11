@@ -29,13 +29,13 @@ public class VoucherController {
     @GetMapping
     public List<Voucher> getAllVouchers() {
         log.info("[GET] /api/v1/vouchers");
-        return voucherService.findAll();
+        return voucherService.getAll();
     }
 
     @GetMapping("/{id}")
     public Voucher getVoucherById(@PathVariable Long id) {
         log.info("[GET] /api/v1/vouchers/{}", id);
-        return voucherService.findById(id);
+        return voucherService.getById(id);
     }
 
     @PutMapping("/{id}")

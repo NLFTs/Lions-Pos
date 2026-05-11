@@ -8,10 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
-<<<<<<< HEAD
-=======
 import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
@@ -48,7 +45,6 @@ public class PartnerController {
     @PreAuthorize("hasAuthority('partner.store')")
     public ResponseEntity<ResData<Partners>> createPartner(
             @Valid @RequestBody CreatePartnerRequest request,
-<<<<<<< HEAD
             @AuthenticationPrincipal UserDetails userDetails, Authentication auth) {
 
         if (auth != null) {
@@ -60,7 +56,6 @@ public class PartnerController {
             System.out.println("=== AUTH NULL (Token Gak Valid / Gak Masuk Filter) ===");
         }
 
-=======
             @AuthenticationPrincipal UserDetails userDetails,
             Authentication auth) {
         // if (auth != null) {
@@ -69,12 +64,9 @@ public class PartnerController {
         //     log.info("Authorities: {}", auth.getAuthorities());
         //     log.info("=======================");
         // }
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
         log.info("[POST] /api/v1/partners - Request: {}", request);
         return ResponseBuilder.ok(partnerService.createPartner(request));
     }
-<<<<<<< HEAD
-=======
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('partner.update')")
@@ -108,5 +100,4 @@ public class PartnerController {
         partnerService.hardDelete(id);
         return ResponseBuilder.ok();
     }
->>>>>>> b0700c3517d5b13fa75f6b89ef296ac7ff417635
 }
