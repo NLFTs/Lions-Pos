@@ -56,3 +56,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Scrollbar for non-dashboard pages */
+html.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+html.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--muted-foreground) / 0.4);
+  border-radius: 10px;
+  border: 2px solid hsl(var(--background));
+}
+
+html.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.8);
+}
+
+/* Firefox */
+html.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.4) hsl(var(--background));
+}

@@ -271,6 +271,17 @@ export const setupRouterGuards = (router) => {
     }
 
   })
+
+  router.afterEach((to) => {
+    if (typeof document !== 'undefined') {
+      // Disable custom scrollbar on dashboard routes
+      if (to.path.startsWith('/dashboard')) {
+        document.documentElement.classList.remove('custom-scrollbar')
+      } else {
+        document.documentElement.classList.add('custom-scrollbar')
+      }
+    }
+  })
 }
 
 import {
