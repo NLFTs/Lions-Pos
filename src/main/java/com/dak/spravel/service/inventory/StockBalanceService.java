@@ -68,7 +68,10 @@ public class StockBalanceService {
     // GET ALL PAGINATED
     public Page<StockBalance> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return stockBalanceRepository.findAll(PageRequest.of(page, size, Sort.by("id").ascending()));
+        return stockBalanceRepository.findByProductPartnerId(currentUser
+            .getPartner()
+            .getId(), PageRequest.of(page, size, Sort.by("createdAt")
+            .descending()));
     }
 
     // GET BY ID
@@ -137,10 +140,4 @@ public class StockBalanceService {
         return stockBalanceRepository.save(stock);
     }
 
-    // DELETE
-    public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-        StockBalance stock = getValidatedStockBalance(id, currentUser);
-        stockBalanceRepository.deleteById(stock.getId());
-    }
 }

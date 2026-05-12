@@ -33,13 +33,15 @@ public class PermissionSeeder {
 
     // slug, name, description
     private static final String[][] ALL_MODULES = {
-        {"post",       "Post",       "Manage blog posts"},
-        {"category",   "Category",   "Manage post categories"},
         {"partner",    "Partner",    "Manage blog partners"},
         {"branch",     "Branch",     "Manage partner branches"},
         {"warehouse",  "Warehouse",  "Manage partner warehouses"},
+        {"branch_warehouse", "Branch Warehouse", "Manage branch warehouses"},
+        {"stock_balance",      "Stock Balance",      "Manage stock balances"},
+        {"stock_mutation", "Stock Mutation", "Manage stock mutations"},
         {"category_product", "Category Product", "Manage product categories"},
         {"product",    "Product",    "Manage blog products"},
+        {"product_photo", "Product Photo", "Manage blog product photo"},
         {"role",       "Role",       "Manage user roles"},
         {"permission", "Permission", "Manage system permissions"},
         {"module",     "Module",     "Manage permission modules"},
@@ -49,11 +51,6 @@ public class PermissionSeeder {
 
     // slug, name, moduleSlug
     private static final String[][] ALL_PERMISSIONS = {
-        {"post.index",      "View All Posts",          "post"},
-        {"post.show",       "View Post Detail",        "post"},
-        {"post.store",      "Create Post",             "post"},
-        {"post.update",     "Update Post",             "post"},
-        {"post.delete",     "Delete Post",             "post"},
 
         {"partner.index",      "View All Partners",          "partner"},
         {"partner.show",       "View Partner Detail",        "partner"},
@@ -73,12 +70,10 @@ public class PermissionSeeder {
         {"product.update",     "Update Product",             "product"},
         {"product.delete",     "Delete Product",             "product"},
         
-
-        {"category.index",  "View All Categories",     "category"},
-        {"category.show",   "View Category Detail",    "category"},
-        {"category.store",  "Create Category",         "category"},
-        {"category.update", "Update Category",         "category"},
-        {"category.delete", "Delete Category",         "category"},
+        {"product_photo.index",      "View All Products",          "product_photo"},
+        {"product_photo.store",      "Create Product",             "product_photo"},
+        {"product_photo.update",     "Update Product",             "product_photo"},
+        {"product_photo.delete",     "Delete Product",             "product_photo"},
         
         {"role.index",      "View All Roles",          "role"},
         {"role.show",       "View Role Detail",        "role"},
@@ -116,6 +111,20 @@ public class PermissionSeeder {
         {"branch.store",  "Create Branch",      "branch"},
         {"branch.update", "Update Branch",      "branch"},
         {"branch.delete", "Delete Branch",      "branch"},
+
+        {"branch_warehouse.index",  "View All Branch Warehouses",   "branch_warehouse"},
+        {"branch_warehouse.show",   "View Branch Warehouse Detail", "branch_warehouse"},
+        {"branch_warehouse.store",  "Create Branch Warehouse",      "branch_warehouse"},
+        {"branch_warehouse.update", "Update Branch Warehouse",      "branch_warehouse"},
+        {"branch_warehouse.delete", "Delete Branch Warehouse",      "branch_warehouse"},
+
+        {"stock_balance.index",  "View All Stock Balances",   "stock_balance"},
+        {"stock_balance.store",  "Create Stock Balance",      "stock_balance"},
+        {"stock_balance.show",   "View Stock Balance Detail", "stock_balance"},
+        {"stock_balance.update", "Update Stock Balance",      "stock_balance"},
+
+        {"stock_mutation.index",  "View All Stock Mutations",   "stock_mutation"},
+        {"stock_mutation.show",   "View Stock Mutation Detail", "stock_mutation"},
 
         {"log.index",  "View All Logs",  "log"},
         {"log.show",   "View Log Detail", "log"},
@@ -217,6 +226,28 @@ public class PermissionSeeder {
                 adminPartnersPerms.add(p);
             }
 
+            if (moduleSlug.equals("product_photo") ||
+                p.getSlug().equals("product_photo.index") ||
+                p.getSlug().equals("product_photo.store") ||
+                p.getSlug().equals("product_photo.update") ||
+                p.getSlug().equals("product_photo.delete")) {
+                adminPartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("stock_balance") || 
+                p.getSlug().equals("stock_balance.index") ||
+                p.getSlug().equals("stock_balance.show") || 
+                p.getSlug().equals("stock_balance.store") ||
+                p.getSlug().equals("stock_balance.update") ||
+                p.getSlug().equals("stock_balance.delete")) {
+                adminPartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("stock_mutation") || 
+                p.getSlug().equals("stock_mutation.index") ||
+                p.getSlug().equals("stock_mutation.show")) {
+                adminPartnersPerms.add(p);
+            }
 
         }
         Role adminPartnersRole = roleRepository.findBySlug("admin-partners").orElseGet(() -> {
@@ -275,6 +306,28 @@ public class PermissionSeeder {
                 employeePartnersPerms.add(p);
             }
 
+            if (moduleSlug.equals("product_photo") ||
+                p.getSlug().equals("product_photo.index") ||
+                p.getSlug().equals("product_photo.store") ||
+                p.getSlug().equals("product_photo.update") ||
+                p.getSlug().equals("product_photo.delete")) {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("stock_balance") || 
+                p.getSlug().equals("stock_balance.index") ||
+                p.getSlug().equals("stock_balance.show") || 
+                p.getSlug().equals("stock_balance.store") ||
+                p.getSlug().equals("stock_balance.update") ||
+                p.getSlug().equals("stock_balance.delete")) {
+                employeePartnersPerms.add(p);
+            }
+
+            if (moduleSlug.equals("stock_mutation") ||
+                p.getSlug().equals("stock_mutation.index") ||
+                p.getSlug().equals("stock_mutation.show")) {
+                employeePartnersPerms.add(p);
+            }
 
         }
         Role employeePartnersRole = roleRepository.findBySlug("employee-partners").orElseGet(() -> {

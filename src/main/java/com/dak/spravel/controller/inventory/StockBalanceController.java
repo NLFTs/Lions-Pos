@@ -84,12 +84,4 @@ public class StockBalanceController {
         log.info("[PUT] /api/v1/stock-balances/{}", id);
         return ResponseEntity.ok(stockBalanceService.update(id, request));
     }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('stock_balance.delete')")
-    public ResponseEntity<Void> destroy(@PathVariable Long id) {
-        log.info("[DELETE] /api/v1/stock-balances/{}", id);
-        stockBalanceService.delete(id);
-        return ResponseEntity.noContent().build();
-    }
 }

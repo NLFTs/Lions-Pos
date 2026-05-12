@@ -104,42 +104,4 @@ public class StockMutationService {
         return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
-    // CREATE
-    public StockMutation create(StockMutationRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-
-        Partners partner = currentUser.getPartner();
-        if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
-
-        if (!product.getPartner().getId().equals(partner.getId())) {
-            throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
-        }
-
-        StockMutation mutation = new StockMutation();
-        mutation.setProduct(product);
-        mutation.setPartner(partner);
-        mutation.setType(request.getType());
-        mutation.setFromLocationType(request.getFromLocationType());
-        mutation.setFromLocationId(request.getFromLocationId());
-        mutation.setToLocationType(request.getToLocationType());
-        mutation.setToLocationId(request.getToLocationId());
-        mutation.setQty(request.getQty());
-        mutation.setReferenceType(request.getReferenceType());
-        mutation.setReferenceId(request.getReferenceId());
-        mutation.setNotes(request.getNotes());
-
-        return stockMutationRepository.save(mutation);
-    }
-
-    // DELETE
-    public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-        StockMutation mutation = getValidatedMutation(id, currentUser);
-        stockMutationRepository.deleteById(mutation.getId());
-    }
 }

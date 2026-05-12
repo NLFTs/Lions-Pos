@@ -20,7 +20,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale.Category;
 import java.util.stream.Collectors;
 
 @Service
@@ -155,9 +158,9 @@ public class CategoryProductService {
         category.setName(request.getName());
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
+        category.setCreatedBy(currentUser);
+        category.setCreatedAt(LocalDateTime.now());
 
-        AuditHelper.setCreated(category); 
-        
         return mapToResponse(categoryProductRepository.save(category));
     }
 
@@ -183,8 +186,8 @@ public class CategoryProductService {
         category.setDescription(request.getDescription());
         category.setSortOrder(request.getSortOrder());
         category.setUpdatedBy(currentUser);
+        category.setUpdatedAt(LocalDateTime.now());
 
-        AuditHelper.setUpdated(category);
         return mapToResponse(categoryProductRepository.save(category));
     }
 
