@@ -35,12 +35,12 @@ public class BranchesService {
             throw new RuntimeException("User tidak terautentikasi");
         }
 
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(role -> role.getAuthority().equals("ROLE_SUPER_ADMIN") || role.getAuthority().equals("ROLE_ADMIN"));
-        
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+//        boolean isAdmin = auth.getAuthorities().stream()
+//                .anyMatch(role -> role.getAuthority().equals("ROLE_SUPER_ADMIN") || role.getAuthority().equals("ROLE_ADMIN"));
+//        
+//        if (isAdmin) {
+//            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+//        }
         
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
@@ -166,7 +166,7 @@ public class BranchesService {
     private UserSimpleDto mapUserToDto(User user) {
         if (user == null) return null;
         UserSimpleDto dto = new UserSimpleDto();
-        dto.setId(user. getId());
+        dto.setId(user.getId());
         dto.setUsername(user.getUsername());
         return dto;
     }

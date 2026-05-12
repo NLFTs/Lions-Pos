@@ -3,7 +3,7 @@ package com.dak.spravel.controller.inventory;
 import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.service.inventory.BranchesService;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
