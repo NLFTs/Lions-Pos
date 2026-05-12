@@ -10,7 +10,7 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 
 const Features = defineAsyncComponent(() => import('@/components/section/landingpage/Features.vue'))
-const Steps    = defineAsyncComponent(() => import('@/components/section/landingpage/Steps.vue'))
+const Testimonials = defineAsyncComponent(() => import('@/components/section/landingpage/Testimonials.vue'))
 const Pricing  = defineAsyncComponent(() => import('@/components/section/landingpage/Pricing.vue'))
 const Footer   = defineAsyncComponent(() => import('@/components/section/landingpage/Footer.vue'))
 
@@ -186,7 +186,7 @@ onMounted(async () => {
     </Navbar>
 
     <!-- Hero Section -->
-    <main class="relative flex-grow flex flex-col items-center pt-24 pb-32 px-6 overflow-hidden">
+    <main class="relative flex-grow flex flex-col items-center pt-24 pb-48 px-6 overflow-hidden z-10">
       <!-- Background Gradient Blinds -->
       <div class="absolute inset-0 z-0 opacity-100 pointer-events-none">
         <GradientBlinds
@@ -215,7 +215,7 @@ onMounted(async () => {
         >
           <span id="hero-line1" class="block">Platform All-in-One</span>
           <span id="hero-line2" class="block">
-            untuk <span class="italic text-primary">Retail &amp; F&amp;B</span> modern
+            untuk <span class="italic text-white">Retail &amp; F&amp;B</span> modern
           </span>
         </h1>
 
@@ -248,7 +248,7 @@ onMounted(async () => {
     <!-- Content Sections -->
 
     <Features />
-    <Steps />
+    <Testimonials />
     <Pricing />
 
     <!-- Footer -->

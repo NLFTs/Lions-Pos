@@ -92,7 +92,7 @@ onMounted(() => {
         const py = ry * radius * perspective + height / 2
         const opacity = Math.max(0.1, (rz + 1) / 2)
         if (p.type === 'ID') {
-           ctx.fillStyle = `rgba(30, 255, 100, ${opacity * 0.8})`
+           ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.4})`
            ctx.beginPath(); ctx.arc(px, py, 1.5, 0, Math.PI * 2); ctx.fill()
         } else {
            ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.1})`
@@ -114,8 +114,8 @@ onMounted(() => {
         const pulse = Math.sin(Date.now() * 0.003 + node.x * 100) * 0.5 + 0.5
         
         ctx.shadowBlur = 10 * pulse + 5
-        ctx.shadowColor = '#1EA03F'
-        ctx.fillStyle = `rgba(30, 255, 120, ${opacity * (0.5 + 0.5 * pulse)})`
+        ctx.shadowColor = '#ffffff'
+        ctx.fillStyle = `rgba(255, 255, 255, ${opacity * (0.3 + 0.3 * pulse)})`
         ctx.beginPath(); ctx.arc(px, py, 2.5 * pulse + 1, 0, Math.PI * 2); ctx.fill()
         
         ctx.shadowBlur = 0
@@ -140,11 +140,11 @@ onMounted(() => {
       <div class="flex justify-between items-start">
         <div class="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.4em]"></div>
         <div class="flex items-center gap-2">
-           <div class="h-2 w-2 rounded-full bg-primary animate-pulse"></div>
+           <div class="h-2 w-2 rounded-full bg-zinc-600 animate-pulse"></div>
         </div>
       </div>
       <div class="h-[1px] w-full bg-white/5 relative overflow-hidden">
-        <div class="absolute inset-0 bg-primary/20 w-1/3 animate-shimmer"></div>
+        <div class="absolute inset-0 bg-white/10 w-1/3 animate-shimmer"></div>
       </div>
     </div>
   </div>

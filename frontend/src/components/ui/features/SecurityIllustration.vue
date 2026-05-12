@@ -57,19 +57,19 @@ onMounted(() => {
       <!-- Shield Centerpiece -->
       <div class="relative z-20 w-40 h-48 flex items-center justify-center">
         <!-- Shield Glow -->
-        <div class="shield-glow absolute w-32 h-32 bg-blue-500/20 rounded-full blur-3xl"></div>
+        <div class="shield-glow absolute w-32 h-32 bg-zinc-500/20 rounded-full blur-3xl"></div>
         
         <!-- Main Shield UI -->
         <div class="relative w-28 h-32 bg-zinc-900 border border-white/10 rounded-2xl flex flex-col items-center justify-center shadow-2xl backdrop-blur-xl">
-           <Icon icon="solar:shield-keyhole-bold-duotone" class="w-16 h-16 text-blue-500 mb-2" />
+           <Icon icon="solar:shield-keyhole-bold-duotone" class="w-16 h-16 text-zinc-500 mb-2" />
            <div class="flex gap-1">
-             <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+             <div class="w-2 h-2 rounded-full bg-zinc-600 animate-pulse"></div>
              <span class="text-[8px] font-mono text-zinc-500 uppercase tracking-widest">Protected</span>
            </div>
         </div>
 
         <!-- Scanning Bar -->
-        <div class="scanner-bar absolute h-full w-px bg-blue-400/30 shadow-[0_0_10px_rgba(96,165,250,0.5)] z-30"></div>
+        <div class="scanner-bar absolute h-full w-px bg-zinc-400/30 shadow-[0_0_10px_rgba(161,161,170,0.5)] z-30"></div>
       </div>
 
       <!-- Incoming Data Packets (Threats being filtered) -->
@@ -81,11 +81,11 @@ onMounted(() => {
       </div>
 
       <!-- Floating Verified Nodes -->
-      <div class="absolute -top-4 -right-4 p-2 bg-green-500/10 border border-green-500/20 rounded-lg backdrop-blur-md opacity-40">
-        <Icon icon="solar:check-read-bold-duotone" class="w-4 h-4 text-green-400" />
+      <div class="absolute -top-4 -right-4 p-2 bg-zinc-500/10 border border-zinc-500/20 rounded-lg backdrop-blur-md opacity-40">
+        <Icon icon="solar:check-read-bold-duotone" class="w-4 h-4 text-zinc-400" />
       </div>
-      <div class="absolute -bottom-4 -right-8 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg backdrop-blur-md opacity-40">
-        <Icon icon="solar:key-bold-duotone" class="w-4 h-4 text-blue-400" />
+      <div class="absolute -bottom-4 -right-8 p-2 bg-zinc-500/10 border border-zinc-500/20 rounded-lg backdrop-blur-md opacity-40">
+        <Icon icon="solar:key-bold-duotone" class="w-4 h-4 text-zinc-400" />
       </div>
 
     </div>

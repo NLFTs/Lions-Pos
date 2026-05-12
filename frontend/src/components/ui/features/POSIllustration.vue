@@ -73,9 +73,9 @@ onMounted(() => {
         <!-- Screen Header -->
         <div class="h-6 bg-zinc-800 flex items-center px-2 justify-between">
           <div class="flex gap-1">
-            <div class="w-1.5 h-1.5 rounded-full bg-red-500/50"></div>
-            <div class="w-1.5 h-1.5 rounded-full bg-yellow-500/50"></div>
-            <div class="w-1.5 h-1.5 rounded-full bg-green-500/50"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-zinc-700"></div>
+            <div class="w-1.5 h-1.5 rounded-full bg-zinc-800"></div>
           </div>
           <div class="text-[8px] text-zinc-500 font-mono tracking-tighter">TERMINAL_01</div>
         </div>
@@ -89,16 +89,16 @@ onMounted(() => {
           <div class="mt-auto flex justify-between items-end border-t border-white/5 pt-2">
             <div class="flex flex-col gap-1">
               <div class="w-8 h-1.5 bg-white/5 rounded-full"></div>
-              <div class="w-12 h-2.5 bg-green-500/20 rounded-full border border-green-500/30"></div>
+              <div class="w-12 h-2.5 bg-zinc-500/20 rounded-full border border-zinc-500/30"></div>
             </div>
             <div class="payment-status opacity-0 scale-50">
-              <Icon icon="solar:check-circle-bold-duotone" class="w-5 h-5 text-green-500" />
+              <Icon icon="solar:check-circle-bold-duotone" class="w-5 h-5 text-zinc-400" />
             </div>
           </div>
         </div>
 
         <!-- Scanning Glow -->
-        <div class="scanner-beam absolute top-0 left-0 w-full h-0.5 bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)] opacity-0"></div>
+        <div class="scanner-beam absolute top-0 left-0 w-full h-0.5 bg-zinc-400 shadow-[0_0_10px_rgba(161,161,170,0.8)] opacity-0"></div>
       </div>
 
       <!-- Stand -->
@@ -124,11 +124,11 @@ onMounted(() => {
       </div>
 
       <!-- Floating Icons -->
-      <div class="floating-icon absolute -top-4 -right-2 p-2 bg-green-500/10 border border-green-500/20 rounded-lg backdrop-blur-md">
-        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-5 h-5 text-green-400" />
+      <div class="floating-icon absolute -top-4 -right-2 p-2 bg-zinc-500/10 border border-zinc-500/20 rounded-lg backdrop-blur-md">
+        <Icon icon="solar:box-minimalistic-bold-duotone" class="w-5 h-5 text-zinc-400" />
       </div>
-      <div class="floating-icon absolute -bottom-4 -left-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg backdrop-blur-md">
-        <Icon icon="solar:scanner-bold-duotone" class="w-5 h-5 text-blue-400" />
+      <div class="floating-icon absolute -bottom-4 -left-2 p-2 bg-zinc-500/10 border border-zinc-500/20 rounded-lg backdrop-blur-md">
+        <Icon icon="solar:scanner-bold-duotone" class="w-5 h-5 text-zinc-400" />
       </div>
 
     </div>

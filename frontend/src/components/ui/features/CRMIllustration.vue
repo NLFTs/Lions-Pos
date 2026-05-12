@@ -44,7 +44,7 @@ onMounted(() => {
   <div ref="containerRef" class="w-full h-full relative overflow-hidden flex items-center justify-center bg-transparent">
     
     <!-- Background Gradient -->
-    <div class="absolute inset-0 bg-gradient-to-tr from-green-500/5 via-transparent to-blue-500/5"></div>
+    <div class="absolute inset-0 bg-gradient-to-tr from-zinc-500/5 via-transparent to-zinc-500/5"></div>
 
     <!-- Main Content Container -->
     <div class="relative w-72 h-72 flex flex-col items-center justify-center">
@@ -54,16 +54,16 @@ onMounted(() => {
         <!-- Platinum Card (Top) -->
         <div class="membership-card absolute top-0 left-0 w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-950 border border-white/20 rounded-xl shadow-2xl p-4 z-30 transform -rotate-3">
           <div class="flex justify-between items-start mb-4">
-            <Icon icon="solar:star-bold-duotone" class="w-6 h-6 text-yellow-500" />
+            <Icon icon="solar:star-bold-duotone" class="w-6 h-6 text-zinc-600" />
             <div class="text-[8px] font-mono text-zinc-500 tracking-[0.2em]">PLATINUM_MEMBER</div>
           </div>
           <div class="space-y-3">
             <div class="w-24 h-2 bg-white/5 rounded-full"></div>
             <div class="flex items-center gap-3">
               <div class="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div class="loyalty-progress h-full bg-green-500 w-0"></div>
+                <div class="loyalty-progress h-full bg-zinc-500 w-0"></div>
               </div>
-              <span class="text-[8px] font-mono text-green-400">85%</span>
+              <span class="text-[8px] font-mono text-zinc-400">85%</span>
             </div>
           </div>
         </div>
@@ -77,10 +77,10 @@ onMounted(() => {
 
       <!-- Floating Reward Icons -->
       <div class="reward-icon absolute -top-4 -right-4 p-3 bg-zinc-900/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md">
-        <Icon icon="solar:gift-bold-duotone" class="w-6 h-6 text-purple-400" />
+        <Icon icon="solar:gift-bold-duotone" class="w-6 h-6 text-zinc-500" />
       </div>
       <div class="reward-icon absolute -bottom-4 -left-4 p-3 bg-zinc-900/80 border border-white/10 rounded-xl shadow-2xl backdrop-blur-md">
-        <Icon icon="solar:ticket-bold-duotone" class="w-6 h-6 text-blue-400" />
+        <Icon icon="solar:ticket-bold-duotone" class="w-6 h-6 text-zinc-500" />
       </div>
 
     </div>
@@ -93,7 +93,7 @@ onMounted(() => {
 
     <div class="absolute top-8 right-8 text-right opacity-30">
       <p class="text-[10px] font-mono text-white tracking-widest uppercase">Loyalty Engine</p>
-      <p class="text-[8px] font-mono text-green-500">Tier: Platinum_Active</p>
+      <p class="text-[8px] font-mono text-zinc-500">Tier: Platinum_Active</p>
     </div>
 
   </div>

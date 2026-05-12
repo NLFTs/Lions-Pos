@@ -65,16 +65,16 @@ onMounted(() => {
       <div class="h-10 border-b border-white/5 flex items-center px-4 justify-between bg-zinc-900/50">
         <div class="flex items-center gap-3">
           <div class="flex gap-1.5">
-            <div class="w-2.5 h-2.5 rounded-full bg-red-500/30"></div>
-            <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/30"></div>
-            <div class="w-2.5 h-2.5 rounded-full bg-green-500/30"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-zinc-600"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-zinc-700"></div>
+            <div class="w-2.5 h-2.5 rounded-full bg-zinc-800"></div>
           </div>
           <div class="h-4 w-px bg-white/10 mx-1"></div>
-          <span class="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">BTC/USDT <span class="text-green-500 ml-1">Live</span></span>
+          <span class="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">BTC/USDT <span class="text-zinc-500 ml-1">Live</span></span>
         </div>
         <div class="flex gap-2">
           <div class="w-12 h-4 bg-white/5 rounded text-[8px] flex items-center justify-center text-zinc-500 font-mono">1M</div>
-          <div class="w-12 h-4 bg-green-500/20 rounded text-[8px] flex items-center justify-center text-green-400 font-mono">5M</div>
+          <div class="w-12 h-4 bg-zinc-500/20 rounded text-[8px] flex items-center justify-center text-zinc-400 font-mono">5M</div>
           <div class="w-12 h-4 bg-white/5 rounded text-[8px] flex items-center justify-center text-zinc-500 font-mono">1H</div>
         </div>
       </div>
@@ -87,13 +87,13 @@ onMounted(() => {
           <div class="text-[8px] font-mono text-zinc-500 mb-1">Order Book</div>
           <div class="flex flex-col gap-1.5 overflow-hidden">
             <div v-for="i in 8" :key="'ask'+i" class="order-row flex justify-between">
-              <span class="text-[9px] font-mono text-red-500/70">64.{{ 200 + i*12 }}</span>
-              <span class="text-[9px] font-mono text-zinc-600">{{ (Math.random()*0.5).toFixed(3) }}</span>
+              <span class="text-[9px] font-mono text-zinc-600/70">64.{{ 200 + i*12 }}</span>
+              <span class="text-[9px] font-mono text-zinc-800">{{ (Math.random()*0.5).toFixed(3) }}</span>
             </div>
             <div class="h-px bg-white/5 my-1"></div>
             <div v-for="i in 8" :key="'bid'+i" class="order-row flex justify-between">
-              <span class="text-[9px] font-mono text-green-500/70">64.{{ 100 - i*12 }}</span>
-              <span class="text-[9px] font-mono text-zinc-600">{{ (Math.random()*0.5).toFixed(3) }}</span>
+              <span class="text-[9px] font-mono text-zinc-500/70">64.{{ 100 - i*12 }}</span>
+              <span class="text-[9px] font-mono text-zinc-800">{{ (Math.random()*0.5).toFixed(3) }}</span>
             </div>
           </div>
         </div>
@@ -103,7 +103,7 @@ onMounted(() => {
           <!-- Price Header -->
           <div class="mb-4 flex items-baseline gap-3">
              <h2 class="price-text text-2xl font-mono font-bold text-white tracking-tighter">64,241.80</h2>
-             <span class="text-green-500 text-xs font-mono flex items-center gap-0.5">
+             <span class="text-zinc-500 text-xs font-mono flex items-center gap-0.5">
                <ArrowUpRight class="w-3 h-3" /> +2.45%
              </span>
           </div>
@@ -119,14 +119,14 @@ onMounted(() => {
              <div v-for="i in 20" :key="i" class="flex-1 flex flex-col items-center">
                 <div class="w-[1px] h-12 bg-zinc-700"></div>
                 <div class="candle w-full max-w-[8px] rounded-sm" 
-                     :class="i % 3 === 0 ? 'bg-red-500/40 border border-red-500/50' : 'bg-green-500/40 border border-green-500/50'"
+                     :class="i % 3 === 0 ? 'bg-zinc-600/40 border border-zinc-600/50' : 'bg-zinc-400/40 border border-zinc-400/50'"
                      :style="{ height: (20 + Math.random()*50) + 'px' }"></div>
              </div>
 
              <!-- Floating Trend Line -->
              <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 200" preserveAspectRatio="none">
                <path class="main-trend-path" d="M0 150 Q 50 120, 100 140 T 200 100 T 300 130 T 400 80" 
-                     fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="400" />
+                     fill="none" stroke="#71717a" stroke-width="2" stroke-dasharray="400" />
              </svg>
           </div>
 
@@ -142,7 +142,7 @@ onMounted(() => {
 
     <!-- HUD Background Decor -->
     <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-5">
-      <div class="absolute -top-1/4 -right-1/4 w-[600px] h-[600px] bg-green-500 rounded-full blur-[120px]"></div>
+      <div class="absolute -top-1/4 -right-1/4 w-[600px] h-[600px] bg-zinc-800 rounded-full blur-[120px]"></div>
     </div>
 
     <!-- Bottom HUD -->
@@ -158,7 +158,7 @@ onMounted(() => {
 
 <style scoped>
 .main-trend-path {
-  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.5));
+  filter: drop-shadow(0 0 5px rgba(113, 113, 122, 0.5));
 }
 </style>
 

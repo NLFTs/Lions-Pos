@@ -32,7 +32,7 @@ const features = [
     icon: BarChart3,
     component: AnalyticsIllustration,
     span: 'md:col-span-1 md:row-span-1',
-    accent: 'from-green-500/20'
+    accent: 'from-violet-500/20'
   },
   {
     id: 'dashboard',
@@ -42,7 +42,7 @@ const features = [
     icon: Store,
     component: LocationIllustration,
     span: 'md:col-span-1 md:row-span-1',
-    accent: 'from-blue-500/20'
+    accent: 'from-emerald-500/20'
   },
   {
     id: 'collaboration',
@@ -52,7 +52,7 @@ const features = [
     icon: CreditCard,
     component: POSIllustration,
     span: 'md:col-span-2 md:row-span-2',
-    accent: 'from-purple-500/20'
+    accent: 'from-amber-500/20'
   },
   {
     id: 'automation',
@@ -62,7 +62,7 @@ const features = [
     icon: Package,
     component: StockIllustration,
     span: 'md:col-span-2 md:row-span-2',
-    accent: 'from-orange-500/20'
+    accent: 'from-emerald-500/20'
   },
   {
     id: 'integration',
@@ -72,7 +72,7 @@ const features = [
     icon: Users,
     component: CRMIllustration,
     span: 'md:col-span-1 md:row-span-1',
-    accent: 'from-emerald-500/20'
+    accent: 'from-rose-500/20'
   },
   {
     id: 'security',
@@ -82,7 +82,7 @@ const features = [
     icon: ShieldCheck,
     component: SecurityIllustration,
     span: 'md:col-span-1 md:row-span-1',
-    accent: 'from-red-500/20'
+    accent: 'from-neutral-500/20'
   }
 ]
 
@@ -93,7 +93,7 @@ const containerRef = ref(null)
   <section 
     ref="containerRef"
     id="features" 
-    class="min-h-screen py-24 px-6 bg-[#020202] text-white relative overflow-hidden flex flex-col justify-center"
+    class="min-h-screen pt-48 pb-32 lg:pt-64 lg:pb-48 px-6 bg-[#020202] text-white relative overflow-hidden flex flex-col justify-center z-20"
   >
     <!-- Background Elements -->
     <div class="absolute inset-0 pointer-events-none opacity-20">
@@ -105,12 +105,12 @@ const containerRef = ref(null)
       <!-- Premium Header (Minimalized) -->
       <div class="space-y-4">
         <div class="flex items-center gap-2">
-           <div class="w-8 h-[1px] bg-green-500"></div>
-           <span class="text-[10px] font-bold uppercase tracking-[0.4em] text-green-500">Core Features</span>
+           <div class="w-8 h-[1px] bg-neutral-600"></div>
+           <span class="text-[10px] font-bold uppercase tracking-[0.4em] text-neutral-500">Core Features</span>
         </div>
         <h2 class="text-5xl md:text-7xl font-medium tracking-tighter leading-[0.9]">
           Platform Pintar Untuk <br />
-          <span class="text-zinc-600">Skalabilitas Tanpa Batas.</span>
+          <span class="text-neutral-600">Skalabilitas Tanpa Batas.</span>
         </h2>
       </div>
 
@@ -124,7 +124,7 @@ const containerRef = ref(null)
              ]"
         >
           <!-- Corner Accent Glow (Like image) -->
-          <div v-if="f.id === 'analytics'" class="absolute -top-12 -left-12 w-32 h-32 bg-green-500/20 blur-3xl opacity-60 group-hover:opacity-100 transition-opacity"></div>
+          <div v-if="f.id === 'analytics'" class="absolute -top-12 -left-12 w-32 h-32 bg-neutral-500/20 blur-3xl opacity-60 group-hover:opacity-100 transition-opacity"></div>
 
           <!-- Background Illustration -->
           <div class="absolute inset-0 z-0">
@@ -133,20 +133,20 @@ const containerRef = ref(null)
 
           <!-- Content: Top Category -->
           <div class="absolute top-8 left-8 z-20">
-             <span class="text-xs font-medium text-zinc-400 tracking-tight">{{ f.category }}</span>
+             <span class="text-xs font-medium text-neutral-400 tracking-tight">{{ f.category }}</span>
           </div>
 
           <!-- Content: Bottom Info -->
           <div class="absolute bottom-8 left-8 right-8 z-20">
              <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-1">{{ f.title }}</h3>
-             <p class="text-xs md:text-sm text-zinc-500 group-hover:text-zinc-300 transition-colors">
+             <p class="text-xs md:text-sm text-neutral-500 group-hover:text-neutral-300 transition-colors">
                {{ f.description }}
              </p>
           </div>
 
           <!-- Optional Icon (Top Right) -->
           <div class="absolute top-8 right-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-             <component :is="f.icon" class="w-5 h-5 text-zinc-600" />
+             <component :is="f.icon" class="w-5 h-5 text-neutral-600" />
           </div>
 
           <!-- Subtle Gradient Overlay -->
@@ -172,10 +172,10 @@ h2, h3 {
   letter-spacing: -0.05em;
 }
 
-@media (min-height: 900px) {
-  #features {
-    height: 100vh;
-  }
+/* Remove fixed 100vh to prevent content clipping and overlap */
+#features {
+  min-height: 100vh;
+  height: auto;
 }
 
 .animate-shimmer {
