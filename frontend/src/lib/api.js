@@ -114,6 +114,11 @@ api.interceptors.response.use(
       }
     }
 
+    if (!error.response) {
+      console.warn('[API] Network Error / Backend unreachable. Entering offline shell mode.')
+      return Promise.reject({ ...error, isNetworkError: true })
+    }
+
     return Promise.reject(error)
   }
 )
