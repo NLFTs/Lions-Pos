@@ -42,14 +42,20 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
         // VALIDASI: Super Admin / Admin DILARANG MASUK
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-        
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
 
         return user;
+    }
+
+    private boolean isAdmin(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+     private boolean isAdminPartnerAndEmployee(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
 
     private Product getValidatedProduct(Long id, Partners partner) {
@@ -67,6 +73,10 @@ public class ProductService {
     public ProductResponse create(ProductRequest request) {
         User currentUser = getAuthenticatedUser();
         Partners partner = currentUser.getPartner();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
 
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
@@ -110,6 +120,11 @@ public class ProductService {
     public List<ProductResponse> findAll() {
         User currentUser = getAuthenticatedUser();
         Partners partner = currentUser.getPartner();
+
+        if(isAdmin(currentUser)) {
+            
+        }
+
         return productRepository.findAllByPartner(partner).stream()
                 .map(this::mapToResponse)
                 .toList();

@@ -3,7 +3,6 @@ package com.dak.spravel.controller.catalog;
 import com.dak.spravel.dto.request.product.ProductRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.catalogresponse.ProductResponse;
-import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.service.catalog.ProductService;
 import com.dak.spravel.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;

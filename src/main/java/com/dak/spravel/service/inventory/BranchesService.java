@@ -49,6 +49,7 @@ public class BranchesService {
 
     private void validatePartnerAccess(User user) {
         // Cek apakah user punya partner
+        
         if (user.getPartner() == null) {
             throw new RuntimeException("Akses Ditolak: Anda tidak terasosiasi dengan Partner manapun.");
         }
@@ -131,6 +132,28 @@ public class BranchesService {
         // Tambahkan Auditing Update
         branch.setUpdatedBy(currentUser);
         // AuditHelper.setUpdated(branch); // Jika ada helpernya
+
+        return mapToResponse(branchesRepository.save(branch));
+    }
+
+    @Transactional
+    public BranchResponse softDelete(Long id) {
+        User currentUser = getAuthenticatedUser();
+        
+        Branches branch = getValidatedBranch(id, currentUser);
+        
+        branch.setIsActive(false);
+
+        return mapToResponse(branchesRepository.save(branch));
+    }
+
+    @Transactional
+    public BranchResponse restoreBranch(Long id) {
+        User currentUser = getAuthenticatedUser();
+        
+        Branches branch = getValidatedBranch(id, currentUser);
+        
+        branch.setIsActive(true);
 
         return mapToResponse(branchesRepository.save(branch));
     }

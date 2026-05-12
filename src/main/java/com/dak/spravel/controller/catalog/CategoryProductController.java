@@ -22,6 +22,13 @@ public class CategoryProductController {
 
     private final CategoryProductService categoryProductService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('category_product.index')")
+    public ResponseEntity<List<CategoryProductResponse>> getAllForAdmin() {
+        log.info("[GET] /api/v1/category-products/all - Superadmin access");
+        return ResponseEntity.ok(categoryProductService.findAllCategoryProduct());
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('category_product.index')")
     public ResponseEntity<List<CategoryProductResponse>> index() {
@@ -63,4 +70,6 @@ public class CategoryProductController {
         categoryProductService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+
 }

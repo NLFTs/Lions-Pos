@@ -20,8 +20,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -40,11 +40,6 @@ public class CategoryProductService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        // VALIDASI 1: Admin dilarang masuk (Block Total)
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
-        }
-
         return user;
     }
 
@@ -54,25 +49,58 @@ public class CategoryProductService {
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
-    /**
-     * Helper untuk validasi apakah sebuah kategori milik partner si user yang sedang login
+    private boolean isAdminPartnerAndEmployee(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
+    }
+
+        /**
+     * Helper untuk validasi apakah sebuah kategori milik partner si user yang sedang l ogin
      */
     private CategoryProduct getValidatedCategory(Long id, User currentUser) {
-        CategoryProduct category = categoryProductRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
 
-        // VALIDASI 2: Cross-Partner Check
-        // Bandingkan Partner ID milik kategori dengan Partner ID milik user login
+        if (isAdmin(getAuthenticatedUser())) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
+        }
+
+        CategoryProduct category = categoryProductRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
+
+            // VALIDASI 2: Cross-Partner Check
+            // Bandingkan Partner ID milik kategori dengan Partner ID milik user login
         if (currentUser.getPartner() == null || 
-            !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses kategori dari partner lain.");
         }
         
         return category;
     }
+    
+    // Khusus untuk Superadmin
+    public List<CategoryProductResponse> findAllCategoryProduct() {
+        User currentUser = getAuthenticatedUser();
+    
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Category Product.");
+        }
 
+        List<CategoryProduct> allCategories = categoryProductRepository.findAll();
+
+        return allCategories.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // Khusus untuk Admin partner dan employee
     public List<CategoryProductResponse> findAll() {
         User currentUser = getAuthenticatedUser();
+        
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
+        }
+
+        
         Sort sort = Sort.by("name").ascending();
 
         // Admin sudah mental di getAuthenticatedUser, jadi di sini pasti user partner
@@ -84,6 +112,10 @@ public class CategoryProductService {
 
     public Page<CategoryProductResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
+        }
 
         
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
@@ -100,6 +132,10 @@ public class CategoryProductService {
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+        }
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
         }
 
         // Validasi Parent Category (jika ada) - Pastiin parent-nya milik partner yang sama
@@ -128,6 +164,10 @@ public class CategoryProductService {
     @Transactional
     public CategoryProductResponse update(Long id, CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
+        }
         
         // Cari kategori yang mau diupdate + validasi kepemilikan partner
         CategoryProduct category = getValidatedCategory(id, currentUser);
@@ -151,6 +191,11 @@ public class CategoryProductService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
+        }
+
         CategoryProduct category = getValidatedCategory(id, currentUser);
         categoryProductRepository.delete(category);
     }

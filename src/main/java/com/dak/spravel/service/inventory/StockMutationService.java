@@ -63,13 +63,13 @@ public class StockMutationService {
     // GET ALL
     public List<StockMutation> findAll() {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId());
+        return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
     // GET ALL PAGINATED
     public Page<StockMutation> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("createdAt").descending()));
     }
 
     // GET BY ID
@@ -102,7 +102,7 @@ public class StockMutationService {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
         }
 
-        return stockMutationRepository.findByPartnerId(partnerId);
+        return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
     // CREATE
