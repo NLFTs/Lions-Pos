@@ -106,15 +106,7 @@ async function fetchPartners() {
     const res = await api.get('/api/v1/partners')
     partners.value = res.data.data
   } catch (err) {
-    if (import.meta.env.DEV) {
-      partners.value = [
-        { id: '1', name: 'Partner Basic', slug: 'partner-basic', plan: 'basic', is_active: true },
-        { id: '2', name: 'Partner Pro', slug: 'partner-pro', plan: 'pro', is_active: true },
-        { id: '3', name: 'Partner Enterprise', slug: 'partner-enterprise', plan: 'enterprise', is_active: false },
-      ]
-    } else {
-      error.value = 'Gagal memuat data partner.'
-    }
+    error.value = 'Gagal memuat data partner.'
   } finally {
     loading.value = false
   }
