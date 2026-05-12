@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import org.hibernate.annotations.SQLDelete;
 import com.dak.spravel.model.auth.User;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

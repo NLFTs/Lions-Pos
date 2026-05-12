@@ -55,8 +55,6 @@ public class BranchesController {
     @PostMapping
     @PreAuthorize("hasAuthority('branch.store')")
     public ResponseEntity<BranchResponse> store(@Valid @RequestBody BranchRequest request) {
-        System.out.println("DEBUG - Nama yang masuk: " + request.getName());
-        System.out.println("DEBUG - Address yang masuk: " + request.getAddress());
         log.info("[POST] /api/v1/branches name={}", request.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(branchesService.create(request));
     }
@@ -76,5 +74,19 @@ public class BranchesController {
         log.info("[DELETE] /api/v1/branches/{}", id);
         branchesService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/soft-delete/{id}")
+    @PreAuthorize("hasAuthority('branch.update')")
+    public ResponseEntity<BranchResponse> softDelete(@Valid @PathVariable Long id) {
+        log.info("[PUT] /api/v1/branches/{}", id);
+        return ResponseEntity.ok(branchesService.softDelete(id));
+    }
+
+    @PutMapping("/restore/{id}")
+    @PreAuthorize("hasAuthority('branch.update')")
+    public ResponseEntity<BranchResponse> restore(@Valid @PathVariable Long id) {
+        log.info("[PUT] /api/v1/branches/{}", id);
+        return ResponseEntity.ok(branchesService.restoreBranch(id));
     }
 }
