@@ -51,7 +51,6 @@ public class StockMutationService {
     private StockMutation getValidatedMutation(Long id, User currentUser) {
         StockMutation mutation = stockMutationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
-
         if (currentUser.getPartner() == null ||
                 !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");

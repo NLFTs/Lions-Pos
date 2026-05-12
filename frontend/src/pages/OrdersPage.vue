@@ -11,6 +11,7 @@ import Badge from '@/components/ui/badge/Badge.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 import { Loader2, X, Eye, ShoppingBag, CreditCard, Banknote, ArrowRightLeft } from 'lucide-vue-next'
+import api from '@/lib/api'
 
 const { can } = usePermission()
 const { toast } = useToast()
@@ -23,23 +24,18 @@ const page = ref(1)
 const pageSize = ref(10)
 const detailDrawer = ref({ show: false, order: null })
 
-const MOCK_ORDERS = [
-  { id: 'o1', orderNumber: 'ORD-20260501-0001', status: 'paid', subtotal: 280000, discountAmount: 28000, total: 252000, cashierName: 'Admin', branchName: 'Cabang Jakarta', voucherCode: 'DISC10', createdAt: '2026-05-01T10:30:00Z',
-    items: [{ productName: 'Kaos Polos Putih', unitPrice: 85000, qty: 2, subtotal: 170000 }, { productName: 'Celana Chino Beige', unitPrice: 195000, qty: 1, subtotal: 195000 }],
-    payment: { method: 'cash', amount: 252000, cashTendered: 300000, changeDue: 48000, status: 'verified' } },
-  { id: 'o2', orderNumber: 'ORD-20260502-0001', status: 'paid', subtotal: 450000, discountAmount: 0, total: 450000, cashierName: 'Admin', branchName: 'Cabang Jakarta', voucherCode: null, createdAt: '2026-05-02T14:15:00Z',
-    items: [{ productName: 'Sepatu Sneakers Hitam', unitPrice: 450000, qty: 1, subtotal: 450000 }],
-    payment: { method: 'transfer', amount: 450000, bankName: 'BCA', referenceNo: 'TRF-123456', status: 'verified' } },
-  { id: 'o3', orderNumber: 'ORD-20260503-0001', status: 'cancelled', subtotal: 135000, discountAmount: 0, total: 135000, cashierName: 'Admin', branchName: 'Cabang Bandung', voucherCode: null, createdAt: '2026-05-03T09:00:00Z',
-    items: [{ productName: 'Tas Selempang Canvas', unitPrice: 135000, qty: 1, subtotal: 135000 }],
-    payment: null },
-  { id: 'o4', orderNumber: 'ORD-20260504-0001', status: 'paid', subtotal: 530000, discountAmount: 53000, total: 477000, cashierName: 'Admin', branchName: 'Cabang Jakarta', voucherCode: 'HEMAT10', createdAt: '2026-05-04T16:45:00Z',
-    items: [{ productName: 'Jaket Bomber Olive', unitPrice: 320000, qty: 1, subtotal: 320000 }, { productName: 'Kemeja Flannel Kotak', unitPrice: 210000, qty: 1, subtotal: 210000 }],
-    payment: { method: 'cash', amount: 477000, cashTendered: 500000, changeDue: 23000, status: 'verified' } },
-  { id: 'o5', orderNumber: 'ORD-20260505-0001', status: 'draft', subtotal: 98000, discountAmount: 0, total: 98000, cashierName: 'Admin', branchName: 'Cabang Jakarta', voucherCode: null, createdAt: '2026-05-05T11:20:00Z',
-    items: [{ productName: 'Sabuk Kulit Coklat', unitPrice: 98000, qty: 1, subtotal: 98000 }],
-    payment: null },
-]
+async function fetchOrders() {
+  loading.value = true
+  try {
+    const res = await api.get('/api/v1/orders')
+    const data = res.data.data
+    orders.value = Array.isArray(data) ? data : (data.content || [])
+  } catch (err) {
+    toast.error('Gagal memuat data order')
+  } finally {
+    loading.value = false
+  }
+}
 
 const filteredOrders = computed(() => {
   let result = orders.value
@@ -55,11 +51,6 @@ const paginatedOrders = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredOrders.value.slice(start, start + pageSize.value)
 })
-
-function fetchOrders() {
-  loading.value = true
-  setTimeout(() => { orders.value = MOCK_ORDERS; loading.value = false }, 300)
-}
 
 function openDetail(order) { detailDrawer.value = { show: true, order } }
 function closeDetail() { detailDrawer.value.show = false }
@@ -109,12 +100,13 @@ onMounted(fetchOrders)
 
       <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         <CardContent class="p-0">
-          <div v-if="loading" class="flex items-center justify-center py-24">
+          <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-3">
             <Loader2 class="h-7 w-7 animate-spin text-primary/50" />
+            <p class="text-xs text-muted-foreground italic">Menghubungkan ke sistem...</p>
           </div>
           <div v-else-if="filteredOrders.length === 0" class="flex flex-col items-center justify-center py-24 text-muted-foreground">
             <ShoppingBag class="h-10 w-10 mb-3 opacity-20" />
-            <p class="text-sm">Belum ada data order.</p>
+            <p class="text-sm font-medium">Belum ada data order.</p>
           </div>
           <div v-else>
             <!-- Mobile -->
