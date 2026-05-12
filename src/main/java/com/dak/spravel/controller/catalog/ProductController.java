@@ -35,6 +35,13 @@ public class ProductController {
         return ResponseBuilder.ok(productService.create(request));
     }
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('product.index')")
+    public ResponseEntity<ResData<List<ProductResponse>>> getAllForAdmin() {
+        log.info("[GET] /api/v1/products/admin - Superadmin access");
+        return ResponseBuilder.ok(productService.findAllProduct());
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('product.index')")
     public ResponseEntity<ResData<List<ProductResponse>>> findAll() {

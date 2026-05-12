@@ -67,6 +67,20 @@ public class ProductService {
         return product;
     }
 
+    public List<ProductResponse> findAllProduct() {
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Product.");
+        }
+
+        List<Product> allProducts = productRepository.findAll();
+
+        return allProducts.stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     // --- MAIN METHODS ---
 
     @Transactional

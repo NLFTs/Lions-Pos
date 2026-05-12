@@ -1,8 +1,11 @@
 package com.dak.spravel.controller.catalog;
 
 import com.dak.spravel.dto.request.catalog.CategoryProductCreate;
+import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.catalogresponse.CategoryProductResponse;
 import com.dak.spravel.service.catalog.CategoryProductService;
+import com.dak.spravel.util.ResponseBuilder;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +35,9 @@ public class CategoryProductController {
 
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('category_product.index')")
-    public ResponseEntity<List<CategoryProductResponse>> getAllForAdmin() {
+    public ResponseEntity<ResData<List<CategoryProductResponse>>> getAllForAdmin() {
         log.info("[GET] /api/v1/category-products/all - Superadmin access");
-        return ResponseEntity.ok(categoryProductService.findAllCategoryProduct());
+        return ResponseBuilder.ok(categoryProductService.findAllCategoryProduct());
     }
 
     @GetMapping
