@@ -76,7 +76,7 @@ public class CategoryController {
      * Create a new category.
      */
     @PostMapping
-@PreAuthorize("hasAuthority('category.store')")
+    @PreAuthorize("hasAuthority('category.store')")
     public ResponseEntity<ResData<CategoryResponse>> store(
             @Valid @RequestBody CreateCategoryRequest request) {
         log.info("[POST] /api/v1/categories name={}", request.getName());

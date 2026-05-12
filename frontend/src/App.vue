@@ -3,6 +3,6 @@ import NotificationProvider from '@/components/ui/NotificationProvider.vue'
 </script>
 
 <template>
-  <RouterView />
+  <RouterView :key="$route.fullPath" />
   <NotificationProvider />
 </template>

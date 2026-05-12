@@ -37,14 +37,14 @@ public class ProductService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-        
+
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
         // VALIDASI: Super Admin / Admin DILARANG MASUK
         boolean isAdmin = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-        
+
         if (isAdmin) {
             throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
         }
@@ -83,7 +83,7 @@ public class ProductService {
         Product product = new Product();
         product.setPartner(partner);
         product.setCategory(category);
-        
+
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new RuntimeException("Nama Produk harus diisi.");
         }
@@ -117,7 +117,7 @@ public class ProductService {
 
     public ProductResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        Partners partner = currentUser.getPartner(); 
+        Partners partner = currentUser.getPartner();
         Product product = getValidatedProduct(id, partner);
         return mapToResponse(product);
     }
@@ -135,9 +135,11 @@ public class ProductService {
             product.setCategory(category);
         }
 
-        if (request.getName() != null) product.setName(request.getName());
-        if (request.getBasePrice() != null) product.setBasePrice(request.getBasePrice());
-        
+        if (request.getName() != null)
+            product.setName(request.getName());
+        if (request.getBasePrice() != null)
+            product.setBasePrice(request.getBasePrice());
+
         if (request.getSku() != null && !product.getSku().equals(request.getSku().trim().toUpperCase())) {
             String newSku = request.getSku().trim().toUpperCase();
             if (productRepository.existsBySkuAndPartner(newSku, partner)) {
@@ -153,13 +155,12 @@ public class ProductService {
         return mapToResponse(productRepository.save(product));
     }
 
-    
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
         User currentUser = getAuthenticatedUser();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(false);
-        
+
         product.setUpdatedBy(currentUser);
         AuditHelper.setUpdated(product);
         return mapToResponse(productRepository.save(product));
@@ -170,11 +171,11 @@ public class ProductService {
         User currentUser = getAuthenticatedUser();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(true);
-         
+
         product.setUpdatedBy(currentUser);
         AuditHelper.setUpdated(product);
         return mapToResponse(productRepository.save(product));
-    
+
     }
 
     @Transactional
@@ -196,23 +197,23 @@ public class ProductService {
 
         product.setUpdatedBy(currentUser);
         AuditHelper.setUpdated(product);
-        return mapToResponse    (productRepository.save(product));
+        return mapToResponse(productRepository.save(product));
     }
+
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         productRepository.delete(product);
     }
-    
+
     // --- PRIVATE UTILS ---
-    
+
     private String generateUniqueSku(String name, Partners partner) {
         String newSku;
         String cleanName = name.replaceAll("[^a-zA-Z]", "").toUpperCase();
-        String prefix = cleanName.length() >= 3 ? 
-                "" + cleanName.charAt(0) + cleanName.charAt(cleanName.length() / 2) + cleanName.charAt(cleanName.length() - 1) : 
-                (cleanName + "XXX").substring(0, 3);
+        String prefix = cleanName.length() >= 3 ? "" + cleanName.charAt(0) + cleanName.charAt(cleanName.length() / 2)
+                + cleanName.charAt(cleanName.length() - 1) : (cleanName + "XXX").substring(0, 3);
 
         do {
             int randomDigits = (int) (Math.random() * 900) + 100;
@@ -223,7 +224,8 @@ public class ProductService {
     }
 
     private ProductResponse mapToResponse(Product product) {
-        if (product == null) return null;
+        if (product == null)
+            return null;
 
         ProductResponse resp = new ProductResponse();
         resp.setId(product.getId());
@@ -258,13 +260,14 @@ public class ProductService {
         resp.setUpdatedAt(product.getUpdatedAt());
         resp.setDeletedAt(product.getDeletedAt());
 
-
         return resp;
     }
+
     private UserSimpleDto mapUserToDto(User user) {
-        if (user == null) return null;
+        if (user == null)
+            return null;
         UserSimpleDto dto = new UserSimpleDto();
-        dto.setId(user. getId());
+        dto.setId(user.getId());
         dto.setUsername(user.getUsername());
         return dto;
     }

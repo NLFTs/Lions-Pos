@@ -54,7 +54,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip refresh logic for login/refresh/logout to avoid loops
+    const isAuthPath = originalRequest.url.includes('/auth/login') || 
+                       originalRequest.url.includes('/auth/refresh') || 
+                       originalRequest.url.includes('/auth/logout')
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthPath) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
@@ -76,21 +81,28 @@ api.interceptors.response.use(
       }
 
       try {
-        const res = await axios.post(`/api/v1/auth/refresh?refreshToken=${refreshToken}`)
+        // Use global axios to avoid interceptors loop, ensure /api/v1 prefix
+        const refreshUrl = originalRequest.url.startsWith('/api/v1') 
+          ? '/api/v1/auth/refresh' 
+          : '/auth/refresh'
+        
+        const res = await axios.post(`${refreshUrl}?refreshToken=${refreshToken}`)
         const newAccessToken = res.data.data.accessToken
 
-        // ── Sync new token to localStorage + store ──
+        // Sync new token to localStorage + store
         localStorage.setItem('access_token', newAccessToken)
-        api.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`
-
-        // Decode permissions from new JWT and update store — no extra API call
+        
         const auth = useAuthStore()
         auth.accessToken = newAccessToken
+        
+        // Decode permissions from new JWT
         const newPerms = parseJwtPerms(newAccessToken)
         auth.permissions = newPerms
         localStorage.setItem('auth_permissions', JSON.stringify(newPerms))
 
         processQueue(null, newAccessToken)
+        
+        // Update current request
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
         return api(originalRequest)
       } catch (err) {
@@ -100,6 +112,11 @@ api.interceptors.response.use(
       } finally {
         isRefreshing = false
       }
+    }
+
+    if (!error.response) {
+      console.warn('[API] Network Error / Backend unreachable. Entering offline shell mode.')
+      return Promise.reject({ ...error, isNetworkError: true })
     }
 
     return Promise.reject(error)

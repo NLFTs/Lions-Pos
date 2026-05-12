@@ -120,20 +120,6 @@ const emptyForm = () => ({
 
 const form = ref(emptyForm())
 
-// ─── Mock Data (fallback dev) ─────────────────────────────────────────────────
-const MOCK_PRODUCTS = [
-  { id: '1', name: 'Kaos Polos Putih', sku: 'KPP-001', price: 85000, categoryName: 'Pakaian', trackStock: true, isActive: true, createdAt: '2024-11-01T08:00:00Z', imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=150&q=80' },
-  { id: '2', name: 'Celana Chino Beige', sku: 'CCB-002', price: 195000, categoryName: 'Pakaian', trackStock: true, isActive: true, createdAt: '2024-11-03T09:00:00Z', imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=150&q=80' },
-  { id: '3', name: 'Sepatu Sneakers Hitam', sku: 'SSH-003', price: 450000, categoryName: 'Alas Kaki', trackStock: true, isActive: true, createdAt: '2024-11-05T10:00:00Z', imageUrl: null },
-  { id: '4', name: 'Topi Baseball Biru Navy', sku: 'TBB-004', price: 75000, categoryName: 'Aksesori', trackStock: true, isActive: false, createdAt: '2024-11-07T11:00:00Z', imageUrl: null },
-  { id: '5', name: 'Jaket Bomber Olive', sku: 'JBO-005', price: 320000, categoryName: 'Pakaian', trackStock: false, isActive: true, createdAt: '2024-11-09T12:00:00Z', imageUrl: null },
-  { id: '6', name: 'Tas Selempang Canvas', sku: 'TSC-006', price: 135000, categoryName: 'Tas', trackStock: true, isActive: true, createdAt: '2024-11-11T13:00:00Z', imageUrl: null },
-  { id: '7', name: 'Kemeja Flannel Kotak', sku: 'KFK-007', price: 210000, categoryName: 'Pakaian', trackStock: true, isActive: true, createdAt: '2024-11-13T14:00:00Z', imageUrl: null },
-  { id: '8', name: 'Kaos Kaki Sport (3 pcs)', sku: null, price: 45000, categoryName: null, trackStock: true, isActive: true, createdAt: '2024-11-15T15:00:00Z', imageUrl: null },
-  { id: '9', name: 'Sabuk Kulit Coklat', sku: 'SKC-009', price: 98000, categoryName: 'Aksesori', trackStock: false, isActive: true, createdAt: '2024-11-17T16:00:00Z', imageUrl: null },
-  { id: '10', name: 'Dompet Kulit Minimalis', sku: 'DKM-010', price: 165000, categoryName: 'Aksesori', trackStock: true, isActive: false, createdAt: '2024-11-19T17:00:00Z', imageUrl: null },
-]
-
 // ─── Fetch products ───────────────────────────────────────────────────────────
 async function fetchProducts(page = 0) {
   loading.value = true
@@ -141,29 +127,26 @@ async function fetchProducts(page = 0) {
   try {
     const res = await api.get(`/api/v1/products?page=${page}&size=${pagination.value.size}`)
     const data = res.data.data
-    products.value = data.content
-    pagination.value = {
-      ...pagination.value,
-      page: data.number,
-      totalPages: data.totalPages,
-      totalElements: data.totalElements,
-    }
-  } catch (err) {
-    // Fallback ke mock data di development
-    if (import.meta.env.DEV) {
-      const size = pagination.value.size
-      const start = page * size
-      const paged = MOCK_PRODUCTS.slice(start, start + size)
-      products.value = paged
+    // Backend returns a List if not using Pageable properly in some versions, 
+    // but the controller signature shows ResData<List<ProductResponse>>.
+    // However, the frontend code was expecting data.content.
+    // Let's adapt based on what we saw in ProductController.java (it returns a List).
+    
+    if (Array.isArray(data)) {
+      products.value = data
+      pagination.value.totalElements = data.length
+      pagination.value.totalPages = 1
+    } else {
+      products.value = data.content || []
       pagination.value = {
         ...pagination.value,
-        page,
-        totalPages: Math.ceil(MOCK_PRODUCTS.length / size),
-        totalElements: MOCK_PRODUCTS.length,
+        page: data.number || 0,
+        totalPages: data.totalPages || 0,
+        totalElements: data.totalElements || 0,
       }
-    } else {
-      error.value = err.response?.data?.message || 'Gagal memuat data produk.'
     }
+  } catch (err) {
+    error.value = err.response?.data?.message || 'Gagal memuat data produk.'
   } finally {
     loading.value = false
   }
