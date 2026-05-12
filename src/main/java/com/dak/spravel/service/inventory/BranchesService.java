@@ -1,6 +1,6 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
+import com.dak.spravel.dto.request.partner.BranchRequest;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -97,10 +98,10 @@ public class BranchesService {
 
     // CREATE
     @Transactional
-    public BranchResponse create(BranchesRequestDTO request) {
+    public BranchResponse create(BranchRequest request) {
 
         User currentUser = getAuthenticatedUser();
-        
+
         validatePartnerAccess(currentUser);
 
         Partners partner = currentUser.getPartner();
@@ -109,17 +110,18 @@ public class BranchesService {
         branch.setPartners(partner);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
+        branch.setCreatedAt(LocalDateTime.now());
         
         // Tambahkan Auditing
         branch.setCreatedBy(currentUser);
         // AuditHelper.setCreated(branch); // Jika lu mau pake helper
-
-        return mapToResponse(branchesRepository.save(branch));
+        branch = branchesRepository.save(branch);
+        return mapToResponse(branch);
     }
 
     // UPDATE
     @Transactional
-    public BranchResponse update(Long id, BranchesRequestDTO request) {
+    public BranchResponse update(Long id, BranchRequest request) {
         User currentUser = getAuthenticatedUser();
         Branches branch = getValidatedBranch(id, currentUser);
 

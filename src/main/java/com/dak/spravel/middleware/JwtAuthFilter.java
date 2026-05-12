@@ -71,7 +71,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         
         List<String> rawAuthorities = new java.util.ArrayList<>(permissionCacheService.getPermissions(username));
         
-        log.info("[DEBUG] Raw Authorities dari Cache untuk {}: {}", username, rawAuthorities);
+        // log.info("[DEBUG] Raw Authorities dari Cache untuk {}: {}", username, rawAuthorities);
 
         // 2. Map ke SimpleGrantedAuthority
         // Kita tambahin logic: kalau authority-nya 'admin', kita daftarin dua kali (pake ROLE_ dan nggak) biar aman
@@ -94,7 +94,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(auth);
         
-        log.info("[DEBUG] Final Authorities di SecurityContext: {}", authorities);
+        // log.info("[DEBUG] Final Authorities di SecurityContext: {}", authorities);
         
 
         // // Resolve permissions from Caffeine cache (falls back to DB on cache miss)
