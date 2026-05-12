@@ -261,9 +261,7 @@ export const setupRouterGuards = (router) => {
     }
 
     if (to.meta.permission) {
-      const userRoles = auth.user?.roles || []
-      const isAdmin = userRoles.includes('ADMIN') || userRoles.some(r => r.name === 'ADMIN')
-      if (!isAdmin && !auth.permissions.includes(to.meta.permission)) {
+      if (!auth.isAdmin && !auth.permissions.includes(to.meta.permission)) {
         return { name: 'dashboard' }
       }
     }

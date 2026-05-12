@@ -113,42 +113,7 @@ async function fetchVouchers() {
     const res = await api.get('/api/v1/vouchers')
     vouchers.value = res.data.data
   } catch (err) {
-    if (import.meta.env.DEV) {
-      vouchers.value = [
-        { 
-          id: '1', 
-          partner_id: '1', 
-          code: 'DISCOUNT10', 
-          name: 'Promo Merdeka', 
-          discount_type: 'percent', 
-          discount_value: 10, 
-          min_purchase: 50000, 
-          max_discount: 10000, 
-          quota: 100, 
-          used_count: 5, 
-          valid_from: '2026-05-01', 
-          valid_until: '2026-05-31', 
-          is_active: true 
-        },
-        { 
-          id: '2', 
-          partner_id: '2', 
-          code: 'FIXED50K', 
-          name: 'Voucher Belanja', 
-          discount_type: 'fixed', 
-          discount_value: 50000, 
-          min_purchase: 200000, 
-          max_discount: null, 
-          quota: 50, 
-          used_count: 50, 
-          valid_from: '2026-04-01', 
-          valid_until: '2026-04-30', 
-          is_active: false 
-        },
-      ]
-    } else {
-      error.value = 'Gagal memuat data voucer.'
-    }
+    error.value = 'Gagal memuat data voucer.'
   } finally {
     loading.value = false
   }
@@ -158,14 +123,7 @@ async function fetchPartners() {
   try {
     const res = await api.get('/api/v1/partners')
     partners.value = res.data.data
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      partners.value = [
-        { id: '1', name: 'Supplier Utama' },
-        { id: '2', name: 'Customer Retail' },
-      ]
-    }
-  }
+  } catch (err) {}
 }
 
 function openCreate() {
