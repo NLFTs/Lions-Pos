@@ -1,6 +1,5 @@
 package com.dak.spravel.controller.common;
 
-import org.springframework.data.repository.query.parser.Part;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -11,7 +10,6 @@ import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
 import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.common.PartnerResponse;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
 import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
