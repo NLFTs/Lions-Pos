@@ -10,13 +10,15 @@ import { useAuthStore } from '@/stores/auth'
  *   v-if="can('post.update')"
  */
 export function usePermission() {
-  const { permissions } = storeToRefs(useAuthStore())
+  const auth = useAuthStore()
+  const { permissions, isAdmin } = storeToRefs(auth)
 
   /**
    * Check if the user has a single permission slug.
    * @param {string} slug  e.g. 'post.index'
    */
   function can(slug) {
+    if (isAdmin.value) return true
     return permissions.value.includes(slug)
   }
 
@@ -25,6 +27,7 @@ export function usePermission() {
    * @param {...string} slugs
    */
   function canAny(...slugs) {
+    if (isAdmin.value) return true
     return slugs.some((slug) => permissions.value.includes(slug))
   }
 
@@ -33,6 +36,7 @@ export function usePermission() {
    * @param {...string} slugs
    */
   function canAll(...slugs) {
+    if (isAdmin.value) return true
     return slugs.every((slug) => permissions.value.includes(slug))
   }
 

@@ -52,6 +52,15 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const isAuthenticated = computed(() => !!accessToken.value)
+  const isAdmin = computed(() => {
+    const userRoles = user.value?.roles || []
+    return userRoles.some(r => {
+      const name = typeof r === 'string' ? r : (r.name || r.slug || '')
+      const upperName = name.toUpperCase()
+      return upperName === 'ADMIN' || upperName === 'SUPER_ADMIN' || 
+             upperName === 'ROLE_ADMIN' || upperName === 'ROLE_SUPER_ADMIN'
+    })
+  })
 
   // ─── fetchMe ───────────────────────────────────────────────────────────────
   async function fetchMe() {
@@ -107,5 +116,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { accessToken, refreshToken, user, permissions, isAuthenticated, login, logout, fetchMe }
+  return { accessToken, refreshToken, user, permissions, isAuthenticated, isAdmin, login, logout, fetchMe }
 })

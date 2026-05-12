@@ -143,8 +143,7 @@ const MENU_GROUPS = [
 
 // Filter menu by permission
 function filterMenu(groups) {
-  const userRoles = user.value?.roles || []
-  const isAdmin = userRoles.includes('ADMIN') || userRoles.some(r => r.name === 'ADMIN')
+  const isAdmin = auth.isAdmin
 
   return groups.reduce((acc, group) => {
     const filteredItems = group.items.reduce((items, item) => {
