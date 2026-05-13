@@ -46,55 +46,51 @@ public class PurchaseReceiptService {
     // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
     // =========================
-    // SUPER ADMIN / ADMIN
+    // KHUSUS SUPER ADMIN
     // =========================
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("super_admin")
-                                || role.getSlug().equals("admin"));
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
     }
 
     // =========================
-    // ADMIN PARTNER / EMPLOYEE
+    // KHUSUS ADMIN PARTNER / EMPLOYEE
     // =========================
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("employee")
-                                || role.getSlug().equals("admin-partners"));
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
     // =========================
     // VALIDASI PURCHASE ORDER
     // =========================
     private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
-
-        // VALIDASI 1: Admin tidak boleh akses
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Purchase Receipt.");
-        }
-
         PurchaseOrder po = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
 
-        // VALIDASI 2: Cross-Partner Check
         if (currentUser.getPartner() == null
                 || po.getPartner() == null
                 || !po.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Purchase Order bukan milik partner Anda.");
+            throw new RuntimeException("Akses Ditolak: Purchase Order bukan milik partner Anda.");
         }
 
         return po;
@@ -104,24 +100,15 @@ public class PurchaseReceiptService {
     // VALIDASI PURCHASE RECEIPT
     // =========================
     private PurchaseReceipt getValidatedPurchaseReceipt(Long id, User currentUser) {
-
-        // VALIDASI 1: Admin tidak boleh akses
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Purchase Receipt.");
-        }
-
         PurchaseReceipt receipt = purchaseReceiptRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseReceipt", id));
 
-        // VALIDASI 2: Cross-Partner Check
         if (currentUser.getPartner() == null
                 || receipt.getPurchaseOrder() == null
                 || receipt.getPurchaseOrder().getPartner() == null
                 || !receipt.getPurchaseOrder().getPartner().getId()
                 .equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Purchase Receipt bukan milik partner Anda.");
+            throw new RuntimeException("Akses Ditolak: Purchase Receipt bukan milik partner Anda.");
         }
 
         return receipt;
@@ -131,30 +118,16 @@ public class PurchaseReceiptService {
     // KHUSUS SUPER ADMIN
     // =========================
     public List<PurchaseReceipt> findAllPurchaseReceipt() {
-        User currentUser = getAuthenticatedUser();
-
-        // Hanya admin yang boleh akses endpoint ini
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee dan Admin Partner tidak diperbolehkan melihat semua Purchase Receipt.");
-        }
-
+        getAuthenticatedSuperAdmin();
         return purchaseReceiptRepository.findAll();
     }
 
     // =========================
-    // KHUSUS PARTNER
+    // KHUSUS PARTNER / EMPLOYEE
     // =========================
     public List<PurchaseReceipt> findAll() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        // Admin tidak boleh akses endpoint ini
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Purchase Receipt.");
-        }
-
-        // Filter hanya receipt milik partner user yang login
         return purchaseReceiptRepository.findAll()
                 .stream()
                 .filter(receipt ->
@@ -169,21 +142,13 @@ public class PurchaseReceiptService {
     // PAGINATION KHUSUS PARTNER
     // =========================
     public Page<PurchaseReceipt> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        // Admin tidak boleh akses endpoint ini
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Purchase Receipt.");
-        }
-
-        // Partner tidak boleh null
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
 
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("receivedDate").descending());
-
         return purchaseReceiptRepository
                 .findAllByPurchaseOrderPartnerId(currentUser.getPartner().getId(), pageRequest);
     }
@@ -192,11 +157,8 @@ public class PurchaseReceiptService {
     // GET BY ORDER ID
     // =========================
     public List<PurchaseReceipt> findByOrderId(Long purchaseOrderId) {
-        User currentUser = getAuthenticatedUser();
-
-        // Validasi PO sekaligus cek cross-partner
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         getValidatedPurchaseOrder(purchaseOrderId, currentUser);
-
         return purchaseReceiptRepository.findByPurchaseOrderId(purchaseOrderId);
     }
 
@@ -204,8 +166,7 @@ public class PurchaseReceiptService {
     // GET BY ID
     // =========================
     public PurchaseReceipt findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return getValidatedPurchaseReceipt(id, currentUser);
     }
 
@@ -213,11 +174,8 @@ public class PurchaseReceiptService {
     // GET ITEMS
     // =========================
     public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
-        User currentUser = getAuthenticatedUser();
-
-        // Validasi receipt sekaligus cek cross-partner
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         getValidatedPurchaseReceipt(receiptId, currentUser);
-
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
 
@@ -226,20 +184,12 @@ public class PurchaseReceiptService {
     // =========================
     @Transactional
     public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        // VALIDASI 1: Admin tidak boleh create
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan membuat Purchase Receipt.");
-        }
-
-        // VALIDASI 2: User harus punya partner
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
 
-        // VALIDASI 3: PO harus milik partner yang sama
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
 
         PurchaseReceipt receipt = new PurchaseReceipt();
@@ -259,7 +209,6 @@ public class PurchaseReceiptService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "PurchaseOrderItem", itemDTO.getPurchaseOrderItemId()));
 
-            // VALIDASI 4: PO Item harus milik PO yang sama
             if (!poItem.getPurchaseOrder().getId().equals(po.getId())) {
                 throw new RuntimeException(
                         "Akses Ditolak: PurchaseOrderItem bukan bagian dari Purchase Order ini.");
@@ -269,11 +218,9 @@ public class PurchaseReceiptService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Product", itemDTO.getProductId()));
 
-            // VALIDASI 5: Product harus milik partner yang sama
             if (product.getPartner() == null
                     || !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Product bukan milik partner Anda.");
+                throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
             }
 
             PurchaseReceiptItem item = new PurchaseReceiptItem();

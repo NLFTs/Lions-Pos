@@ -34,55 +34,51 @@ public class OrdersService {
     // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
     // =========================
-    // SUPER ADMIN / ADMIN
+    // KHUSUS SUPER ADMIN
     // =========================
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("super_admin")
-                                || role.getSlug().equals("admin"));
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
     }
 
     // =========================
-    // ADMIN PARTNER / EMPLOYEE
+    // KHUSUS ADMIN PARTNER / EMPLOYEE
     // =========================
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("employee")
-                                || role.getSlug().equals("admin-partners"));
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
     // =========================
     // VALIDASI ORDER (cross-partner)
     // =========================
     private Orders getValidatedOrder(Long id, User currentUser) {
-
-        // VALIDASI 1: Admin tidak boleh akses
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Orders.");
-        }
-
         Orders order = ordersRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        // VALIDASI 2: Cross-Partner Check
         if (currentUser.getPartner() == null
                 || order.getPartner() == null
                 || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Order bukan milik partner Anda.");
+            throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
         }
 
         return order;
@@ -92,13 +88,7 @@ public class OrdersService {
     // KHUSUS SUPER ADMIN
     // =========================
     public List<Orders> findAllOrders() {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee dan Admin Partner tidak diperbolehkan melihat semua Orders.");
-        }
-
+        getAuthenticatedSuperAdmin();
         return ordersRepository.findAll();
     }
 
@@ -106,12 +96,7 @@ public class OrdersService {
     // KHUSUS PARTNER / EMPLOYEE
     // =========================
     public List<Orders> findAll() {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan mengelola Orders.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         return ordersRepository.findAll()
                 .stream()
@@ -126,8 +111,7 @@ public class OrdersService {
     // GET BY ID
     // =========================
     public Orders findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return getValidatedOrder(id, currentUser);
     }
 
@@ -135,30 +119,19 @@ public class OrdersService {
     // CREATE
     // =========================
     public Orders create(OrdersRequest request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        // VALIDASI 1: Admin tidak boleh create
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan membuat Orders.");
-        }
-
-        // VALIDASI 2: User harus punya partner
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
-        // Gunakan partner dari user login, bukan dari request
         Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
 
         Branches branch = branchesRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new RuntimeException("Branch not found"));
 
-        // VALIDASI 3: Branch harus milik partner yang sama
         if (branch.getPartners() == null
                 || !branch.getPartners().getId().equals(partner.getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Branch bukan milik partner Anda.");
+            throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
         }
 
         User customer = userRepository.findById(request.getCashierId())
@@ -169,16 +142,14 @@ public class OrdersService {
             voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new RuntimeException("Voucher not found"));
 
-            // VALIDASI 4: Voucher harus milik partner yang sama
             if (voucher.getPartner() == null
                     || !voucher.getPartner().getId().equals(partner.getId())) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Voucher bukan milik partner Anda.");
+                throw new RuntimeException("Akses Ditolak: Voucher bukan milik partner Anda.");
             }
         }
 
         Orders order = new Orders();
-        order.setPartner(partner); // pakai partner dari user login
+        order.setPartner(partner);
         order.setBranch(branch);
         order.setCustomer(customer);
         order.setOrderNumber(request.getOrderNumber());
@@ -196,13 +167,7 @@ public class OrdersService {
     // DELETE
     // =========================
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Admin tidak diperbolehkan menghapus Orders.");
-        }
-
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Orders order = getValidatedOrder(id, currentUser);
         ordersRepository.delete(order);
     }
