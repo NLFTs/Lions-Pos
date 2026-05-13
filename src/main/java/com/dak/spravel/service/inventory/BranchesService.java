@@ -30,46 +30,55 @@ public class BranchesService {
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
 
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
 
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
+
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) {
+            throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        }
 
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("super_admin") ||
-                                role.getSlug().equals("admin"));
-    }
 
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("employee") ||
-                                role.getSlug().equals("admin-partners"));
-    }
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
 
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("admin-partners") ||
+                                role.getSlug().equalsIgnoreCase("employee")
+                );
+
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+
+        return user;
+    }
 
     private Branches getValidatedBranch(Long id, User currentUser) {
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
 
         Branches branch = branchesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
 
-        if (currentUser.getPartner() == null ||
-                !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
-
+        if (currentUser.getPartner() == null || branch.getPartners() == null || !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch partner lain.");
         }
 
@@ -78,11 +87,7 @@ public class BranchesService {
 
     public List<BranchResponse> findAllBranches() {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua branch.");
-        }
+        getAuthenticatedSuperAdmin();
 
         List<Branches> branches = branchesRepository.findAll();
 
@@ -93,11 +98,7 @@ public class BranchesService {
 
     public List<BranchResponse> findAll() {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         return branchesRepository.findByPartners(currentUser.getPartner())
                 .stream()
@@ -105,40 +106,37 @@ public class BranchesService {
                 .toList();
     }
 
+
     public Page<BranchResponse> findAll(int page, int size) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         PageRequest pageRequest =
                 PageRequest.of(page, size, Sort.by("name").ascending());
 
-        return branchesRepository.findByPartners(currentUser.getPartner(), pageRequest).map(this::mapToResponse);
+        return branchesRepository
+                .findByPartnersId(currentUser.getPartner().getId(), pageRequest)
+                .map(this::mapToResponse);
     }
+
 
     public BranchResponse findById(Long id) {
 
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         return mapToResponse(getValidatedBranch(id, currentUser));
     }
 
+
     @Transactional
     public BranchResponse create(BranchRequest request) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Partners partner = currentUser.getPartner();
 
         if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan partner manapun.");
+            throw new RuntimeException("User tidak terasosiasi dengan partner manapun.");
         }
 
         Branches branch = new Branches();
@@ -152,14 +150,11 @@ public class BranchesService {
         return mapToResponse(branchesRepository.save(branch));
     }
 
+
     @Transactional
     public BranchResponse update(Long id, BranchRequest request) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -175,11 +170,7 @@ public class BranchesService {
     @Transactional
     public BranchResponse softDelete(Long id) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -194,11 +185,7 @@ public class BranchesService {
     @Transactional
     public BranchResponse restore(Long id) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -213,11 +200,7 @@ public class BranchesService {
     @Transactional
     public void delete(Long id) {
 
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Branches branch = getValidatedBranch(id, currentUser);
 
