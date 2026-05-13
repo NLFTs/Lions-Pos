@@ -1,9 +1,6 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
-import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
@@ -14,7 +11,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -26,17 +25,13 @@ public class WarehousesService {
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
-            throw new RuntimeException("User tidak terautentikasi");
-        }
-
         User user = userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
+        // PERINTAH 3: Admin & Super Admin dilarang CRUD data partner
         if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Warehouse.");
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola data Warehouse.");
         }
-
         return user;
     }
 
@@ -45,70 +40,56 @@ public class WarehousesService {
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
-    private Warehouses getValidatedWarehouse(Long id, User currentUser) {
-        Warehouses warehouse = warehousesRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse", id));
+    // --- PERINTAH 1 & 2: ADMIN GLOBAL ---
 
-        if (currentUser.getPartner() == null ||
-                !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses warehouse dari partner lain.");
+    public List<Warehouses> findAllAdmin() {
+        return warehousesRepository.findAll(Sort.by("id").descending());
+    }
+
+    public Page<Warehouses> findPageAdmin(int page, int size) {
+        return warehousesRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
+    }
+
+    // --- FUNGSI UNTUK PARTNER ---
+
+    public List<Warehouses> findAllByPartner() {
+        User currentUser = getAuthenticatedUser();
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+    }
+
+    @Transactional
+    public Warehouses create(Warehouses warehouse) {
+        User currentUser = getAuthenticatedUser();
+
+        if (warehousesRepository.existsByNameAndPartnersIdAndDeletedAtIsNull(warehouse.getName(), currentUser.getPartner().getId())) {
+            throw new IllegalArgumentException("Nama warehouse sudah digunakan di partner Anda.");
         }
 
-        return warehouse;
-    }
-
-    // GET ALL
-    public List<Warehouses> findAll() {
-        User currentUser = getAuthenticatedUser();
-        return warehousesRepository.findByPartnersId(currentUser.getPartner().getId());
-    }
-
-    // GET ALL PAGINATED
-    public Page<Warehouses> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        return warehousesRepository.findAll(PageRequest.of(page, size, Sort.by("name").ascending()));
-    }
-
-    // GET BY ID
-    public Warehouses findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-        return getValidatedWarehouse(id, currentUser);
-    }
-
-    // CREATE
-    public Warehouses create(WarehousesRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-
-        Partners partner = currentUser.getPartner();
-        if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
-        Warehouses warehouse = new Warehouses();
-        warehouse.setPartners(partner);
-        warehouse.setName(request.getName());
-        warehouse.setAddress(request.getAddress());
-        warehouse.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        warehouse.setPartners(currentUser.getPartner());
+        warehouse.setCreatedAt(LocalDateTime.now());
+        warehouse.setCreatedBy(currentUser);
 
         return warehousesRepository.save(warehouse);
     }
 
-    // UPDATE
-    public Warehouses update(Long id, WarehousesRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-        Warehouses warehouse = getValidatedWarehouse(id, currentUser);
-
-        warehouse.setName(request.getName());
-        warehouse.setAddress(request.getAddress());
-        if (request.getIsActive() != null) warehouse.setIsActive(request.getIsActive());
-
-        return warehousesRepository.save(warehouse);
-    }
-
-    // DELETE
+    @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        Warehouses warehouse = getValidatedWarehouse(id, currentUser);
-        warehousesRepository.delete(warehouse);
+        Warehouses warehouse = warehousesRepository.findById(id)
+                .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan atau milik partner lain."));
+
+        warehouse.setDeletedAt(LocalDateTime.now());
+        warehouse.setDeletedBy(currentUser);
+        warehousesRepository.save(warehouse);
+    }
+    // Fungsi Pagination untuk Partner
+    public Page<Warehouses> findPageByPartner(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        // panggil method repository findByPartnersIdAndDeletedAtIsNull
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(
+                currentUser.getPartner().getId(),
+                PageRequest.of(page, size, Sort.by("id").descending())
+        );
     }
 }
