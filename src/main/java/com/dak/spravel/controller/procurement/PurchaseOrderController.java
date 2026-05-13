@@ -11,15 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -31,6 +23,15 @@ public class PurchaseOrderController {
 
     private final PurchaseOrderService purchaseOrderService;
 
+    // SUPER ADMIN ONLY
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('purchase_order.index')")
+    public ResponseEntity<List<PurchaseOrder>> getAllForAdmin() {
+        log.info("[GET] /api/v1/purchase-orders/admin");
+        return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
+    }
+
+    // PARTNER / EMPLOYEE ONLY
     @GetMapping
     @PreAuthorize("hasAuthority('purchase_order.index')")
     public ResponseEntity<List<PurchaseOrder>> index() {
@@ -38,6 +39,7 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(purchaseOrderService.findAll());
     }
 
+    // PAGINATION PARTNER / EMPLOYEE ONLY
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('purchase_order.index')")
     public ResponseEntity<Page<PurchaseOrder>> paginated(
@@ -64,7 +66,7 @@ public class PurchaseOrderController {
     @PostMapping
     @PreAuthorize("hasAuthority('purchase_order.store')")
     public ResponseEntity<PurchaseOrder> store(@Valid @RequestBody PurchaseOrderRequestDTO request) {
-        log.info("[POST] /api/v1/purchase-orders partnerId={}", request.getPartnerId());
+        log.info("[POST] /api/v1/purchase-orders");
         return ResponseEntity.status(HttpStatus.CREATED).body(purchaseOrderService.create(request));
     }
 
