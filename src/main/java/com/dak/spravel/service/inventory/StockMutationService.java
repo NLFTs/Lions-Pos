@@ -1,6 +1,7 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockMutationRequestDTO;
+import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -18,6 +19,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -36,16 +39,18 @@ public class StockMutationService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Stock Mutation.");
-        }
-
         return user;
     }
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    private boolean isAdminPartnerAndEmployee(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
 
     private StockMutation getValidatedMutation(Long id, User currentUser) {
@@ -57,6 +62,40 @@ public class StockMutationService {
         }
 
         return mutation;
+    }
+
+    // Map To Response
+    public StockMutationResponse mapToResponse(StockMutation stockMutation) {
+    if (stockMutation == null) return null;
+
+    StockMutationResponse response = new StockMutationResponse();
+
+    response.setId(stockMutation.getId());
+    response.setQty(stockMutation.getQty());
+    response.setType(stockMutation.getType());
+    response.setNotes(stockMutation.getNotes());
+    response.setReferenceId(stockMutation.getReferenceId());
+    response.setReferenceType(stockMutation.getReferenceType());
+    response.setFromLocationId(stockMutation.getFromLocationId());
+    response.setFromLocationType(stockMutation.getFromLocationType());
+    response.setToLocationId(stockMutation.getToLocationId());
+    response.setToLocationType(stockMutation.getToLocationType());
+
+    return response;
+}
+
+
+    public List<StockMutationResponse> findAllStockMutation(){
+        User  currentUser  = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak Admin, Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockMutation");
+        }
+        List <StockMutation> allStockMutations = stockMutationRepository.findAll();
+
+        return allStockMutations.stream()
+        .map(this::mapToResponse)
+        .collect(Collectors.toList());
     }
 
     // GET ALL
