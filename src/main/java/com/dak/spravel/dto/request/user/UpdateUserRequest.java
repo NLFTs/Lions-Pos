@@ -16,6 +16,8 @@ public class UpdateUserRequest {
     @Size(max = 100, message = "Full name must not exceed 100 characters")
     private String fullname;
 
+    private String email;
+
     private String password;
 
     private List<Long> roleIds;
