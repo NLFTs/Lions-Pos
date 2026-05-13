@@ -32,7 +32,6 @@ public class PartnerService {
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
@@ -41,16 +40,45 @@ public class PartnerService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("super_admin") ||
-                                role.getSlug().equals("admin")
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("admin-partners") ||
+                                role.getSlug().equalsIgnoreCase("employee")
                 );
+
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan."
+            );
+        }
+
+        return user;
+    }
+
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("admin") ||
+                role.getSlug().equals("admin")
+        );
     }
 
     private boolean isAdminPartnerAndEmployee(User user) {
         return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("employee") ||
-                                role.getSlug().equals("admin-partners")
-                );
+                role.getSlug().equals("admin-partners")
+        );
     }
 
     private Partners getValidatedPartner(Long id, User currentUser) {
