@@ -1,6 +1,5 @@
 package com.dak.spravel.controller.procurement;
 
-import com.dak.spravel.dto.request.procurement.SupplierRequestDTO;
 import com.dak.spravel.model.procurement.Supplier;
 import com.dak.spravel.service.procurement.SupplierService;
 import jakarta.validation.Valid;
@@ -22,49 +21,41 @@ public class SupplierController {
 
     private final SupplierService supplierService;
 
-    @GetMapping
-    @PreAuthorize("hasAuthority('supplier.index')")
-    public ResponseEntity<List<Supplier>> index() {
-        log.info("[GET] /api/v1/suppliers");
-        return ResponseEntity.ok(supplierService.findAll());
+    // --- ENDPOINT SUPER ADMIN ---
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAuthority('supplier.admin')")
+    public ResponseEntity<List<Supplier>> findAllAdmin() {
+        log.info("[GET] /api/v1/suppliers/admin/all - Access by Super Admin");
+        return ResponseEntity.ok(supplierService.findAllAdmin());
     }
 
-    @GetMapping("/page")
-    @PreAuthorize("hasAuthority('supplier.index')")
-    public ResponseEntity<Page<Supplier>> paginated(
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('supplier.admin')")
+    public ResponseEntity<Page<Supplier>> findPageAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/suppliers/page page={} size={}", page, size);
-        return ResponseEntity.ok(supplierService.findAll(page, size));
+        log.info("[GET] /api/v1/suppliers/admin/page - Access by Super Admin, Page: {}", page);
+        return ResponseEntity.ok(supplierService.findPageAdmin(page, size));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('supplier.show')")
-    public ResponseEntity<Supplier> show(@PathVariable Long id) {
-        log.info("[GET] /api/v1/suppliers/{}", id);
-        return ResponseEntity.ok(supplierService.findById(id));
+    // --- ENDPOINT PARTNER ---
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('supplier.index')")
+    public ResponseEntity<List<Supplier>> findAll() {
+        return ResponseEntity.ok(supplierService.findAllByPartner());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('supplier.store')")
-    public ResponseEntity<Supplier> store(@Valid @RequestBody SupplierRequestDTO request) {
-        log.info("[POST] /api/v1/suppliers name={}", request.getName());
-        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(request));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('supplier.update')")
-    public ResponseEntity<Supplier> update(
-            @PathVariable Long id,
-            @Valid @RequestBody SupplierRequestDTO request) {
-        log.info("[PUT] /api/v1/suppliers/{}", id);
-        return ResponseEntity.ok(supplierService.update(id, request));
+    public ResponseEntity<Supplier> create(@Valid @RequestBody Supplier supplier) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(supplier));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('supplier.delete')")
-    public ResponseEntity<Void> destroy(@PathVariable Long id) {
-        log.info("[DELETE] /api/v1/suppliers/{}", id);
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         supplierService.delete(id);
         return ResponseEntity.noContent().build();
     }

@@ -11,7 +11,11 @@ import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.BranchWarehousesRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
+import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -36,32 +40,44 @@ public class BranchWarehousesService {
         }
 
         User user = userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        // Proteksi Admin/Super Admin
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch Warehouse.");
+        //Admin & Super Admin diblokir dari fungsi CRUD Partner
+        if (isAdmin(user)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola data operasional.");
         }
 
         return user;
     }
 
-    // GET BY BRANCH
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    //INDEX ALL UNTUK SUPER ADMIN
+    public List<BranchWarehouses> findAllAdmin() {
+        // Tidak memanggil getAuthenticatedUser() agar Super Admin bisa akses
+        return branchWarehousesRepository.findAll(Sort.by("id").descending());
+    }
+
+    //PAGINATED ALL UNTUK SUPER ADMIN
+    public Page<BranchWarehouses> findPageAdmin(int page, int size) {
+        return branchWarehousesRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
+    }
+
+    // FUNGSI EXISTING DENGAN PROTEKSI
+
     public List<BranchWarehouses> findByBranchId(Long branchesId) {
         User currentUser = getAuthenticatedUser();
-        
-        // Cari branch & validasi partner ID sekaligus
+
         branchesRepository.findById(branchesId)
                 .filter(b -> b.getPartners().getId().equals(currentUser.getPartner().getId()))
                 .orElseThrow(() -> new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda."));
 
-        return branchWarehousesRepository.findByBranchesId(currentUser.getPartner().getId());
+        return branchWarehousesRepository.findByBranchesId(branchesId);
     }
 
-    // GET BY WAREHOUSE
     public List<BranchWarehouses> findByWarehouseId(Long warehousesId) {
         User currentUser = getAuthenticatedUser();
 
@@ -72,11 +88,12 @@ public class BranchWarehousesService {
         return branchWarehousesRepository.findByWarehousesId(warehousesId);
     }
 
-    // ASSIGN
     @Transactional
     public BranchWarehouses assign(BranchWarehousesRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedUser(); // Validasi blokir admin di sini
         Partners partner = currentUser.getPartner();
+
+        if (partner == null) throw new RuntimeException("User tidak terasosiasi dengan Partner.");
 
         Branches branch = branchesRepository.findById(request.getBranchesId())
                 .filter(b -> b.getPartners().getId().equals(partner.getId()))
@@ -86,7 +103,8 @@ public class BranchWarehousesService {
                 .filter(w -> w.getPartners().getId().equals(partner.getId()))
                 .orElseThrow(() -> new RuntimeException("Warehouse bukan milik partner Anda."));
 
-        if (branchWarehousesRepository.existsByBranchesIdAndWarehousesId(branch, warehouse)) {
+        // Gunakan objek entity untuk pengecekan exist agar lebih akurat
+        if (branchWarehousesRepository.existsByBranchesAndWarehouses(branch, warehouse)) {
             throw new IllegalArgumentException("Warehouse sudah di-assign ke branch ini.");
         }
 
@@ -94,11 +112,11 @@ public class BranchWarehousesService {
         bw.setBranches(branch);
         bw.setWarehouses(warehouse);
         bw.setCreatedAt(LocalDateTime.now());
+        bw.setCreatedBy(currentUser); // Set Auditor
 
         return branchWarehousesRepository.save(bw);
     }
 
-    // UNASSIGN
     @Transactional
     public void unassign(Long id) {
         User currentUser = getAuthenticatedUser();
@@ -106,7 +124,7 @@ public class BranchWarehousesService {
         BranchWarehouses bw = branchWarehousesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("BranchWarehouse", id));
 
-        // Validasi kepemilikan
+        // Validasi kepemilikan partner
         if (!bw.getBranches().getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Data bukan milik partner Anda.");
         }

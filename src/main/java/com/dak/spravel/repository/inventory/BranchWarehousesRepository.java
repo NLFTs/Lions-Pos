@@ -17,4 +17,8 @@ public interface BranchWarehousesRepository extends JpaRepository<BranchWarehous
     List<BranchWarehouses> findByWarehousesId(Long warehousesId);
 
     boolean existsByBranchesIdAndWarehousesId(Branches branches, Warehouses warehouses);
+
+    boolean existsByBranchesAndWarehouses(Branches branch, Warehouses warehouse);
+
+
 }

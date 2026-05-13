@@ -1,6 +1,5 @@
 package com.dak.spravel.controller.inventory;
 
-import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.service.inventory.WarehousesService;
 import jakarta.validation.Valid;
@@ -22,50 +21,48 @@ public class WarehousesController {
 
     private final WarehousesService warehousesService;
 
-    @GetMapping
-    @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<List<Warehouses>> index() {
-        log.info("[GET] /api/v1/warehouses");
-        return ResponseEntity.ok(warehousesService.findAll());
+    // --- SUPER ADMIN ---
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAuthority('warehouse.admin')")
+    public ResponseEntity<List<Warehouses>> findAllAdmin() {
+        log.info("[GET] /api/v1/warehouses/admin/all");
+        return ResponseEntity.ok(warehousesService.findAllAdmin());
     }
 
-    @GetMapping("/page")
-    @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<Page<Warehouses>> paginated(
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('warehouse.admin')")
+    public ResponseEntity<Page<Warehouses>> findPageAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/warehouses/page page={} size={}", page, size);
-        return ResponseEntity.ok(warehousesService.findAll(page, size));
+        return ResponseEntity.ok(warehousesService.findPageAdmin(page, size));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('warehouse.show')")
-    public ResponseEntity<Warehouses> show(@PathVariable Long id) {
-        log.info("[GET] /api/v1/warehouses/{}", id);
-        return ResponseEntity.ok(warehousesService.findById(id));
+    // --- PARTNER ---
+    @GetMapping
+    @PreAuthorize("hasAuthority('warehouse.index')")
+    public ResponseEntity<List<Warehouses>> findAll() {
+        return ResponseEntity.ok(warehousesService.findAllByPartner());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('warehouse.store')")
-    public ResponseEntity<Warehouses> store(@Valid @RequestBody WarehousesRequestDTO request) {
-        log.info("[POST] /api/v1/warehouses name={}", request.getName());
-        return ResponseEntity.status(HttpStatus.CREATED).body(warehousesService.create(request));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('warehouse.update')")
-    public ResponseEntity<Warehouses> update(
-            @PathVariable Long id,
-            @Valid @RequestBody WarehousesRequestDTO request) {
-        log.info("[PUT] /api/v1/warehouses/{}", id);
-        return ResponseEntity.ok(warehousesService.update(id, request));
+    public ResponseEntity<Warehouses> create(@Valid @RequestBody Warehouses warehouse) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(warehousesService.create(warehouse));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('warehouse.delete')")
-    public ResponseEntity<Void> destroy(@PathVariable Long id) {
-        log.info("[DELETE] /api/v1/warehouses/{}", id);
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         warehousesService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+    // Page by partner 
+    @GetMapping("/page")
+    @PreAuthorize("hasAuthority('warehouse.index')")
+    public ResponseEntity<Page<Warehouses>> findPageByPartner(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/warehouses/page - Access by Partner, Page: {}", page);
+        return ResponseEntity.ok(warehousesService.findPageByPartner(page, size));
     }
 }
