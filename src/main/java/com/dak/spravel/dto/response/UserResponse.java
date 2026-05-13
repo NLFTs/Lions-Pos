@@ -12,6 +12,8 @@ public class UserResponse {
     private Long id;
     private String username;
     private String fullname;
+    private String email;
+    private java.time.LocalDateTime createdAt;
     private List<RoleData> roles;
 
     @Data

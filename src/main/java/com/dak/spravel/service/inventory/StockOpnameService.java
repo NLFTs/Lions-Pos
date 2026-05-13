@@ -2,6 +2,9 @@ package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockOpnameItemDTO;
 import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
+import com.dak.spravel.dto.response.components.PartnerSimpleDto;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.StockOpnameResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -20,11 +23,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -51,9 +54,38 @@ public class StockOpnameService {
         return user;
     }
 
+     private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
+    }
+
+     private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") || 
+                                role.getName().equalsIgnoreCase("EMPLOYEE"));
+        
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
+    }
+
+
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    private boolean isAdminPartnerAndEmployee(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
 
     private StockOpname getValidatedOpname(Long id, User currentUser) {
@@ -66,6 +98,97 @@ public class StockOpnameService {
         }
 
         return opname;
+    }
+
+    // Method mapToResponse
+    private StockOpnameResponse mapToResponse(StockOpname opname) {
+
+    PartnerSimpleDto partnerDto = null;
+    if (opname.getPartner() != null) {
+        partnerDto = new PartnerSimpleDto();
+        partnerDto.setId(opname.getPartner().getId());
+        partnerDto.setName(opname.getPartner().getName());
+    }
+
+    List<StockOpnameResponse.StockOpnameItemResponse> itemResponses =
+            stockOpnameItemRepository.findByStockOpnameId(opname.getId())
+                    .stream()
+                    .map(this::mapItemToResponse)
+                    .collect(Collectors.toList());
+
+    return StockOpnameResponse.builder()
+            .id(opname.getId())
+            .partner(partnerDto)
+            .location(opname.getLocation())
+            .locationId(opname.getLocationId())
+            .date(opname.getDate())
+            .status(opname.getStatus())
+            .notes(opname.getNotes())
+            .reviewedAt(opname.getReviewedAt())
+            .approvedAt(opname.getApprovedAt())
+            .createdAt(opname.getCreatedAt())
+            .updatedAt(opname.getUpdatedAt())
+            .deletedAt(opname.getDeletedAt())
+            .createdBy(mapUserToSimpleDto(opname.getCreatedBy()))
+            .updatedBy(mapUserToSimpleDto(opname.getUpdatedBy()))
+            .deletedBy(mapUserToSimpleDto(opname.getDeletedBy()))
+            .reviewedBy(mapUserToSimpleDto(opname.getReviewedBy()))
+            .approvedBy(mapUserToSimpleDto(opname.getApprovedBy()))
+            .items(itemResponses)
+            .build();
+}
+
+    // Helper Untuk item
+    private StockOpnameResponse.StockOpnameItemResponse mapItemToResponse(StockOpnameItem item) {
+
+    StockOpnameResponse.ProductSimpleDto productDto = null;
+
+    if (item.getProduct() != null) {
+        productDto = new StockOpnameResponse.ProductSimpleDto();
+        productDto.setId(item.getProduct().getId());
+        productDto.setName(item.getProduct().getName());
+        productDto.setSku(item.getProduct().getSku());
+    }
+
+    StockOpnameResponse.StockOpnameItemResponse response =
+            new StockOpnameResponse.StockOpnameItemResponse();
+
+    response.setId(item.getId());
+    response.setProduct(productDto);
+    response.setQtySystem(item.getQtySystem());
+    response.setQtyPhysical(item.getQtyPhysical());
+    response.setQtyDifference(item.getQtyDifference());
+    response.setNotes(item.getNotes());
+    response.setCountedBy(mapUserToSimpleDto(item.getCountedBy()));
+    response.setCountedAt(item.getCountedAt());
+
+    return response;
+}
+    // Helper Untuk User
+    private UserSimpleDto mapUserToSimpleDto(User user) {
+    if (user == null) {
+        return null;
+    }
+
+    UserSimpleDto dto = new UserSimpleDto();
+    dto.setId(user.getId());
+    dto.setUsername(user.getUsername());
+
+    return dto;
+}
+
+    // Khusus Untuk Superadmin
+    public List <StockOpnameResponse> findAllOpName(){
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+        }
+        List<StockOpname>  allStockOpnames = stockOpnameRepository.findAll();
+        
+        return allStockOpnames.stream()
+        .map(this::mapToResponse)
+        .collect(Collectors.toList());
     }
 
     // GET ALL

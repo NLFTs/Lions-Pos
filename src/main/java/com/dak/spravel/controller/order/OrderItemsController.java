@@ -1,20 +1,16 @@
 package com.dak.spravel.controller.order;
 
 import com.dak.spravel.dto.request.order.OrderItemsRequest;
-import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.model.order.OrderItems;
 import com.dak.spravel.service.order.OrderItemsService;
-import com.dak.spravel.util.ResponseBuilder;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @Slf4j
@@ -25,34 +21,89 @@ public class OrderItemsController {
 
     private final OrderItemsService orderItemsService;
 
-    @PostMapping
-    public ResponseEntity<ResData<OrderItems>> create(@RequestBody OrderItemsRequest request) {
-        log.info("[POST] /api/v1/order-items - Request: {}", request);
-        return ResponseBuilder.ok(orderItemsService.create(request));
+    // =========================
+    // SUPER ADMIN ONLY
+    // =========================
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('order_item.index')")
+    public ResponseEntity<List<OrderItems>> getAllForAdmin() {
+
+        log.info("[GET] /api/v1/order-items/admin - Superadmin access");
+
+        return ResponseEntity.ok(
+                orderItemsService.findAllOrderItems()
+        );
     }
 
+    // =========================
+    // PARTNER / EMPLOYEE
+    // =========================
     @GetMapping
-    public ResponseEntity<ResData<List<OrderItems>>> findAll() {
+    @PreAuthorize("hasAuthority('order_item.index')")
+    public ResponseEntity<List<OrderItems>> index() {
+
         log.info("[GET] /api/v1/order-items");
-        return ResponseBuilder.ok(orderItemsService.findAll());
+
+        return ResponseEntity.ok(
+                orderItemsService.findAll()
+        );
     }
 
+    // =========================
+    // FIND BY ID
+    // =========================
     @GetMapping("/{id}")
-    public ResponseEntity<ResData<OrderItems>> findById(@PathVariable Long id) {
+    @PreAuthorize("hasAuthority('order_item.show')")
+    public ResponseEntity<OrderItems> show(@PathVariable Long id) {
+
         log.info("[GET] /api/v1/order-items/{}", id);
-        return ResponseBuilder.ok(orderItemsService.findById(id));
+
+        return ResponseEntity.ok(
+                orderItemsService.findById(id)
+        );
     }
 
-    @GetMapping("/product-name/{name}")
-    public ResponseEntity<ResData<OrderItems>> findByProductName(@PathVariable String name) {
-        log.info("[GET] /api/v1/order-items/product-name/{}", name);
-        return ResponseBuilder.ok(orderItemsService.findByProductName(name));
+    // =========================
+    // FIND BY PRODUCT NAME
+    // =========================
+    @GetMapping("/product/{productName}")
+    @PreAuthorize("hasAuthority('order_item.show')")
+    public ResponseEntity<OrderItems> findByProductName(
+            @PathVariable String productName) {
+
+        log.info("[GET] /api/v1/order-items/product/{}", productName);
+
+        return ResponseEntity.ok(
+                orderItemsService.findByProductName(productName)
+        );
     }
 
+    // =========================
+    // CREATE
+    // =========================
+    @PostMapping
+    @PreAuthorize("hasAuthority('order_item.store')")
+    public ResponseEntity<OrderItems> store(
+            @Valid @RequestBody OrderItemsRequest request) {
+
+        log.info("[POST] /api/v1/order-items");
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(orderItemsService.create(request));
+    }
+
+    // =========================
+    // DELETE
+    // =========================
     @DeleteMapping("/{id}")
-    public ResponseEntity<ResData<String>> delete(@PathVariable Long id) {
+    @PreAuthorize("hasAuthority('order_item.delete')")
+    public ResponseEntity<Void> destroy(@PathVariable Long id) {
+
         log.info("[DELETE] /api/v1/order-items/{}", id);
+
         orderItemsService.delete(id);
-        return ResponseBuilder.ok("Order item deleted");
+
+        return ResponseEntity.noContent().build();
     }
 }

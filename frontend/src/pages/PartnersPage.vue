@@ -1,4 +1,4 @@
-<script setup>
+  <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'

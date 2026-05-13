@@ -5,79 +5,195 @@ import {
   BarChart3, 
   CreditCard, 
   Users, 
-  ShieldCheck 
+  ShieldCheck,
+  Zap,
+  TrendingUp,
+  Activity,
+  Maximize2,
+  Lock,
+  Share2
 } from 'lucide-vue-next'
+import { ref } from 'vue'
+
+// Import High-Detail Illustrations
+import StockIllustration from '@/components/ui/features/StockIllustration.vue'
+import AnalyticsIllustration from '@/components/ui/features/AnalyticsIllustration.vue'
+import LocationIllustration from '@/components/ui/features/LocationIllustration.vue'
+import POSIllustration from '@/components/ui/features/POSIllustration.vue'
+import CRMIllustration from '@/components/ui/features/CRMIllustration.vue'
+import SecurityIllustration from '@/components/ui/features/SecurityIllustration.vue'
 
 const features = [
   {
-    title: 'Manajemen Stok Real-time',
-    description: 'Pantau stok produk Anda secara akurat di berbagai lokasi secara instan.',
-    icon: Package,
-    color: 'bg-blue-500/10 text-blue-500'
-  },
-  {
-    title: 'Multi-Lokasi & Cabang',
-    description: 'Kelola banyak toko atau gudang dalam satu dashboard terpusat.',
-    icon: Store,
-    color: 'bg-emerald-500/10 text-emerald-500'
-  },
-  {
-    title: 'Analitik Mendalam',
-    description: 'Dapatkan laporan penjualan dan performa bisnis yang komprehensif.',
+    id: 'analytics',
+    category: 'Insights',
+    title: 'Analitik Data',
+    description: 'Wawasan prediktif berbasis AI untuk strategi pertumbuhan yang terukur.',
     icon: BarChart3,
-    color: 'bg-purple-500/10 text-purple-500'
+    component: AnalyticsIllustration,
+    span: 'md:col-span-1 md:row-span-1',
+    accent: 'from-violet-500/20'
   },
   {
-    title: 'Sistem Kasir (POS) Modern',
-    description: 'Transaksi cepat dan mudah dengan antarmuka yang intuitif.',
+    id: 'dashboard',
+    category: 'Overview',
+    title: 'Multi-Lokasi',
+    description: 'Kendali operasional terpusat untuk ribuan titik cabang tanpa batas.',
+    icon: Store,
+    component: LocationIllustration,
+    span: 'md:col-span-1 md:row-span-1',
+    accent: 'from-emerald-500/20'
+  },
+  {
+    id: 'collaboration',
+    category: 'Teamwork',
+    title: 'Sistem Kasir',
+    description: 'Ekosistem POS masa depan dengan performa transaksi ultra-cepat.',
     icon: CreditCard,
-    color: 'bg-orange-500/10 text-orange-500'
+    component: POSIllustration,
+    span: 'md:col-span-2 md:row-span-2',
+    accent: 'from-amber-500/20'
   },
   {
-    title: 'Manajemen Pelanggan',
-    description: 'Bangun loyalitas pelanggan dengan sistem CRM yang terintegrasi.',
+    id: 'automation',
+    category: 'Efficiency',
+    title: 'Manajemen Stok',
+    description: 'Otomasi inventaris cerdas dengan sinkronisasi multi-gudang real-time.',
+    icon: Package,
+    component: StockIllustration,
+    span: 'md:col-span-2 md:row-span-2',
+    accent: 'from-emerald-500/20'
+  },
+  {
+    id: 'integration',
+    category: 'Connectivity',
+    title: 'Loyalitas',
+    description: 'Personalisasi pengalaman pelanggan melalui algoritma CRM canggih.',
     icon: Users,
-    color: 'bg-pink-500/10 text-pink-500'
+    component: CRMIllustration,
+    span: 'md:col-span-1 md:row-span-1',
+    accent: 'from-rose-500/20'
   },
   {
-    title: 'Keamanan & Izin Akses',
-    description: 'Kontrol penuh atas siapa yang bisa mengakses data bisnis Anda.',
+    id: 'security',
+    category: 'Protection',
+    title: 'Keamanan',
+    description: 'Infrastruktur enkripsi militer untuk perlindungan aset digital Anda.',
     icon: ShieldCheck,
-    color: 'bg-cyan-500/10 text-cyan-500'
+    component: SecurityIllustration,
+    span: 'md:col-span-1 md:row-span-1',
+    accent: 'from-neutral-500/20'
   }
 ]
+
+const containerRef = ref(null)
 </script>
 
 <template>
-  <section id="features" class="py-24 px-6 relative overflow-hidden">
-    <!-- Section Header -->
-    <div class="max-w-4xl mx-auto text-center mb-20">
-      <h2 class="text-4xl md:text-5xl font-medium tracking-tight text-white mb-6">
-        Solusi Lengkap untuk <span class="text-primary italic">Bisnis Anda</span>
-      </h2>
-      <p class="text-lg text-zinc-400 max-w-2xl mx-auto">
-        Gaptek hadir dengan fitur-fitur canggih yang dirancang khusus untuk mempercepat pertumbuhan bisnis Retail dan F&B Anda.
-      </p>
+  <section 
+    ref="containerRef"
+    id="features" 
+    class="min-h-screen pt-48 pb-32 lg:pt-64 lg:pb-48 px-6 bg-[#020202] text-white relative overflow-hidden flex flex-col justify-center z-20"
+  >
+    <!-- Background Elements -->
+    <div class="absolute inset-0 pointer-events-none opacity-20">
+       <div class="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,#111,transparent)]"></div>
     </div>
 
-    <!-- Features Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-      <div 
-        v-for="(feature, index) in features" 
-        :key="index"
-        class="group p-8 rounded-3xl bg-zinc-900/50 border border-white/5 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1"
-      >
-        <div :class="['w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transition-transform duration-500 group-hover:scale-110', feature.color]">
-          <component :is="feature.icon" class="w-6 h-6" />
+    <div class="max-w-[1400px] mx-auto w-full relative z-10 flex flex-col gap-16 lg:gap-20">
+      
+      <!-- Premium Header (Minimalized) -->
+      <div class="space-y-4">
+        <div class="flex items-center gap-2">
+           <div class="w-8 h-[1px] bg-neutral-600"></div>
+           <span class="text-[10px] font-bold uppercase tracking-[0.4em] text-neutral-500">Core Features</span>
         </div>
-        <h3 class="text-xl font-semibold text-white mb-3">{{ feature.title }}</h3>
-        <p class="text-zinc-400 leading-relaxed">
-          {{ feature.description }}
-        </p>
+        <h2 class="text-5xl md:text-7xl font-medium tracking-tighter leading-[0.9]">
+          Platform Pintar Untuk <br />
+          <span class="text-neutral-600">Skalabilitas Tanpa Batas.</span>
+        </h2>
       </div>
+
+      <!-- Bento Mosaic Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-4 md:grid-rows-3 gap-4 h-auto md:h-[800px]">
+        
+        <div v-for="(f, i) in features" :key="i" 
+             :class="[
+               f.span, 
+               'feature-card group relative rounded-[2.5rem] bg-[#0A0A0A] border border-white/5 overflow-hidden transition-all duration-700 hover:border-white/10 hover:bg-[#0D0D0D]'
+             ]"
+        >
+          <!-- Corner Accent Glow (Like image) -->
+          <div v-if="f.id === 'analytics'" class="absolute -top-12 -left-12 w-32 h-32 bg-neutral-500/20 blur-3xl opacity-60 group-hover:opacity-100 transition-opacity"></div>
+
+          <!-- Background Illustration -->
+          <div class="absolute inset-0 z-0">
+             <component :is="f.component" />
+          </div>
+
+          <!-- Content: Top Category -->
+          <div class="absolute top-8 left-8 z-20">
+             <span class="text-xs font-medium text-neutral-400 tracking-tight">{{ f.category }}</span>
+          </div>
+
+          <!-- Content: Bottom Info -->
+          <div class="absolute bottom-8 left-8 right-8 z-20">
+             <h3 class="text-xl md:text-2xl font-bold tracking-tight mb-1">{{ f.title }}</h3>
+             <p class="text-xs md:text-sm text-neutral-500 group-hover:text-neutral-300 transition-colors">
+               {{ f.description }}
+             </p>
+          </div>
+
+          <!-- Optional Icon (Top Right) -->
+          <div class="absolute top-8 right-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+             <component :is="f.icon" class="w-5 h-5 text-neutral-600" />
+          </div>
+
+          <!-- Subtle Gradient Overlay -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-60"></div>
+        </div>
+
+      </div>
+
     </div>
-    
-    <!-- Background Decoration -->
-    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
   </section>
 </template>
+
+<style scoped>
+#features {
+  font-family: 'Inter', sans-serif;
+}
+
+.feature-card {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+h2, h3 {
+  letter-spacing: -0.05em;
+}
+
+/* Remove fixed 100vh to prevent content clipping and overlap */
+#features {
+  min-height: 100vh;
+  height: auto;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    display: flex;
+    flex-direction: column;
+  }
+  .feature-card {
+    min-height: 300px;
+  }
+}
+</style>

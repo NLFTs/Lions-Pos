@@ -1,10 +1,9 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.StockMutationRequestDTO;
+import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.StockMutation;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
@@ -18,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+
 
 @Service
 @RequiredArgsConstructor
@@ -36,16 +36,38 @@ public class StockMutationService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Stock Mutation.");
-        }
-
         return user;
+    }
+
+    private User getAuthenticatedSuperAdmin(){
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admin"); 
+        return user;
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee(){
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")||
+    role.getSlug().equalsIgnoreCase("employee"));
+
+    boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+    if (!isAuthorized || !isStaff) {
+        throw new RuntimeException("Akses Di Tolak: Hanya Admin Partner Atau Employee Yang Di Izinkan");
+    }
+    return user;
     }
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    private boolean isAdminPartnerAndEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
 
     private StockMutation getValidatedMutation(Long id, User currentUser) {
@@ -58,6 +80,36 @@ public class StockMutationService {
 
         return mutation;
     }
+
+    // Map To Response
+    public StockMutationResponse mapToResponse(StockMutation stockMutation) {
+    if (stockMutation == null) return null;
+
+    StockMutationResponse response = new StockMutationResponse();
+
+    response.setId(stockMutation.getId());
+    response.setQty(stockMutation.getQty());
+    response.setType(stockMutation.getType());
+    response.setNotes(stockMutation.getNotes());
+    response.setReferenceId(stockMutation.getReferenceId());
+    response.setReferenceType(stockMutation.getReferenceType());
+    response.setFromLocationId(stockMutation.getFromLocationId());
+    response.setFromLocationType(stockMutation.getFromLocationType());
+    response.setToLocationId(stockMutation.getToLocationId());
+    response.setToLocationType(stockMutation.getToLocationType());
+
+    return response;
+}
+
+
+    public List<StockMutationResponse> findAllStockMutation() {
+    getAuthenticatedSuperAdmin();
+
+    return stockMutationRepository.findAll()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
 
     // GET ALL
     public List<StockMutation> findAll() {

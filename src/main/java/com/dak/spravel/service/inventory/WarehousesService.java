@@ -1,9 +1,6 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
-import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
@@ -14,7 +11,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -24,91 +23,88 @@ public class WarehousesService {
     private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
 
+    // =========================
+    // AUTH HELPERS (POLA BARU)
+    // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+    }
 
-        User user = userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Warehouse.");
-        }
-
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
-    private Warehouses getValidatedWarehouse(Long id, User currentUser) {
-        Warehouses warehouse = warehousesRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Warehouse", id));
+    // =========================
+    // KHUSUS SUPER ADMIN
+    // =========================
+    public List<Warehouses> findAllAdmin() {
+        getAuthenticatedSuperAdmin();
+        return warehousesRepository.findAll(Sort.by("id").descending());
+    }
 
-        if (currentUser.getPartner() == null ||
-                !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses warehouse dari partner lain.");
+    public Page<Warehouses> findPageAdmin(int page, int size) {
+        getAuthenticatedSuperAdmin();
+        return warehousesRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
+    }
+
+    // =========================
+    // KHUSUS PARTNER / EMPLOYEE
+    // =========================
+    public List<Warehouses> findAllByPartner() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+    }
+
+    @Transactional
+    public Warehouses create(Warehouses warehouse) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
 
-        return warehouse;
-    }
-
-    // GET ALL
-    public List<Warehouses> findAll() {
-        User currentUser = getAuthenticatedUser();
-        return warehousesRepository.findByPartnersId(currentUser.getPartner().getId());
-    }
-
-    // GET ALL PAGINATED
-    public Page<Warehouses> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        return warehousesRepository.findAll(PageRequest.of(page, size, Sort.by("name").ascending()));
-    }
-
-    // GET BY ID
-    public Warehouses findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-        return getValidatedWarehouse(id, currentUser);
-    }
-
-    // CREATE
-    public Warehouses create(WarehousesRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-
-        Partners partner = currentUser.getPartner();
-        if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+        if (warehousesRepository.existsByNameAndPartnersIdAndDeletedAtIsNull(warehouse.getName(), currentUser.getPartner().getId())) {
+            throw new IllegalArgumentException("Warehouse sudah terdaftar.");
         }
 
-        Warehouses warehouse = new Warehouses();
-        warehouse.setPartners(partner);
-        warehouse.setName(request.getName());
-        warehouse.setAddress(request.getAddress());
-        warehouse.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        warehouse.setPartners(currentUser.getPartner());
+        warehouse.setCreatedAt(LocalDateTime.now());
+        warehouse.setCreatedBy(currentUser);
 
         return warehousesRepository.save(warehouse);
     }
 
-    // UPDATE
-    public Warehouses update(Long id, WarehousesRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-        Warehouses warehouse = getValidatedWarehouse(id, currentUser);
-
-        warehouse.setName(request.getName());
-        warehouse.setAddress(request.getAddress());
-        if (request.getIsActive() != null) warehouse.setIsActive(request.getIsActive());
-
-        return warehousesRepository.save(warehouse);
-    }
-
-    // DELETE
+    @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-        Warehouses warehouse = getValidatedWarehouse(id, currentUser);
-        warehousesRepository.delete(warehouse);
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        Warehouses warehouse = warehousesRepository.findById(id)
+                .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse tidak ditemukan"));
+
+        warehouse.setDeletedAt(LocalDateTime.now());
+        warehouse.setDeletedBy(currentUser);
+        warehousesRepository.save(warehouse);
     }
 }

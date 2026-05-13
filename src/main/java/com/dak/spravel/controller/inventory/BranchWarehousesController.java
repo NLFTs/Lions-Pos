@@ -6,6 +6,7 @@ import com.dak.spravel.service.inventory.BranchWarehousesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,6 +28,26 @@ public class BranchWarehousesController {
 
     private final BranchWarehousesService branchWarehousesService;
 
+    // 1 & 2. ENDPOINT KHUSUS SUPER ADMIN
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAuthority('branch_warehouse.admin')") // Sesuaikan authority dengan seeder
+    public ResponseEntity<List<BranchWarehouses>> findAllAdmin() {
+        log.info("[GET] /api/v1/branch-warehouses/admin/all - Request by Admin");
+        return ResponseEntity.ok(branchWarehousesService.findAllAdmin());
+    }
+
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('branch_warehouse.admin')")
+    public ResponseEntity<Page<BranchWarehouses>> findPageAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/branch-warehouses/admin/page - page: {}, size: {}", page, size);
+        return ResponseEntity.ok(branchWarehousesService.findPageAdmin(page, size));
+    }
+
+    // 3. ENDPOINT UNTUK PARTNER (VALIDASI DI SERVICE)
+
     @GetMapping("/branch/{branchesId}")
     @PreAuthorize("hasAuthority('branch_warehouse.index')")
     public ResponseEntity<List<BranchWarehouses>> getByBranch(@PathVariable Long branchesId) {
@@ -44,7 +65,8 @@ public class BranchWarehousesController {
     @PostMapping
     @PreAuthorize("hasAuthority('branch_warehouse.store')")
     public ResponseEntity<BranchWarehouses> assign(@Valid @RequestBody BranchWarehousesRequestDTO request) {
-        log.info("[POST] /api/v1/branch-warehouses branchId={} warehouseId={}", request.getBranchesId(), request.getWarehousesId());
+        log.info("[POST] /api/v1/branch-warehouses assign branchId={} warehouseId={}",
+                request.getBranchesId(), request.getWarehousesId());
         return ResponseEntity.status(HttpStatus.CREATED).body(branchWarehousesService.assign(request));
     }
 

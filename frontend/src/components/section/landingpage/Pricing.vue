@@ -53,7 +53,7 @@ const plans = [
       <!-- Section Header -->
       <div class="text-center mb-16">
         <h2 class="text-4xl md:text-5xl font-medium tracking-tight text-white mb-6">
-          Pilih Paket yang <span class="text-primary italic">Tepat</span>
+          Pilih Paket yang <span class="text-white italic">Tepat</span>
         </h2>
         <p class="text-lg text-zinc-400 max-w-2xl mx-auto">
           Mulai gratis dan tingkatkan seiring pertumbuhan bisnis Anda. Tidak ada biaya tersembunyi.
@@ -68,11 +68,11 @@ const plans = [
           :class="[
             'relative p-8 rounded-[2.5rem] border transition-all duration-500 flex flex-col',
             plan.highlight 
-              ? 'bg-zinc-900 border-primary shadow-[0_0_40px_-15px_rgba(30,160,63,0.3)] scale-105 z-10' 
+              ? 'bg-zinc-900 border-white/20 shadow-[0_0_40px_-15px_rgba(255,255,255,0.1)] scale-105 z-10' 
               : 'bg-zinc-900/40 border-white/5 hover:border-white/10'
           ]"
         >
-          <div v-if="plan.highlight" class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-black text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-wider">
+          <div v-if="plan.highlight" class="absolute -top-4 left-1/2 -translate-x-1/2 bg-white text-black text-[10px] font-bold px-4 py-1 rounded-full uppercase tracking-wider">
             Paling Populer
           </div>
 
@@ -88,8 +88,8 @@ const plans = [
 
           <div class="space-y-4 mb-10 flex-grow">
             <div v-for="feature in plan.features" :key="feature" class="flex items-center gap-3">
-              <div class="shrink-0 w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                <Check class="w-3 h-3 text-primary" />
+              <div class="shrink-0 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center">
+                <Check class="w-3 h-3 text-white" />
               </div>
               <span class="text-zinc-300 text-sm">{{ feature }}</span>
             </div>
@@ -98,7 +98,7 @@ const plans = [
           <Button 
             :variant="plan.highlight ? 'default' : 'outline'"
             class="w-full h-12 rounded-2xl font-semibold transition-all duration-300"
-            :class="plan.highlight ? 'bg-primary hover:bg-primary/90 text-black' : 'border-zinc-700 hover:bg-zinc-800 text-white'"
+            :class="plan.highlight ? 'bg-white hover:bg-zinc-200 text-black' : 'border-zinc-700 hover:bg-zinc-800 text-white'"
           >
             Pilih Paket
           </Button>

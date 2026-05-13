@@ -1,6 +1,8 @@
 package com.dak.spravel.repository.procurement;
 
 import com.dak.spravel.model.procurement.PurchaseOrder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,5 +14,6 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     List<PurchaseOrder> findByStatus(PurchaseOrder.Status status);
     List<PurchaseOrder> findByDeletedAtIsNull();
     List<PurchaseOrder> findByPartnerIdAndDeletedAtIsNull(Long partnerId);
+    Page<PurchaseOrder> findByPartnerIdAndDeletedAtIsNull(Long partnerId, Pageable pageable); // tambahan
     long countByPoNumberStartingWith(String prefix);
 }

@@ -1,6 +1,8 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -8,6 +10,8 @@ import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
+
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+
 
 @Service
 @RequiredArgsConstructor
@@ -35,16 +40,35 @@ public class StockBalanceService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Stock Balance.");
-        }
+        return user;
+    }
 
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admmin"); {
+            return user;
+        }
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee"));
+        
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
         return user;
     }
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+                .anyMatch(role -> role.getSlug().equals("admin") || role.getSlug().equals("admin"));
     }
 
     private StockBalance getValidatedStockBalance(Long id, User currentUser) {
@@ -56,14 +80,61 @@ public class StockBalanceService {
             throw new RuntimeException("Akses Ditolak: Stock balance bukan milik partner Anda.");
         }
 
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak Admin Tidak Di Perbolehkan Mengelola Stock Balances");
+        }
+
         return stock;
     }
 
-    // GET ALL
-    public List<StockBalance> findAll() {
-        User currentUser = getAuthenticatedUser();
-        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+    // mapToResponse
+    private StockBalanceResponse mapToResponse(StockBalance stock) {
+
+    // Product DTO
+    StockBalanceResponse.ProductSimpleDto productDto =
+            new StockBalanceResponse.ProductSimpleDto();
+
+    productDto.setId(stock.getProduct().getId());
+    productDto.setName(stock.getProduct().getName());
+    productDto.setSku(stock.getProduct().getSku());
+
+    // User DTO
+    UserSimpleDto userDto = null;
+
+    if (stock.getUpdatedBy() != null) {
+        userDto = new UserSimpleDto();
+        userDto.setId(stock.getUpdatedBy().getId());
+        userDto.setUsername(stock.getUpdatedBy().getUsername());
     }
+
+    return StockBalanceResponse.builder()
+            .id(stock.getId())
+            .product(productDto)
+            .locationType(stock.getLocationType())
+            .locationId(stock.getLocationId())
+            .qty(stock.getQty())
+            .updatedAt(stock.getUpdatedAt())
+            .updatedBy(userDto)
+            .build();
+}
+
+   public List<StockBalanceResponse> findAllStockBalance() {
+    getAuthenticatedSuperAdmin();
+
+    return stockBalanceRepository.findAll()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
+
+    public List<StockBalanceResponse> findAll() {
+    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+    return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId())
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
 
     // GET ALL PAGINATED
     public Page<StockBalance> findAll(int page, int size) {
@@ -102,6 +173,7 @@ public class StockBalanceService {
     }
 
     // CREATE
+    @Transactional
     public StockBalance create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedUser();
 

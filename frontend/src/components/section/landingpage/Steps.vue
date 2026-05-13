@@ -1,103 +1,101 @@
 <script setup>
 import { 
-  UserPlus, 
-  Settings2, 
-  Rocket 
+  PlayCircle, 
+  ChevronRight
 } from 'lucide-vue-next'
-
-const steps = [
-  {
-    number: '01',
-    title: 'Daftar Akun',
-    description: 'Buat akun bisnis Anda dalam hitungan menit dan lengkapi profil toko.',
-    icon: UserPlus
-  },
-  {
-    number: '02',
-    title: 'Konfigurasi Sistem',
-    description: 'Atur kategori, produk, lokasi, dan hak akses tim sesuai kebutuhan operasional.',
-    icon: Settings2
-  },
-  {
-    number: '03',
-    title: 'Siap Beroperasi',
-    description: 'Mulai kelola stok, transaksi, dan pantau pertumbuhan bisnis Anda secara real-time.',
-    icon: Rocket
-  }
-]
+import DashboardReplica from './DashboardReplica.vue'
 </script>
 
 <template>
-  <section class="py-24 px-6 relative">
-    <div class="max-w-7xl mx-auto">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <!-- Left Side: Content -->
-        <div>
-          <h2 class="text-4xl md:text-5xl font-medium tracking-tight text-white mb-8 leading-tight">
-            Mulai Transformasi Digital <br />
-            Hanya dalam <span class="text-primary italic">3 Langkah Mudah</span>
-          </h2>
-          <p class="text-lg text-zinc-400 mb-12 max-w-xl">
-            Gaptek dirancang agar mudah digunakan oleh siapa saja, tanpa perlu latar belakang teknis yang mendalam.
-          </p>
+  <section class="py-24 lg:py-48 px-6 bg-[#020202] relative overflow-x-hidden z-10">
+    <!-- Neutral Background Glow -->
+    <div class="absolute top-1/2 right-0 -translate-y-1/2 w-[1200px] h-[800px] bg-white/[0.02] blur-[200px] rounded-full pointer-events-none"></div>
 
-          <div class="space-y-12">
-            <div v-for="step in steps" :key="step.number" class="flex gap-6">
-              <div class="shrink-0 w-12 h-12 rounded-2xl bg-zinc-900 border border-white/5 flex items-center justify-center text-primary font-bold text-lg">
-                {{ step.number }}
+    <div class="max-w-[1600px] mx-auto relative z-10">
+      <div class="grid grid-cols-1 lg:grid-cols-[0.7fr_1.3fr] gap-16 lg:gap-0 items-center">
+        
+        <!-- Left Side: Typography & CTAs -->
+        <div class="space-y-10 lg:pr-12 z-20">
+          <div class="space-y-6">
+            <h2 class="text-5xl md:text-8xl font-medium tracking-tighter leading-[0.95] text-white">
+              The <span class="text-emerald-500 underline decoration-emerald-500/30 decoration-4 underline-offset-8">All-in-One</span> <br />
+              POS System.
+            </h2>
+            <p class="text-lg md:text-xl text-neutral-400 max-w-xl leading-relaxed">
+              Membangun, mengelola, dan menskalakan bisnis ritel Anda dengan infrastruktur modern. Dari kasir hingga analitik cerdas — semua dalam satu dasbor.
+            </p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-center gap-4">
+             <button class="h-12 px-8 rounded-xl bg-emerald-500 text-white font-bold hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-emerald-500/20">
+                Mulai Sekarang
+             </button>
+             <button class="h-12 px-8 rounded-xl bg-neutral-900 border border-white/10 text-white font-medium flex items-center gap-2 hover:bg-neutral-800 transition-colors">
+                <PlayCircle class="w-5 h-5 text-neutral-500" />
+                Gaptek dalam 100 detik
+             </button>
+          </div>
+        </div>
+
+        <!-- Right Side: Expansive Bleeding Window -->
+        <div class="relative lg:h-[750px] w-full flex items-center mt-16 lg:mt-0">
+          <!-- Window wrapper that allows bleeding -->
+          <div class="relative w-full lg:w-[140%] min-w-0 lg:min-w-[1000px] h-[450px] sm:h-[600px] lg:h-full lg:translate-x-24 group">
+            
+            <!-- Glow behind window -->
+            <div class="absolute inset-0 bg-white/5 rounded-[2rem] lg:rounded-[3rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+            
+            <div class="relative h-full w-full bg-[#050505] border border-white/10 rounded-[2rem] lg:rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,1)] overflow-hidden flex flex-col group-hover:border-white/20 transition-all duration-1000">
+              
+              <!-- Window Title Bar -->
+              <div class="h-16 lg:h-20 border-b border-white/5 flex items-center px-6 lg:px-10 gap-6 lg:gap-12 bg-[#0A0A0A]/80 backdrop-blur-xl shrink-0">
+                 <!-- Window Dots -->
+                 <div class="flex gap-2 lg:gap-3 shrink-0">
+                    <div class="w-3 h-3 lg:w-4 lg:h-4 rounded-full bg-neutral-800 border border-neutral-700"></div>
+                    <div class="w-3 h-3 lg:w-4 lg:h-4 rounded-full bg-neutral-800 border border-neutral-700"></div>
+                    <div class="w-3 h-3 lg:w-4 lg:h-4 rounded-full bg-neutral-800 border border-neutral-700"></div>
+                 </div>
+
+                 <!-- System Identifier -->
+                 <div class="flex items-center gap-4 px-4 lg:px-6 py-2 rounded-2xl bg-white/5 border border-white/5">
+                    <div class="w-2 h-2 rounded-full bg-white animate-pulse"></div>
+                    <span class="text-[8px] lg:text-[10px] font-bold uppercase tracking-[0.3em] text-neutral-400">GAPTEK_CORE_v4.0</span>
+                 </div>
               </div>
-              <div>
-                <h3 class="text-xl font-semibold text-white mb-2 flex items-center gap-2">
-                  <component :is="step.icon" class="w-5 h-5 text-zinc-500" />
-                  {{ step.title }}
-                </h3>
-                <p class="text-zinc-400 leading-relaxed max-w-md">
-                  {{ step.description }}
-                </p>
+
+              <!-- Content Area (Dashboard Mock) -->
+              <div class="flex-1 bg-white dark:bg-black relative overflow-hidden">
+                  <DashboardReplica />
+                  
+                  <!-- Bleed Gradient for aesthetic -->
+                  <div class="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black/20 to-transparent pointer-events-none"></div>
               </div>
+
             </div>
           </div>
         </div>
 
-        <!-- Right Side: Decorative Image/Mockup -->
-        <div class="relative group">
-          <div class="absolute inset-0 bg-primary/20 rounded-[3rem] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity duration-500"></div>
-          <div class="relative aspect-square rounded-[3rem] bg-gradient-to-br from-zinc-800 to-zinc-950 border border-white/10 overflow-hidden shadow-2xl flex items-center justify-center p-12">
-            <!-- Simulated UI element -->
-            <div class="w-full h-full bg-black/40 rounded-2xl border border-white/5 backdrop-blur-sm p-6 flex flex-col gap-4">
-              <div class="h-8 w-1/3 bg-zinc-800 rounded-lg"></div>
-              <div class="grid grid-cols-2 gap-4 h-full">
-                <div class="bg-zinc-900/80 rounded-xl border border-white/5 p-4 flex flex-col justify-between">
-                  <div class="w-8 h-8 rounded-full bg-primary/20"></div>
-                  <div class="space-y-2">
-                    <div class="h-2 w-full bg-zinc-800 rounded"></div>
-                    <div class="h-2 w-2/3 bg-zinc-800 rounded"></div>
-                  </div>
-                </div>
-                <div class="bg-zinc-900/80 rounded-xl border border-white/5 p-4 flex flex-col justify-between">
-                  <div class="w-8 h-8 rounded-full bg-blue-500/20"></div>
-                  <div class="space-y-2">
-                    <div class="h-2 w-full bg-zinc-800 rounded"></div>
-                    <div class="h-2 w-2/3 bg-zinc-800 rounded"></div>
-                  </div>
-                </div>
-                <div class="col-span-2 bg-zinc-900/80 rounded-xl border border-white/5 p-4 space-y-4">
-                  <div class="flex justify-between items-center">
-                    <div class="h-3 w-1/4 bg-zinc-800 rounded"></div>
-                    <div class="h-3 w-1/6 bg-primary/40 rounded"></div>
-                  </div>
-                  <div class="h-20 w-full bg-zinc-950/50 rounded-lg border border-white/5 flex items-end p-2 gap-2">
-                    <div class="w-full bg-primary/30 h-1/2 rounded-t-sm"></div>
-                    <div class="w-full bg-primary/30 h-3/4 rounded-t-sm"></div>
-                    <div class="w-full bg-primary h-full rounded-t-sm"></div>
-                    <div class="w-full bg-primary/30 h-2/3 rounded-t-sm"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </section>
 </template>
+
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+</style>
+

@@ -10,7 +10,6 @@ import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
-// import com.dak.spravel.repository.common.PartnerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,7 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoryProductService {
 
-private final CategoryProductRepository categoryProductRepository;
+    private final CategoryProductRepository categoryProductRepository;
     private final UserRepository userRepository;
 
     // --- STANDARDIZED AUTH HELPERS ---
@@ -70,15 +69,15 @@ private final CategoryProductRepository categoryProductRepository;
 
     private CategoryProduct getValidatedCategory(Long id, User currentUser) {
         CategoryProduct category = categoryProductRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
+                .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
 
-        if (currentUser.getPartner() == null || 
-            !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        if (currentUser.getPartner() == null ||
+                !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Kategori ini milik partner lain.");
         }
         return category;
     }
-    
+
     // --- METHODS ---
     public List<CategoryProductResponse> findAllCategoryProduct() {
         getAuthenticatedSuperAdmin();
@@ -96,7 +95,7 @@ private final CategoryProductRepository categoryProductRepository;
     public List<CategoryProductResponse> findAll() {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Sort sort = Sort.by("sortOrder").ascending();
-        
+
         return categoryProductRepository.findAllByPartner(currentUser.getPartner(), sort)
                 .stream()
                 .map(this::mapToResponse)
@@ -116,7 +115,7 @@ private final CategoryProductRepository categoryProductRepository;
     public CategoryProductResponse create(CategoryProductCreate request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
-        
+
         if (partner == null) throw new RuntimeException("User tidak terasosiasi dengan Partner.");
 
         CategoryProduct parent = (request.getParentId() != null) ? getValidatedCategory(request.getParentId(), currentUser) : null;
@@ -144,7 +143,7 @@ private final CategoryProductRepository categoryProductRepository;
         if (isAdmin(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
         }
-        
+
         // Cari kategori yang mau diupdate + validasi kepemilikan partner
         CategoryProduct category = getValidatedCategory(id, currentUser);
 
