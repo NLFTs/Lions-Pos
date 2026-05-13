@@ -684,7 +684,7 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- ─── PAGE CONTENT ────────────────────────────────────────────────── -->
-      <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-zinc-950">
+      <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-zinc-950 scroll-smooth overscroll-contain">
         <!-- Page content wrapper -->
         <div class="p-5">
           <slot />
@@ -701,18 +701,30 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
+  -webkit-overflow-scrolling: touch;
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--muted-foreground) / 0.15);
-  border-radius: 99px;
+  background-color: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background-clip: content-box;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--muted-foreground) / 0.25);
+  background-color: hsl(var(--muted-foreground) / 0.4);
 }
 
 /* Smooth transitions */

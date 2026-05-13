@@ -33,11 +33,11 @@ const drawerMode = ref('create')
 const saving = ref(false)
 const formError = ref(null)
 const showPassword = ref(false)
-const form = ref({ id: null, username: '', fullname: '', email: '', password: '', phone: '', roleIds: [] })
-const fieldErrors = ref({ username: '', email: '', phone: '', password: '' })
+const form = ref({ id: null, username: '', fullname: '', email: '', password: '', roleIds: [] })
+const fieldErrors = ref({ username: '', email: '', password: '' })
 
 function clearFieldErrors() {
-  fieldErrors.value = { username: '', email: '', phone: '', password: '' }
+  fieldErrors.value = { username: '', email: '', password: '' }
 }
 
 function validateForm() {
@@ -60,28 +60,14 @@ function validateForm() {
     valid = false
   }
 
-  // Email: optional — but if filled, must be valid format with @
+  // Email: required
   const email = form.value.email.trim()
-  if (email) {
-    if (!email.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      fieldErrors.value.email = 'Please enter a valid email address (e.g. john@example.com).'
-      valid = false
-    }
-  }
-
-  // Phone: optional — but if filled, must be digits only, 8–15 chars
-  const phone = form.value.phone.trim()
-  if (phone) {
-    if (!/^\d+$/.test(phone)) {
-      fieldErrors.value.phone = 'Phone number may only contain digits.'
-      valid = false
-    } else if (phone.length < 8) {
-      fieldErrors.value.phone = 'Phone number must be at least 8 digits.'
-      valid = false
-    } else if (phone.length > 15) {
-      fieldErrors.value.phone = 'Phone number must not exceed 15 digits.'
-      valid = false
-    }
+  if (!email) {
+    fieldErrors.value.email = 'Email is required.'
+    valid = false
+  } else if (!email.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    fieldErrors.value.email = 'Please enter a valid email address (e.g. john@example.com).'
+    valid = false
   }
 
   // Password: required on create, min 6 chars if provided
@@ -126,8 +112,8 @@ const deleteError = ref('')
 // ─── Columns ────────────────────────────────────────────────────────
 const columns = computed(() => [
   { key: 'username', label: 'User', sortable: true },
+  { key: 'email', label: 'Email', sortable: true },
   { key: 'roles', label: 'Role' },
-  { key: 'phone', label: 'Phone' },
   { key: 'createdAt', label: 'Joined', sortable: true },
 ])
 
@@ -135,7 +121,6 @@ const columns = computed(() => [
 const filterOpen = ref(false)
 const activeFilters = ref({
   roles: [],       // array of role slugs
-  hasPhone: null,  // null=all | true=has phone | false=no phone
 })
 
 // Get unique roles from loaded data
@@ -150,9 +135,7 @@ const availableRoles = computed(() => {
 })
 
 const activeFilterCount = computed(() => {
-  let c = activeFilters.value.roles.length
-  if (activeFilters.value.hasPhone !== null) c++
-  return c
+  return activeFilters.value.roles.length
 })
 
 function toggleRoleFilter(slug) {
@@ -162,20 +145,15 @@ function toggleRoleFilter(slug) {
   page.value = 1
 }
 
-function setPhoneFilter(val) {
-  activeFilters.value.hasPhone = activeFilters.value.hasPhone === val ? null : val
-  page.value = 1
-}
-
 function clearFilters() {
-  activeFilters.value = { roles: [], hasPhone: null }
+  activeFilters.value = { roles: [] }
   page.value = 1
 }
 
 
 // ─── Filtered + Paginated Data ──────────────────────────────────────
 const filteredUsers = computed(() => {
-  let list = allUsers.value
+  const list = Array.isArray(allUsers.value) ? allUsers.value : []
 
   // Search query
   const q = searchQuery.value.trim().toLowerCase()
@@ -183,7 +161,7 @@ const filteredUsers = computed(() => {
     list = list.filter(u =>
       (u.fullname || '').toLowerCase().includes(q) ||
       (u.username || '').toLowerCase().includes(q) ||
-      (u.phone || '').includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
       (u.roles || []).some(r => r.name.toLowerCase().includes(q))
     )
   }
@@ -193,13 +171,6 @@ const filteredUsers = computed(() => {
     list = list.filter(u =>
       (u.roles || []).some(r => activeFilters.value.roles.includes(r.slug))
     )
-  }
-
-  // Phone filter
-  if (activeFilters.value.hasPhone === true) {
-    list = list.filter(u => u.phone && u.phone.trim())
-  } else if (activeFilters.value.hasPhone === false) {
-    list = list.filter(u => !u.phone || !u.phone.trim())
   }
 
   return list
@@ -221,8 +192,15 @@ async function fetchUsers() {
   loading.value = true
   try {
     const res = await api.get('/api/v1/users?page=0&size=999')
-    const data = res.data.data
+    const data = res.data?.data
+    if (!data) {
+      allUsers.value = []
+      return
+    }
     allUsers.value = data.content || data || []
+    if (!Array.isArray(allUsers.value)) {
+      allUsers.value = []
+    }
   } catch (err) {
     toast.error(err.response?.data?.message || 'Failed to load users.')
   } finally {
@@ -251,7 +229,7 @@ function handleOutsideClick(e) {
 
 // ─── Drawer helpers ─────────────────────────────────────────────────
 function openCreate() {
-  form.value = { id: null, username: '', fullname: '', email: '', password: '', phone: '', roleIds: [] }
+  form.value = { id: null, username: '', fullname: '', email: '', password: '', roleIds: [] }
   avatarPreview.value = null
   avatarFile.value = null
   formError.value = null
@@ -267,7 +245,6 @@ function openEdit(user) {
     username: user.username,
     fullname: user.fullname || '',
     email: user.email || '',
-    phone: user.phone || '',
     password: '',
     roleIds: (user.roles || []).map(r => r.id),
   }
@@ -285,7 +262,12 @@ async function saveUser() {
   if (!validateForm()) return
   saving.value = true
   try {
-    const payload = { username: form.value.username, fullname: form.value.fullname || null, roleIds: form.value.roleIds }
+    const payload = { 
+      username: form.value.username, 
+      fullname: form.value.fullname || null, 
+      email: form.value.email,
+      roleIds: form.value.roleIds 
+    }
     if (drawerMode.value === 'create') {
       payload.password = form.value.password
       await api.post('/api/v1/users', payload)
@@ -361,7 +343,8 @@ function getUserInitials(user) {
 
 const avatarColors = ['bg-zinc-700', 'bg-zinc-600', 'bg-zinc-500', 'bg-zinc-800', 'bg-zinc-900']
 function getAvatarColor(user) {
-  const hash = (user.id || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const idStr = String(user.id || '')
+  const hash = idStr.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
   return avatarColors[hash % avatarColors.length]
 }
 </script>
@@ -377,7 +360,7 @@ function getAvatarColor(user) {
 
       <!-- Controls -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <DataTableSearch v-model="searchQuery" placeholder="Search by name, username, phone, or role…" class="w-full max-w-sm" />
+        <DataTableSearch v-model="searchQuery" placeholder="Search by name, username, or role…" class="w-full max-w-sm" />
         <div class="flex items-center gap-2 w-full sm:w-auto">
 
           <!-- Filter Dropdown -->
@@ -425,29 +408,6 @@ function getAvatarColor(user) {
                       <Check v-if="activeFilters.roles.includes(role.slug)" class="h-4 w-4 text-foreground" />
                     </button>
                     <p v-if="availableRoles.length === 0" class="text-xs text-muted-foreground px-2 py-1">No roles available.</p>
-                  </div>
-                </div>
-
-                <div class="mx-3 border-t border-border" />
-
-                <!-- Phone Section -->
-                <div class="px-3 pt-2 pb-3">
-                  <p class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Telepon</p>
-                  <div class="space-y-1">
-                    <button
-                      @click="setPhoneFilter(true)"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
-                    >
-                      <span class="text-sm font-medium text-foreground select-none">Punya Nomor Telepon</span>
-                      <Check v-if="activeFilters.hasPhone === true" class="h-4 w-4 text-foreground" />
-                    </button>
-                    <button
-                      @click="setPhoneFilter(false)"
-                      class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
-                    >
-                      <span class="text-sm font-medium text-foreground select-none">Tanpa Nomor Telepon</span>
-                      <Check v-if="activeFilters.hasPhone === false" class="h-4 w-4 text-foreground" />
-                    </button>
                   </div>
                 </div>
               </div>
@@ -502,17 +462,17 @@ function getAvatarColor(user) {
               </div>
             </template>
 
+            <!-- Email column -->
+            <template #cell-email="{ item }">
+              <span class="text-sm text-muted-foreground">{{ item.email || '-' }}</span>
+            </template>
+
             <!-- Role column -->
             <template #cell-roles="{ item }">
               <span :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide', getRoleBadgeClass(getRoleName(item))]">
                 <Shield class="h-3 w-3 opacity-70" />
                 {{ getRoleName(item) }}
               </span>
-            </template>
-
-            <!-- Phone column -->
-            <template #cell-phone="{ item }">
-              <span class="text-sm text-muted-foreground">{{ item.phone || '-' }}</span>
             </template>
 
             <!-- Date column -->
@@ -641,23 +601,12 @@ function getAvatarColor(user) {
 
             <!-- Email -->
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground" for="dw-email">Email</label>
+              <label class="text-sm font-medium text-foreground" for="dw-email">Email <span class="text-red-500">*</span></label>
               <input id="dw-email" v-model="form.email" type="text" placeholder="e.g. john@example.com" :disabled="saving"
                 :class="['flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground bg-background placeholder:text-muted-foreground outline-none transition disabled:opacity-50', fieldErrors.email ? 'border-red-400 focus:ring-2 focus:ring-red-300' : 'border-input focus:ring-2 focus:ring-ring/30 focus:border-ring']" />
               <p v-if="fieldErrors.email" class="text-xs text-red-500 flex items-center gap-1 mt-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 {{ fieldErrors.email }}
-              </p>
-            </div>
-
-            <!-- Phone -->
-            <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground" for="dw-phone">Phone</label>
-              <input id="dw-phone" v-model="form.phone" type="tel" placeholder="e.g. 6281234567890" :disabled="saving"
-                :class="['flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground bg-background placeholder:text-muted-foreground outline-none transition disabled:opacity-50', fieldErrors.phone ? 'border-red-400 focus:ring-2 focus:ring-red-300' : 'border-input focus:ring-2 focus:ring-ring/30 focus:border-ring']" />
-              <p v-if="fieldErrors.phone" class="text-xs text-red-500 flex items-center gap-1 mt-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                {{ fieldErrors.phone }}
               </p>
             </div>
 
