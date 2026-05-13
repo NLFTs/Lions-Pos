@@ -23,46 +23,70 @@ public class WarehousesService {
     private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
 
+    // =========================
+    // AUTH HELPERS (POLA BARU)
+    // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        User user = userRepository.findByUsername(auth.getName())
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("User tidak terautentikasi");
+        }
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+    }
 
-        // PERINTAH 3: Admin & Super Admin dilarang CRUD data partner
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola data Warehouse.");
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-    }
-
-    // --- PERINTAH 1 & 2: ADMIN GLOBAL ---
-
+    // =========================
+    // KHUSUS SUPER ADMIN
+    // =========================
     public List<Warehouses> findAllAdmin() {
+        getAuthenticatedSuperAdmin();
         return warehousesRepository.findAll(Sort.by("id").descending());
     }
 
     public Page<Warehouses> findPageAdmin(int page, int size) {
+        getAuthenticatedSuperAdmin();
         return warehousesRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
     }
 
-    // --- FUNGSI UNTUK PARTNER ---
-
+    // =========================
+    // KHUSUS PARTNER / EMPLOYEE
+    // =========================
     public List<Warehouses> findAllByPartner() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId());
     }
 
     @Transactional
     public Warehouses create(Warehouses warehouse) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
 
         if (warehousesRepository.existsByNameAndPartnersIdAndDeletedAtIsNull(warehouse.getName(), currentUser.getPartner().getId())) {
-            throw new IllegalArgumentException("Nama warehouse sudah digunakan di partner Anda.");
+            throw new IllegalArgumentException("Warehouse sudah terdaftar.");
         }
 
         warehouse.setPartners(currentUser.getPartner());
@@ -74,22 +98,13 @@ public class WarehousesService {
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Warehouses warehouse = warehousesRepository.findById(id)
                 .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
-                .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan atau milik partner lain."));
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse tidak ditemukan"));
 
         warehouse.setDeletedAt(LocalDateTime.now());
         warehouse.setDeletedBy(currentUser);
         warehousesRepository.save(warehouse);
-    }
-    // Fungsi Pagination untuk Partner
-    public Page<Warehouses> findPageByPartner(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        // panggil method repository findByPartnersIdAndDeletedAtIsNull
-        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(
-                currentUser.getPartner().getId(),
-                PageRequest.of(page, size, Sort.by("id").descending())
-        );
     }
 }

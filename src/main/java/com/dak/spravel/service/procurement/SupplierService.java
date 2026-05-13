@@ -4,7 +4,6 @@ import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.procurement.Supplier;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.procurement.SupplierRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,55 +23,64 @@ public class SupplierService {
     private final SupplierRepository supplierRepository;
     private final UserRepository userRepository;
 
-    /**
-     * Helper untuk validasi User & Role (Perintah 3: Super Admin Dilarang CRUD)
-     */
+    // AUTH HELPERS
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+    }
 
-        User user = userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-
-        // Proteksi: Admin & Super Admin dilarang masuk ke fungsi CRUD Partner
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola data Supplier.");
-        }
-
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
-    // --- PERINTAH 1: INDEX ALL KHUSUS SUPER ADMIN ---
+    // KHUSUS SUPER ADMIN
     public List<Supplier> findAllAdmin() {
+        getAuthenticatedSuperAdmin();
         return supplierRepository.findAll(Sort.by("id").descending());
     }
 
-    // --- PERINTAH 2: PAGINATED KHUSUS SUPER ADMIN ---
     public Page<Supplier> findPageAdmin(int page, int size) {
+        getAuthenticatedSuperAdmin();
         return supplierRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
     }
 
-    // --- FUNGSI UNTUK PARTNER ---
-
+    // KHUSUS PARTNER / EMPLOYEE
     public List<Supplier> findAllByPartner() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return supplierRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
     }
 
     @Transactional
     public Supplier create(Supplier supplier) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        // Cek duplikasi nama
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
+
         if (supplierRepository.existsByNameAndPartnerIdAndDeletedAtIsNull(supplier.getName(), currentUser.getPartner().getId())) {
-            throw new IllegalArgumentException("Supplier dengan nama '" + supplier.getName() + "' sudah terdaftar.");
+            throw new IllegalArgumentException("Supplier dengan nama tersebut sudah ada.");
         }
 
         supplier.setPartner(currentUser.getPartner());
@@ -84,12 +92,11 @@ public class SupplierService {
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Supplier supplier = supplierRepository.findById(id)
                 .filter(s -> s.getPartner().getId().equals(currentUser.getPartner().getId()))
-                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Supplier tidak ditemukan atau milik partner lain."));
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Supplier tidak ditemukan"));
 
-        // Soft Delete (Sesuai model kamu yang ada deletedAt)
         supplier.setDeletedAt(LocalDateTime.now());
         supplier.setDeletedBy(currentUser);
         supplierRepository.save(supplier);
