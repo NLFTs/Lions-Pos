@@ -49,7 +49,7 @@ public class ProductService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
@@ -58,11 +58,11 @@ public class ProductService {
         User user = getAuthenticatedUser();
         // Cek apakah dia punya role operasional
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") || 
-                                role.getName().equalsIgnoreCase("EMPLOYEE"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
         
         // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
 
         if (!isAuthorized || !isStaff) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
@@ -289,7 +289,6 @@ public class ProductService {
         resp.setTrackStock(product.getTrackStock());
         resp.setActive(product.getIsActive());
 
-        // Map Partner (Cuma ID & Name)
         if (product.getPartner() != null) {
             PartnerSimpleDto pDto = new PartnerSimpleDto();
             pDto.setId(product.getPartner().getId());
@@ -297,7 +296,6 @@ public class ProductService {
             resp.setPartnerId(pDto);
         }
 
-        // Map Category (Cuma ID & Name)
         if (product.getCategory() != null) {
             ProductResponse.CategoryProductSimpleDto cDto = new ProductResponse.CategoryProductSimpleDto();
             cDto.setId(product.getCategory().getId());
@@ -305,7 +303,6 @@ public class ProductService {
             resp.setCategoryId(cDto);
         }
 
-        // Map CreatedBy (Cuma ID & Username)
         resp.setCreatedBy(mapUserToDto(product.getCreatedBy()));
         resp.setUpdatedBy(mapUserToDto(product.getUpdatedBy()));
         resp.setDeletedBy(mapUserToDto(product.getDeletedBy()));
