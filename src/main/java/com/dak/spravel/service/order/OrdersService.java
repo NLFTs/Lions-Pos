@@ -47,7 +47,7 @@ public class OrdersService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
@@ -61,7 +61,7 @@ public class OrdersService {
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
                         role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
