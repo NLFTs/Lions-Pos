@@ -36,31 +36,45 @@ public class ProductService {
 
     // --- HELPER: AUTH & VALIDATION ---
 
+    // --- STANDARDIZED AUTH HELPERS ---
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
 
-        // VALIDASI: Super Admin / Admin DILARANG MASUK
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        return user;
+    }
 
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        // Cek apakah dia punya role operasional
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") || 
+                                role.getName().equalsIgnoreCase("EMPLOYEE"));
+        
+        // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
         return user;
     }
 
     private boolean isAdmin(User user) {
-        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+                .anyMatch(role -> role.getSlug().equals("admin"));
     }
-
-     private boolean isAdminPartnerAndEmployee(User user) {
-        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee-partner") || role.getSlug().equals("admin-partners"));
-    }
+    
 
     private Product getValidatedProduct(Long id, Partners partner) {
         // Cari produk berdasarkan ID dan Partner (cegah intip tetangga)
@@ -73,11 +87,7 @@ public class ProductService {
 
     // Find All untuk Super Admin
     public List<ProductResponse> findAllProduct() {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Product.");
-        }
+        getAuthenticatedSuperAdmin();
 
         List<Product> allProducts = productRepository.findAllProduct();
 
@@ -86,13 +96,9 @@ public class ProductService {
                 .toList();
     }
 
-    // Find Page untuk Super Admin
+    // Find Page untuk Super Admine
     public Page<ProductResponse> findAllProduct(int Page , int size) {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Product.");
-        }
+        getAuthenticatedSuperAdmin();
 
         PageRequest pageRequest = PageRequest.of(Page, size, Sort.by("name").ascending());
 
@@ -101,10 +107,10 @@ public class ProductService {
     }
 
     // --- MAIN METHODS ---
-    // Khusus untuk Admin partner dan employee 
+    // Khusus untuk Admin partner 
     @Transactional
     public ProductResponse create(ProductRequest request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
 
         if (isAdmin(currentUser)) {
@@ -151,11 +157,11 @@ public class ProductService {
     }
 
     public List<ProductResponse> findAll() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
 
         if(isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+            
         }
 
         return productRepository.findAllByPartner(partner).stream()
@@ -163,42 +169,18 @@ public class ProductService {
                 .toList();
     }
 
-    public Page<ProductResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
-        
-        Partners partner = currentUser.getPartner();
-
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
-
-        return productRepository.findAllByPartner(partner, pageRequest)
-                .map(this::mapToResponse);
-    }
-
     public ProductResponse findById(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
-
-        if(isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
-
         Product product = getValidatedProduct(id, partner);
         return mapToResponse(product);
     }
 
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
         Product product = getValidatedProduct(id, partner);
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
 
         if (request.getCategoryId() != null) {
             CategoryProduct category = categoryRepository.findById(request.getCategoryId())
@@ -229,12 +211,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
-
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(false);
 
@@ -245,12 +222,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse restoreProduct(Long id) {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
-
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(true);
 
@@ -262,7 +234,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse setTrueTrackStock(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setTrackStock(true);
 
@@ -273,7 +245,7 @@ public class ProductService {
 
     @Transactional
     public ProductResponse setFalseTrackStock(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setTrackStock(false);
 
@@ -284,7 +256,7 @@ public class ProductService {
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
         productRepository.delete(product);
     }
