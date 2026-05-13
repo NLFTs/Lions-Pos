@@ -54,10 +54,10 @@ public class OrderItemsService {
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("admin-partners") ||
-                        role.getName().equalsIgnoreCase("employee-partners"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
         boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getName().equalsIgnoreCase("admin"));
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
