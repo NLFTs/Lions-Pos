@@ -14,6 +14,10 @@ import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -55,7 +59,7 @@ public class ProductService {
      private boolean isAdminPartnerAndEmployee(User user) {
         // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
+                .anyMatch(role -> role.getSlug().equals("employee-partner") || role.getSlug().equals("admin-partners"));
     }
 
     private Product getValidatedProduct(Long id, Partners partner) {
@@ -67,6 +71,7 @@ public class ProductService {
         return product;
     }
 
+    // Find All untuk Super Admin
     public List<ProductResponse> findAllProduct() {
         User currentUser = getAuthenticatedUser();
 
@@ -74,15 +79,29 @@ public class ProductService {
             throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Product.");
         }
 
-        List<Product> allProducts = productRepository.findAll();
+        List<Product> allProducts = productRepository.findAllProduct();
 
         return allProducts.stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // --- MAIN METHODS ---
+    // Find Page untuk Super Admin
+    public Page<ProductResponse> findAllProduct(int Page , int size) {
+        User currentUser = getAuthenticatedUser();
 
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua Product.");
+        }
+
+        PageRequest pageRequest = PageRequest.of(Page, size, Sort.by("name").ascending());
+
+        return productRepository.findAll(pageRequest)
+                .map(this::mapToResponse);
+    }
+
+    // --- MAIN METHODS ---
+    // Khusus untuk Admin partner dan employee 
     @Transactional
     public ProductResponse create(ProductRequest request) {
         User currentUser = getAuthenticatedUser();
@@ -136,7 +155,7 @@ public class ProductService {
         Partners partner = currentUser.getPartner();
 
         if(isAdmin(currentUser)) {
-            
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
         }
 
         return productRepository.findAllByPartner(partner).stream()
@@ -144,9 +163,29 @@ public class ProductService {
                 .toList();
     }
 
+    public Page<ProductResponse> findAll(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
+        
+        Partners partner = currentUser.getPartner();
+
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
+
+        return productRepository.findAllByPartner(partner, pageRequest)
+                .map(this::mapToResponse);
+    }
+
     public ProductResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         Partners partner = currentUser.getPartner();
+
+        if(isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
+
         Product product = getValidatedProduct(id, partner);
         return mapToResponse(product);
     }
@@ -156,6 +195,10 @@ public class ProductService {
         User currentUser = getAuthenticatedUser();
         Partners partner = currentUser.getPartner();
         Product product = getValidatedProduct(id, partner);
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
 
         if (request.getCategoryId() != null) {
             CategoryProduct category = categoryRepository.findById(request.getCategoryId())
@@ -187,6 +230,11 @@ public class ProductService {
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
+
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(false);
 
@@ -198,6 +246,11 @@ public class ProductService {
     @Transactional
     public ProductResponse restoreProduct(Long id) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
+        }
+
         Product product = getValidatedProduct(id, currentUser.getPartner());
         product.setIsActive(true);
 
