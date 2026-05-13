@@ -20,6 +20,7 @@ public class UserSeeder {
         User su = new User();
         su.setUsername("su");
         su.setFullname("Super Admin");
+        su.setEmail("su@gaptek.org");
         su.setPassword("su@123");
         process(su);
     }
@@ -31,6 +32,7 @@ public class UserSeeder {
         userEntity.setUsername(user.getUsername());
         userEntity.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
         userEntity.setFullname(user.getFullname());
+        userEntity.setEmail(user.getEmail());
         userRepository.save(userEntity);
     }
 }

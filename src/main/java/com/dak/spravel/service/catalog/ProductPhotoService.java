@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,33 +28,43 @@ public class ProductPhotoService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
-    // --- HELPER: AUTH & BLOCK ADMIN ---
+    // --- HELPER: AUTH & BLOCK ADMIN (Standardized) ---
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-        
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
 
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
         
-        if (isAdmin) {
+        // Ambil semua slug role
+        Set<String> roles = user.getRoles().stream()
+                .map(role -> role.getSlug().toLowerCase())
+                .collect(Collectors.toSet());
+
+        // BLOCK: Super Admin tidak boleh masuk sini
+        if (roles.contains("super_admin") || roles.contains("admin")) {
             throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Foto Produk.");
         }
 
-        return user;
+        // ALLOW: Harus Admin Partner atau Employee
+        if (roles.contains("admin-partners") || roles.contains("employee-partners")) {
+            return user;
+        }
+
+        throw new RuntimeException("Akses Ditolak: Role tidak memiliki izin.");
     }
 
-    // Helper: Validasi kepemilikan foto (via Product -> Partner)
     private ProductPhoto getValidatedPhoto(Long id, Partners partner) {
         ProductPhoto photo = productPhotoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductPhoto", id));
 
-        // Cek apakah produk di dalam foto ini milik partner si user
-        if (!photo.getProduct().getPartner().getId().equals(partner.getId())) {
+        if (partner == null || !photo.getProduct().getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Foto ini milik produk partner lain.");
         }
         return photo;
@@ -60,10 +72,11 @@ public class ProductPhotoService {
 
     // --- MAIN METHODS ---
 
-    // GET ALL BY PRODUCT
     public List<ProductPhoto> findByProductId(Long productId) {
-        User currentUser = getAuthenticatedUser();
-        // Pastiin produknya emang punya dia sebelum narik list foto
+        // Ambil user sekaligus cek role
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        
+        // Pastikan produknya emang punya partner si user
         Product product = productRepository.findByIdAndPartner(productId, currentUser.getPartner());
         if (product == null) {
             throw new ResourceNotFoundException("Product", productId);
@@ -73,9 +86,8 @@ public class ProductPhotoService {
 
     @Transactional
     public ProductPhoto create(ProductPhotoRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         
-        // Pastiin produk yang mau dikasih foto emang milik partner si user
         Product product = productRepository.findByIdAndPartner(request.getProductId(), currentUser.getPartner());
         if (product == null) {
             throw new ResourceNotFoundException("Product", request.getProductId());
@@ -92,7 +104,8 @@ public class ProductPhotoService {
 
     @Transactional
     public ProductPhoto update(Long id, ProductPhotoRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        // Langsung pake partner dari user hasil auth
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
 
         if (request.getUrl() != null) photo.setUrl(request.getUrl());
@@ -104,7 +117,7 @@ public class ProductPhotoService {
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
         productPhotoRepository.delete(photo);
     }

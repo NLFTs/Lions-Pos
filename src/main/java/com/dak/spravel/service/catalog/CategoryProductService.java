@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.access.method.P;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -43,7 +42,7 @@ private final CategoryProductRepository categoryProductRepository;
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
@@ -52,11 +51,11 @@ private final CategoryProductRepository categoryProductRepository;
         User user = getAuthenticatedUser();
         // Cek apakah dia punya role operasional
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") || 
-                                role.getName().equalsIgnoreCase("EMPLOYEE"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
         
         // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
 
         if (!isAuthorized || !isStaff) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
