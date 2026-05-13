@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth'
 import { components } from 'reka-ui/constant'
+import { useLoadingBar } from '@/composables/useLoadingBar'
 
 export const routes = [
   // Root redirect
@@ -253,6 +254,9 @@ const base = isProd ? '/_/' : '/'
 
 export const setupRouterGuards = (router) => {
   router.beforeEach((to, from) => {
+    const { start } = useLoadingBar()
+    start()
+
     const auth = useAuthStore()
 
 
@@ -261,9 +265,7 @@ export const setupRouterGuards = (router) => {
     }
 
     if (to.meta.permission) {
-      const userRoles = auth.user?.roles || []
-      const isAdmin = userRoles.includes('ADMIN') || userRoles.some(r => r.name === 'ADMIN')
-      if (!isAdmin && !auth.permissions.includes(to.meta.permission)) {
+      if (!auth.isAdmin && !auth.permissions.includes(to.meta.permission)) {
         return { name: 'dashboard' }
       }
     }
@@ -272,6 +274,24 @@ export const setupRouterGuards = (router) => {
       return { name: 'dashboard' }
     }
 
+  })
+
+  router.afterEach((to) => {
+    const { finish } = useLoadingBar()
+    finish()
+
+    if (typeof document !== 'undefined') {
+      // Disable custom scrollbar on dashboard routes
+      if (to.path.startsWith('/dashboard')) {
+        document.documentElement.classList.remove('custom-scrollbar')
+      } else {
+        document.documentElement.classList.add('custom-scrollbar')
+      }
+    }
+  })
+  router.onError(() => {
+    const { fail } = useLoadingBar()
+    fail()
   })
 }
 

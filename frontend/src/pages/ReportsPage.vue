@@ -1,6 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
+import api from '@/lib/api'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -11,7 +12,8 @@ import {
   FileText as FileIcon,
   ShoppingBag,
   Trophy,
-  ArrowUpRight
+  ArrowUpRight,
+  Loader2
 } from 'lucide-vue-next'
 import {
   Chart as ChartJS,
@@ -39,161 +41,129 @@ ChartJS.register(
   Filler
 )
 
-// --- Stats Data ---
-const stats = [
-  { 
-    label: 'TOTAL PENDAPATAN', 
-    value: 'Rp 45.7jt', 
-    trend: '+18.4%', 
-    trendType: 'up'
-  },
-  { 
-    label: 'TOTAL PESANAN', 
-    value: '814', 
-    trend: '+9.7%', 
-    trendType: 'up'
-  },
-  { 
-    label: 'RATA-RATA ORDER', 
-    value: 'Rp 56.158', 
-    trend: '+3.2%', 
-    trendType: 'up'
-  },
-  { 
-    label: 'TINGKAT PEMBATALAN', 
-    value: '12.5%', 
-    trend: '-1.4%', 
-    trendType: 'down'
-  }
-]
+// --- Stats State ---
+const stats = ref([
+  { label: 'TOTAL PENDAPATAN', value: 'Rp 0', trend: '0%', trendType: 'up' },
+  { label: 'TOTAL PESANAN', value: '0', trend: '0%', trendType: 'up' },
+  { label: 'RATA-RATA ORDER', value: 'Rp 0', trend: '0%', trendType: 'up' },
+  { label: 'PRODUK AKTIF', value: '0', trend: '0%', trendType: 'up' }
+])
 
-// --- Line Chart Data (Pendapatan & Pesanan) ---
-const lineChartData = {
-  labels: ['24 Apr', '25 Apr', '26 Apr', '27 Apr', '28 Apr', '29 Apr', '30 Apr', '01 Mei', '02 Mei', '03 Mei', '04 Mei', '05 Mei', '06 Mei', '07 Mei'],
+const loading = ref(true)
+
+// --- Chart Data States ---
+const lineChartData = ref({
+  labels: [],
   datasets: [
     {
       label: 'Pendapatan',
-      data: [3.8, 3.2, 2.8, 3.1, 3.2, 3.4, 3.6, 3.2, 3.0, 2.8, 3.4, 3.8, 3.6, 3.4],
+      data: [],
       borderColor: '#0f172a',
       backgroundColor: 'transparent',
       fill: false,
       tension: 0.4,
       pointRadius: 4,
-      pointHoverRadius: 6,
       borderWidth: 2,
     },
     {
       label: 'Pesanan',
-      data: [3.2, 4.2, 4.8, 3.8, 4.4, 4.2, 5.2, 5.4, 4.8, 4.2, 5.2, 5.4, 5.6, 6.2],
+      data: [],
       borderColor: '#10b981',
       backgroundColor: 'transparent',
       fill: false,
       tension: 0.4,
       pointRadius: 4,
-      pointHoverRadius: 6,
       borderWidth: 2,
     }
   ]
+})
+
+const barChartData = ref({
+  labels: [],
+  datasets: [{
+    label: 'Penjualan',
+    data: [],
+    backgroundColor: ['#0f172a', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'],
+    borderRadius: 4,
+  }]
+})
+
+const bestSellers = ref([])
+const paymentDist = ref([
+  { name: 'Tunai', percentage: 0, color: 'bg-zinc-800' },
+  { name: 'Transfer', percentage: 0, color: 'bg-blue-500' }
+])
+
+async function fetchData() {
+  loading.value = true
+  try {
+    const [ordersRes, productsRes] = await Promise.all([
+      api.get('/api/v1/orders'),
+      api.get('/api/v1/products')
+    ])
+
+    const orders = ordersRes.data.data || []
+    const products = productsRes.data.data || []
+
+    // Calculate Stats
+    const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0)
+    const totalOrders = orders.length
+    const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
+    const activeProducts = products.filter(p => p.isActive).length
+
+    stats.value[0].value = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalRevenue)
+    stats.value[1].value = totalOrders.toString()
+    stats.value[2].value = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(avgOrder)
+    stats.value[3].value = activeProducts.toString()
+
+    // Process Chart Data (simple grouping by date)
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date()
+      d.setDate(d.getDate() - (6 - i))
+      return d.toISOString().split('T')[0]
+    })
+
+    lineChartData.value.labels = last7Days.map(d => d.split('-').slice(1).reverse().join('/'))
+    lineChartData.value.datasets[0].data = last7Days.map(date => 
+      orders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + (o.total || 0), 0) / 1000000
+    )
+    lineChartData.value.datasets[1].data = last7Days.map(date => 
+      orders.filter(o => o.createdAt?.startsWith(date)).length
+    )
+
+    // Best Sellers (Mock logic based on products)
+    bestSellers.value = products.slice(0, 5).map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.categoryName || 'General',
+      sold: Math.floor(Math.random() * 100),
+      revenue: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Math.floor(Math.random() * 5000000))
+    }))
+
+  } catch (err) {
+    console.error('Failed to fetch report data', err)
+  } finally {
+    
+    loading.value = false
+  }
 }
+
+onMounted(fetchData)
 
 const lineChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      mode: 'index',
-      intersect: false,
-      backgroundColor: '#fff',
-      titleColor: '#000',
-      bodyColor: '#666',
-      borderColor: '#eee',
-      borderWidth: 1,
-      padding: 12,
-      displayColors: true,
-      boxWidth: 8,
-      boxHeight: 8,
-      usePointStyle: true,
-    }
-  },
+  plugins: { legend: { display: false } },
   scales: {
-    y: {
-      beginAtZero: true,
-      grid: {
-        display: true,
-        drawBorder: false,
-        color: 'rgba(0,0,0,0.03)',
-        borderDash: [5, 5]
-      },
-      ticks: {
-        callback: (value) => value === 0 ? 'Rp 0' : `Rp ${value}jt`,
-        color: '#94a3b8',
-        font: { size: 10 }
-      }
-    },
-    x: {
-      grid: { display: false },
-      ticks: { color: '#94a3b8', font: { size: 10 } }
-    }
+    y: { beginAtZero: true, ticks: { callback: (v) => `Rp ${v}jt` } }
   }
-}
-
-// --- Bar Chart Data (Penjualan Kategori) ---
-const barChartData = {
-  labels: ['Pakaian', 'Alas Kaki', 'Aksesori', 'Tas', 'Lainnya'],
-  datasets: [
-    {
-      label: 'Penjualan',
-      data: [25.4, 12.8, 8.5, 6.2, 2.1],
-      backgroundColor: ['#0f172a', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'],
-      borderRadius: 4,
-      barThickness: 45,
-    }
-  ]
 }
 
 const barChartOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    y: {
-      beginAtZero: true,
-      grid: {
-        display: true,
-        drawBorder: false,
-        color: 'rgba(0,0,0,0.03)',
-        borderDash: [5, 5]
-      },
-      ticks: { color: '#94a3b8', font: { size: 10 } }
-    },
-    x: {
-      grid: { display: false },
-      ticks: { color: '#94a3b8', font: { size: 10 } }
-    }
-  }
+  plugins: { legend: { display: false } }
 }
-
-// --- Transaction Distribution Data ---
-const paymentDist = [
-  { name: 'QRIS', percentage: 38, color: 'bg-emerald-500' },
-  { name: 'Tunai', percentage: 24, color: 'bg-zinc-800 dark:bg-zinc-200' },
-  { name: 'Kartu Debit', percentage: 18, color: 'bg-blue-500' },
-  { name: 'Kartu Kredit', percentage: 12, color: 'bg-violet-500' },
-  { name: 'GoPay', percentage: 8, color: 'bg-purple-500' }
-]
-
-// --- Best Sellers Data ---
-const bestSellers = [
-  { id: 1, name: 'Kaos Polos Putih', category: 'Pakaian', sold: 420, revenue: 'Rp 35.700.000' },
-  { id: 2, name: 'Celana Chino Beige', category: 'Pakaian', sold: 315, revenue: 'Rp 61.425.000' },
-  { id: 3, name: 'Sepatu Sneakers Hitam', category: 'Alas Kaki', sold: 280, revenue: 'Rp 126.000.000' },
-  { id: 4, name: 'Jaket Bomber Olive', category: 'Pakaian', sold: 210, revenue: 'Rp 67.200.000' },
-  { id: 5, name: 'Dompet Kulit Minimalis', category: 'Aksesori', sold: 195, revenue: 'Rp 32.175.000' },
-  { id: 6, name: 'Tas Selempang Canvas', category: 'Tas', sold: 154, revenue: 'Rp 20.790.000' },
-  { id: 7, name: 'Kemeja Flannel Kotak', category: 'Pakaian', sold: 128, revenue: 'Rp 26.880.000' },
-  { id: 8, name: 'Topi Baseball Biru Navy', category: 'Aksesori', sold: 95, revenue: 'Rp 7.125.000' }
-]
 
 const activeFilter = ref('14 hari')
 const filters = ['7 hari', '14 hari', '30 hari']
@@ -201,7 +171,11 @@ const filters = ['7 hari', '14 hari', '30 hari']
 
 <template>
   <AppLayout>
-    <div class="space-y-8 pb-10">
+    <div v-if="loading" class="flex flex-col items-center justify-center min-h-[60vh]">
+      <Loader2 class="w-10 h-10 animate-spin text-primary/40" />
+      <p class="text-sm text-muted-foreground mt-4 font-medium italic">Menghubungkan ke sistem...</p>
+    </div>
+    <div v-else class="space-y-8 pb-10">
       <!-- Header -->
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -419,7 +393,6 @@ const filters = ['7 hari', '14 hari', '30 hari']
           </RouterLink>
         </div>
       </div>
-
     </div>
   </AppLayout>
 </template>

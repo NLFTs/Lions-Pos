@@ -28,8 +28,8 @@ const close = () => {
       <!-- Modal Content -->
       <div class="relative w-full max-w-2xl overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 shadow-2xl border border-white/20 dark:border-zinc-800">
         <!-- Decoration Gradients -->
-        <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/20 rounded-full blur-3xl"></div>
-        <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -top-24 -right-24 w-64 h-64 bg-zinc-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-zinc-500/10 rounded-full blur-3xl"></div>
 
         <!-- Header -->
         <div class="relative flex items-center justify-between p-6 border-b border-border/50">
@@ -54,7 +54,7 @@ const close = () => {
         <div class="relative p-8 space-y-8 overflow-y-auto max-h-[70vh]">
           <!-- Hero Text -->
           <div class="space-y-4">
-            <h3 class="text-3xl font-bold leading-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+            <h3 class="text-3xl font-bold leading-tight text-white">
               Masa Depan Manajemen Bisnis Ada di Tangan Anda.
             </h3>
             <p class="text-zinc-600 dark:text-zinc-400 leading-relaxed text-lg">
@@ -65,8 +65,8 @@ const close = () => {
           <!-- Features Grid -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-border/50 flex gap-4">
-              <div class="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                <Rocket class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <div class="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                <Rocket class="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
               </div>
               <div>
                 <h4 class="font-bold text-sm">Performa Maksimal</h4>
@@ -74,8 +74,8 @@ const close = () => {
               </div>
             </div>
             <div class="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-border/50 flex gap-4">
-              <div class="w-12 h-12 rounded-xl bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center shrink-0">
-                <Heart class="w-6 h-6 text-rose-600 dark:text-rose-400" />
+              <div class="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                <Heart class="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
               </div>
               <div>
                 <h4 class="font-bold text-sm">User Centric</h4>
@@ -83,8 +83,8 @@ const close = () => {
               </div>
             </div>
             <div class="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-border/50 flex gap-4">
-              <div class="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                <Shield class="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              <div class="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                <Shield class="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
               </div>
               <div>
                 <h4 class="font-bold text-sm">Keamanan Ketat</h4>
@@ -92,8 +92,8 @@ const close = () => {
               </div>
             </div>
             <div class="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-border/50 flex gap-4">
-              <div class="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                <Globe class="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              <div class="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                <Globe class="w-6 h-6 text-zinc-600 dark:text-zinc-400" />
               </div>
               <div>
                 <h4 class="font-bold text-sm">Akses Dimanapun</h4>

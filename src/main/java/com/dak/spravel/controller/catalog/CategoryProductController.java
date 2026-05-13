@@ -1,8 +1,11 @@
 package com.dak.spravel.controller.catalog;
 
 import com.dak.spravel.dto.request.catalog.CategoryProductCreate;
+import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.catalogresponse.CategoryProductResponse;
 import com.dak.spravel.service.catalog.CategoryProductService;
+import com.dak.spravel.util.ResponseBuilder;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +13,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -22,23 +33,36 @@ public class CategoryProductController {
 
     private final CategoryProductService categoryProductService;
 
-    @GetMapping
+    @GetMapping("/admin")
     @PreAuthorize("hasAuthority('category_product.index')")
-    public ResponseEntity<List<CategoryProductResponse>> index() {
-        log.info("[GET] /api/v1/category-products");
-        return ResponseEntity.ok(categoryProductService.findAll());
+    public ResponseEntity<ResData<List<CategoryProductResponse>>> getAllForAdmin() {
+        log.info("[GET] /api/v1/category-products/all - Superadmin access");
+        return ResponseBuilder.ok(categoryProductService.findAllCategoryProduct());
     }
 
+    @GetMapping("/admin/page")
+    public ResponseEntity<Page<CategoryProductResponse>> getPageForAdmin() {
+        log.info("[GET] /api/v1/category-products/page - Superadmin access");
+        return ResponseEntity.ok(categoryProductService.findAllCategoryProduct(0, 10));
+    }
+    
+
+    @GetMapping
+    @PreAuthorize("hasAuthority('category_product.index')")
+    public ResponseEntity<ResData<List<CategoryProductResponse>>> index() {
+        log.info("[GET] /api/v1/category-products");
+        return ResponseBuilder.ok(categoryProductService.findAll());
+    }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('category_product.index')")
-    public ResponseEntity<Page<CategoryProductResponse>> paginated(
+    public ResponseEntity<ResData<Page<CategoryProductResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/category-products/page page={} size={}", page, size);
-        return ResponseEntity.ok(categoryProductService.findAll(page, size));
+        return ResponseBuilder.ok(categoryProductService.findAll(page, size));
     }
-    
+
     @PostMapping
     @PreAuthorize("hasAuthority('category_product.store')")
     public ResponseEntity<CategoryProductResponse> store(
@@ -49,11 +73,11 @@ public class CategoryProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('category_product.update')")
-    public ResponseEntity<CategoryProductResponse> update(
+    public ResponseEntity<ResData<CategoryProductResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody CategoryProductCreate request) {
         log.info("[PUT] /api/v1/category-products/{}", id);
-        return ResponseEntity.ok(categoryProductService.update(id, request));
+        return ResponseBuilder.ok(categoryProductService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
@@ -63,4 +87,6 @@ public class CategoryProductController {
         categoryProductService.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+
 }

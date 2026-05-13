@@ -12,8 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BranchesRequestDTO {
-
-    @NotBlank(message = "Nama branch tidak boleh kosong")
+    
     @JsonProperty("name")
     private String name;
 

@@ -1,6 +1,6 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
+import com.dak.spravel.dto.request.partner.BranchRequest;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
@@ -10,6 +10,7 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
+import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,144 +32,236 @@ public class BranchesService {
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        System.out.println("Role yang dibawa: " + auth.getAuthorities());
+
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
 
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(role -> role.getAuthority().equals("ROLE_SUPER_ADMIN") || role.getAuthority().equals("ROLE_ADMIN"));
-        
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
-        }
-        
-        return userRepository.findByUsername(auth.getName())
+        User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+
+        return user;
     }
 
-    private void validatePartnerAccess(User user) {
-        // Cek apakah user punya partner
-        if (user.getPartner() == null) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak terasosiasi dengan Partner manapun.");
-        }
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equals("super_admin") ||
+                                role.getSlug().equals("admin"));
     }
+
+    private boolean isAdminPartnerAndEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equals("employee") ||
+                                role.getSlug().equals("admin-partners"));
+    }
+
 
     private Branches getValidatedBranch(Long id, User currentUser) {
-        validatePartnerAccess(currentUser);
-        
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
         Branches branch = branchesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
 
-        // Pastikan branch ini milik partner si user
-        if (!branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch dari partner lain.");
+        if (currentUser.getPartner() == null ||
+                !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
+
+            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch partner lain.");
         }
 
         return branch;
     }
 
-    // GET ALL (Tanpa Pagination)
-    public List<BranchResponse> findAll() {
-        User currentUser = getAuthenticatedUser();
-        validatePartnerAccess(currentUser);
+    public List<BranchResponse> findAllBranches() {
 
-        // Langsung ambil berdasarkan objek partner yang nempel di user
-        return branchesRepository.findByPartners(currentUser.getPartner())                
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin Partner dan Employee tidak diperbolehkan melihat semua branch.");
+        }
+
+        List<Branches> branches = branchesRepository.findAll();
+
+        return branches.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<BranchResponse> findAll() {
+
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
+        return branchesRepository.findByPartners(currentUser.getPartner())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // GET ALL PAGINATED
     public Page<BranchResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        validatePartnerAccess(currentUser);
 
-        // Lebih efisien pake ID-nya aja buat pagination
-        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("name").ascending()))
-                .map(this::mapToResponse);
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
+        PageRequest pageRequest =
+                PageRequest.of(page, size, Sort.by("name").ascending());
+
+        return branchesRepository.findByPartners(currentUser.getPartner(), pageRequest).map(this::mapToResponse);
     }
 
-    // GET BY ID
     public BranchResponse findById(Long id) {
+
         User currentUser = getAuthenticatedUser();
+
         return mapToResponse(getValidatedBranch(id, currentUser));
     }
 
-    // CREATE
     @Transactional
-    public BranchResponse create(BranchesRequestDTO request) {
+    public BranchResponse create(BranchRequest request) {
 
         User currentUser = getAuthenticatedUser();
-        
-        validatePartnerAccess(currentUser);
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
 
         Partners partner = currentUser.getPartner();
 
+        if (partner == null) {
+            throw new RuntimeException("User ini tidak terasosiasi dengan partner manapun.");
+        }
+
         Branches branch = new Branches();
+
         branch.setPartners(partner);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
-        
-        // Tambahkan Auditing
-        branch.setCreatedBy(currentUser);
-        // AuditHelper.setCreated(branch); // Jika lu mau pake helper
+
+        AuditHelper.setCreated(branch);
 
         return mapToResponse(branchesRepository.save(branch));
     }
 
-    // UPDATE
     @Transactional
-    public BranchResponse update(Long id, BranchesRequestDTO request) {
+    public BranchResponse update(Long id, BranchRequest request) {
+
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
         Branches branch = getValidatedBranch(id, currentUser);
 
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
-        
-        // Tambahkan Auditing Update
         branch.setUpdatedBy(currentUser);
-        // AuditHelper.setUpdated(branch); // Jika ada helpernya
+
+        AuditHelper.setUpdated(branch);
 
         return mapToResponse(branchesRepository.save(branch));
     }
 
-    // DELETE
+    @Transactional
+    public BranchResponse softDelete(Long id) {
+
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
+        Branches branch = getValidatedBranch(id, currentUser);
+
+        branch.setIsActive(false);
+        branch.setDeletedBy(currentUser);
+
+        AuditHelper.setUpdated(branch);
+
+        return mapToResponse(branchesRepository.save(branch));
+    }
+
+    @Transactional
+    public BranchResponse restore(Long id) {
+
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
+        Branches branch = getValidatedBranch(id, currentUser);
+
+        branch.setIsActive(true);
+        branch.setUpdatedBy(currentUser);
+
+        AuditHelper.setUpdated(branch);
+
+        return mapToResponse(branchesRepository.save(branch));
+    }
+
     @Transactional
     public void delete(Long id) {
+
         User currentUser = getAuthenticatedUser();
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Branch.");
+        }
+
         Branches branch = getValidatedBranch(id, currentUser);
+
         branchesRepository.delete(branch);
     }
 
     private BranchResponse mapToResponse(Branches branch) {
+
+        if (branch == null) return null;
+
         BranchResponse response = new BranchResponse();
+
         response.setId(branch.getId());
         response.setName(branch.getName());
         response.setAddress(branch.getAddress());
-
-        if (branch.getPartners() != null) {
-            PartnerSimpleDto pDto = new PartnerSimpleDto();
-            pDto.setId(branch.getPartners().getId());
-            pDto.setName(branch.getPartners().getName());
-            response.setPartner(pDto);
-
-        }
-
         response.setIsActive(branch.getIsActive());
         response.setCreatedAt(branch.getCreatedAt());
         response.setUpdatedAt(branch.getUpdatedAt());
+
+        if (branch.getPartners() != null) {
+
+            PartnerSimpleDto partnerDto = new PartnerSimpleDto();
+
+            partnerDto.setId(branch.getPartners().getId());
+            partnerDto.setName(branch.getPartners().getName());
+
+            response.setPartner(partnerDto);
+        }
+
         response.setCreatedBy(mapUserToDto(branch.getCreatedBy()));
         response.setUpdatedBy(mapUserToDto(branch.getUpdatedBy()));
+
         return response;
     }
 
     private UserSimpleDto mapUserToDto(User user) {
+
         if (user == null) return null;
+
         UserSimpleDto dto = new UserSimpleDto();
-        dto.setId(user. getId());
+
+        dto.setId(user.getId());
         dto.setUsername(user.getUsername());
+
         return dto;
     }
 }

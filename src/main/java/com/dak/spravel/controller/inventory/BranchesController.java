@@ -1,9 +1,8 @@
 package com.dak.spravel.controller.inventory;
 
-import com.dak.spravel.dto.request.inventory.BranchesRequestDTO;
+import com.dak.spravel.dto.request.partner.BranchRequest;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.service.inventory.BranchesService;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,8 +54,7 @@ public class BranchesController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('branch.store')")
-    public ResponseEntity<BranchResponse> store(@Valid @RequestBody BranchesRequestDTO request) {
-        System.out.println("DEBUG - Nama yang masuk: " + request.getName());
+    public ResponseEntity<BranchResponse> store(@Valid @RequestBody BranchRequest request) {
         log.info("[POST] /api/v1/branches name={}", request.getName());
         return ResponseEntity.status(HttpStatus.CREATED).body(branchesService.create(request));
     }
@@ -64,7 +63,7 @@ public class BranchesController {
     @PreAuthorize("hasAuthority('branch.update')")
     public ResponseEntity<BranchResponse> update(
             @PathVariable Long id,
-            @Valid @RequestBody BranchesRequestDTO request) {
+            @Valid @RequestBody BranchRequest request) {
         log.info("[PUT] /api/v1/branches/{}", id);
         return ResponseEntity.ok(branchesService.update(id, request));
     }
@@ -75,5 +74,19 @@ public class BranchesController {
         log.info("[DELETE] /api/v1/branches/{}", id);
         branchesService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/soft-delete/{id}")
+    @PreAuthorize("hasAuthority('branch.update')")
+    public ResponseEntity<BranchResponse> softDelete(@Valid @PathVariable Long id) {
+        log.info("[PUT] /api/v1/branches/{}", id);
+        return ResponseEntity.ok(branchesService.softDelete(id));
+    }
+
+    @PutMapping("/restore/{id}")
+    @PreAuthorize("hasAuthority('branch.update')")
+    public ResponseEntity<BranchResponse> restore(@Valid @PathVariable Long id) {
+        log.info("[PUT] /api/v1/branches/{}", id);
+        return ResponseEntity.ok(branchesService.restoreBranch(id));
     }
 }

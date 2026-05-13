@@ -16,4 +16,5 @@ public class StockOpnameItemDTO {
     private BigDecimal qtyPhysical; // opsional, diisi saat counting
 
     private String notes; // opsional
+
 }

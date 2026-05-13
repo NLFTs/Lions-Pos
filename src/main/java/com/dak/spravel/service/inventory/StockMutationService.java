@@ -51,7 +51,6 @@ public class StockMutationService {
     private StockMutation getValidatedMutation(Long id, User currentUser) {
         StockMutation mutation = stockMutationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
-
         if (currentUser.getPartner() == null ||
                 !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
@@ -63,13 +62,13 @@ public class StockMutationService {
     // GET ALL
     public List<StockMutation> findAll() {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId());
+        return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
     // GET ALL PAGINATED
     public Page<StockMutation> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("createdAt").descending()));
     }
 
     // GET BY ID
@@ -102,45 +101,7 @@ public class StockMutationService {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
         }
 
-        return stockMutationRepository.findByPartnerId(partnerId);
+        return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
-    // CREATE
-    public StockMutation create(StockMutationRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-
-        Partners partner = currentUser.getPartner();
-        if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
-
-        if (!product.getPartner().getId().equals(partner.getId())) {
-            throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
-        }
-
-        StockMutation mutation = new StockMutation();
-        mutation.setProduct(product);
-        mutation.setPartner(partner);
-        mutation.setType(request.getType());
-        mutation.setFromLocationType(request.getFromLocationType());
-        mutation.setFromLocationId(request.getFromLocationId());
-        mutation.setToLocationType(request.getToLocationType());
-        mutation.setToLocationId(request.getToLocationId());
-        mutation.setQty(request.getQty());
-        mutation.setReferenceType(request.getReferenceType());
-        mutation.setReferenceId(request.getReferenceId());
-        mutation.setNotes(request.getNotes());
-
-        return stockMutationRepository.save(mutation);
-    }
-
-    // DELETE
-    public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-        StockMutation mutation = getValidatedMutation(id, currentUser);
-        stockMutationRepository.deleteById(mutation.getId());
-    }
 }

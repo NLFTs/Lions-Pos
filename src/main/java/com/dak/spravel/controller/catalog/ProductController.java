@@ -3,14 +3,20 @@ package com.dak.spravel.controller.catalog;
 import com.dak.spravel.dto.request.product.ProductRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.catalogresponse.ProductResponse;
-import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.service.catalog.ProductService;
 import com.dak.spravel.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -27,6 +33,13 @@ public class ProductController {
     public ResponseEntity<ResData<ProductResponse>> create(@RequestBody ProductRequest request) {
         log.info("[POST] /api/v1/products - Request: {}", request.getName());
         return ResponseBuilder.ok(productService.create(request));
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('product.index')")
+    public ResponseEntity<ResData<List<ProductResponse>>> getAllForAdmin() {
+        log.info("[GET] /api/v1/products/admin - Superadmin access");
+        return ResponseBuilder.ok(productService.findAllProduct());
     }
 
     @GetMapping

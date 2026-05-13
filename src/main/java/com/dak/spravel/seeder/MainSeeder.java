@@ -14,14 +14,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class MainSeeder {
 
-    private final CategorySeeder categorySeeder;
     private final UserSeeder userSeeder;
     private final PermissionSeeder permissionSeeder;
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedAfterMigrations() {
         try {
-            categorySeeder.run();
             userSeeder.run();         // must run before permissionSeeder
             permissionSeeder.run();   // assigns admin role to su
         } catch (Exception e) {

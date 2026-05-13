@@ -1,41 +1,69 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft, Banknote, ArrowRightLeft, X, Ticket, Check, Scan } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
+import api from '@/lib/api'
 
 const { toast } = useToast()
 
-const MOCK_PRODUCTS = [
-  { id: '1', name: 'Kaos Polos Putih', sku: 'KPP-001', price: 85000, categoryName: 'Pakaian', isActive: true, stock: 45, imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=300&q=80' },
-  { id: '2', name: 'Celana Chino Beige', sku: 'CCB-002', price: 195000, categoryName: 'Pakaian', isActive: true, stock: 12, imageUrl: 'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=300&q=80' },
-  { id: '3', name: 'Sepatu Sneakers Hitam', sku: 'SSH-003', price: 450000, categoryName: 'Alas Kaki', isActive: true, stock: 5, imageUrl: null },
-  { id: '5', name: 'Jaket Bomber Olive', sku: 'JBO-005', price: 320000, categoryName: 'Pakaian', isActive: true, stock: 8, imageUrl: null },
-  { id: '6', name: 'Tas Selempang Canvas', sku: 'TSC-006', price: 135000, categoryName: 'Tas', isActive: true, stock: 24, imageUrl: null },
-  { id: '7', name: 'Kemeja Flannel Kotak', sku: 'KFK-007', price: 210000, categoryName: 'Pakaian', isActive: true, stock: 15, imageUrl: null },
-  { id: '8', name: 'Kaos Kaki Sport (3 pcs)', sku: 'KKS-008', price: 45000, categoryName: 'Aksesoris', isActive: true, stock: 50, imageUrl: null },
-  { id: '9', name: 'Sabuk Kulit Coklat', sku: 'SKC-009', price: 98000, categoryName: 'Aksesoris', isActive: true, stock: 0, imageUrl: null },
-]
+const products = ref([])
+const categories = ref([])
+const vouchers = ref([])
+const loading = ref(false)
+
+async function fetchProducts() {
+  loading.value = true
+  try {
+    const res = await api.get('/api/v1/products')
+    const data = res.data.data
+    // Backend returns a List if not using Pageable properly
+    products.value = (Array.isArray(data) ? data : (data.content || [])).filter(p => p.isActive)
+  } catch (err) {
+    toast.error('Gagal memuat produk')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fetchCategories() {
+  try {
+    const res = await api.get('/api/v1/categories')
+    categories.value = res.data.data || []
+  } catch (_) {}
+}
+
+async function fetchVouchers() {
+  try {
+    const res = await api.get('/api/v1/vouchers')
+    vouchers.value = res.data.data || []
+  } catch (_) {}
+}
+
+onMounted(() => {
+  fetchProducts()
+  fetchCategories()
+  fetchVouchers()
+})
 
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
 const orderType = ref('Dine In')
 
 const uniqueCategories = computed(() => {
-  const cats = new Set(MOCK_PRODUCTS.filter(p => p.isActive).map(p => p.categoryName || 'Lainnya'))
-  return ['Semua', ...Array.from(cats).sort()]
+  return ['Semua', ...categories.value.map(c => c.name).sort()]
 })
 
 const filteredProducts = computed(() => {
-  let result = MOCK_PRODUCTS.filter(p => p.isActive)
+  let result = products.value
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
   }
   if (activeCategory.value !== 'Semua') {
-    result = result.filter(p => (p.categoryName || 'Lainnya') === activeCategory.value)
+    result = result.filter(p => (p.categoryName || p.category?.name || 'Lainnya') === activeCategory.value)
   }
   return result
 })
@@ -43,18 +71,9 @@ const filteredProducts = computed(() => {
 const cart = ref([])
 
 function addToCart(product) {
-  if (product.stock <= 0) {
-    toast.error('Stok produk habis!')
-    return
-  }
-
   const existing = cart.value.find(item => item.id === product.id)
   if (existing) {
-    if (existing.qty < product.stock) {
-      existing.qty++
-    } else {
-      toast.error('Stok tidak mencukupi!')
-    }
+    existing.qty++
   } else {
     cart.value.push({ ...product, qty: 1 })
   }
@@ -66,12 +85,7 @@ function getCartQty(id) {
 }
 
 function increaseQty(item) {
-  const product = MOCK_PRODUCTS.find(p => p.id === item.id)
-  if (product && item.qty < product.stock) {
-    item.qty++
-  } else {
-    toast.error('Stok tidak mencukupi!')
-  }
+  item.qty++
 }
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 function removeFromCart(item) {
@@ -84,17 +98,14 @@ function formatCurrency(value) {
 }
 
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
-const subtotal   = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty, 0))
+const subtotal   = computed(() => cart.value.reduce((s, i) => s + (i.price || i.basePrice || 0) * i.qty, 0))
 
 // Voucher
 const voucherCode = ref('')
 const appliedVoucher = ref(null)
-const MOCK_VOUCHERS = [
-  { code: 'DISC10', name: 'Diskon 10%', discountType: 'percent', discountValue: 10, maxDiscount: 50000 },
-  { code: 'HEMAT20K', name: 'Potongan 20rb', discountType: 'fixed', discountValue: 20000 },
-]
+
 function applyVoucher() {
-  const v = MOCK_VOUCHERS.find(v => v.code === voucherCode.value.toUpperCase())
+  const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
   if (v) { appliedVoucher.value = v; toast.success(`Voucher "${v.name}" diterapkan!`) }
   else { toast.error('Kode voucher tidak valid.'); appliedVoucher.value = null }
 }
@@ -184,8 +195,12 @@ function avatarStyle(name = '') {
         </div>
 
         <!-- Grid -->
-        <div class="flex-1 overflow-y-auto no-scrollbar bg-zinc-50 dark:bg-[#09090b]">
-          <div v-if="!filteredProducts.length" class="h-full flex flex-col items-center justify-center text-zinc-400">
+        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+             <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3" />
+             <p class="text-[13px] font-medium italic">Menghubungkan ke sistem...</p>
+          </div>
+          <div v-else-if="filteredProducts.length === 0" class="h-full flex flex-col items-center justify-center text-zinc-400">
             <ShoppingBag class="h-12 w-12 opacity-20 mb-3" />
             <p class="text-[13px] font-medium">Produk tidak ditemukan.</p>
           </div>

@@ -1,22 +1,18 @@
 package com.dak.spravel.controller.common;
 
-import org.springframework.data.repository.query.parser.Part;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.web.bind.annotation.*;
 import com.dak.spravel.dto.request.partner.CreatePartnerRequest;
 import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.common.PartnerResponse;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.service.common.PartnerService;
 import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -28,34 +24,43 @@ public class PartnerController {
 
     private final PartnerService partnerService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('partner.index')")
+    public ResponseEntity<ResData<List<PartnerResponse>>> indexAdmin() {
+        log.info("[GET] /partners/admin");
+        return ResponseBuilder.ok(partnerService.findAll());
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('partner.index')")
     public ResponseEntity<ResData<List<PartnerResponse>>> findAll() {
-        log.info("[GET] /api/v1/partners");
+        log.info("[GET] /partners");
         return ResponseBuilder.ok(partnerService.findAll());
+    }
+
+    @GetMapping("/page")
+    @PreAuthorize("hasAuthority('partner.index')")
+    public ResponseEntity<ResData<Page<PartnerResponse>>> paginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /partners/page page={} size={}", page, size);
+        return ResponseBuilder.ok(partnerService.findAll(page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('partner.show')")
     public ResponseEntity<ResData<PartnerResponse>> findById(@PathVariable Long id) {
-        log.info("[GET] /api/v1/partners/{}", id);
+        log.info("[GET] /partners/{}", id);
         return ResponseBuilder.ok(partnerService.findById(id));
     }
 
+
     @PostMapping
     @PreAuthorize("hasAuthority('partner.store')")
-    public ResponseEntity<ResData<PartnerResponse>> createPartner(
-            @Valid @RequestBody CreatePartnerRequest request,
-            @AuthenticationPrincipal UserDetails userDetails,
-            Authentication auth) {
-        // if (auth != null) {
-        //     log.info("=== DEBUG SECURITY ===");
-        //     log.info("User: {}", auth.getName());
-        //     log.info("Authorities: {}", auth.getAuthorities());
-        //     log.info("=======================");
-        // }
-        log.info("[POST] /api/v1/partners - Request: {}", request);
-        return ResponseBuilder.ok(partnerService.createPartner(request));
+    public ResponseEntity<ResData<PartnerResponse>> create(
+            @Valid @RequestBody CreatePartnerRequest request) {
+        log.info("[POST] /partners");
+        return ResponseBuilder.ok(partnerService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -63,30 +68,28 @@ public class PartnerController {
     public ResponseEntity<ResData<PartnerResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdatePartnerRequest request) {
-        log.info("[PUT] /api/v1/partners/{}", id);
+        log.info("[PUT] /partners/{}", id);
         return ResponseBuilder.ok(partnerService.update(id, request));
     }
 
-    @PutMapping("soft-delete/{id}")
-    @PreAuthorize("hasAuthority('partner.update')")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('partner.delete')")
     public ResponseEntity<ResData<PartnerResponse>> softDelete(@PathVariable Long id) {
-        log.info("[SOFT-DELETE] /api/v1/partners/{}", id);
-        partnerService.softDelete(id);
+        log.info("[DELETE] /partners/{}", id);
         return ResponseBuilder.ok(partnerService.softDelete(id));
     }
 
-    @PutMapping("restore/{id}")
-    @PreAuthorize("hasAuthority('partner.update')")
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('partner.restore')")
     public ResponseEntity<ResData<PartnerResponse>> restore(@PathVariable Long id) {
-        log.info("[RESTORE] /api/v1/partners/{}", id);
-        partnerService.restore(id);
+        log.info("[POST] /partners/{}/restore", id);
         return ResponseBuilder.ok(partnerService.restore(id));
     }
 
     @DeleteMapping("/{id}/force")
-    @PreAuthorize("hasAuthority('partner.delete')")
+    @PreAuthorize("hasAuthority('partner.force_delete')")
     public ResponseEntity<ResData<Void>> hardDelete(@PathVariable Long id) {
-        log.info("[DELETE FORCE] /api/v1/partners/{}", id);
+        log.info("[DELETE] /partners/{}/force", id);
         partnerService.hardDelete(id);
         return ResponseBuilder.ok();
     }

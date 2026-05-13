@@ -1,6 +1,9 @@
 package com.dak.spravel.repository.inventory;
 
 import com.dak.spravel.model.inventory.StockBalance;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,6 +15,8 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     Optional<StockBalance>findByProductIdAndLocationTypeAndLocationId(Long productId, String locationType, Long locationId);
 
     List<StockBalance> findByProductPartnerId(Long partnerId);
+
+    Page<StockBalance> findByProductPartnerId(Long partnerId, Pageable pageable);
 
     List<StockBalance> findByProductId(Long productId);
 
