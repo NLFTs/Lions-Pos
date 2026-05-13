@@ -54,6 +54,27 @@ public class TransferRequestService {
         return user;
     }
 
+    private User getAuthenticatedSuperAdmin(){
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admin"); {
+            return user;
+        }
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee(){
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")||
+                          role.getSlug().equalsIgnoreCase("employee"));
+                          boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+                          if (!isAuthorized ||!isStaff) {
+                            throw new RuntimeException("Akses Di Tolak: Hanya Admin Dan Partner Atau Employee Yang Di Izinkan");
+                          }
+                return user;
+    }
+
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));

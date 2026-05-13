@@ -21,7 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -40,21 +40,35 @@ public class StockBalanceService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Stock Balance.");
-        }
+        return user;
+    }
 
+    private User getAuthenticatedSuperAdmin() {
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admmin"); {
+            return user;
+        }
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee"));
+        
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
         return user;
     }
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-    }
-
-    private boolean isAdminPartnerAndEmployee(User user){
-        return user.getRoles().stream()
-        .anyMatch(role -> role.getSlug().equals("employee")||role.getSlug().equals("admin-partners"));
+                .anyMatch(role -> role.getSlug().equals("admin") || role.getSlug().equals("admin"));
     }
 
     private StockBalance getValidatedStockBalance(Long id, User currentUser) {
@@ -64,6 +78,10 @@ public class StockBalanceService {
         if (currentUser.getPartner() == null ||
                 !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Stock balance bukan milik partner Anda.");
+        }
+
+        if (isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak Admin Tidak Di Perbolehkan Mengelola Stock Balances");
         }
 
         return stock;
@@ -99,25 +117,24 @@ public class StockBalanceService {
             .updatedBy(userDto)
             .build();
 }
-    // Khusus Untuk Superadmin
-    public List<StockBalanceResponse> findAllStockBalance(){
-        User currentUser = getAuthenticatedUser();
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak : Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockBalance");
-        }
-        List<StockBalance> allStockBalance = stockBalanceRepository.findAll();
+   public List<StockBalanceResponse> findAllStockBalance() {
+    getAuthenticatedSuperAdmin();
 
-        return allStockBalance.stream()
-        .map(this::mapToResponse)
-        .collect(Collectors.toList());
-    }
+    return stockBalanceRepository.findAll()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
 
-    // GET ALL
-    public List<StockBalance> findAll() {
-        User currentUser = getAuthenticatedUser();
-        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
-    }
+    public List<StockBalanceResponse> findAll() {
+    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+    return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId())
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
 
     // GET ALL PAGINATED
     public Page<StockBalance> findAll(int page, int size) {

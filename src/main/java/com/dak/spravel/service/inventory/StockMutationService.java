@@ -1,11 +1,9 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.StockMutationRequestDTO;
 import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.StockMutation;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
@@ -19,7 +17,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 
 @Service
@@ -42,13 +39,33 @@ public class StockMutationService {
         return user;
     }
 
+    private User getAuthenticatedSuperAdmin(){
+        User user = getAuthenticatedUser();
+        boolean isSuperAdmin = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admin"); 
+        return user;
+    }
+
+    private User getAuthenticatedAdminPartnerOrEmployee(){
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")||
+    role.getSlug().equalsIgnoreCase("employee"));
+
+    boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+    if (!isAuthorized || !isStaff) {
+        throw new RuntimeException("Akses Di Tolak: Hanya Admin Partner Atau Employee Yang Di Izinkan");
+    }
+    return user;
+    }
+
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
     private boolean isAdminPartnerAndEmployee(User user) {
-        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
@@ -85,18 +102,14 @@ public class StockMutationService {
 }
 
 
-    public List<StockMutationResponse> findAllStockMutation(){
-        User  currentUser  = getAuthenticatedUser();
+    public List<StockMutationResponse> findAllStockMutation() {
+    getAuthenticatedSuperAdmin();
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak Admin, Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockMutation");
-        }
-        List <StockMutation> allStockMutations = stockMutationRepository.findAll();
-
-        return allStockMutations.stream()
-        .map(this::mapToResponse)
-        .collect(Collectors.toList());
-    }
+    return stockMutationRepository.findAll()
+            .stream()
+            .map(this::mapToResponse)
+            .toList();
+}
 
     // GET ALL
     public List<StockMutation> findAll() {
