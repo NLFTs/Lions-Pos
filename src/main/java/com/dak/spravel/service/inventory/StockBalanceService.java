@@ -1,6 +1,8 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -8,6 +10,8 @@ import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
+
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +52,11 @@ public class StockBalanceService {
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
+    private boolean isAdminPartnerAndEmployee(User user){
+        return user.getRoles().stream()
+        .anyMatch(role -> role.getSlug().equals("employee")||role.getSlug().equals("admin-partners"));
+    }
+
     private StockBalance getValidatedStockBalance(Long id, User currentUser) {
         StockBalance stock = stockBalanceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockBalance", id));
@@ -57,6 +67,50 @@ public class StockBalanceService {
         }
 
         return stock;
+    }
+
+    // mapToResponse
+    private StockBalanceResponse mapToResponse(StockBalance stock) {
+
+    // Product DTO
+    StockBalanceResponse.ProductSimpleDto productDto =
+            new StockBalanceResponse.ProductSimpleDto();
+
+    productDto.setId(stock.getProduct().getId());
+    productDto.setName(stock.getProduct().getName());
+    productDto.setSku(stock.getProduct().getSku());
+
+    // User DTO
+    UserSimpleDto userDto = null;
+
+    if (stock.getUpdatedBy() != null) {
+        userDto = new UserSimpleDto();
+        userDto.setId(stock.getUpdatedBy().getId());
+        userDto.setUsername(stock.getUpdatedBy().getUsername());
+    }
+
+    return StockBalanceResponse.builder()
+            .id(stock.getId())
+            .product(productDto)
+            .locationType(stock.getLocationType())
+            .locationId(stock.getLocationId())
+            .qty(stock.getQty())
+            .updatedAt(stock.getUpdatedAt())
+            .updatedBy(userDto)
+            .build();
+}
+    // Khusus Untuk Superadmin
+    public List<StockBalanceResponse> findAllStockBalance(){
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak : Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockBalance");
+        }
+        List<StockBalance> allStockBalance = stockBalanceRepository.findAll();
+
+        return allStockBalance.stream()
+        .map(this::mapToResponse)
+        .collect(Collectors.toList());
     }
 
     // GET ALL
@@ -102,6 +156,7 @@ public class StockBalanceService {
     }
 
     // CREATE
+    @Transactional
     public StockBalance create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedUser();
 

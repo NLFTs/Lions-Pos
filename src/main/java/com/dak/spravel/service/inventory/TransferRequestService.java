@@ -2,6 +2,9 @@ package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
 import com.dak.spravel.dto.request.inventory.TransferRequestItemDTO;
+import com.dak.spravel.dto.response.components.PartnerSimpleDto;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -24,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +59,13 @@ public class TransferRequestService {
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
+    private boolean isAdminPartnerAndEmployee(User user) {
+        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
+    }
+
+
     private TransferRequest getValidatedTransferRequest(Long id, User currentUser) {
         TransferRequest transferRequest = transferRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
@@ -67,6 +78,98 @@ public class TransferRequestService {
         return transferRequest;
     }
 
+    // Khusus Untuk Super Admin
+    public List<TransferRequestResponse> findAllTransferRequest(){
+        User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak: Admin Partners Dan Employee Tidak Di Perbolehkan Melihat Semua Transfer Request");
+        }
+        List<TransferRequest> allTransferRequests = transferRequestRepository.findAll();
+        return allTransferRequests.stream()
+        .map(this::mapToResponse)
+        .collect(Collectors.toList());
+    }
+
+    private TransferRequestResponse mapToResponse(TransferRequest transferRequest) {
+
+    // Partner DTO
+    PartnerSimpleDto partnerDto = null;
+
+    if (transferRequest.getPartner() != null) {
+        partnerDto = new PartnerSimpleDto();
+        partnerDto.setId(transferRequest.getPartner().getId());
+        partnerDto.setName(transferRequest.getPartner().getName());
+    }
+
+    // Items Response
+    List<TransferRequestResponse.TransferRequestItemResponse> itemResponses =
+            transferRequestItemRepository
+                    .findByTransferRequestId(transferRequest.getId())
+                    .stream()
+                    .map(this::mapItemToResponse)
+                    .collect(Collectors.toList());
+
+    return TransferRequestResponse.builder()
+            .id(transferRequest.getId())
+            .partner(partnerDto)
+            .fromLocationType(transferRequest.getFromLocationType())
+            .fromLocationId(transferRequest.getFromLocationId())
+            .toLocationType(transferRequest.getToLocationType())
+            .toLocationId(transferRequest.getToLocationId())
+            .status(transferRequest.getStatus())
+            .notes(transferRequest.getNotes())
+            .requestedAt(transferRequest.getRequestedAt())
+            .approvedAt(transferRequest.getApprovedAt())
+            .receivedAt(transferRequest.getReceivedAt())
+            .createdAt(transferRequest.getCreatedAt())
+            .updatedAt(transferRequest.getUpdatedAt())
+            .deletedAt(transferRequest.getDeletedAt())
+            .createdBy(mapUserToSimpleDto(transferRequest.getCreatedBy()))
+            .updatedBy(mapUserToSimpleDto(transferRequest.getUpdatedBy()))
+            .deletedBy(mapUserToSimpleDto(transferRequest.getDeletedBy()))
+            .approvedBy(null)
+            .receivedBy(null)
+            .items(itemResponses)
+            .build();
+    }
+
+    private TransferRequestResponse.TransferRequestItemResponse
+    mapItemToResponse(TransferRequestItem item) {
+
+        TransferRequestResponse.ProductSimpleDto productDto = null;
+
+        if (item.getProduct() != null) {
+            productDto = new TransferRequestResponse.ProductSimpleDto();
+
+            productDto.setId(item.getProduct().getId());
+            productDto.setName(item.getProduct().getName());
+            productDto.setSku(item.getProduct().getSku());
+        }
+
+        TransferRequestResponse.TransferRequestItemResponse response =
+                new TransferRequestResponse.TransferRequestItemResponse();
+
+        response.setId(item.getId());
+        response.setProduct(productDto);
+        response.setQtyRequested(item.getQtyRequested());
+        response.setQtyReceived(item.getQtyReceived());
+
+        return response;
+    }
+
+    private UserSimpleDto mapUserToSimpleDto(User user) {
+
+    if (user == null) {
+        return null;
+    }
+
+    UserSimpleDto dto = new UserSimpleDto();
+    dto.setId(user.getId());
+    dto.setUsername(user.getUsername());
+
+    return dto;
+}
     // GET ALL
     public List<TransferRequest> findAll() {
         User currentUser = getAuthenticatedUser();
