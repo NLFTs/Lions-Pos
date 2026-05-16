@@ -44,14 +44,8 @@ public class TransferRequestService {
             throw new RuntimeException("User tidak terautentikasi");
         }
 
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Transfer Request.");
-        }
-
-        return user;
     }
 
     private User getAuthenticatedSuperAdmin(){
@@ -63,16 +57,18 @@ public class TransferRequestService {
         }
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee(){
+    private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")||
-                          role.getSlug().equalsIgnoreCase("employee"));
-                          boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-                          if (!isAuthorized ||!isStaff) {
-                            throw new RuntimeException("Akses Di Tolak: Hanya Admin Dan Partner Atau Employee Yang Di Izinkan");
-                          }
-                return user;
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
+        
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
     private boolean isAdmin(User user) {
@@ -112,7 +108,7 @@ public class TransferRequestService {
         .collect(Collectors.toList());
     }
 
-    private TransferRequestResponse mapToResponse(TransferRequest transferRequest) {
+    public TransferRequestResponse mapToResponse(TransferRequest transferRequest) {
 
     // Partner DTO
     PartnerSimpleDto partnerDto = null;
@@ -198,15 +194,35 @@ public class TransferRequestService {
     }
 
     // GET ALL PAGINATED
-    public Page<TransferRequest> findAll(int page, int size) {
+    public Page<TransferRequestResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return transferRequestRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
+
+        if (isAdmin(currentUser)) {
+            return transferRequestRepository.findAll(pageRequest).map(this::mapToResponse);
+        }
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
+
+        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageRequest)
+                .map(this::mapToResponse);
     }
 
     // GET BY ID
-    public TransferRequest findById(Long id) {
+    public TransferRequestResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        return getValidatedTransferRequest(id, currentUser);
+        TransferRequest transferRequest = transferRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
+
+        if (!isAdmin(currentUser)) {
+            if (currentUser.getPartner() == null ||
+                !transferRequest.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
+            }
+        }
+        return mapToResponse(transferRequest);
     }
 
     // GET BY PARTNER
@@ -223,8 +239,8 @@ public class TransferRequestService {
 
     // CREATE
     @Transactional
-    public TransferRequest create(TransferRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
+    public TransferRequestResponse create(TransferRequestDTO request) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -259,9 +275,9 @@ public class TransferRequestService {
             items.add(item);
         }
         transferRequestItemRepository.saveAll(items);
-        saved.setItems(items);
+        transferRequest.setItems(items);
 
-        return saved;
+        return mapToResponse(transferRequest);
     }
 
     // UPDATE STATUS
@@ -279,12 +295,12 @@ public class TransferRequestService {
             transferRequest.setReceivedAt(LocalDateTime.now());
         }
 
-        return transferRequestRepository.save(transferRequest);
+        return mapToResponse(transferRequestRepository.save(transferRequest));
     }
 
     // SOFT DELETE
     public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         TransferRequest transferRequest = getValidatedTransferRequest(id, currentUser);
         transferRequest.setDeletedAt(LocalDateTime.now());
         transferRequestRepository.save(transferRequest);

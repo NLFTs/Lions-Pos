@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -25,6 +26,9 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
+const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.isAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const products = ref([])
@@ -66,16 +70,16 @@ const filteredProducts = computed(() => {
 
   // 1. Status Filter
   if (filterStatus.value === 'aktif') {
-    result = result.filter(p => p.isActive)
+    result = result.filter(p => p.is_active)
   } else if (filterStatus.value === 'nonaktif') {
-    result = result.filter(p => !p.isActive)
+    result = result.filter(p => !p.is_active)
   }
 
   // 2. Stock Filter
   if (filterStock.value === 'dilacak') {
-    result = result.filter(p => p.trackStock)
+    result = result.filter(p => p.track_stock)
   } else if (filterStock.value === 'bebas') {
-    result = result.filter(p => !p.trackStock)
+    result = result.filter(p => !p.track_stock)
   }
 
   // 3. Search Filter
@@ -84,17 +88,17 @@ const filteredProducts = computed(() => {
     result = result.filter(p =>
       (p.name && p.name.toLowerCase().includes(q)) ||
       (p.sku && p.sku.toLowerCase().includes(q)) ||
-      (p.categoryName && p.categoryName.toLowerCase().includes(q))
+      (p.category_id?.name && p.category_id.name.toLowerCase().includes(q))
     )
   }
 
   // 3. Sort
   if (sortBy.value === 'harga-termahal') {
-    result = [...result].sort((a, b) => b.price - a.price)
+    result = [...result].sort((a, b) => (b.base_price || 0) - (a.base_price || 0))
   } else if (sortBy.value === 'harga-termurah') {
-    result = [...result].sort((a, b) => a.price - b.price)
+    result = [...result].sort((a, b) => (a.base_price || 0) - (b.base_price || 0))
   } else if (sortBy.value === 'terbaru') {
-    result = [...result].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    result = [...result].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }
 
   return result
@@ -125,7 +129,8 @@ async function fetchProducts(page = 0) {
   loading.value = true
   error.value = null
   try {
-    const res = await api.get(`/api/v1/products?page=${page}&size=${pagination.value.size}`)
+    const url = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
+    const res = await api.get(`${url}?page=${page}&size=${pagination.value.size}`)
     const data = res.data.data
     // Backend returns a List if not using Pageable properly in some versions, 
     // but the controller signature shows ResData<List<ProductResponse>>.
@@ -159,7 +164,8 @@ function updatePageSize(newSize) {
 
 async function fetchCategories() {
   try {
-    const res = await api.get('/api/v1/categories')
+    const url = isAdmin.value ? '/api/v1/categories/admin' : '/api/v1/categories'
+    const res = await api.get(url)
     categories.value = res.data.data
   } catch (_) {
     // non-critical
@@ -189,10 +195,10 @@ function openEdit(product) {
     id: product.id,
     name: product.name || '',
     sku: product.sku || '',
-    price: product.price ?? '',
-    categoryId: product.categoryId || null,
-    trackStock: product.trackStock ?? true,
-    isActive: product.isActive ?? true,
+    price: product.base_price ?? '',
+    categoryId: product.category_id?.id || null,
+    trackStock: product.track_stock ?? true,
+    isActive: product.is_active ?? true,
     image: null,
     imagePreview: product.imageUrl || null,
   }
@@ -227,10 +233,10 @@ async function saveProduct() {
     const payload = {
       name: form.value.name,
       sku: form.value.sku || undefined,
-      price: parseFloat(form.value.price),
-      categoryId: form.value.categoryId || undefined,
-      trackStock: form.value.trackStock,
-      isActive: form.value.isActive,
+      base_price: parseFloat(form.value.price),
+      category_id: form.value.categoryId || undefined,
+      track_stock: form.value.trackStock,
+      is_active: form.value.isActive,
     }
     
     // If backend supports multipart/form-data:
@@ -303,16 +309,17 @@ async function toggleStatus(product) {
   if (togglingStatus.value === product.id) return
   
   togglingStatus.value = product.id
-  const originalStatus = product.isActive
-  product.isActive = !product.isActive // Optimistic update
+  const originalStatus = product.is_active
+  product.is_active = !product.is_active // Optimistic update
   
+  console.log('DEBUG: Toggling status for product', product.id, 'to', product.is_active)
   try {
     await api.patch(`/api/v1/products/${product.id}`, {
-      isActive: product.isActive
+      is_active: product.is_active
     })
-    toast.success(`Status ${product.name} berhasil diperbarui menjadi ${product.isActive ? 'Aktif' : 'Nonaktif'}.`)
+    toast.success(`Status ${product.name} berhasil diperbarui menjadi ${product.is_active ? 'Aktif' : 'Nonaktif'}.`)
   } catch (err) {
-    product.isActive = originalStatus // Rollback
+    product.is_active = originalStatus // Rollback
     toast.error(err.response?.data?.message || 'Gagal memperbarui status produk.')
   } finally {
     togglingStatus.value = null
@@ -537,26 +544,26 @@ function productAvatarStyle(name = '') {
 
                 <!-- Footer (Price, Category, Status) -->
                 <div class="flex items-center justify-between mt-1">
-                  <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{{ formatCurrency(product.price) }}</span>
+                  <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{{ formatCurrency(product.base_price) }}</span>
                   <div class="flex items-center gap-2">
                     <span
-                      v-if="product.categoryName"
+                      v-if="product.category_id?.name"
                       class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40"
                     >
-                      {{ product.categoryName }}
+                      {{ product.category_id.name }}
                     </span>
                     <button
                       type="button"
                       role="switch"
-                      :aria-checked="product.isActive"
+                      :aria-checked="product.is_active"
                       :disabled="togglingStatus === product.id"
                       class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                      :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                       @click.stop="toggleStatus(product)"
                     >
                       <span
                         class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
-                        :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                        :class="product.is_active ? 'translate-x-4' : 'translate-x-0'"
                       >
                         <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
                       </span>
@@ -612,16 +619,16 @@ function productAvatarStyle(name = '') {
 
                     <!-- Harga -->
                     <TableCell class="py-3">
-                      <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{{ formatCurrency(product.price) }}</span>
+                      <span class="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{{ formatCurrency(product.base_price) }}</span>
                     </TableCell>
 
                     <!-- Kategori -->
                     <TableCell class="py-3">
                       <span
-                        v-if="product.categoryName"
+                        v-if="product.category_id?.name"
                         class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40"
                       >
-                        {{ product.categoryName }}
+                        {{ product.category_id.name }}
                       </span>
                       <span v-else class="text-zinc-300 dark:text-zinc-600 text-sm">—</span>
                     </TableCell>
@@ -630,12 +637,12 @@ function productAvatarStyle(name = '') {
                     <TableCell class="py-3 text-center">
                       <span
                         class="inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full"
-                        :class="product.trackStock
+                        :class="product.track_stock
                           ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/40'
                           : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700'"
                       >
-                        <span class="w-1.5 h-1.5 rounded-full" :class="product.trackStock ? 'bg-emerald-500' : 'bg-zinc-400'" />
-                        {{ product.trackStock ? 'Dilacak' : 'Bebas' }}
+                        <span class="w-1.5 h-1.5 rounded-full" :class="product.track_stock ? 'bg-emerald-500' : 'bg-zinc-400'" />
+                        {{ product.track_stock ? 'Dilacak' : 'Bebas' }}
                       </span>
                     </TableCell>
 
@@ -644,15 +651,15 @@ function productAvatarStyle(name = '') {
                       <button
                         type="button"
                         role="switch"
-                        :aria-checked="product.isActive"
+                        :aria-checked="product.is_active"
                         :disabled="togglingStatus === product.id"
                         class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mx-auto"
-                        :class="product.isActive ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
+                        :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                         @click.stop="toggleStatus(product)"
                       >
                         <span
                           class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
-                          :class="product.isActive ? 'translate-x-4' : 'translate-x-0'"
+                          :class="product.is_active ? 'translate-x-4' : 'translate-x-0'"
                         >
                           <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
                         </span>
@@ -661,7 +668,7 @@ function productAvatarStyle(name = '') {
 
                     <!-- Tanggal -->
                     <TableCell class="py-3">
-                      <span class="text-xs text-zinc-400 dark:text-zinc-500">{{ formatDate(product.createdAt) }}</span>
+                      <span class="text-xs text-zinc-400 dark:text-zinc-500">{{ formatDate(product.created_at) }}</span>
                     </TableCell>
 
                     <!-- Aksi -->

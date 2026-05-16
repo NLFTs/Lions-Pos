@@ -2,7 +2,9 @@ package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.partner.BranchRequest;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
+import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.service.inventory.BranchesService;
+import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,43 +31,52 @@ public class BranchesController {
 
     private final BranchesService branchesService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('branch.index')")
+    public ResponseEntity<ResData<Page<BranchResponse>>> getAllForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/branches/admin - Superadmin access, page: {}, size: {}", page, size);
+        return ResponseBuilder.ok(branchesService.findAll(page, size));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<List<BranchResponse>> index() {
+    public ResponseEntity<ResData<List<BranchResponse>>> index() {
         log.info("[GET] /api/v1/branches");
-        return ResponseEntity.ok(branchesService.findAll());
+        return ResponseBuilder.ok(branchesService.findAll());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<Page<BranchResponse>> paginated(
+    public ResponseEntity<ResData<Page<BranchResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/branches/page page={} size={}", page, size);
-        return ResponseEntity.ok(branchesService.findAll(page, size));
+        return ResponseBuilder.ok(branchesService.findAll(page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('branch.show')")
-    public ResponseEntity<BranchResponse> show(@PathVariable Long id) {
+    public ResponseEntity<ResData<BranchResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/branches/{}", id);
-        return ResponseEntity.ok(branchesService.findById(id));
+        return ResponseBuilder.ok(branchesService.findById(id));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('branch.store')")
-    public ResponseEntity<BranchResponse> store(@Valid @RequestBody BranchRequest request) {
+    public ResponseEntity<ResData<BranchResponse>> store(@Valid @RequestBody BranchRequest request) {
         log.info("[POST] /api/v1/branches name={}", request.getName());
-        return ResponseEntity.status(HttpStatus.CREATED).body(branchesService.create(request));
+        return ResponseBuilder.created(branchesService.create(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('branch.update')")
-    public ResponseEntity<BranchResponse> update(
+    public ResponseEntity<ResData<BranchResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody BranchRequest request) {
         log.info("[PUT] /api/v1/branches/{}", id);
-        return ResponseEntity.ok(branchesService.update(id, request));
+        return ResponseBuilder.ok(branchesService.update(id, request));
     }
 
     @DeleteMapping("/{id}")

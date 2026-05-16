@@ -82,11 +82,18 @@ public class StockBalance {
         @Column(name = "qty", nullable = false, precision = 19, scale = 4)
         private BigDecimal qty = BigDecimal.ZERO;
 
+        @Column(name = "created_at", updatable = false)
+        private LocalDateTime createdAt = LocalDateTime.now();
+
         @UpdateTimestamp
         @Column(name = "updated_at")
         private LocalDateTime updatedAt;
 
         @ManyToOne(fetch = FetchType.LAZY)
-        @JoinColumn(name = "updated_by", referencedColumnName = "id", insertable = false, updatable = false)
+        @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+        private User createdBy;
+
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "updated_by", referencedColumnName = "id")
         private User updatedBy;
 }

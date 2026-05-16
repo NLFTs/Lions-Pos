@@ -41,11 +41,15 @@ public class BranchesService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
+    private boolean isAdmin(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("admin"));
+    }
+
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
 
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        boolean isSuperAdmin = isAdmin(user);
         if (!isSuperAdmin) {
             throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         }
@@ -108,23 +112,34 @@ public class BranchesService {
 
 
     public Page<BranchResponse> findAll(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
 
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (isAdmin(currentUser)) {
+            return branchesRepository.findAll(pageRequest).map(this::mapToResponse);
+        }
 
-        PageRequest pageRequest =
-                PageRequest.of(page, size, Sort.by("name").ascending());
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
 
-        return branchesRepository
-                .findByPartnersId(currentUser.getPartner().getId(), pageRequest)
+        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), pageRequest)
                 .map(this::mapToResponse);
     }
 
 
     public BranchResponse findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        Branches branch = branchesRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
 
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (!isAdmin(currentUser)) {
+            if (currentUser.getPartner() == null || branch.getPartners() == null || !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch partner lain.");
+            }
+        }
 
-        return mapToResponse(getValidatedBranch(id, currentUser));
+        return mapToResponse(branch);
     }
 
 

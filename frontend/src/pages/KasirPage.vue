@@ -3,55 +3,78 @@ import { ref, computed, onMounted } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, ShoppingBag, ArrowLeft, Banknote, ArrowRightLeft, X, Ticket, Check, Scan } from 'lucide-vue-next'
+import Label from '@/components/ui/Label.vue'
+import { 
+  Search, 
+  ShoppingCart, 
+  Plus, 
+  Minus, 
+  Trash2, 
+  CreditCard, 
+  ShoppingBag, 
+  ArrowLeft, 
+  Banknote, 
+  ArrowRightLeft, 
+  X, 
+  Ticket, 
+  Check, 
+  Scan,
+  Loader2,
+  Building2,
+  ChevronDown
+} from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import api from '@/lib/api'
 
 const { toast } = useToast()
 
+// ─── State ───────────────────────────────────────────────────────────────────
 const products = ref([])
 const categories = ref([])
 const vouchers = ref([])
+const branches = ref([])
+const selectedBranchId = ref(null)
 const loading = ref(false)
+const processingCheckout = ref(false)
 
-async function fetchProducts() {
+const searchQuery = ref('')
+const activeCategory = ref('Semua')
+const orderType = ref('Dine In')
+const cart = ref([])
+
+// ─── Data Fetching ────────────────────────────────────────────────────────────
+async function fetchData() {
   loading.value = true
   try {
-    const res = await api.get('/api/v1/products')
-    const data = res.data.data
-    // Backend returns a List if not using Pageable properly
-    products.value = (Array.isArray(data) ? data : (data.content || [])).filter(p => p.isActive)
+    const [resP, resC, resV, resB] = await Promise.all([
+      api.get('/api/v1/products'),
+      api.get('/api/v1/categories'),
+      api.get('/api/v1/vouchers'),
+      api.get('/api/v1/branches')
+    ])
+    
+    // Product data normalization
+    const pData = resP.data.data
+    products.value = (Array.isArray(pData) ? pData : (pData.content || [])).filter(p => p.isActive)
+    
+    categories.value = resC.data.data || []
+    vouchers.value = resV.data.data || []
+    
+    const bData = resB.data.data || []
+    branches.value = bData
+    if (bData.length > 0) {
+      selectedBranchId.value = bData[0].id
+    }
   } catch (err) {
-    toast.error('Gagal memuat produk')
+    toast.error('Gagal memuat data POS')
   } finally {
     loading.value = false
   }
 }
 
-async function fetchCategories() {
-  try {
-    const res = await api.get('/api/v1/categories')
-    categories.value = res.data.data || []
-  } catch (_) {}
-}
+onMounted(fetchData)
 
-async function fetchVouchers() {
-  try {
-    const res = await api.get('/api/v1/vouchers')
-    vouchers.value = res.data.data || []
-  } catch (_) {}
-}
-
-onMounted(() => {
-  fetchProducts()
-  fetchCategories()
-  fetchVouchers()
-})
-
-const searchQuery = ref('')
-const activeCategory = ref('Semua')
-const orderType = ref('Dine In')
-
+// ─── Computed ─────────────────────────────────────────────────────────────────
 const uniqueCategories = computed(() => {
   return ['Semua', ...categories.value.map(c => c.name).sort()]
 })
@@ -68,8 +91,7 @@ const filteredProducts = computed(() => {
   return result
 })
 
-const cart = ref([])
-
+// ─── Cart Logic ──────────────────────────────────────────────────────────────
 function addToCart(product) {
   const existing = cart.value.find(item => item.id === product.id)
   if (existing) {
@@ -84,9 +106,7 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-function increaseQty(item) {
-  item.qty++
-}
+function increaseQty(item) { item.qty++ }
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
@@ -100,26 +120,38 @@ function formatCurrency(value) {
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
 const subtotal   = computed(() => cart.value.reduce((s, i) => s + (i.price || i.basePrice || 0) * i.qty, 0))
 
-// Voucher
+// ─── Voucher Logic ───────────────────────────────────────────────────────────
 const voucherCode = ref('')
 const appliedVoucher = ref(null)
 
 function applyVoucher() {
+  if (!voucherCode.value) return
   const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
-  if (v) { appliedVoucher.value = v; toast.success(`Voucher "${v.name}" diterapkan!`) }
-  else { toast.error('Kode voucher tidak valid.'); appliedVoucher.value = null }
+  if (v) { 
+    appliedVoucher.value = v
+    toast.success(`Voucher "${v.name}" diterapkan!`) 
+  } else { 
+    toast.error('Kode voucher tidak valid.')
+    appliedVoucher.value = null 
+  }
 }
 function removeVoucher() { appliedVoucher.value = null; voucherCode.value = '' }
 
 const discountAmount = computed(() => {
   if (!appliedVoucher.value) return 0
   const v = appliedVoucher.value
-  if (v.discountType === 'percent') { const d = subtotal.value * v.discountValue / 100; return v.maxDiscount ? Math.min(d, v.maxDiscount) : d }
-  return v.discountValue
+  let d = 0
+  if (v.discountType === 'percent') { 
+    d = subtotal.value * v.discountValue / 100
+    if (v.maxDiscount) d = Math.min(d, v.maxDiscount)
+  } else {
+    d = v.discountValue
+  }
+  return d
 })
 const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 
-// Payment Dialog
+// ─── Payment Logic ───────────────────────────────────────────────────────────
 const showPayment = ref(false)
 const payMethod = ref('cash')
 const cashTendered = ref('')
@@ -127,17 +159,66 @@ const bankName = ref('')
 const referenceNo = ref('')
 const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
 
-function openPayment() { if (!cart.value.length) return; showPayment.value = true; payMethod.value = 'cash'; cashTendered.value = ''; bankName.value = ''; referenceNo.value = '' }
-function closePayment() { showPayment.value = false }
-
-function checkout() {
-  if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { toast.error('Uang yang diberikan kurang!'); return }
-  if (payMethod.value === 'transfer' && !referenceNo.value) { toast.error('Nomor referensi wajib diisi!'); return }
-  const orderNum = `ORD-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(Math.floor(Math.random()*9999)+1).padStart(4,'0')}`
-  toast.success(`Pembayaran berhasil! ${orderNum} — ${formatCurrency(total.value)}`)
-  cart.value = []; appliedVoucher.value = null; voucherCode.value = ''; showPayment.value = false
+function openPayment() { 
+  if (!cart.value.length) return
+  if (!selectedBranchId.value) {
+    toast.warning('Pilih cabang terlebih dahulu.')
+    return
+  }
+  showPayment.value = true
+  payMethod.value = 'cash'
+  cashTendered.value = ''
+  bankName.value = ''
+  referenceNo.value = '' 
 }
 
+async function checkout() {
+  if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
+    toast.error('Uang yang diberikan kurang!')
+    return 
+  }
+  if (payMethod.value === 'transfer' && !referenceNo.value) { 
+    toast.error('Nomor referensi wajib diisi!')
+    return 
+  }
+
+  processingCheckout.value = true
+  try {
+    const payload = {
+      branchId: selectedBranchId.value,
+      orderNumber: `ORD-${Date.now()}`,
+      voucherId: appliedVoucher.value?.id,
+      notes: orderType.value,
+      items: cart.value.map(item => ({
+        productId: item.id,
+        qty: item.qty,
+        unitPrice: item.price || item.basePrice
+      })),
+      payment: {
+        method: payMethod.value.toUpperCase(),
+        amount: total.value,
+        cashTendered: payMethod.value === 'cash' ? Number(cashTendered.value) : total.value,
+        changeDue: payMethod.value === 'cash' ? changeDue.value : 0,
+        bankName: bankName.value,
+        referenceNo: referenceNo.value
+      }
+    }
+
+    await api.post('/api/v1/orders', payload)
+    
+    toast.success(`Transaksi Berhasil! Total: ${formatCurrency(total.value)}`)
+    cart.value = []
+    appliedVoucher.value = null
+    voucherCode.value = ''
+    showPayment.value = false
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal memproses transaksi.')
+  } finally {
+    processingCheckout.value = false
+  }
+}
+
+// ─── UI Helpers ──────────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
   { bg: '#ede9fe', color: '#6d28d9' }, { bg: '#dbeafe', color: '#1d4ed8' },
   { bg: '#d1fae5', color: '#065f46' }, { bg: '#fef3c7', color: '#92400e' },
@@ -159,9 +240,19 @@ function avatarStyle(name = '') {
         
         <!-- Header -->
         <div class="px-3 pt-3 lg:px-5 lg:pt-5 shrink-0 z-10">
-          <div class="hidden lg:block mb-4">
-            <h1 class="text-xl font-black text-zinc-900 dark:text-white tracking-tight">Kasir</h1>
-            <p class="text-xs text-zinc-500 font-medium mt-0.5">Sistem Point of Sale</p>
+          <div class="flex items-center justify-between mb-4">
+            <div class="hidden lg:block">
+              <h1 class="text-xl font-black text-zinc-900 dark:text-white tracking-tight">Terminal Kasir</h1>
+              <p class="text-xs text-zinc-500 font-medium mt-0.5">Point of Sale System v2.0</p>
+            </div>
+            
+            <!-- Branch Selector -->
+            <div class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 p-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50">
+              <Building2 class="h-3.5 w-3.5 text-zinc-400" />
+              <select v-model="selectedBranchId" class="bg-transparent border-none text-[11px] font-bold outline-none focus:ring-0 min-w-[120px]">
+                <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+              </select>
+            </div>
           </div>
           
           <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
@@ -197,7 +288,7 @@ function avatarStyle(name = '') {
         <!-- Grid -->
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
           <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
-             <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3" />
+             <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3 text-primary" />
              <p class="text-[13px] font-medium italic">Menghubungkan ke sistem...</p>
           </div>
           <div v-else-if="filteredProducts.length === 0" class="h-full flex flex-col items-center justify-center text-zinc-400">
@@ -207,8 +298,8 @@ function avatarStyle(name = '') {
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
             <div v-for="p in filteredProducts" :key="p.id"
               class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden cursor-pointer transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
-              :class="{ 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0, 'opacity-60 grayscale-[0.5]': p.stock <= 0 }"
-              @click="p.stock > 0 && addToCart(p)">
+              :class="{ 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }"
+              @click="addToCart(p)">
               
               <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
                 {{ getCartQty(p.id) }}
@@ -216,18 +307,15 @@ function avatarStyle(name = '') {
               
               <div class="aspect-[4/3] lg:aspect-square bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                 <img v-if="p.imageUrl" :src="p.imageUrl" class="w-full h-full object-cover" />
-                <div v-else class="w-full h-full flex items-center justify-center text-3xl font-black opacity-80" :style="avatarStyle(p.name)">{{ p.name.charAt(0) }}</div>
+                <div v-else class="w-full h-full flex items-center justify-center text-3xl font-black opacity-80 uppercase" :style="avatarStyle(p.name)">{{ p.name.charAt(0) }}</div>
               </div>
               
               <div class="p-3 flex flex-col gap-1.5 flex-1">
                 <div class="flex items-center justify-between">
                   <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ p.sku || 'N/A' }}</span>
-                  <span class="text-[9px] font-black px-1.5 py-0.5 rounded-md" :class="p.stock > 0 ? 'bg-emerald-100/50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-red-100/50 text-red-600 dark:bg-red-900/30'">
-                    {{ p.stock > 0 ? `STOK ${p.stock}` : 'HABIS' }}
-                  </span>
                 </div>
                 <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ p.name }}</h4>
-                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.price) }}</div>
+                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.price || p.basePrice) }}</div>
               </div>
             </div>
           </div>
@@ -256,7 +344,7 @@ function avatarStyle(name = '') {
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0 pt-0.5">
                     <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.price) }}</p>
+                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.price || item.basePrice) }}</p>
                   </div>
                   <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
                     <Trash2 class="h-[14px] w-[14px]" />
@@ -268,7 +356,7 @@ function avatarStyle(name = '') {
                     <span class="w-8 text-center text-[13px] font-black">{{ item.qty }}</span>
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
                   </div>
-                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(item.price * item.qty) }}</span>
+                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency((item.price || item.basePrice) * item.qty) }}</span>
                 </div>
               </div>
             </TransitionGroup>
@@ -388,8 +476,9 @@ function avatarStyle(name = '') {
             </div>
 
             <div class="px-6 py-5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 mt-auto">
-              <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout">
-                <Check class="h-[18px] w-[18px] mr-2" /> Konfirmasi Pembayaran
+              <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout" :disabled="processingCheckout">
+                <Loader2 v-if="processingCheckout" class="h-4 w-4 mr-2 animate-spin" />
+                <Check v-else class="h-[18px] w-[18px] mr-2" /> Konfirmasi Pembayaran
               </Button>
             </div>
           </div>
@@ -403,7 +492,7 @@ function avatarStyle(name = '') {
 .pos-root {
   display: flex;
   flex-direction: column;
-  margin: -20px; /* Counteract AppLayout p-5 padding */
+  margin: -20px;
   height: calc(100dvh - 48px);
   overflow: hidden;
   background: #f4f4f5;
@@ -416,7 +505,6 @@ function avatarStyle(name = '') {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Transitions */
 .list-enter-active, .list-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px) scale(0.98); }
 
@@ -426,4 +514,3 @@ function avatarStyle(name = '') {
 .scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
 </style>
-

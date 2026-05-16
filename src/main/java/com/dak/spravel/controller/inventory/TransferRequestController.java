@@ -1,8 +1,11 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
+import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.service.inventory.TransferRequestService;
+import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,27 +33,38 @@ public class TransferRequestController {
 
     private final TransferRequestService transferRequestService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('transfer_request.index')")
+    public ResponseEntity<ResData<Page<TransferRequestResponse>>> getAllForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/transfer-requests/admin - Superadmin access, page: {}, size: {}", page, size);
+        return ResponseBuilder.ok(transferRequestService.findAll(page, size));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('transfer_request.index')")
-    public ResponseEntity<List<TransferRequest>> index() {
+    public ResponseEntity<ResData<List<TransferRequestResponse>>> index() {
         log.info("[GET] /api/v1/transfer-requests");
-        return ResponseEntity.ok(transferRequestService.findAll());
+        return ResponseBuilder.ok(transferRequestService.findAll().stream()
+                .map(transferRequestService::mapToResponse)
+                .toList());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('transfer_request.index')")
-    public ResponseEntity<Page<TransferRequest>> paginated(
+    public ResponseEntity<ResData<Page<TransferRequestResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/transfer-requests/page page={} size={}", page, size);
-        return ResponseEntity.ok(transferRequestService.findAll(page, size));
+        return ResponseBuilder.ok(transferRequestService.findAll(page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('transfer_request.show')")
-    public ResponseEntity<TransferRequest> show(@PathVariable Long id) {
+    public ResponseEntity<ResData<TransferRequestResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/transfer-requests/{}", id);
-        return ResponseEntity.ok(transferRequestService.findById(id));
+        return ResponseBuilder.ok(transferRequestService.findById(id));
     }
 
     @GetMapping("/partner/{partnerId}")
@@ -62,18 +76,18 @@ public class TransferRequestController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('transfer_request.store')")
-    public ResponseEntity<TransferRequest> store(@Valid @RequestBody TransferRequestDTO request) {
+    public ResponseEntity<ResData<TransferRequestResponse>> store(@Valid @RequestBody TransferRequestDTO request) {
         log.info("[POST] /api/v1/transfer-requests partnerId={}", request.getPartnerId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(transferRequestService.create(request));
+        return ResponseBuilder.created(transferRequestService.create(request));
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('transfer_request.update')")
-    public ResponseEntity<TransferRequest> updateStatus(
+    public ResponseEntity<ResData<TransferRequestResponse>> updateStatus(
             @PathVariable Long id,
             @RequestParam String status) {
         log.info("[PATCH] /api/v1/transfer-requests/{}/status status={}", id, status);
-        return ResponseEntity.ok(transferRequestService.updateStatus(id, status));
+        return ResponseBuilder.ok(transferRequestService.updateStatus(id, status));
     }
 
     @DeleteMapping("/{id}")
