@@ -5,8 +5,10 @@ import com.dak.spravel.dto.request.partner.UpdatePartnerRequest;
 import com.dak.spravel.dto.response.common.PartnerResponse;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.util.AuditHelper;
@@ -16,10 +18,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +33,8 @@ public class PartnerService {
 
     private final PartnerRepository partnerRepository;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
 
     private User getAuthenticatedUser() {
@@ -151,14 +158,40 @@ public class PartnerService {
             throw new RuntimeException("Akses Ditolak: hanya admin yang boleh create Partner.");
         }
 
+        // Validasi admin user request wajib ada
+        if (request.getAdmin() == null) {
+            throw new IllegalArgumentException("Data admin wajib diisi.");
+        }
+
+        // Validasi duplikasi username
+        if (userRepository.findByUsername(request.getAdmin().getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username '" + request.getAdmin().getUsername() + "' sudah digunakan.");
+        }
+
+        // Simpan Partner
         Partners partner = new Partners();
         partner.setName(request.getName());
         partner.setPlan(request.getPlan());
         partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
-
         AuditHelper.setCreated(partner);
+        Partners savedPartner = partnerRepository.save(partner);
 
-        return mapToResponse(partnerRepository.save(partner));
+        // Ambil role admin-partners
+        Role adminPartnerRole = roleRepository.findBySlug("admin-partners")
+                .orElseThrow(() -> new RuntimeException("Role 'admin-partners' tidak ditemukan di database. Pastikan seeder sudah berjalan."));
+
+        // Buat Admin User untuk partner ini
+        User adminUser = new User();
+        adminUser.setUsername(request.getAdmin().getUsername());
+        adminUser.setEmail(request.getAdmin().getEmail());
+        adminUser.setPassword(passwordEncoder.encode(request.getAdmin().getPassword()));
+        adminUser.setPartner(savedPartner);
+        Set<Role> roles = new HashSet<>();
+        roles.add(adminPartnerRole);
+        adminUser.setRoles(roles);
+        userRepository.save(adminUser);
+
+        return mapToResponse(savedPartner);
     }
 
     @Transactional

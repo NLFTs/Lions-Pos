@@ -1,8 +1,11 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.service.inventory.StockBalanceService;
+import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,35 +33,45 @@ public class StockBalanceController {
 
     private final StockBalanceService stockBalanceService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('stock_balance.index')")
+    public ResponseEntity<ResData<Page<StockBalanceResponse>>> getAllForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/stock-balances/admin - Superadmin access, page: {}, size: {}", page, size);
+        return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> index() {
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> index() {
         log.info("[GET] /api/v1/stock-balances");
-        return ResponseEntity.ok(stockBalanceService.findAll());
+        return ResponseBuilder.ok(stockBalanceService.findAll());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<Page<StockBalance>> paginated(
+    public ResponseEntity<ResData<Page<StockBalanceResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-balances/page page={} size={}", page, size);
-        return ResponseEntity.ok(stockBalanceService.findAll(page, size));
+        return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_balance.show')")
-    public ResponseEntity<StockBalance> show(@PathVariable Long id) {
+    public ResponseEntity<ResData<StockBalanceResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-balances/{}", id);
-        return ResponseEntity.ok(stockBalanceService.findById(id));
+        return ResponseBuilder.ok(stockBalanceService.findById(id));
     }
 
     @GetMapping("/product/{productId}")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> getByProduct(@PathVariable Long productId) {
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> getByProduct(@PathVariable Long productId) {
         log.info("[GET] /api/v1/stock-balances/product/{}", productId);
-        return ResponseEntity.ok(stockBalanceService.findByProductId(productId));
+        return ResponseBuilder.ok(stockBalanceService.findByProductId(productId));
     }
+
 
     @GetMapping("/location")
     @PreAuthorize("hasAuthority('stock_balance.index')")
@@ -71,17 +84,17 @@ public class StockBalanceController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('stock_balance.store')")
-    public ResponseEntity<StockBalance> store(@Valid @RequestBody StockBalanceRequestDTO request) {
+    public ResponseEntity<ResData<StockBalanceResponse>> store(@Valid @RequestBody StockBalanceRequestDTO request) {
         log.info("[POST] /api/v1/stock-balances productId={}", request.getProductId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockBalanceService.create(request));
+        return ResponseBuilder.created(stockBalanceService.create(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_balance.update')")
-    public ResponseEntity<StockBalance> update(
+    public ResponseEntity<ResData<StockBalanceResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody StockBalanceRequestDTO request) {
         log.info("[PUT] /api/v1/stock-balances/{}", id);
-        return ResponseEntity.ok(stockBalanceService.update(id, request));
+        return ResponseBuilder.ok(stockBalanceService.update(id, request));
     }
 }

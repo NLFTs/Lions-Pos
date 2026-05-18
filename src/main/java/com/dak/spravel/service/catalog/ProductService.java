@@ -14,7 +14,6 @@ import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,7 +21,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -85,16 +83,6 @@ public class ProductService {
         return product;
     }
 
-    // Find All untuk Super Admin
-    public List<ProductResponse> findAllProduct() {
-        getAuthenticatedSuperAdmin();
-
-        List<Product> allProducts = productRepository.findAllProduct();
-
-        return allProducts.stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
 
     // Find Page untuk Super Admine
     public Page<ProductResponse> findAllProduct(int Page , int size) {
@@ -138,6 +126,9 @@ public class ProductService {
         }
         product.setName(request.getName());
         product.setBasePrice(request.getBasePrice());
+        
+        if (request.getTrackStock() != null) product.setTrackStock(request.getTrackStock());
+        if (request.getIsActive() != null) product.setIsActive(request.getIsActive());
 
         // Logic SKU
         String finalSku = request.getSku();
@@ -156,17 +147,14 @@ public class ProductService {
         return mapToResponse(productRepository.save(product));
     }
 
-    public List<ProductResponse> findAll() {
+    public Page<ProductResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
 
-        if(isAdmin(currentUser)) {
-            
-        }
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        return productRepository.findAllByPartner(partner).stream()
-                .map(this::mapToResponse)
-                .toList();
+        return productRepository.findAllByPartner(partner, pageRequest)
+                .map(this::mapToResponse);
     }
 
     public ProductResponse findById(Long id) {
@@ -177,22 +165,24 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse updateProduct(Long id, ProductRequest request) {
+    public ProductResponse patchProduct(Long id, ProductRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
         Product product = getValidatedProduct(id, partner);
+        
+        System.out.println("DEBUG: Patching product " + id + " - isActive: " + request.getIsActive());
 
         if (request.getCategoryId() != null) {
             CategoryProduct category = categoryRepository.findById(request.getCategoryId())
                     .filter(c -> c.getPartner().getId().equals(partner.getId()))
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
             product.setCategory(category);
         }
 
-        if (request.getName() != null)
-            product.setName(request.getName());
-        if (request.getBasePrice() != null)
-            product.setBasePrice(request.getBasePrice());
+        if (request.getName() != null) product.setName(request.getName());
+        if (request.getBasePrice() != null) product.setBasePrice(request.getBasePrice());
+        if (request.getIsActive() != null) product.setIsActive(request.getIsActive());
+        if (request.getTrackStock() != null) product.setTrackStock(request.getTrackStock());
 
         if (request.getSku() != null && !product.getSku().equals(request.getSku().trim().toUpperCase())) {
             String newSku = request.getSku().trim().toUpperCase();
@@ -203,7 +193,6 @@ public class ProductService {
         }
 
         product.setUpdatedBy(currentUser);
-
         AuditHelper.setUpdated(product);
 
         return mapToResponse(productRepository.save(product));

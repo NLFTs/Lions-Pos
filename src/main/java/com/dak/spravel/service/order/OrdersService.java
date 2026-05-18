@@ -1,33 +1,48 @@
 package com.dak.spravel.service.order;
 
 import com.dak.spravel.dto.request.order.OrdersRequest;
+import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.order.OrderItems;
 import com.dak.spravel.model.order.Orders;
+import com.dak.spravel.model.order.Payments;
+import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
+import com.dak.spravel.repository.order.PaymentsRepository;
+import com.dak.spravel.service.inventory.StockBalanceService;
+import com.dak.spravel.service.inventory.StockMutationService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class OrdersService {
 
     private final OrdersRepository ordersRepository;
-    private final PartnerRepository partnerRepository;
+    private final OrderItemsRepository orderItemsRepository;
+    private final PaymentsRepository paymentsRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
     private final VoucherRepository voucherRepository;
+    private final StockBalanceService stockBalanceService;
+    private final StockMutationService stockMutationService;
 
     // =========================
     // AUTH USER
@@ -41,9 +56,6 @@ public class OrdersService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
@@ -52,25 +64,17 @@ public class OrdersService {
         return user;
     }
 
-    // =========================
-    // KHUSUS ADMIN PARTNER / EMPLOYEE
-    // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
                         role.getSlug().equalsIgnoreCase("employee-partners"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
+        if (!isAuthorized) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
     }
 
-    // =========================
-    // VALIDASI ORDER (cross-partner)
-    // =========================
     private Orders getValidatedOrder(Long id, User currentUser) {
         Orders order = ordersRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -84,21 +88,14 @@ public class OrdersService {
         return order;
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
     public List<Orders> findAllOrders() {
         getAuthenticatedSuperAdmin();
-        return ordersRepository.findAll();
+        return ordersRepository.findAllWithDetails();
     }
 
-    // =========================
-    // KHUSUS PARTNER / EMPLOYEE
-    // =========================
     public List<Orders> findAll() {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        return ordersRepository.findAll()
+        return ordersRepository.findAllWithDetails()
                 .stream()
                 .filter(order ->
                         order.getPartner() != null
@@ -107,17 +104,12 @@ public class OrdersService {
                 .toList();
     }
 
-    // =========================
-    // GET BY ID
-    // =========================
     public Orders findById(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return getValidatedOrder(id, currentUser);
     }
 
-    // =========================
-    // CREATE
-    // =========================
+    @Transactional
     public Orders create(OrdersRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
@@ -129,43 +121,111 @@ public class OrdersService {
         Branches branch = branchesRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new RuntimeException("Branch not found"));
 
-        if (branch.getPartners() == null
-                || !branch.getPartners().getId().equals(partner.getId())) {
+        if (!branch.getPartners().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
         }
 
-        User customer = userRepository.findById(request.getCashierId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
+        // Voucher handling
         Voucher voucher = null;
+        BigDecimal discount = BigDecimal.ZERO;
         if (request.getVoucherId() != null) {
             voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new RuntimeException("Voucher not found"));
-
-            if (voucher.getPartner() == null
-                    || !voucher.getPartner().getId().equals(partner.getId())) {
-                throw new RuntimeException("Akses Ditolak: Voucher bukan milik partner Anda.");
-            }
+            // Logic diskon bisa dihitung di sini atau dari frontend (tapi amannya di backend)
         }
 
+        // Create Order Header
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
-        order.setCustomer(customer);
+        order.setCustomer(currentUser); // Default cashier
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
-        order.setStatus(Orders.PaymentStatus.DRAFT);
+        order.setStatus(Orders.PaymentStatus.PAID); // Typically paid if from POS
         order.setSubtotal(BigDecimal.ZERO);
-        order.setDiscountAmount(BigDecimal.ZERO);
+        order.setDiscountAmount(discount);
         order.setTotal(BigDecimal.ZERO);
+        order.setCreatedBy(currentUser);
+        
+        Orders savedOrder = ordersRepository.save(order);
 
-        return ordersRepository.save(order);
+        // Process Items
+        BigDecimal subtotal = BigDecimal.ZERO;
+        List<OrderItems> orderItems = new ArrayList<>();
+
+        for (OrdersRequest.OrderItemRequest itemReq : request.getItems()) {
+            Product product = productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
+            
+            OrderItems item = new OrderItems();
+            item.setOrder(savedOrder);
+            item.setProduct(product);
+            item.setQty(itemReq.getQty());
+            item.setUnitPrice(itemReq.getUnitPrice());
+            item.setSubtotal(itemReq.getUnitPrice().multiply(itemReq.getQty()));
+            
+            subtotal = subtotal.add(item.getSubtotal());
+            orderItems.add(item);
+
+            // REDUCE STOCK
+            stockBalanceService.adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate());
+            
+            // RECORD MUTATION
+            stockMutationService.recordMutation(
+                product, partner, "sale_out", 
+                "branch", branch.getId(), 
+                null, null, 
+                item.getQty(), "order", savedOrder.getId(), 
+                "Order #" + savedOrder.getOrderNumber(), currentUser
+            );
+        }
+        orderItemsRepository.saveAll(orderItems);
+
+        // Calculate Final Totals
+        savedOrder.setSubtotal(subtotal);
+        // Recalculate discount if voucher exists
+        if (voucher != null) {
+            BigDecimal discountValue = voucher.getDiscountValue();
+
+            // 1. Cek tipe voucher (Gunakan .name() kalau discountType itu Enum)
+            if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
+                
+                // 2. Hitung persenan + kasih Rounding Mode biar gak crash kalau ketemu desimal ribet
+                discount = subtotal.multiply(discountValue)
+                                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                
+                // 3. Cek apakah melebihi batasan maksimum diskon
+                if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
+                    discount = voucher.getMaxDiscount();
+                }
+            } else {
+                // Jika tipenya 'FIXED' atau nominal langsung
+                discount = discountValue;
+            }
+        }
+        savedOrder.setDiscountAmount(discount);
+        savedOrder.setTotal(subtotal.subtract(discount));
+        ordersRepository.save(savedOrder);
+
+        // Process Payment
+        if (request.getPayment() != null) {
+            Payments payment = new Payments();
+            payment.setOrders(Set.of(savedOrder));
+            payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
+            payment.setAmount(savedOrder.getTotal());
+            payment.setCashTendered(request.getPayment().getCashTendered());
+            payment.setChangeDue(request.getPayment().getChangeDue());
+            payment.setBankName(request.getPayment().getBankName());
+            payment.setReferenceNo(request.getPayment().getReferenceNo());
+            payment.setStatus(Payments.Status.COMPLETED);
+            payment.setCreatedAt(java.time.LocalDateTime.now());
+            paymentsRepository.save(payment);
+        }
+
+        return savedOrder;
     }
 
-    // =========================
-    // DELETE
-    // =========================
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Orders order = getValidatedOrder(id, currentUser);

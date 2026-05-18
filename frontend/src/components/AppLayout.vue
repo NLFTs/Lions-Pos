@@ -35,6 +35,7 @@ import {
   Search,
   Ticket,
   BarChart3,
+  Package,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -94,6 +95,7 @@ const MENU_GROUPS = [
     label: 'Inventaris',
     items: [
       { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
+      { label: 'Saldo Stok', icon: Package, to: '/dashboard/stock-balances', permission: 'stock_balance.index' },
       { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
       { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock-mutation.index' },
       { label: 'Transfer Stok', icon: Repeat2, to: '/dashboard/transfer-requests', permission: 'transfer-request.index' },
@@ -228,7 +230,7 @@ const activeLanguageColor = computed(() => {
 })
 
 // Theme Preference State (system | light | dark)
-const themePreference = ref(localStorage.getItem('isDark') === null ? 'system' : (themeStore.isDark ? 'dark' : 'light'))
+const themePreference = ref(typeof window !== 'undefined' && localStorage.getItem('isDark') === null ? 'system' : (themeStore.isDark ? 'dark' : 'light'))
 
 function setThemePreference(pref) {
   themePreference.value = pref

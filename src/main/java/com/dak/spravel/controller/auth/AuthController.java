@@ -67,6 +67,7 @@ public class AuthController {
                 .distinct()
                 .sorted()
                 .toList());
+        log.info("[AUTH] User '{}' has permissions: {}", user.getUsername(), me.getPermissions());
         return ResponseBuilder.ok(me);
     }
 
@@ -86,12 +87,13 @@ public class AuthController {
             throw new IllegalArgumentException("Invalid credentials");
         }
 
-        // Collect permissions and warm the server-side cache
-        Set<String> permissions = user.getRoles().stream()
-                .flatMap(r -> r.getPermissions().stream())
-                .map(p -> p.getSlug())
-                .collect(Collectors.toUnmodifiableSet());
-        permissionCacheService.putPermissions(user.getUsername(), permissions);
+        // Collect roles and permissions to warm the server-side cache
+        Set<String> auths = new java.util.HashSet<>();
+        user.getRoles().forEach(role -> {
+            auths.add(role.getSlug());
+            role.getPermissions().forEach(p -> auths.add(p.getSlug()));
+        });
+        permissionCacheService.putPermissions(user.getUsername(), auths);
 
         // Revoke all existing tokens for this user
         tokenRepository.findAllByUsername(user.getUsername())
@@ -132,11 +134,13 @@ public class AuthController {
         var freshUser = userRepository.findByUsername(tokenEntity.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        Set<String> permissions = freshUser.getRoles().stream()
-                .flatMap(r -> r.getPermissions().stream())
-                .map(p -> p.getSlug())
-                .collect(Collectors.toUnmodifiableSet());
-        permissionCacheService.putPermissions(freshUser.getUsername(), permissions);
+        // Reload roles and permissions from DB and refresh the cache
+        Set<String> auths = new java.util.HashSet<>();
+        freshUser.getRoles().forEach(role -> {
+            auths.add(role.getSlug());
+            role.getPermissions().forEach(p -> auths.add(p.getSlug()));
+        });
+        permissionCacheService.putPermissions(freshUser.getUsername(), auths);
 
         String newAccessToken = jwtUtil.generateAccessToken(tokenEntity.getUsername());
         tokenEntity.setAccessToken(newAccessToken);

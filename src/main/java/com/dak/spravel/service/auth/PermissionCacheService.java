@@ -86,10 +86,14 @@ public class PermissionCacheService {
     private Set<String> loadFromDatabase(String username) {
         log.debug("[Cache] MISS — loading permissions for '{}' from DB", username);
         return userRepository.findByUsernameWithRoles(username)
-                .map(user -> user.getRoles().stream()
-                        .flatMap(role -> role.getPermissions().stream())
-                        .map(perm -> perm.getSlug())
-                        .collect(Collectors.toUnmodifiableSet()))
+                .map(user -> {
+                    Set<String> auths = new java.util.HashSet<>();
+                    user.getRoles().forEach(role -> {
+                        auths.add(role.getSlug()); // Add role slug (e.g. 'admin')
+                        role.getPermissions().forEach(perm -> auths.add(perm.getSlug())); // Add perms (e.g. 'produk.index')
+                    });
+                    return Collections.unmodifiableSet(auths);
+                })
                 .orElse(Set.of());
     }
 }

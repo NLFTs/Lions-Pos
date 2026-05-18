@@ -1,6 +1,7 @@
 <script setup>
 
 import { ref, computed, onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -19,6 +20,9 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
+const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.isAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const categories = ref([])
@@ -58,8 +62,15 @@ async function fetchCategories() {
   loading.value = true
   error.value = null
   try {
-    const res = await api.get('/api/v1/categories')
-    categories.value = res.data.data
+    const url = isAdmin.value ? '/api/v1/categories/admin' : '/api/v1/categories'
+    const res = await api.get(url)
+    const data = res.data.data
+    
+    if (Array.isArray(data)) {
+      categories.value = data
+    } else {
+      categories.value = data.content || []
+    }
   } catch (err) {
     error.value = err.response?.data?.message || 'Failed to load categories.'
   } finally {

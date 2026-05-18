@@ -31,6 +31,7 @@ public class WarehousesService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
+
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
     }
@@ -39,7 +40,8 @@ public class WarehousesService {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+        if (!isSuperAdmin) 
+            throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
@@ -61,7 +63,12 @@ public class WarehousesService {
     // =========================
     public List<Warehouses> findAllAdmin() {
         getAuthenticatedSuperAdmin();
-        return warehousesRepository.findAll(Sort.by("id").descending());
+        
+        List<Warehouses> warehouses = warehousesRepository.findAll();
+
+        return warehouses.stream()
+                .filter(w -> w.getDeletedAt() == null)
+                .toList();
     }
 
     public Page<Warehouses> findPageAdmin(int page, int size) {
@@ -75,6 +82,11 @@ public class WarehousesService {
     public List<Warehouses> findAllByPartner() {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+    }
+
+    public Page<Warehouses> findPageByPartner(int page, int size) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("id").descending()));
     }
 
     @Transactional

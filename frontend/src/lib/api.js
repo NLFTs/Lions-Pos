@@ -81,13 +81,17 @@ api.interceptors.response.use(
       }
 
       try {
-        // Use global axios to avoid interceptors loop, ensure /api/v1 prefix
-        const refreshUrl = originalRequest.url.startsWith('/api/v1') 
-          ? '/api/v1/auth/refresh' 
-          : '/auth/refresh'
+        console.log('[API] Attempting token refresh...')
         
-        const res = await axios.post(`${refreshUrl}?refreshToken=${refreshToken}`)
-        const newAccessToken = res.data.data.accessToken
+        // Use a clean axios instance to avoid recursive interceptors
+        const refreshRes = await axios({
+          method: 'post',
+          url: `${api.defaults.baseURL}/api/v1/auth/refresh?refreshToken=${refreshToken}`,
+          headers: { 'Content-Type': 'application/json' }
+        })
+        
+        const newAccessToken = refreshRes.data.data.accessToken
+        console.log('[API] Token refresh successful.')
 
         // Sync new token to localStorage + store
         localStorage.setItem('access_token', newAccessToken)

@@ -11,6 +11,7 @@ import com.dak.spravel.repository.auth.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Seeds modules, permissions, and default admin/editor roles.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PermissionSeeder {
@@ -39,14 +41,20 @@ public class PermissionSeeder {
         {"branch_warehouse", "Branch Warehouse", "Manage branch warehouses"},
         {"stock_balance",      "Stock Balance",      "Manage stock balances"},
         {"stock_mutation", "Stock Mutation", "Manage stock mutations"},
-        {"category_product", "Category Product", "Manage product categories"},
-        {"product",    "Product",    "Manage blog products"},
+        {"category", "Category", "Manage product categories"},
+        {"produk",    "Product",    "Manage blog products"},
         {"product_photo", "Product Photo", "Manage blog product photo"},
         {"role",       "Role",       "Manage user roles"},
         {"permission", "Permission", "Manage system permissions"},
         {"module",     "Module",     "Manage permission modules"},
         {"user",       "User",       "Manage users"},
         {"log",        "Log",        "View audit logs"},
+        {"dashboard",  "Dashboard",  "View dashboard metrics"},
+        {"pos",        "Point of Sale", "Access cashier system"},
+        {"report",     "Reports",    "View business reports"},
+        {"transfer_request", "Transfer Request", "Manage stock transfers"},
+        {"stock_opname", "Stock Opname", "Manage stock opname"},
+        {"purchase_order", "Purchase Order", "Manage purchase orders"},
     };
 
     // slug, name, moduleSlug
@@ -58,17 +66,17 @@ public class PermissionSeeder {
         {"partner.update",     "Update Partner",             "partner"},
         {"partner.delete",     "Delete Partner",             "partner"},
 
-        {"category_product.index",  "View All Categories",     "category_product"},
-        {"category_product.show",   "View Category Detail",    "category_product"},
-        {"category_product.store",  "Create Category",         "category_product"},
-        {"category_product.update", "Update Category",         "category_product"},
-        {"category_product.delete", "Delete Category",         "category_product"}, 
+        {"category.index",  "View All Categories",     "category"},
+        {"category.show",   "View Category Detail",    "category"},
+        {"category.store",  "Create Category",         "category"},
+        {"category.update", "Update Category",         "category"},
+        {"category.delete", "Delete Category",         "category"}, 
 
-        {"product.index",      "View All Products",          "product"},
-        {"product.show",       "View Product Detail",        "product"},
-        {"product.store",      "Create Product",             "product"},
-        {"product.update",     "Update Product",             "product"},
-        {"product.delete",     "Delete Product",             "product"},
+        {"produk.index",      "View All Products",          "produk"},
+        {"produk.show",       "View Product Detail",        "produk"},
+        {"produk.store",      "Create Product",             "produk"},
+        {"produk.update",     "Update Product",             "produk"},
+        {"produk.delete",     "Delete Product",             "produk"},
         
         {"product_photo.index",      "View All Products",          "product_photo"},
         {"product_photo.store",      "Create Product",             "product_photo"},
@@ -128,6 +136,28 @@ public class PermissionSeeder {
 
         {"log.index",  "View All Logs",  "log"},
         {"log.show",   "View Log Detail", "log"},
+
+        {"dashboard.index", "View Dashboard", "dashboard"},
+        {"pos.index",       "Access POS",       "pos"},
+        {"report.index",    "View Reports",    "report"},
+
+        {"transfer_request.index", "View All Transfer Requests", "transfer_request"},
+        {"transfer_request.show",  "View Transfer Request Detail", "transfer_request"},
+        {"transfer_request.store", "Create Transfer Request", "transfer_request"},
+        {"transfer_request.update", "Update Transfer Request Status", "transfer_request"},
+        {"transfer_request.delete", "Delete Transfer Request", "transfer_request"},
+
+        {"stock_opname.index", "View All Stock Opname", "stock_opname"},
+        {"stock_opname.show",  "View Stock Opname Detail", "stock_opname"},
+        {"stock_opname.store", "Create Stock Opname", "stock_opname"},
+        {"stock_opname.update", "Update Stock Opname", "stock_opname"},
+        {"stock_opname.delete", "Delete Stock Opname", "stock_opname"},
+
+        {"purchase_order.index", "View All Purchase Orders", "purchase_order"},
+        {"purchase_order.show",  "View Purchase Order Detail", "purchase_order"},
+        {"purchase_order.store", "Create Purchase Order", "purchase_order"},
+        {"purchase_order.update", "Update Purchase Order", "purchase_order"},
+        {"purchase_order.delete", "Delete Purchase Order", "purchase_order"},
     };
 
     @Transactional
@@ -169,173 +199,71 @@ public class PermissionSeeder {
             return r;
         });
         adminRole.setPermissions(allPermsSet);
-        roleRepository.save(adminRole);
+        Role savedAdmin = roleRepository.save(adminRole);
+        log.info("[SEEDER] Admin role '{}' now has {} permissions", savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
-        // 4. Create "editor" role with post.* + category read
-        Set<Permission> adminPartnersPerms = new HashSet<>();
-        for (Permission p : allPerms) {
-            String moduleSlug = p.getModule().getSlug();
-            if (moduleSlug.equals("user") || 
-                p.getSlug().equals("user.index") ||
-                p.getSlug().equals("user.show") || 
-                p.getSlug().equals("user.store") ||
-                p.getSlug().equals("user.update") ||
-                p.getSlug().equals("user.delete")){
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("post") ||
-                p.getSlug().equals("category.index") ||
-                p.getSlug().equals("category.show"))  {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("category_product") ||
-                p.getSlug().equals("category_product.index") ||
-                p.getSlug().equals("category_product.show") || 
-                p.getSlug().equals("category_product.store") ||
-                p.getSlug().equals("category_product.update") ||
-                p.getSlug().equals("category_product.delete"))  {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("product") ||
-                p.getSlug().equals("product.index") ||
-                p.getSlug().equals("product.show") || 
-                p.getSlug().equals("product.store") ||
-                p.getSlug().equals("product.update") ||
-                p.getSlug().equals("product.delete")) {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("warehouse") ||
-                p.getSlug().equals("warehouse.index") ||
-                p.getSlug().equals("warehouse.show") || 
-                p.getSlug().equals("warehouse.store") ||
-                p.getSlug().equals("warehouse.update") ||
-                p.getSlug().equals("warehouse.delete")) {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("branch") ||
-                p.getSlug().equals("branch.index") ||
-                p.getSlug().equals("branch.show") || 
-                p.getSlug().equals("branch.store") ||
-                p.getSlug().equals("branch.update") ||
-                p.getSlug().equals("branch.delete")) {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("product_photo") ||
-                p.getSlug().equals("product_photo.index") ||
-                p.getSlug().equals("product_photo.store") ||
-                p.getSlug().equals("product_photo.update") ||
-                p.getSlug().equals("product_photo.delete")) {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("stock_balance") || 
-                p.getSlug().equals("stock_balance.index") ||
-                p.getSlug().equals("stock_balance.show") || 
-                p.getSlug().equals("stock_balance.store") ||
-                p.getSlug().equals("stock_balance.update") ||
-                p.getSlug().equals("stock_balance.delete")) {
-                adminPartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("stock_mutation") || 
-                p.getSlug().equals("stock_mutation.index") ||
-                p.getSlug().equals("stock_mutation.show")) {
-                adminPartnersPerms.add(p);
-            }
-
-        }
+        // 4. Update roles with specific module access
         Role adminPartnersRole = roleRepository.findBySlug("admin-partners").orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin-partners");
             r.setName("Admin Partners");
             return r;
         });
-        adminPartnersRole.setPermissions(adminPartnersPerms);
-        roleRepository.save(adminPartnersRole);
+        adminPartnersRole.getPermissions().clear();
 
-        Set<Permission> employeePartnersPerms = new HashSet<>();
-        for (Permission p : allPerms) {
-            String moduleSlug = p.getModule().getSlug();
-            
-
-            if (moduleSlug.equals("post") ||
-                p.getSlug().equals("category.index") ||
-                p.getSlug().equals("category.show"))  {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("category_product") ||
-                p.getSlug().equals("category_product.index") ||
-                p.getSlug().equals("category_product.show") || 
-                p.getSlug().equals("category_product.store") ||
-                p.getSlug().equals("category_product.update") ||
-                p.getSlug().equals("category_product.delete"))  {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("product") ||
-                p.getSlug().equals("product.index") ||
-                p.getSlug().equals("product.show") || 
-                p.getSlug().equals("product.store") ||
-                p.getSlug().equals("product.update") ||
-                p.getSlug().equals("product.delete")) {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("warehouse") ||
-                p.getSlug().equals("warehouse.index") ||
-                p.getSlug().equals("warehouse.show") || 
-                p.getSlug().equals("warehouse.store") ||
-                p.getSlug().equals("warehouse.update") ||
-                p.getSlug().equals("warehouse.delete")) {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("branch") ||
-                p.getSlug().equals("branch.index") ||
-                p.getSlug().equals("branch.show") || 
-                p.getSlug().equals("branch.store") ||
-                p.getSlug().equals("branch.update") ||
-                p.getSlug().equals("branch.delete")) {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("product_photo") ||
-                p.getSlug().equals("product_photo.index") ||
-                p.getSlug().equals("product_photo.store") ||
-                p.getSlug().equals("product_photo.update") ||
-                p.getSlug().equals("product_photo.delete")) {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("stock_balance") || 
-                p.getSlug().equals("stock_balance.index") ||
-                p.getSlug().equals("stock_balance.show") || 
-                p.getSlug().equals("stock_balance.store") ||
-                p.getSlug().equals("stock_balance.update") ||
-                p.getSlug().equals("stock_balance.delete")) {
-                employeePartnersPerms.add(p);
-            }
-
-            if (moduleSlug.equals("stock_mutation") ||
-                p.getSlug().equals("stock_mutation.index") ||
-                p.getSlug().equals("stock_mutation.show")) {
-                employeePartnersPerms.add(p);
-            }
-
-        }
         Role employeePartnersRole = roleRepository.findBySlug("employee-partners").orElseGet(() -> {
             Role r = new Role();
             r.setSlug("employee-partners");
             r.setName("Employee Partners");
             return r;
         });
+        employeePartnersRole.getPermissions().clear();
+
+        Set<Permission> adminPartnersPerms = new HashSet<>();
+        Set<Permission> employeePartnersPerms = new HashSet<>();
+
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            
+            // Modules allowed for Admin Partner
+            if (moduleSlug.equals("user") || 
+                moduleSlug.equals("category") ||
+                moduleSlug.equals("produk") ||
+                moduleSlug.equals("warehouse") ||
+                moduleSlug.equals("branch") ||
+                moduleSlug.equals("product_photo") ||
+                moduleSlug.equals("stock_balance") ||
+                moduleSlug.equals("stock_mutation") ||
+                moduleSlug.equals("transfer_request") ||
+                moduleSlug.equals("stock_opname") ||
+                moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("dashboard") ||
+                moduleSlug.equals("pos") ||
+                moduleSlug.equals("report")) {
+                adminPartnersPerms.add(p);
+            }
+
+            // Modules allowed for Employee
+            if (moduleSlug.equals("category") ||
+                moduleSlug.equals("produk") ||
+                moduleSlug.equals("warehouse") ||
+                moduleSlug.equals("branch") ||
+                moduleSlug.equals("product_photo") ||
+                moduleSlug.equals("stock_balance") ||
+                moduleSlug.equals("stock_mutation") ||
+                moduleSlug.equals("transfer_request") ||
+                moduleSlug.equals("stock_opname") ||
+                moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("dashboard") ||
+                moduleSlug.equals("pos") ||
+                moduleSlug.equals("report")) {
+                employeePartnersPerms.add(p);
+            }
+        }
+        
+        adminPartnersRole.setPermissions(adminPartnersPerms);
+        roleRepository.save(adminPartnersRole);
+
         employeePartnersRole.setPermissions(employeePartnersPerms);
         roleRepository.save(employeePartnersRole);
 

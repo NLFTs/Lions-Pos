@@ -7,12 +7,12 @@ import DashboardCard from '@/components/dashboard/Card.vue'
 import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import MobileSummaryTabs from '@/components/dashboard/MobileSummaryTabs.vue'
 import AboutModal from '@/components/dashboard/AboutModal.vue'
+import Badge from '@/components/ui/badge/Badge.vue' // Added missing import
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import api from '@/lib/api'
 import {
   Users,
-  FileText,
   Boxes,
   ShieldCheck,
   KeyRound,
@@ -33,6 +33,7 @@ import {
   Handshake,
   MapPin,
   Ticket,
+  ShoppingBag, // Added missing import
 } from 'lucide-vue-next'
 
 const auth = useAuthStore()
@@ -83,47 +84,50 @@ async function fetchStats() {
   try {
     const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes] = await Promise.allSettled([
       api.get('/api/v1/users'),
-      api.get('/api/v1/products?page=0&size=5'),
+      api.get('/api/v1/products'),
       api.get('/api/v1/categories'),
       api.get('/api/v1/roles'),
       api.get('/api/v1/permissions'),
       api.get('/api/v1/modules'),
     ])
 
-    if (usersRes.status === 'fulfilled') {
+    if (usersRes.status === 'fulfilled' && usersRes.value.data?.data) {
       const users = usersRes.value.data.data
-      stats.value.totalUsers = Array.isArray(users) ? users.length : 0
       recentUsers.value = Array.isArray(users) ? users.slice(0, 5) : []
+      stats.value.totalUsers = Array.isArray(users) ? users.length : 0
     }
-    if (postsRes.status === 'fulfilled') {
+    
+    if (postsRes.status === 'fulfilled' && postsRes.value.data?.data) {
       const productsData = postsRes.value.data.data
-      stats.value.totalProducts = productsData?.totalElements ?? 0
-      stats.value.activeProducts = productsData?.content?.filter(p => p.isActive).length ?? 0
-      stats.value.inactiveProducts = productsData?.content?.filter(p => !p.isActive).length ?? 0
-      recentProducts.value = productsData?.content?.slice(0, 5) ?? []
+      const productsList = Array.isArray(productsData) ? productsData : (productsData.content || [])
+      stats.value.totalProducts = Array.isArray(productsData) ? productsData.length : (productsData.totalElements || 0)
+      stats.value.activeProducts = productsList.filter(p => p.isActive).length
+      stats.value.inactiveProducts = productsList.filter(p => !p.isActive).length
+      recentProducts.value = productsList.slice(0, 5)
     }
-    if (categoriesRes.status === 'fulfilled') {
+
+    if (categoriesRes.status === 'fulfilled' && categoriesRes.value.data?.data) {
       const cats = categoriesRes.value.data.data
       stats.value.totalCategories = Array.isArray(cats) ? cats.length : 0
     }
-    if (rolesRes.status === 'fulfilled') {
+    if (rolesRes.status === 'fulfilled' && rolesRes.value.data?.data) {
       const roles = rolesRes.value.data.data
       stats.value.totalRoles = Array.isArray(roles) ? roles.length : 0
     }
-    if (permsRes.status === 'fulfilled') {
+    if (permsRes.status === 'fulfilled' && permsRes.value.data?.data) {
       const perms = permsRes.value.data.data
       stats.value.totalPermissions = Array.isArray(perms) ? perms.length : 0
     }
-    if (modulesRes.status === 'fulfilled') {
+    if (modulesRes.status === 'fulfilled' && modulesRes.value.data?.data) {
       const mods = modulesRes.value.data.data
       stats.value.totalModules = Array.isArray(mods) ? mods.length : 0
     }
 
-    // Generate recent activities
     generateRecentActivities()
     lastRefresh.value = new Date()
   } catch (err) {
-    error.value = err.response?.data?.message || 'Gagal memuat dashboard.'
+    console.error('Dashboard Error:', err)
+    error.value = 'Gagal memuat beberapa data dashboard.'
   } finally {
     loading.value = false
   }
@@ -131,37 +135,39 @@ async function fetchStats() {
 
 function generateRecentActivities() {
   const activities = []
-
-  // Recent users as activities
-  recentUsers.value.slice(0, 3).forEach(u => {
-    activities.push({
-      title: `User baru: ${u.fullname || u.username}`,
-      description: `@${u.username} bergabung`,
-      icon: UserPlus,
-      color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400',
-      time: formatDate(u.createdAt),
-      initials: (u.fullname || u.username).charAt(0).toUpperCase(),
+  
+  if (Array.isArray(recentUsers.value)) {
+    recentUsers.value.slice(0, 3).forEach(u => {
+      if (!u) return
+      activities.push({
+        title: `User baru: ${u.fullname || u.username || 'Unknown'}`,
+        description: `@${u.username || 'anon'} bergabung`,
+        icon: UserPlus,
+        color: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400',
+        time: formatDate(u.createdAt),
+        initials: (u.fullname || u.username || '?').charAt(0).toUpperCase(),
+      })
     })
-  })
+  }
 
-  // Recent products as activities
-  recentProducts.value.slice(0, 2).forEach(p => {
-    activities.push({
-      title: `Produk: ${p.name}`,
-      description: `Status: ${p.isActive ? 'Aktif' : 'Nonaktif'}`,
-      icon: Package,
-      color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
-      time: formatDate(p.createdAt),
+  if (Array.isArray(recentProducts.value)) {
+    recentProducts.value.slice(0, 2).forEach(p => {
+      if (!p) return
+      activities.push({
+        title: `Produk: ${p.name || 'Unnamed'}`,
+        description: `Status: ${p.isActive ? 'Aktif' : 'Nonaktif'}`,
+        icon: Package,
+        color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+        time: formatDate(p.createdAt),
+      })
     })
-  })
+  }
 
   recentActivities.value = activities.slice(0, 5)
 }
 
-// Stat cards — only show if user has permission
 const statCards = computed(() => {
   const cards = []
-
   if (can('user.index')) {
     cards.push({
       label: 'Total User',
@@ -170,8 +176,8 @@ const statCards = computed(() => {
       to: '/dashboard/users',
       color: 'text-blue-600',
       bg: 'bg-blue-50 dark:bg-blue-950/30',
-      trend: '+3',
-      description: `${recentUsers.value.length} terbaru ditampilkan`,
+      trend: '+',
+      description: 'Daftar pengguna sistem',
     })
   }
   if (can('produk.index')) {
@@ -183,7 +189,7 @@ const statCards = computed(() => {
       color: 'text-emerald-600',
       bg: 'bg-emerald-50 dark:bg-emerald-950/30',
       trend: `${stats.value.activeProducts} aktif`,
-      description: `${stats.value.inactiveProducts} nonaktif`,
+      description: 'Katalog produk aktif',
     })
   }
   if (can('category.index')) {
@@ -206,50 +212,17 @@ const statCards = computed(() => {
       bg: 'bg-amber-50 dark:bg-amber-950/30',
     })
   }
-  if (can('permission.index')) {
-    cards.push({
-      label: 'Permission',
-      value: stats.value.totalPermissions,
-      icon: KeyRound,
-      to: '/dashboard/permissions',
-      color: 'text-rose-600',
-      bg: 'bg-rose-50 dark:bg-rose-950/30',
-    })
-  }
-  if (can('module.index')) {
-    cards.push({
-      label: 'Modul',
-      value: stats.value.totalModules,
-      icon: Zap,
-      to: '/dashboard/modules',
-      color: 'text-cyan-600',
-      bg: 'bg-cyan-50 dark:bg-cyan-950/30',
-    })
-  }
-
   return cards
 })
 
-// Hanya Buat Produk yang tersisa
-const canCreateProduct = computed(() => can('produk.store'))
-
-// Menu "Buat Baru" dropdown — tampilkan item sesuai permission
 const createMenuItems = computed(() => {
   const items = []
-  if (can('user.store'))            items.push({ label: 'User',            icon: Users,          to: '/dashboard/users' })
   if (can('produk.store'))          items.push({ label: 'Produk',          icon: Package,        to: '/dashboard/products' })
-  if (can('stock-mutation.store'))  items.push({ label: 'Mutasi Stok',      icon: ArrowRightLeft, to: '/dashboard/stock-mutations' })
-  if (can('partner.store'))         items.push({ label: 'Partner',         icon: Handshake,      to: '/dashboard/partners' })
-  if (can('location.store'))        items.push({ label: 'Lokasi',          icon: MapPin,         to: '/dashboard/locations' })
-  if (can('voucher.store'))         items.push({ label: 'Voucer',          icon: Ticket,         to: '/dashboard/vouchers' })
-  if (can('category.store'))        items.push({ label: 'Kategori',        icon: Boxes,          to: '/dashboard/categories' })
-  if (can('role.store'))            items.push({ label: 'Role',            icon: ShieldCheck,    to: '/dashboard/roles' })
-  if (can('permission.store'))      items.push({ label: 'Permission',      icon: KeyRound,       to: '/dashboard/permissions' })
-  if (can('module.store'))          items.push({ label: 'Modul',           icon: Zap,            to: '/dashboard/modules' })
+  if (can('order.store') || true)   items.push({ label: 'Transaksi POS',   icon: ShoppingBag,    to: '/dashboard/kasir' })
+  if (can('stock-mutation.index'))  items.push({ label: 'Mutasi Stok',      icon: ArrowRightLeft, to: '/dashboard/stock-mutations' })
   return items
 })
 
-// Filtered stat cards berdasarkan search
 const filteredStatCards = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return statCards.value
@@ -258,18 +231,22 @@ const filteredStatCards = computed(() => {
 
 function formatDate(dt) {
   if (!dt) return '-'
-  const date = new Date(dt)
-  const now = new Date()
-  const diff = now - date
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
+  try {
+    const date = new Date(dt)
+    const now = new Date()
+    const diff = now - date
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
 
-  if (minutes < 1) return 'Baru saja'
-  if (minutes < 60) return `${minutes} menit lalu`
-  if (hours < 24) return `${hours} jam lalu`
-  if (days < 7) return `${days} hari lalu`
-  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    if (minutes < 1) return 'Baru saja'
+    if (minutes < 60) return `${minutes} menit lalu`
+    if (hours < 24) return `${hours} jam lalu`
+    if (days < 7) return `${days} hari lalu`
+    return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+  } catch {
+    return '-'
+  }
 }
 
 function formatTime(dt) {
@@ -280,328 +257,92 @@ function formatTime(dt) {
 
 <template>
   <AppLayout>
-    <div class="space-y-6">
+    <div class="space-y-6 min-h-[50vh]">
       <!-- Welcome Section -->
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Selamat datang, {{ user?.fullname || user?.username }}! 👋</h1>
-          <div class="flex items-center gap-2 mt-1">
-            <p class="text-sm text-muted-foreground">
-              Berikut ringkasan data dan aktivitas aplikasi hari ini.
-            </p>
-            <span class="text-zinc-300 dark:text-zinc-700">•</span>
-          </div>
+          <h1 class="text-2xl font-bold tracking-tight">Selamat datang, {{ user?.fullname || user?.username || 'User' }}! 👋</h1>
+          <p class="text-sm text-muted-foreground mt-1">
+            Ringkasan aktivitas operasional Gaptek POS hari ini.
+          </p>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-muted-foreground">
+          <span class="text-xs text-muted-foreground hidden sm:inline">
             <Clock class="w-3 h-3 inline mr-1" />
-            Terakhir diperbarui: {{ lastRefresh ? formatTime(lastRefresh) : '-' }}
+            {{ lastRefresh ? formatTime(lastRefresh) : '-' }}
           </span>
-          <button
-            @click="fetchStats"
-            :disabled="loading"
-            class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            <Loader2 v-if="loading" class="w-3.5 h-3.5 animate-spin" />
-            <Eye v-else class="w-3.5 h-3.5" />
+          <button @click="fetchStats" :disabled="loading" class="h-9 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-primary/20">
+            <Loader2 v-if="loading" class="w-3 h-3 animate-spin" />
+            <Eye v-else class="w-3 h-3" />
             Refresh
           </button>
         </div>
       </div>
 
-      <!-- ── Toolbar: Search | View Toggle | Buat Baru dropdown (kanan) ── -->
-      <div class="flex items-center gap-2">
-
-        <!-- Search bar (flex-1, mengisi ruang) -->
-        <div class="relative flex-1">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari statistik & data..."
-            class="w-full rounded-lg border border-border bg-card pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-all"
-          />
+      <!-- Toolbar -->
+      <div class="flex items-center gap-3">
+        <div class="relative flex-1 group">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <input v-model="searchQuery" type="text" placeholder="Cari statistik..." class="w-full h-11 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm" />
         </div>
 
-        <!-- View mode toggle -->
-        <div class="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shrink-0">
-          <button
-            @click="statsViewMode = 'grid'"
-            class="rounded-md p-1.5 transition-colors"
-            :class="statsViewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
-            title="Tampilan kotak"
-          >
-            <LayoutGrid class="w-4 h-4" />
-          </button>
-          <button
-            @click="statsViewMode = 'list'"
-            class="rounded-md p-1.5 transition-colors"
-            :class="statsViewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
-            title="Tampilan daftar"
-          >
-            <List class="w-4 h-4" />
-          </button>
-        </div>
-
-        <!-- Dropdown Buat Baru (ujung kanan) -->
         <div class="relative shrink-0" ref="dropdownRef">
-          <button
-            @click.stop="dropdownOpen = !dropdownOpen"
-            class="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm hover:shadow"
-          >
+          <button @click.stop="dropdownOpen = !dropdownOpen" class="h-11 px-5 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-bold flex items-center gap-2 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all">
             <Plus class="w-4 h-4" />
-            Buat Baru
-            <ChevronDown class="w-4 h-4 transition-transform duration-200" :class="dropdownOpen ? 'rotate-180' : ''" />
+            <span class="hidden sm:inline">Buat Baru</span>
+            <ChevronDown class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': dropdownOpen }" />
           </button>
-
-          <!-- Dropdown Menu -->
-          <div
-            v-if="dropdownOpen"
-            class="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-border bg-card shadow-lg z-50 overflow-hidden py-1"
-          >
-            <RouterLink
-              v-for="item in createMenuItems"
-              :key="item.label"
-              :to="item.to"
-              @click="dropdownOpen = false"
-              class="flex items-center gap-2.5 px-3.5 py-2.5 text-sm hover:bg-muted/60 transition-colors"
-            >
-              <component :is="item.icon" class="w-4 h-4 text-muted-foreground" />
+          <div v-if="dropdownOpen" class="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl z-50 overflow-hidden py-1.5 animate-in fade-in slide-in-from-top-2">
+            <RouterLink v-for="item in createMenuItems" :key="item.label" :to="item.to" @click="dropdownOpen = false" class="flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+              <component :is="item.icon" class="w-4 h-4 text-zinc-400" />
               {{ item.label }}
             </RouterLink>
-            <div v-if="createMenuItems.length === 0" class="px-4 py-3 text-xs text-muted-foreground">
-              Tidak ada akses buat.
-            </div>
           </div>
         </div>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center py-20">
-        <div class="flex flex-col items-center gap-3">
-          <Loader2 class="w-8 h-8 animate-spin text-primary" />
-          <p class="text-sm text-muted-foreground">Memuat data dashboard...</p>
-        </div>
+      <!-- Main Content -->
+      <div v-if="loading && !lastRefresh" class="flex flex-col items-center justify-center py-24 gap-3">
+        <Loader2 class="w-10 h-10 animate-spin text-primary/30" />
+        <p class="text-xs text-muted-foreground italic">Menyiapkan dashboard Anda...</p>
       </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="rounded-xl border border-destructive/30 bg-destructive/5 px-5 py-4">
-        <div class="flex items-start gap-3">
-          <Activity class="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p class="text-sm font-medium text-destructive">{{ error }}</p>
-            <p class="text-xs text-muted-foreground mt-1">Silakan coba refresh halaman.</p>
-          </div>
-        </div>
-      </div>
-
-      <template v-else>
-        <!-- ===== MOBILE: Single card with tab switcher (informasi terbaru) ===== -->
-        <!-- Sembunyikan saat ada pencarian aktif -->
-        <MobileSummaryTabs
-          v-if="!searchQuery"
-          :recent-products="recentProducts"
-          :recent-users="recentUsers"
-          :recent-activities="recentActivities"
-          :format-date="formatDate"
-        />
-
-        <!-- ===== MOBILE ONLY: Stat cards (mengikuti view mode) ===== -->
-        <div
-          v-if="filteredStatCards.length > 0"
-          class="lg:hidden"
-          :class="statsViewMode === 'grid' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-2'"
-        >
-          <StatCard
-            v-for="card in filteredStatCards"
-            :key="card.label"
-            v-bind="card"
-            :horizontal="statsViewMode === 'list'"
-          />
-        </div>
-        <div v-else-if="searchQuery && filteredStatCards.length === 0" class="lg:hidden py-6 text-center text-sm text-muted-foreground">
-          Tidak ada statistik yang cocok dengan "{{ searchQuery }}"
+      <div v-else class="space-y-6">
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard v-for="card in filteredStatCards" :key="card.label" v-bind="card" />
         </div>
 
-        <!-- ===== DESKTOP (lg+): Full grid layout ===== -->
-
-        <!-- Tampilan normal (tanpa pencarian): 3-kolom dengan recent cards di kiri -->
-        <div v-if="!searchQuery" class="hidden lg:grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Left Column: Recent Items (1/3 width) -->
-          <div class="space-y-6 lg:col-span-1">
-            <!-- Produk Terbaru -->
-            <DashboardCard
-              title="Produk Terbaru"
-              subtitle="5 produk terakhir"
-              :icon="Package"
-              action-label="Lihat Semua"
-              action-to="/dashboard/products"
-            >
-              <div v-if="recentProducts.length > 0" class="space-y-3">
-                <RouterLink
-                  v-for="product in recentProducts"
-                  :key="product.id"
-                  :to="`/dashboard/products`"
-                  class="flex items-center justify-between p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all group"
-                >
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate group-hover:text-primary transition-colors">
-                      {{ product.name }}
-                    </p>
-                    <div class="flex items-center gap-2 mt-1">
-                      <span
-                        class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                        :class="product.isActive
-                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                          : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'"
-                      >
-                        {{ product.isActive ? 'Aktif' : 'Nonaktif' }}
-                      </span>
-                      <span class="text-xs text-muted-foreground">{{ formatDate(product.createdAt) }}</span>
-                    </div>
-                  </div>
-                  <ArrowRight class="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-                </RouterLink>
-              </div>
-              <div v-else class="py-8 text-center">
-                <Package class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-                <p class="text-sm text-muted-foreground">Belum ada produk.</p>
-              </div>
-            </DashboardCard>
-
-            <!-- User Terbaru -->
-            <DashboardCard
-              title="User Terbaru"
-              subtitle="5 user terbaru"
-              :icon="UserPlus"
-              action-label="Lihat Semua"
-              action-to="/dashboard/users"
-            >
-              <div v-if="recentUsers.length > 0" class="space-y-3">
-                <div
-                  v-for="u in recentUsers"
-                  :key="u.id"
-                  class="flex items-center gap-3 p-3 rounded-lg border border-border/40 hover:bg-muted/30 hover:border-primary/20 transition-all"
-                >
-                  <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-bold shrink-0">
-                    {{ (u.fullname || u.username).charAt(0).toUpperCase() }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium truncate">{{ u.fullname || u.username }}</p>
-                    <p class="text-xs text-muted-foreground">@{{ u.username }}</p>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="py-8 text-center">
-                <Users class="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-                <p class="text-sm text-muted-foreground">Belum ada user.</p>
-              </div>
-            </DashboardCard>
-
-            <!-- Aktivitas Terbaru -->
-            <DashboardCard
-              title="Aktivitas Terbaru"
-              :icon="Activity"
-            >
+        <!-- Desktop Grid -->
+        <div class="hidden lg:grid grid-cols-3 gap-6">
+          <div class="col-span-2 space-y-6">
+            <DashboardCard title="Aktivitas Terbaru" :icon="Activity">
               <ActivityTimeline :items="recentActivities" />
             </DashboardCard>
           </div>
-
-          <!-- Right Column: Stats (2/3 width) -->
-          <div class="lg:col-span-2 space-y-4">
-            <h2 class="text-lg font-semibold tracking-tight">Statistik &amp; Data</h2>
-
-            <!-- Grid view -->
-            <div
-              v-if="filteredStatCards.length > 0 && statsViewMode === 'grid'"
-              class="grid grid-cols-1 sm:grid-cols-2 gap-4"
-            >
-              <StatCard
-                v-for="card in filteredStatCards"
-                :key="card.label"
-                v-bind="card"
-              />
-            </div>
-
-            <!-- List view -->
-            <div
-              v-else-if="filteredStatCards.length > 0 && statsViewMode === 'list'"
-              class="flex flex-col gap-2"
-            >
-              <StatCard
-                v-for="card in filteredStatCards"
-                :key="card.label"
-                v-bind="card"
-                :horizontal="true"
-              />
-            </div>
-
-            <!-- Empty State - No Permissions -->
-            <div v-else class="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed">
-              <div class="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Activity class="w-8 h-8 text-muted-foreground/40" />
-              </div>
-              <h3 class="text-lg font-semibold mb-1">Tidak Ada Akses</h3>
-              <p class="text-sm text-muted-foreground max-w-sm">
-                Anda belum memiliki akses ke modul apapun. Hubungi administrator untuk meminta hak akses.
-              </p>
-            </div>
+          <div class="space-y-6">
+             <DashboardCard title="Produk Populer" :icon="Package" action-label="Semua" action-to="/dashboard/products">
+                <div v-if="recentProducts.length" class="space-y-3">
+                   <div v-for="p in recentProducts" :key="p.id" class="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+                      <div class="flex-1 min-w-0">
+                         <p class="text-sm font-bold truncate">{{ p.name }}</p>
+                         <p class="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">{{ p.sku || 'NO SKU' }}</p>
+                      </div>
+                      <Badge :class="p.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-zinc-100 text-zinc-500'" variant="outline" class="text-[9px] px-1.5 h-5">{{ p.isActive ? 'Aktif' : 'Off' }}</Badge>
+                   </div>
+                </div>
+                <div v-else class="py-10 text-center text-muted-foreground text-xs italic">Belum ada data produk</div>
+             </DashboardCard>
           </div>
         </div>
 
-        <!-- Tampilan mode pencarian (desktop): recent cards disembunyikan, hasil pencarian full-width -->
-        <div v-else class="hidden lg:block space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold tracking-tight">Statistik &amp; Data</h2>
-            <p class="text-sm text-muted-foreground">
-              {{ filteredStatCards.length }} hasil untuk
-              <span class="font-medium text-foreground">"{{ searchQuery }}"</span>
-            </p>
-          </div>
-
-          <!-- Grid view -->
-          <div
-            v-if="filteredStatCards.length > 0 && statsViewMode === 'grid'"
-            class="grid grid-cols-2 xl:grid-cols-3 gap-4"
-          >
-            <StatCard
-              v-for="card in filteredStatCards"
-              :key="card.label"
-              v-bind="card"
-            />
-          </div>
-
-          <!-- List view -->
-          <div
-            v-else-if="filteredStatCards.length > 0 && statsViewMode === 'list'"
-            class="flex flex-col gap-2"
-          >
-            <StatCard
-              v-for="card in filteredStatCards"
-              :key="card.label"
-              v-bind="card"
-              :horizontal="true"
-            />
-          </div>
-
-          <!-- Empty search result -->
-          <div v-else class="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed">
-            <div class="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Search class="w-8 h-8 text-muted-foreground/40" />
-            </div>
-            <h3 class="text-lg font-semibold mb-1">Tidak ditemukan</h3>
-            <p class="text-sm text-muted-foreground max-w-sm">
-              Tidak ada statistik yang cocok dengan "{{ searchQuery }}". Coba kata kunci lain.
-            </p>
-          </div>
+        <!-- Mobile View -->
+        <div class="lg:hidden">
+          <MobileSummaryTabs :recent-products="recentProducts" :recent-users="recentUsers" :recent-activities="recentActivities" :format-date="formatDate" />
         </div>
-      </template>
+      </div>
     </div>
 
-    <!-- About Modal -->
-    <AboutModal 
-      :is-open="isAboutModalOpen" 
-      @close="isAboutModalOpen = false" 
-    />
+    <AboutModal :is-open="isAboutModalOpen" @close="isAboutModalOpen = false" />
   </AppLayout>
 </template>

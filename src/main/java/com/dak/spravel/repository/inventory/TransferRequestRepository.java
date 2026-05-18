@@ -1,6 +1,9 @@
 package com.dak.spravel.repository.inventory;
 
 import com.dak.spravel.model.inventory.TransferRequest;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -18,4 +21,6 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
     List<TransferRequest> findByDeletedAtIsNull();
 
     List<TransferRequest> findByPartnerIdAndDeletedAtIsNull(Long partnerId);
+
+    Page<TransferRequest> findByPartnerIdAndDeletedAtIsNull(Long partnerId, Pageable pageable);
 }
