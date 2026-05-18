@@ -2,7 +2,6 @@ package com.dak.spravel.controller.order;
 
 import com.dak.spravel.dto.request.order.PaymentsRequest;
 import com.dak.spravel.dto.response.ResData;
-import com.dak.spravel.dto.response.common.PartnerResponse;
 import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.service.order.PaymentsService;
 import com.dak.spravel.util.ResponseBuilder;

@@ -8,10 +8,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -68,11 +74,11 @@ public class StockBalanceController {
     // GET BY LOKASI TERTENTU (branch/warehouse)
     @GetMapping("/location")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> getByLocation(
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> getByLocation(
             @RequestParam String locationType,
             @RequestParam Long locationId) {
         log.info("[GET] /api/v1/stock-balances/location type={} id={}", locationType, locationId);
-        return ResponseEntity.ok(stockBalanceService.findByLocation(locationType, locationId));
+        return ResponseBuilder.ok(stockBalanceService.findByLocation(locationType, locationId));
     }
 
     // INISIASI STOCK AWAL

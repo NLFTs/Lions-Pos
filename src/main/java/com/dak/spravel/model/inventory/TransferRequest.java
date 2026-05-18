@@ -30,19 +30,25 @@ public class TransferRequest {
     /**
      * "branch" | "warehouse"
      */
-    @Column(name = "from_location_type", nullable = true, length = 50)
-    private String fromLocationType;
+    public enum Location {
+        BRANCH, WAREHOUSE
+    }
 
-    @Column(name = "from_location_id", nullable = true)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "from_location_type", nullable = false)
+    private Location fromLocationType;
+
+    @Column(name = "from_location_id", nullable = false)
     private Long fromLocationId;
 
     /**
      * "branch" | "warehouse"
      */
-    @Column(name = "to_location_type", nullable = true, length = 50)
-    private String toLocationType;
-
-    @Column(name = "to_location_id", nullable = true)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "to_location_type", nullable = false)
+    private Location toLocationType;
+        
+    @Column(name = "to_location_id", nullable = false)
     private Long toLocationId;
 
     /**
@@ -52,7 +58,8 @@ public class TransferRequest {
         PENDING, APPROVED, IN_TRANSIT, RECEIVED, CANCELLED
     }
 
-    @Column(name = "status", nullable = false, length = 50)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
     private Status status = Status.PENDING;
 
     @Column(name = "notes", columnDefinition = "TEXT")

@@ -7,8 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -33,7 +31,7 @@ public class StockMutationResponse {
     @JsonProperty("to_location_id")
     private Long toLocationId;
 
-    private BigDecimal qty;
+    private Long qty;
 
     @JsonProperty("reference_type")
     private String referenceType;

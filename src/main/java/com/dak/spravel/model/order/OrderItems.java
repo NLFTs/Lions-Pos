@@ -36,7 +36,7 @@ public class OrderItems {
     private BigDecimal unitPrice;
 
     @Column(nullable = false)
-    private BigDecimal qty;
+    private Long qty;
 
     @Column(nullable = false)
     private BigDecimal subtotal;

@@ -5,7 +5,6 @@ import com.dak.spravel.model.catalog.Product;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
 
 @Entity
 @Data
@@ -27,8 +26,8 @@ public class TransferRequestItem {
     private Product product;
 
     @Column(name = "qty_requested", nullable = false, precision = 19, scale = 4)
-    private BigDecimal qtyRequested;
+    private Long qtyRequested;
 
     @Column(name = "qty_received", precision = 19, scale = 4)
-    private BigDecimal qtyReceived;
+    private Long qtyReceived;
 }

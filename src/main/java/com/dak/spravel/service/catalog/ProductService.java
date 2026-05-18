@@ -24,7 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@lombok.extern.slf4j.Slf4j
+import javax.management.RuntimeErrorException;
+
 @Service
 @RequiredArgsConstructor
 public class ProductService {
@@ -139,6 +140,10 @@ public class ProductService {
 
         Product product = new Product();
         product.setPartner(partner);
+
+        if (category != null) {
+            // throw new RuntimeErrorException();
+        }
         product.setCategory(category);
 
         if (request.getName() == null || request.getName().trim().isEmpty()) {
