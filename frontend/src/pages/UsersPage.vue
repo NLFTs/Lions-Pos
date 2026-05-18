@@ -271,8 +271,8 @@ async function saveUser() {
       })
       avatarUrl = uploadRes.data.data.url
     } else if (avatarPreview.value === null) {
-      // If user removed the avatar, we could theoretically send an empty string or null
-      avatarUrl = null
+      // If user removed the avatar, send empty string so backend knows it was removed
+      avatarUrl = ''
     }
 
     const payload = { 

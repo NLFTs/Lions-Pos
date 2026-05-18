@@ -26,7 +26,8 @@ public class UserSeeder {
     }
 
     public void process(User user) {
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) return;
+        if (userRepository.findByUsername(user.getUsername()).isPresent() || 
+            userRepository.findByEmail(user.getEmail()).isPresent()) return;
 
         var userEntity = new User();
         userEntity.setUsername(user.getUsername());
