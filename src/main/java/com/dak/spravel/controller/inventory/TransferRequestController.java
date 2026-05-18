@@ -10,12 +10,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -79,15 +77,6 @@ public class TransferRequestController {
     public ResponseEntity<ResData<TransferRequestResponse>> store(@Valid @RequestBody TransferRequestDTO request) {
         log.info("[POST] /api/v1/transfer-requests partnerId={}", request.getPartnerId());
         return ResponseBuilder.created(transferRequestService.create(request));
-    }
-
-    @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('transfer_request.update')")
-    public ResponseEntity<ResData<TransferRequestResponse>> updateStatus(
-            @PathVariable Long id,
-            @RequestParam String status) {
-        log.info("[PATCH] /api/v1/transfer-requests/{}/status status={}", id, status);
-        return ResponseBuilder.ok(transferRequestService.updateStatus(id, status));
     }
 
     @DeleteMapping("/{id}")

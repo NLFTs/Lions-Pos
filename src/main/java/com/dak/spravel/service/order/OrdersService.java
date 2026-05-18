@@ -11,7 +11,6 @@ import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
@@ -24,8 +23,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -37,7 +36,6 @@ public class OrdersService {
     private final OrdersRepository ordersRepository;
     private final OrderItemsRepository orderItemsRepository;
     private final PaymentsRepository paymentsRepository;
-    private final PartnerRepository partnerRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
@@ -139,7 +137,7 @@ public class OrdersService {
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
-        order.setCustomer(currentUser); // Default cashier
+        order.setCashier(currentUser); // Default cashier
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
@@ -164,21 +162,20 @@ public class OrdersService {
             item.setProduct(product);
             item.setQty(itemReq.getQty());
             item.setUnitPrice(itemReq.getUnitPrice());
-            item.setSubtotal(itemReq.getUnitPrice().multiply(itemReq.getQty()));
+            item.setSubtotal(itemReq.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQty())));
             
             subtotal = subtotal.add(item.getSubtotal());
             orderItems.add(item);
 
             // REDUCE STOCK
-            stockBalanceService.adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate());
+            stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), item.getQty());
+            // adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate())
             
             // RECORD MUTATION
-            stockMutationService.recordMutation(
-                product, partner, "sale_out", 
-                "branch", branch.getId(), 
-                null, null, 
-                item.getQty(), "order", savedOrder.getId(), 
+            stockMutationService.recordMutation( product, partner, "SALE_OUT", "branch", branch.getId(),null, null, 
+                item.getQty(), "order", savedOrder.getId(),
                 "Order #" + savedOrder.getOrderNumber(), currentUser
+                
             );
         }
         orderItemsRepository.saveAll(orderItems);
@@ -187,13 +184,17 @@ public class OrdersService {
         savedOrder.setSubtotal(subtotal);
         // Recalculate discount if voucher exists
         if (voucher != null) {
+            BigDecimal discountValue = voucher.getDiscountValue();
+
+            // 1. Cek tipe voucher (Gunakan .name() kalau discountType itu Enum)
             if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
                 discount = subtotal.multiply(new BigDecimal(String.valueOf(voucher.getDiscountValue()))).divide(new BigDecimal(100));
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
                 }
             } else {
-                discount = voucher.getDiscountValue();
+                // Jika tipenya 'FIXED' atau nominal langsung
+                discount = discountValue;
             }
         }
         savedOrder.setDiscountAmount(discount);

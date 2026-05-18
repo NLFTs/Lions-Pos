@@ -100,6 +100,13 @@ public class BranchesService {
                 .collect(Collectors.toList());
     }
 
+    public Page<BranchResponse> findPageAdmin(int page, int size) {
+        getAuthenticatedSuperAdmin();
+        
+        return branchesRepository.findAll(PageRequest.of(page, size))
+                .map(this::mapToResponse);
+    }
+
     public List<BranchResponse> findAll() {
 
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
@@ -110,6 +117,7 @@ public class BranchesService {
                 .toList();
     }
 
+    
 
     public Page<BranchResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
@@ -198,7 +206,7 @@ public class BranchesService {
     }
 
     @Transactional
-    public BranchResponse restore(Long id) {
+    public BranchResponse restoreBranch(Long id) {
 
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 

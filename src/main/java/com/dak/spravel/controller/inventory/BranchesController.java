@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,24 +26,31 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/branches")
 @RequiredArgsConstructor
-public class BranchesController {
+public class BranchesController { 
 
     private final BranchesService branchesService;
-
-    @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<ResData<Page<BranchResponse>>> getAllForAdmin(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/branches/admin - Superadmin access, page: {}, size: {}", page, size);
-        return ResponseBuilder.ok(branchesService.findAll(page, size));
-    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('branch.index')")
     public ResponseEntity<ResData<List<BranchResponse>>> index() {
         log.info("[GET] /api/v1/branches");
         return ResponseBuilder.ok(branchesService.findAll());
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('branch.index')")
+    public ResponseEntity<List<BranchResponse>> getAllForAdmin() {
+        log.info("[GET] /api/v1/branches/admin - Superadmin access");
+        return ResponseEntity.ok(branchesService.findAllBranches());
+    }
+
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('branch.index')")
+    public ResponseEntity<Page<BranchResponse>> findPageAdmin( 
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/branches/admin/page - page: {}, size: {}", page, size);
+        return ResponseEntity.ok(branchesService.findPageAdmin(page, size));
     }
 
     @GetMapping("/page")

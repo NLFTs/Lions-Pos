@@ -18,6 +18,8 @@ public class UpdateUserRequest {
 
     private String email;
 
+    private String avatar;
+
     private String password;
 
     private List<Long> roleIds;

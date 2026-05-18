@@ -1,19 +1,15 @@
 package com.dak.spravel.controller.inventory;
 
-import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
-import com.dak.spravel.dto.response.ResData;
-import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
+import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
+import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.service.inventory.StockBalanceService;
-import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,67 +29,67 @@ public class StockBalanceController {
 
     private final StockBalanceService stockBalanceService;
 
+    // SUPER ADMIN ONLY
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<ResData<Page<StockBalanceResponse>>> getAllForAdmin(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/stock-balances/admin - Superadmin access, page: {}, size: {}", page, size);
-        return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
+    public ResponseEntity<List<StockBalance>> getAllForAdmin() {
+        log.info("[GET] /api/v1/stock-balances/admin");
+        return ResponseEntity.ok(stockBalanceService.findAllStockBalances());
     }
 
+    // PARTNER / EMPLOYEE — semua stock (flat)
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<ResData<List<StockBalanceResponse>>> index() {
+    public ResponseEntity<List<StockBalance>> index() {
         log.info("[GET] /api/v1/stock-balances");
-        return ResponseBuilder.ok(stockBalanceService.findAll());
+        return ResponseEntity.ok(stockBalanceService.findAll());
     }
 
+    // PAGINATION
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<ResData<Page<StockBalanceResponse>>> paginated(
+    public ResponseEntity<Page<StockBalance>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-balances/page page={} size={}", page, size);
-        return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
+        return ResponseEntity.ok(stockBalanceService.findAll(page, size));
     }
 
+    // SUMMARY — per product, dikelompokkan per lokasi + total qty
+    @GetMapping("/summary")
+    @PreAuthorize("hasAuthority('stock_balance.index')")
+    public ResponseEntity<List<StockLocationSummaryResponse>> summary() {
+        log.info("[GET] /api/v1/stock-balances/summary");
+        return ResponseEntity.ok(stockBalanceService.findStockSummary());
+    }
+
+    // GET BY ID
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_balance.show')")
-    public ResponseEntity<ResData<StockBalanceResponse>> show(@PathVariable Long id) {
+    public ResponseEntity<StockBalance> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-balances/{}", id);
-        return ResponseBuilder.ok(stockBalanceService.findById(id));
+        return ResponseEntity.ok(stockBalanceService.findById(id));
     }
 
-    @GetMapping("/product/{productId}")
-    @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<ResData<List<StockBalanceResponse>>> getByProduct(@PathVariable Long productId) {
-        log.info("[GET] /api/v1/stock-balances/product/{}", productId);
-        return ResponseBuilder.ok(stockBalanceService.findByProductId(productId).stream().map(stockBalanceService::mapToResponse).toList());
-    }
-
+    // GET BY LOKASI TERTENTU (branch/warehouse)
     @GetMapping("/location")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> getByLocation(
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> getByLocation(
             @RequestParam String locationType,
             @RequestParam Long locationId) {
         log.info("[GET] /api/v1/stock-balances/location type={} id={}", locationType, locationId);
-        return ResponseEntity.ok(stockBalanceService.findByLocation(locationType, locationId));
+        return ResponseBuilder.ok(stockBalanceService.findByLocation(locationType, locationId));
     }
 
-    @PostMapping
+    // INISIASI STOCK AWAL
+    @PostMapping("/initialize")
     @PreAuthorize("hasAuthority('stock_balance.store')")
-    public ResponseEntity<ResData<StockBalanceResponse>> store(@Valid @RequestBody StockBalanceRequestDTO request) {
-        log.info("[POST] /api/v1/stock-balances productId={}", request.getProductId());
-        return ResponseBuilder.created(stockBalanceService.create(request));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('stock_balance.update')")
-    public ResponseEntity<ResData<StockBalanceResponse>> update(
-            @PathVariable Long id,
-            @Valid @RequestBody StockBalanceRequestDTO request) {
-        log.info("[PUT] /api/v1/stock-balances/{}", id);
-        return ResponseBuilder.ok(stockBalanceService.update(id, request));
+    public ResponseEntity<List<StockBalance>> initialize(
+            @Valid @RequestBody StockBalanceInitRequest request) {
+        log.info("[POST] /api/v1/stock-balances/initialize locationType={} locationId={}",
+                request.getLocationType(), request.getLocationId());
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(stockBalanceService.initializeStock(request));
     }
 }

@@ -9,6 +9,7 @@ import com.dak.spravel.model.order.Orders;
 @Repository
 public interface OrdersRepository extends JpaRepository <Orders, Long> {
     Optional<Orders> findByOrderNumber(String orderNumber);
+    Optional<Orders> findByPartnerIdAndOrderNumber(Long partnerId, String orderNumber);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"items", "payment", "branch", "createdBy", "voucher"})
     @org.springframework.data.jpa.repository.Query("SELECT o FROM Orders o")

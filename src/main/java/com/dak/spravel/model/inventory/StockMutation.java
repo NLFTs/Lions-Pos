@@ -34,33 +34,48 @@ public class StockMutation {
 
     // "sale_out" | "purchase_in" | "transfer" | "adjustment" | "return"
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
-    private String type;
+    private Type type;
+
+    public enum Type {
+        SALE_OUT, PURCHASE_IN, TRANSFER, ADJUSTMENT, RETURN
+    }
+
+    public enum Location {
+        BRANCH, WAREHOUSE
+    }
 
     // "branch" | "warehouse" | null
+    @Enumerated(EnumType.STRING)
     @Column(name = "from_location_type", nullable = true)
-    private String fromLocationType;
+    private Location fromLocationType;
 
     @Column(name = "from_location_id", nullable = true)
     private Long fromLocationId;
 
     // "branch" | "warehouse" | null
+    @Enumerated(EnumType.STRING)
     @Column(name = "to_location_type", length = 50)
-    private String toLocationType;
+    private Location toLocationType;
 
     @Column(name = "to_location_id")
     private Long toLocationId;
 
-    @Column(name = "qty", nullable = false, precision = 19, scale = 4)
-    private BigDecimal qty;
+    @Column(name = "qty", nullable = false)
+    private Long qty;
 
     // "order" | "transfer_request" | "stock_opname"
 
-    @Column(name = "reference_type", length = 50)
-    private String referenceType;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reference_type")
+    private ReferenceType referenceType;
+
+    public enum ReferenceType {
+        ORDER, TRANSFER_REQUEST, STOCK_OPNAME
+    }
 
     // Polymorphic FK — points to orders.id, transfer_requests.id, or stock_opname.id
-
     @Column(name = "reference_id")
     private Long referenceId;
 

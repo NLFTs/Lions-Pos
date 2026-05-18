@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@lombok.extern.slf4j.Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductPhotoService {
@@ -27,6 +28,24 @@ public class ProductPhotoService {
     private final ProductPhotoRepository productPhotoRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
+    private String uploadDir;
+
+    private void deleteFileDisk(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) return;
+        try {
+            String cleanPath = fileUrl;
+            if (cleanPath.startsWith("/uploads/")) {
+                cleanPath = cleanPath.substring("/uploads/".length());
+            }
+            java.nio.file.Path path = java.nio.file.Paths.get(uploadDir, cleanPath);
+            java.nio.file.Files.deleteIfExists(path);
+            log.info("[DELETE FILE] Berhasil menghapus file foto produk lama: {}", path);
+        } catch (Exception e) {
+            log.error("[DELETE FILE] Gagal menghapus file foto produk lama {}: {}", fileUrl, e.getMessage());
+        }
+    }
 
     // --- HELPER: AUTH & BLOCK ADMIN (Standardized) ---
 
@@ -108,7 +127,12 @@ public class ProductPhotoService {
         // Langsung pake partner dari user hasil auth
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
 
-        if (request.getUrl() != null) photo.setUrl(request.getUrl());
+        if (request.getUrl() != null) {
+            if (photo.getUrl() != null && !photo.getUrl().equals(request.getUrl())) {
+                deleteFileDisk(photo.getUrl());
+            }
+            photo.setUrl(request.getUrl());
+        }
         if (request.getIsPrimary() != null) photo.setIsPrimary(request.getIsPrimary());
         if (request.getSortOrder() != null) photo.setSortOrder(request.getSortOrder());
 
@@ -119,6 +143,9 @@ public class ProductPhotoService {
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
+        if (photo.getUrl() != null) {
+            deleteFileDisk(photo.getUrl());
+        }
         productPhotoRepository.delete(photo);
     }
 }

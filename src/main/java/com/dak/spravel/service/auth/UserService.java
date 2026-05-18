@@ -9,6 +9,8 @@ import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.common.PartnerRepository;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 
+@lombok.extern.slf4j.Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -30,6 +33,24 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final PermissionCacheService permissionCacheService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
+    private String uploadDir;
+
+    private void deleteFileDisk(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) return;
+        try {
+            String cleanPath = fileUrl;
+            if (cleanPath.startsWith("/uploads/")) {
+                cleanPath = cleanPath.substring("/uploads/".length());
+            }
+            java.nio.file.Path path = java.nio.file.Paths.get(uploadDir, cleanPath);
+            java.nio.file.Files.deleteIfExists(path);
+            log.info("[DELETE FILE] Berhasil menghapus file lama: {}", path);
+        } catch (Exception e) {
+            log.error("[DELETE FILE] Gagal menghapus file lama {}: {}", fileUrl, e.getMessage());
+        }
+    }
 
     // --- HELPER ---
 
@@ -128,6 +149,9 @@ public class UserService {
         user.setUsername(request.getUsername());
         user.setFullname(request.getFullname());
         user.setEmail(request.getEmail());
+        if (request.getAvatar() != null) {
+            user.setAvatar(request.getAvatar());
+        }
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         // Admin partner hanya bisa create user untuk partnernya sendiri
@@ -181,6 +205,16 @@ public class UserService {
 
         if (request.getFullname() != null) user.setFullname(request.getFullname());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getAvatar() != null) {
+            if (user.getAvatar() != null && !user.getAvatar().equals(request.getAvatar())) {
+                deleteFileDisk(user.getAvatar());
+            }
+            if (request.getAvatar().trim().isEmpty()) {
+                user.setAvatar(null);
+            } else {
+                user.setAvatar(request.getAvatar());
+            }
+        }
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -213,6 +247,9 @@ public class UserService {
         }
 
         permissionCacheService.evict(user.getUsername());
+        if (user.getAvatar() != null) {
+            deleteFileDisk(user.getAvatar());
+        }
         userRepository.deleteById(id);
     }
 
@@ -236,6 +273,7 @@ public class UserService {
         res.setUsername(user.getUsername());
         res.setFullname(user.getFullname());
         res.setEmail(user.getEmail());
+        res.setAvatar(user.getAvatar());
         res.setCreatedAt(user.getCreatedAt());
 
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
