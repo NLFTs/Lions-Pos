@@ -69,8 +69,9 @@ public class StockBalanceController {
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByProduct(@PathVariable Long productId) {
         log.info("[GET] /api/v1/stock-balances/product/{}", productId);
-        return ResponseBuilder.ok(stockBalanceService.findByProductId(productId).stream().map(stockBalanceService::mapToResponse).toList());
+        return ResponseBuilder.ok(stockBalanceService.findByProductId(productId));
     }
+
 
     @GetMapping("/location")
     @PreAuthorize("hasAuthority('stock_balance.index')")

@@ -170,7 +170,7 @@ public class StockBalanceService {
     }
 
     // GET BY PRODUCT
-    public List<StockBalance> findByProductId(Long productId) {
+    public List<StockBalanceResponse> findByProductId(Long productId) {
         User currentUser = getAuthenticatedUser();
 
         Product product = productRepository.findById(productId)
@@ -181,7 +181,10 @@ public class StockBalanceService {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
         }
 
-        return stockBalanceRepository.findByProductId(productId);
+        return stockBalanceRepository.findByProductId(productId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     // GET BY LOCATION

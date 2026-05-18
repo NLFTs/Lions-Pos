@@ -24,10 +24,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +37,6 @@ public class OrdersService {
     private final OrdersRepository ordersRepository;
     private final OrderItemsRepository orderItemsRepository;
     private final PaymentsRepository paymentsRepository;
-    private final PartnerRepository partnerRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
@@ -186,13 +186,22 @@ public class OrdersService {
         savedOrder.setSubtotal(subtotal);
         // Recalculate discount if voucher exists
         if (voucher != null) {
+            BigDecimal discountValue = voucher.getDiscountValue();
+
+            // 1. Cek tipe voucher (Gunakan .name() kalau discountType itu Enum)
             if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
-                discount = subtotal.multiply(new BigDecimal(voucher.getDiscountValue())).divide(new BigDecimal(100));
+                
+                // 2. Hitung persenan + kasih Rounding Mode biar gak crash kalau ketemu desimal ribet
+                discount = subtotal.multiply(discountValue)
+                                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                
+                // 3. Cek apakah melebihi batasan maksimum diskon
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
                 }
             } else {
-                discount = voucher.getDiscountValue();
+                // Jika tipenya 'FIXED' atau nominal langsung
+                discount = discountValue;
             }
         }
         savedOrder.setDiscountAmount(discount);
@@ -202,14 +211,14 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrder(savedOrder);
-            payment.setMethod(Payments.PaymentMethod.valueOf(request.getPayment().getMethod().toUpperCase()));
+            payment.setOrders(Set.of(savedOrder));
+            payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
             payment.setChangeDue(request.getPayment().getChangeDue());
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.PaymentStatus.SUCCESS);
+            payment.setStatus(Payments.Status.COMPLETED);
             payment.setCreatedAt(java.time.LocalDateTime.now());
             paymentsRepository.save(payment);
         }
