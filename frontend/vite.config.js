@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 import fs from 'node:fs'
 import path from 'node:path'
+import vueDevTools from 'vite-plugin-vue-devtools'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -28,7 +29,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
 
   return {
     base: mode === 'production' ? '/_/' : '/',
-    plugins: [vue()],
+    plugins: [vue(), vueDevTools()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -57,6 +58,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
       port: parseInt(env.VITE_DEV_PORT) || 5173,
       proxy: {
         '/api': 'http://localhost:8090',
+        '/uploads': 'http://localhost:8090',
       },
     },
   }

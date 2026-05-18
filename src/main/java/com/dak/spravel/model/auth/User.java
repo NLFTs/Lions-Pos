@@ -33,6 +33,9 @@ public class User   {
     @Column(unique = true)
     private String email;
 
+    @Column(name = "avatar")
+    private String avatar;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id")
     private Partners partner;
