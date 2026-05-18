@@ -115,6 +115,6 @@ public class Orders  {
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<OrderItems> items;
 
-    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
     private Set<Payments> payments;
 }

@@ -1,5 +1,4 @@
 package com.dak.spravel.service.order;
-
 import com.dak.spravel.dto.request.order.PaymentsRequest;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.order.Orders;
@@ -81,12 +80,12 @@ public class PaymentsService {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
 
-        if (payment.getOrder() == null) {
+        if (payment.getOrders() == null) {
             throw new RuntimeException("Payment tidak memiliki order.");
         }
         
-        boolean valid =payment.getOrder().getPartner() != null &&
-        payment.getOrder().getPartner().getId()
+        boolean valid =payment.getOrders().getPartner() != null &&
+        payment.getOrders().getPartner().getId()
         .equals(currentUser.getPartner().getId());
 
         if (!valid) {
@@ -110,7 +109,7 @@ public class PaymentsService {
 
         return paymentsRepository.findAll()
                 .stream()
-                .filter(payment -> payment.getOrder() != null && payment.getOrder().getPartner() != null && payment.getOrder().getPartner().getId()
+                .filter(payment -> payment.getOrders() != null && payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
                 .equals(currentUser.getPartner().getId()))
                 .toList();
     }
@@ -127,9 +126,9 @@ public class PaymentsService {
 
         return paymentsRepository.findAll(pageRequest)
                 .map(payment -> {
-                    if (payment.getOrder() == null) return null;
+                    if (payment.getOrders() == null) return null;
 
-                    boolean allowed = payment.getOrder().getPartner() != null && payment.getOrder().getPartner().getId()
+                    boolean allowed = payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
                     .equals(currentUser.getPartner().getId());
                     return allowed ? payment : null;
                 });
@@ -151,7 +150,7 @@ public class PaymentsService {
 
         Payments payments = new Payments();
 
-        payments.setOrder(orders);
+        payments.setOrders(orders);
         payments.setMethod(Payments.Method.valueOf(request.getMethod().toUpperCase()));
         payments.setAmount(request.getAmount());
         payments.setCreatedAt(LocalDateTime.now());

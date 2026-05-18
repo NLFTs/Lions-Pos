@@ -31,7 +31,6 @@ public class Payments   {
     public enum Method {
         CASH, TRANSFER
     }
-    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING;
