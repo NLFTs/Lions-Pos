@@ -36,6 +36,7 @@ public class StockOpname  {
 
     private LocalDateTime date;
 
+    @Enumerated(EnumType.STRING)
     private Status status = Status.DRAFT;
     public enum Status {
         DRAFT,
