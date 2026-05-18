@@ -1,18 +1,19 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
-import com.dak.spravel.dto.response.components.UserSimpleDto;
-import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
-import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
+import com.dak.spravel.dto.request.inventory.StockBalanceItemRequest;
+import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.model.inventory.StockBalance;
+import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
-
-import jakarta.transaction.Transactional;
+import com.dak.spravel.repository.inventory.WarehousesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,10 +21,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,231 +36,277 @@ public class StockBalanceService {
 
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
+    private final BranchesRepository branchesRepository;
+    private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
 
+    // =========================
+    // AUTH USER
+    // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-
-        return user;
     }
 
+    // =========================
+    // KHUSUS SUPER ADMIN
+    // =========================
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses Di Tolak: Anda Bukan Super Admin");
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
+    // =========================
+    // KHUSUS ADMIN PARTNER / EMPLOYEE
+    // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
-                                role.getSlug().equalsIgnoreCase("employee-partners"));
-        
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-
-        if (!isAuthorized || !isStaff) {
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin") || role.getSlug().equals("admin"));
-    }
-
+    // =========================
+    // VALIDASI STOCK BALANCE
+    // =========================
     private StockBalance getValidatedStockBalance(Long id, User currentUser) {
         StockBalance stock = stockBalanceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("StockBalance", id));
+                .orElseThrow(() -> new RuntimeException("Stock Balance tidak ditemukan"));
 
-        if (currentUser.getPartner() == null ||
-                !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Stock balance bukan milik partner Anda.");
-        }
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak Admin Tidak Di Perbolehkan Mengelola Stock Balances");
+        if (currentUser.getPartner() == null
+                || stock.getProduct() == null
+                || stock.getProduct().getPartner() == null
+                || !stock.getProduct().getPartner().getId()
+                .equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Stock Balance bukan milik partner Anda.");
         }
 
         return stock;
     }
 
-    // mapToResponse
-    private StockBalanceResponse mapToResponse(StockBalance stock) {
-
-    // Product DTO
-    StockBalanceResponse.ProductSimpleDto productDto =
-            new StockBalanceResponse.ProductSimpleDto();
-
-    productDto.setId(stock.getProduct().getId());
-    productDto.setName(stock.getProduct().getName());
-    productDto.setSku(stock.getProduct().getSku());
-
-    // User DTO
-    UserSimpleDto userDto = null;
-
-    if (stock.getUpdatedBy() != null) {
-        userDto = new UserSimpleDto();
-        userDto.setId(stock.getUpdatedBy().getId());
-        userDto.setUsername(stock.getUpdatedBy().getUsername());
+    // =========================
+    // HELPER: Resolve nama lokasi
+    // =========================
+    private String resolveLocationName(String locationType, Long locationId) {
+        if ("BRANCH".equalsIgnoreCase(locationType)) {
+            return branchesRepository.findById(locationId)
+                    .map(Branches::getName)
+                    .orElse("Branch #" + locationId);
+        } else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            return warehousesRepository.findById(locationId)
+                    .map(Warehouses::getName)
+                    .orElse("Warehouse #" + locationId);
+        }
+        return "Lokasi #" + locationId;
     }
 
-    return StockBalanceResponse.builder()
-            .id(stock.getId())
-            .product(productDto)
-            .locationType(stock.getLocationType())
-            .locationId(stock.getLocationId())
-            .qty(stock.getQty())
-            .updatedAt(stock.getUpdatedAt())
-            .updatedBy(userDto)
-            .build();
-}
+    // =========================
+    // ADJUST STOCK
+    // Dipakai oleh OrdersService saat terjadi transaksi
+    // qty bisa positif (tambah) atau negatif (kurang)
+    // =========================
+    @Transactional
+    public void adjustStock(Long productId, String locationType, Long locationId, BigDecimal qty) {
+        StockBalance stock = stockBalanceRepository
+                .findByProductIdAndLocationTypeAndLocationId(
+                        productId,
+                        locationType.toUpperCase(),
+                        locationId)
+                .orElseThrow(() -> new RuntimeException(
+                        "Stock tidak ditemukan untuk product id=" + productId
+                                + " di " + locationType + " id=" + locationId));
 
-   public List<StockBalanceResponse> findAllStockBalance() {
-    getAuthenticatedSuperAdmin();
+        BigDecimal newQty = stock.getQty().add(qty);
 
-    return stockBalanceRepository.findAll()
-            .stream()
-            .map(this::mapToResponse)
-            .toList();
-}
-
-    public List<StockBalanceResponse> findAll() {
-    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-    return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId())
-            .stream()
-            .map(this::mapToResponse)
-            .toList();
-}
-
-    // GET ALL PAGINATED
-    public Page<StockBalanceResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
-
-        if (isAdmin(currentUser)) {
-            return stockBalanceRepository.findAll(pageRequest).map(this::mapToResponse);
+        if (newQty.compareTo(BigDecimal.ZERO) < 0) {
+            throw new RuntimeException(
+                    "Stock tidak mencukupi untuk product id=" + productId
+                            + ". Stock saat ini: " + stock.getQty());
         }
+
+        stock.setQty(newQty);
+        stock.setUpdatedAt(LocalDateTime.now());
+        stockBalanceRepository.save(stock);
+    }
+
+    // =========================
+    // KHUSUS SUPER ADMIN
+    // =========================
+    public List<StockBalance> findAllStockBalances() {
+        getAuthenticatedSuperAdmin();
+        return stockBalanceRepository.findAll();
+    }
+
+    // =========================
+    // KHUSUS PARTNER / EMPLOYEE
+    // =========================
+    public List<StockBalance> findAll() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+    }
+
+    // =========================
+    // PAGINATION KHUSUS PARTNER
+    // =========================
+    public Page<StockBalance> findAll(int page, int size) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
 
-        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageRequest)
-                .map(this::mapToResponse);
+        return stockBalanceRepository.findByProductPartnerId(
+                currentUser.getPartner().getId(),
+                PageRequest.of(page, size, Sort.by("id").descending()));
     }
 
+    // =========================
     // GET BY ID
-    public StockBalanceResponse findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-        StockBalance stock = stockBalanceRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("StockBalance", id));
-
-        if (!isAdmin(currentUser)) {
-            if (currentUser.getPartner() == null ||
-                !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Stock balance bukan milik partner Anda.");
-            }
-        }
-        return mapToResponse(stock);
+    // =========================
+    public StockBalance findById(Long id) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return getValidatedStockBalance(id, currentUser);
     }
 
-    // GET BY PRODUCT
-    public List<StockBalanceResponse> findByProductId(Long productId) {
-        User currentUser = getAuthenticatedUser();
+    // =========================
+    // GET BY LOKASI (branch/warehouse tertentu)
+    // =========================
+    public List<StockBalance> findByLocation(String locationType, Long locationId) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
-
-        if (currentUser.getPartner() == null ||
-                !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
-        }
-
-        return stockBalanceRepository.findByProductId(productId)
+        return stockBalanceRepository
+                .findByLocationTypeAndLocationId(locationType, locationId)
                 .stream()
-                .map(this::mapToResponse)
+                .filter(s -> s.getProduct() != null
+                        && s.getProduct().getPartner() != null
+                        && s.getProduct().getPartner().getId()
+                        .equals(currentUser.getPartner().getId()))
                 .toList();
     }
 
-    // GET BY LOCATION
-    public List<StockBalance> findByLocation(String locationType, Long locationId) {
-        User currentUser = getAuthenticatedUser();
-        return stockBalanceRepository.findByLocationTypeAndLocationId(locationType, locationId);
+    // =========================
+    // SUMMARY: Semua stock per product
+    // dikelompokkan per lokasi (branch + warehouse)
+    // beserta total qty keseluruhan
+    // =========================
+    public List<StockLocationSummaryResponse> findStockSummary() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        List<StockBalance> allStocks = stockBalanceRepository
+                .findByProductPartnerId(currentUser.getPartner().getId());
+
+        Map<Long, List<StockBalance>> groupedByProduct = allStocks.stream()
+                .collect(Collectors.groupingBy(s -> s.getProduct().getId()));
+
+        List<StockLocationSummaryResponse> result = new ArrayList<>();
+
+        for (Map.Entry<Long, List<StockBalance>> entry : groupedByProduct.entrySet()) {
+            List<StockBalance> stocks = entry.getValue();
+            Product product = stocks.get(0).getProduct();
+
+            BigDecimal totalQty = stocks.stream()
+                    .map(StockBalance::getQty)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            List<StockLocationSummaryResponse.StockPerLocation> perLokasi = stocks.stream()
+                    .map(s -> new StockLocationSummaryResponse.StockPerLocation(
+                            s.getLocationType(),
+                            s.getLocationId(),
+                            resolveLocationName(s.getLocationType(), s.getLocationId()),
+                            s.getQty()))
+                    .toList();
+
+            result.add(new StockLocationSummaryResponse(
+                    product.getId(),
+                    product.getName(),
+                    product.getSku(),
+                    totalQty,
+                    perLokasi));
+        }
+
+        return result;
     }
 
-    // CREATE
+    // =========================
+    // INISIASI STOCK AWAL
+    // =========================
     @Transactional
-    public StockBalanceResponse create(StockBalanceRequestDTO request) {
+    public List<StockBalance> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
         Partners partner = currentUser.getPartner();
-
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
-
-        if (currentUser.getPartner() == null ||
-                !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
+        if (partner == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner manapun.");
         }
 
-        stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
-                request.getProductId(), request.getLocationType(), request.getLocationId()
-        ).ifPresent(existing -> {
-            throw new IllegalArgumentException("Stock balance sudah ada untuk produk dan lokasi ini.");
-        });
-
-        StockBalance stock = new StockBalance();
-        stock.setProduct(product);
-        stock.setLocationType(request.getLocationType());
-        stock.setLocationId(request.getLocationId());
-        stock.setQty(request.getQty());
-        stock.setCreatedBy(currentUser);
-        stock.setUpdatedBy(currentUser);
-
-        return mapToResponse(stockBalanceRepository.save(stock));
-    }
-
-    // UPDATE
-    @Transactional
-    public StockBalanceResponse update(Long id, StockBalanceRequestDTO request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        StockBalance stock = getValidatedStockBalance(id, currentUser);
-
-        if (request.getQty() != null) stock.setQty(request.getQty());
-        if (request.getLocationType() != null) stock.setLocationType(request.getLocationType());
-        if (request.getLocationId() != null) stock.setLocationId(request.getLocationId());
-        stock.setUpdatedBy(currentUser);
-
-        return mapToResponse(stockBalanceRepository.save(stock));
-    }
-
-    @Transactional
-    public void adjustStock(Long productId, String locationType, Long locationId, BigDecimal adjustment) {
-        StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
-                productId, locationType, locationId
-        ).orElseGet(() -> {
-            StockBalance newStock = new StockBalance();
-            newStock.setProduct(productRepository.findById(productId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", productId)));
-            newStock.setLocationType(locationType);
-            newStock.setLocationId(locationId);
-            newStock.setQty(BigDecimal.ZERO);
-            return newStock;
-        });
-
-        stock.setQty(stock.getQty().add(adjustment));
-        if (stock.getQty().compareTo(BigDecimal.ZERO) < 0) {
-            throw new RuntimeException("Stok tidak mencukupi untuk produk ID: " + productId);
+        if ("BRANCH".equalsIgnoreCase(request.getLocationType())) {
+            Branches branch = branchesRepository.findById(request.getLocationId())
+                    .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
+            if (branch.getPartners() == null
+                    || !branch.getPartners().getId().equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
+            }
+        } else if ("WAREHOUSE".equalsIgnoreCase(request.getLocationType())) {
+            Warehouses warehouse = warehousesRepository.findById(request.getLocationId())
+                    .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
+            if (warehouse.getPartners() == null
+                    || !warehouse.getPartners().getId().equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
+            }
+        } else {
+            throw new RuntimeException("locationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
         }
-        stockBalanceRepository.save(stock);
+
+        List<StockBalance> results = new ArrayList<>();
+
+        for (StockBalanceItemRequest itemRequest : request.getItems()) {
+
+            Product product = productRepository.findById(itemRequest.getProductId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Product tidak ditemukan: id=" + itemRequest.getProductId()));
+
+            if (product.getPartner() == null
+                    || !product.getPartner().getId().equals(partner.getId())) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Product '" + product.getName() + "' bukan milik partner Anda.");
+            }
+
+            StockBalance stock = stockBalanceRepository
+                    .findByProductIdAndLocationTypeAndLocationId(
+                            product.getId(),
+                            request.getLocationType(),
+                            request.getLocationId())
+                    .orElse(null);
+
+            if (stock != null) {
+                stock.setQty(itemRequest.getQty());
+                stock.setUpdatedBy(currentUser);
+                stock.setUpdatedAt(LocalDateTime.now());
+            } else {
+                stock = new StockBalance();
+                stock.setProduct(product);
+                stock.setLocationType(request.getLocationType().toUpperCase());
+                stock.setLocationId(request.getLocationId());
+                stock.setQty(itemRequest.getQty());
+                stock.setCreatedBy(currentUser);
+            }
+
+            results.add(stockBalanceRepository.save(stock));
+        }
+
+        return results;
     }
 }
