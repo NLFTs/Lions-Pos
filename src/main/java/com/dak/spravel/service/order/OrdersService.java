@@ -138,7 +138,7 @@ public class OrdersService {
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
-        order.setCustomer(currentUser); // Default cashier
+        order.setCashier(currentUser); // Default cashier
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
@@ -173,9 +173,9 @@ public class OrdersService {
             
             // RECORD MUTATION
             stockMutationService.recordMutation(
-                product, partner, "sale_out", 
-                "branch", branch.getId(), 
-                null, null, 
+                product, partner, "sale_out",
+                "branch", branch.getId(),
+                null, null,
                 item.getQty(), "order", savedOrder.getId(), 
                 "Order #" + savedOrder.getOrderNumber(), currentUser
             );
@@ -203,13 +203,13 @@ public class OrdersService {
         if (request.getPayment() != null) {
             Payments payment = new Payments();
             payment.setOrder(savedOrder);
-            payment.setMethod(Payments.PaymentMethod.valueOf(request.getPayment().getMethod().toUpperCase()));
+            payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
             payment.setChangeDue(request.getPayment().getChangeDue());
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.PaymentStatus.SUCCESS);
+            payment.setStatus(Payments.Status.COMPLETED);
             payment.setCreatedAt(java.time.LocalDateTime.now());
             paymentsRepository.save(payment);
         }
