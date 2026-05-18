@@ -1,16 +1,8 @@
 package com.dak.spravel.controller.inventory;
 
-import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
-import com.dak.spravel.dto.response.ResData;
-import com.dak.spravel.model.inventory.StockOpname;
-import com.dak.spravel.model.inventory.StockOpnameItem;
-import com.dak.spravel.service.inventory.StockOpnameService;
-import com.dak.spravel.util.ResponseBuilder;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,7 +15,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
+import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.StockOpnameResponse;
+import com.dak.spravel.model.inventory.StockOpname;
+import com.dak.spravel.model.inventory.StockOpnameItem;
+import com.dak.spravel.service.inventory.StockOpnameService;
+import com.dak.spravel.util.ResponseBuilder;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -33,13 +35,12 @@ public class StockOpnameController {
 
     private final StockOpnameService stockOpnameService;
 
+
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<ResData<Page<StockOpname>>> getAllForAdmin(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/stock-opnames/admin - Superadmin access, page: {}, size: {}", page, size);
-        return ResponseBuilder.ok(stockOpnameService.findAll(page, size));
+    public ResponseEntity<ResData<List<StockOpnameResponse>>> getAllForAdmin() {
+        log.info("[GET] /api/v1/stock-opnames/admin - Superadmin access fetching all partner data");
+        return ResponseBuilder.ok(stockOpnameService.findAllOpName());
     }
 
     @GetMapping
@@ -75,7 +76,7 @@ public class StockOpnameController {
     @PostMapping
     @PreAuthorize("hasAuthority('stock_opname.store')")
     public ResponseEntity<ResData<StockOpname>> store(@Valid @RequestBody StockOpnameRequestDTO request) {
-        log.info("[POST] /api/v1/stock-opnames partnerId={}", request.getPartnerId());
+        log.info("[POST] /api/v1/stock-opnames location={}", request.getLocation());
         return ResponseBuilder.created(stockOpnameService.create(request));
     }
 
