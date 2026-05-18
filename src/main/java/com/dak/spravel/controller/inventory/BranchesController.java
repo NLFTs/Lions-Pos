@@ -25,7 +25,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/branches")
 @RequiredArgsConstructor
-public class BranchesController {
+public class BranchesController { 
 
     private final BranchesService branchesService;
 
@@ -34,6 +34,22 @@ public class BranchesController {
     public ResponseEntity<List<BranchResponse>> index() {
         log.info("[GET] /api/v1/branches");
         return ResponseEntity.ok(branchesService.findAll());
+    }
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('branch.index')")
+    public ResponseEntity<List<BranchResponse>> getAllForAdmin() {
+        log.info("[GET] /api/v1/branches/admin - Superadmin access");
+        return ResponseEntity.ok(branchesService.findAllBranches());
+    }
+
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('branch.index')")
+    public ResponseEntity<Page<BranchResponse>> findPageAdmin( 
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/branches/admin/page - page: {}, size: {}", page, size);
+        return ResponseEntity.ok(branchesService.findPageAdmin(page, size));
     }
 
     @GetMapping("/page")

@@ -1,6 +1,7 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.service.inventory.StockBalanceService;
 import jakarta.validation.Valid;
@@ -32,7 +33,7 @@ public class StockBalanceController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> index() {
+    public ResponseEntity<List<StockBalanceResponse>> index() {
         log.info("[GET] /api/v1/stock-balances");
         return ResponseEntity.ok(stockBalanceService.findAll());
     }

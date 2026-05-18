@@ -7,6 +7,8 @@ import com.dak.spravel.service.catalog.ProductService;
 import com.dak.spravel.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,6 +42,13 @@ public class ProductController {
     public ResponseEntity<ResData<List<ProductResponse>>> getAllForAdmin() {
         log.info("[GET] /api/v1/products/admin - Superadmin access");
         return ResponseBuilder.ok(productService.findAllProduct());
+    }
+
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('product.index')")
+    public ResponseEntity<Page<ProductResponse>> getPageForAdmin() {
+        log.info("[GET] /api/v1/products/admin/page - Superadmin access");
+        return ResponseEntity.ok(productService.findAllProduct(0, 10));
     }
 
     @GetMapping

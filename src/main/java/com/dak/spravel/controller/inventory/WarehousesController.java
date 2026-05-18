@@ -31,10 +31,10 @@ public class WarehousesController {
     private final WarehousesService warehousesService;
 
     // --- SUPER ADMIN ---
-    @GetMapping("/admin/all")
+    @GetMapping("/admin")
     @PreAuthorize("hasAuthority('warehouse.admin')")
     public ResponseEntity<List<Warehouses>> findAllAdmin() {
-        log.info("[GET] /api/v1/warehouses/admin/all");
+        log.info("[GET] /api/v1/warehouses/admin/all - Superadmin access");
         return ResponseEntity.ok(warehousesService.findAllAdmin());
     }
 
@@ -43,6 +43,7 @@ public class WarehousesController {
     public ResponseEntity<Page<Warehouses>> findPageAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/warehouses/admin/page - Superadmin access, Page: {}", page);
         return ResponseEntity.ok(warehousesService.findPageAdmin(page, size));
     }
 
