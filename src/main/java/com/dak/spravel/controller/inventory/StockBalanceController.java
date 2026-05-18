@@ -1,13 +1,18 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
+import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.service.inventory.StockBalanceService;
+import com.dak.spravel.util.ResponseBuilder;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,15 +37,15 @@ public class StockBalanceController {
     // SUPER ADMIN ONLY
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> getAllForAdmin() {
+    public ResponseEntity<List<StockBalanceResponse>> getAllForAdmin() {
         log.info("[GET] /api/v1/stock-balances/admin");
-        return ResponseEntity.ok(stockBalanceService.findAllStockBalances());
+        return ResponseEntity.ok(stockBalanceService.findAll());
     }
 
     // PARTNER / EMPLOYEE — semua stock (flat)
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<List<StockBalance>> index() {
+    public ResponseEntity<List<StockBalanceResponse>> index() {
         log.info("[GET] /api/v1/stock-balances");
         return ResponseEntity.ok(stockBalanceService.findAll());
     }
@@ -48,7 +53,7 @@ public class StockBalanceController {
     // PAGINATION
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<Page<StockBalance>> paginated(
+    public ResponseEntity<Page<StockBalanceResponse>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-balances/page page={} size={}", page, size);

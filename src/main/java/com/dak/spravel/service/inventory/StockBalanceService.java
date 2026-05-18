@@ -1,8 +1,11 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
-import com.dak.spravel.dto.request.inventory.StockBalanceItemRequest;
+import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
+import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
@@ -21,7 +24,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -136,6 +145,48 @@ public class StockBalanceService {
                 .toList();
     }
 
+    public List<StockLocationSummaryResponse> findStockSummary() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        Long partnerId = currentUser.getPartner().getId();
+
+        // 🔥 PASTIIN BARIS INI ADA DAN GAK TYPO, MIP:
+        List<StockBalance> allBalances = stockBalanceRepository.findByProductPartnerId(partnerId);
+
+        // Di bawah ini baru pake allBalances yang udah diambil di atas
+        Map<com.dak.spravel.model.catalog.Product, List<StockBalance>> groupedByProduct = allBalances.stream()
+                .collect(Collectors.groupingBy(StockBalance::getProduct));
+
+        return groupedByProduct.entrySet().stream()
+                .map(entry -> {
+                    var product = entry.getKey();
+                    List<StockBalance> balancesForProduct = entry.getValue();
+
+                    long totalQtyLong = balancesForProduct.stream()
+                            .mapToLong(sb -> sb.getQty() != null ? sb.getQty() : 0L)
+                            .sum();
+
+                    List<StockLocationSummaryResponse.StockPerLocation> perLokasiList = balancesForProduct.stream()
+                            .map(sb -> {
+                                StockLocationSummaryResponse.StockPerLocation locDto = new StockLocationSummaryResponse.StockPerLocation();
+                                locDto.setLocationType(sb.getLocationType());
+                                locDto.setLocationId(sb.getLocationId());
+                                locDto.setLocationName(sb.getLocationType() + " ID " + sb.getLocationId()); 
+                                locDto.setQty(sb.getQty() != null ? BigDecimal.valueOf(sb.getQty()) : BigDecimal.ZERO);
+                                return locDto;
+                            })
+                            .toList();
+
+                    return StockLocationSummaryResponse.builder()
+                            .productId(product.getId())
+                            .productName(product.getName())
+                            .sku(product.getSku())
+                            .totalQty(BigDecimal.valueOf(totalQtyLong))
+                            .perLokasi(perLokasiList)
+                            .build();
+                })
+                .toList();
+    }
+
     // GET ALL PAGINATED
     public Page<StockBalanceResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
@@ -149,9 +200,8 @@ public class StockBalanceService {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
 
-        return stockBalanceRepository.findByProductPartnerId(
-                currentUser.getPartner().getId(),
-                PageRequest.of(page, size, Sort.by("id").descending()));
+        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageRequest)
+                .map(this::mapToResponse);
     }
 
     // =========================
@@ -167,7 +217,7 @@ public class StockBalanceService {
         User currentUser = getAuthenticatedUser();
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
-
+                
         if (currentUser.getPartner() == null ||
                 !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
@@ -190,11 +240,16 @@ public class StockBalanceService {
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        Partners partner = currentUser.getPartner();
+
+        Product products = productRepository.findById(request.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
+
 
         List<StockBalance> allStocks = stockBalanceRepository
                 .findByProductPartnerId(currentUser.getPartner().getId());
 
-        if (partner == null || !product.getPartner().getId().equals(partner.getId())) {
+        if (partner == null || !products.getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
         }
 
@@ -205,7 +260,8 @@ public class StockBalanceService {
         });
 
         StockBalance stock = new StockBalance();
-        stock.setProduct(product);
+        stock.setProduct(productRepository.findById(request.getProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId())));
         stock.setLocationType(request.getLocationType());
         stock.setLocationId(request.getLocationId());
         stock.setQty(request.getQty()); // Pastikan di DTO Request lu type qty-nya juga Long ya!
@@ -247,6 +303,9 @@ public class StockBalanceService {
 
         List<StockBalance> results = new ArrayList<>();
 
+        return results;
+    }
+
     @Transactional
     public void adjustStock(Long productId, String locationType, Long locationId, Long adjustment) {
         StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
@@ -254,7 +313,8 @@ public class StockBalanceService {
         ).orElseGet(() -> {
             StockBalance newStock = new StockBalance();
             newStock.setProduct(productRepository.findById(productId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", productId)));
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", productId)));        
+
             newStock.setLocationType(locationType);
             newStock.setLocationId(locationId);
             newStock.setQty(0L); // FIX: Isi nilai default awal dengan 0L biar gak kosongan
