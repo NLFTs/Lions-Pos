@@ -16,7 +16,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
+import java.math.BigDecimal;
+import com.dak.spravel.model.common.Partners;
 
 
 @Service
@@ -47,17 +50,18 @@ public class StockMutationService {
         return user;
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee(){
+    private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-        .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")||
-    role.getSlug().equalsIgnoreCase("employee"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
+        
+        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
 
-    boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-    if (!isAuthorized || !isStaff) {
-        throw new RuntimeException("Akses Di Tolak: Hanya Admin Partner Atau Employee Yang Di Izinkan");
-    }
-    return user;
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
     }
 
     private boolean isAdmin(User user) {
@@ -118,15 +122,35 @@ public class StockMutationService {
     }
 
     // GET ALL PAGINATED
-    public Page<StockMutation> findAll(int page, int size) {
+    public Page<StockMutationResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
+
+        if (isAdmin(currentUser)) {
+            return stockMutationRepository.findAll(pageRequest).map(this::mapToResponse);
+        }
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
+
+        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), pageRequest)
+                .map(this::mapToResponse);
     }
 
     // GET BY ID
-    public StockMutation findById(Long id) {
+    public StockMutationResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        return getValidatedMutation(id, currentUser);
+        StockMutation mutation = stockMutationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
+
+        if (!isAdmin(currentUser)) {
+            if (currentUser.getPartner() == null ||
+                !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
+            }
+        }
+        return mapToResponse(mutation);
     }
 
     // GET BY PRODUCT
@@ -156,4 +180,25 @@ public class StockMutationService {
         return stockMutationRepository.findByPartner(currentUser.getPartner());
     }
 
+    @Transactional
+    public void recordMutation(Product product, Partners partner, String type, 
+                              String fromType, Long fromId, 
+                              String toType, Long toId, 
+                              BigDecimal qty, String refType, Long refId, 
+                              String notes, User user) {
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(product);
+        mutation.setPartner(partner);
+        mutation.setType(type);
+        mutation.setFromLocationType(fromType);
+        mutation.setFromLocationId(fromId);
+        mutation.setToLocationType(toType);
+        mutation.setToLocationId(toId);
+        mutation.setQty(qty);
+        mutation.setReferenceType(refType);
+        mutation.setReferenceId(refId);
+        mutation.setNotes(notes);
+        mutation.setCreatedBy(user);
+        stockMutationRepository.save(mutation);
+    }
 }

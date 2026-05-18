@@ -25,11 +25,11 @@ public class StockMutation {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
     private Partners partner;
 
     // "sale_out" | "purchase_in" | "transfer" | "adjustment" | "return"

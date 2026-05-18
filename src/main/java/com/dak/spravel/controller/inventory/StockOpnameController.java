@@ -1,9 +1,11 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
+import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.model.inventory.StockOpname;
 import com.dak.spravel.model.inventory.StockOpnameItem;
 import com.dak.spravel.service.inventory.StockOpnameService;
+import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,50 +33,59 @@ public class StockOpnameController {
 
     private final StockOpnameService stockOpnameService;
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('stock_opname.index')")
+    public ResponseEntity<ResData<Page<StockOpname>>> getAllForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/stock-opnames/admin - Superadmin access, page: {}, size: {}", page, size);
+        return ResponseBuilder.ok(stockOpnameService.findAll(page, size));
+    }
+
     @GetMapping
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<List<StockOpname>> index() {
+    public ResponseEntity<ResData<List<StockOpname>>> index() {
         log.info("[GET] /api/v1/stock-opnames");
-        return ResponseEntity.ok(stockOpnameService.findAll());
+        return ResponseBuilder.ok(stockOpnameService.findAll());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<Page<StockOpname>> paginated(
+    public ResponseEntity<ResData<Page<StockOpname>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-opnames/page page={} size={}", page, size);
-        return ResponseEntity.ok(stockOpnameService.findAll(page, size));
+        return ResponseBuilder.ok(stockOpnameService.findAll(page, size));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_opname.show')")
-    public ResponseEntity<StockOpname> show(@PathVariable Long id) {
+    public ResponseEntity<ResData<StockOpname>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-opnames/{}", id);
-        return ResponseEntity.ok(stockOpnameService.findById(id));
+        return ResponseBuilder.ok(stockOpnameService.findById(id));
     }
 
     @GetMapping("/{id}/items")
     @PreAuthorize("hasAuthority('stock_opname.show')")
-    public ResponseEntity<List<StockOpnameItem>> getItems(@PathVariable Long id) {
+    public ResponseEntity<ResData<List<StockOpnameItem>>> getItems(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-opnames/{}/items", id);
-        return ResponseEntity.ok(stockOpnameService.findItemsByOpnameId(id));
+        return ResponseBuilder.ok(stockOpnameService.findItemsByOpnameId(id));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('stock_opname.store')")
-    public ResponseEntity<StockOpname> store(@Valid @RequestBody StockOpnameRequestDTO request) {
+    public ResponseEntity<ResData<StockOpname>> store(@Valid @RequestBody StockOpnameRequestDTO request) {
         log.info("[POST] /api/v1/stock-opnames partnerId={}", request.getPartnerId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(stockOpnameService.create(request));
+        return ResponseBuilder.created(stockOpnameService.create(request));
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('stock_opname.update')")
-    public ResponseEntity<StockOpname> updateStatus(
+    public ResponseEntity<ResData<StockOpname>> updateStatus(
             @PathVariable Long id,
             @RequestParam String status) {
         log.info("[PATCH] /api/v1/stock-opnames/{}/status status={}", id, status);
-        return ResponseEntity.ok(stockOpnameService.updateStatus(id, status));
+        return ResponseBuilder.ok(stockOpnameService.updateStatus(id, status));
     }
 
     @DeleteMapping("/{id}")

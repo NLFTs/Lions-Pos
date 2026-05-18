@@ -1,100 +1,72 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
-import { useConfirm } from '@/composables/useConfirm'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
-import Button from '@/components/ui/Button.vue'
-import Input from '@/components/ui/Input.vue'
-import Label from '@/components/ui/Label.vue'
-import Badge from '@/components/ui/Badge.vue'
-import Alert from '@/components/ui/Alert.vue'
-import api from '@/lib/api'
-import { 
-  Plus, 
-  ArrowLeftRight, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Settings2, 
-  RotateCcw, 
-  Loader2, 
-  X, 
-  Filter, 
-  History,
-  Search,
-  ChevronDown
-} from 'lucide-vue-next'
+import Badge from '@/components/ui/badge/Badge.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
-import CustomSelect from '@/components/ui/CustomSelect.vue'
+import api from '@/lib/api'
+import { 
+  Loader2, 
+  Repeat2, 
+  Package, 
+  Warehouse, 
+  Building2, 
+  ArrowUpRight, 
+  ArrowDownLeft,
+  Calendar,
+  History
+} from 'lucide-vue-next'
 
 const { can } = usePermission()
 const { toast } = useToast()
-const { confirm } = useConfirm()
+const authStore = useAuthStore()
+
+const isAdmin = computed(() => authStore.isAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const mutations = ref([])
-const products = ref([])
-const partners = ref([])
-const locations = ref([
-  { id: 'wh-1', name: 'Gudang Utama', type: 'warehouse' },
-  { id: 'br-1', name: 'Cabang Jakarta', type: 'branch' },
-  { id: 'br-2', name: 'Cabang Bandung', type: 'branch' },
-])
-
 const loading = ref(false)
-const error = ref(null)
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 
-const mutationTypes = [
-  { value: 'sale_out', label: 'Penjualan (Out)', icon: ArrowUpRight, color: 'text-red-500 bg-red-50' },
-  { value: 'purchase_in', label: 'Pembelian (In)', icon: ArrowDownLeft, color: 'text-emerald-500 bg-emerald-50' },
-  { value: 'transfer', label: 'Transfer Stok', icon: ArrowLeftRight, color: 'text-blue-500 bg-blue-50' },
-  { value: 'adjustment', label: 'Penyesuaian', icon: Settings2, color: 'text-amber-500 bg-amber-50' },
-  { value: 'return', label: 'Retur', icon: RotateCcw, color: 'text-purple-500 bg-purple-50' },
-]
+// ─── Actions ──────────────────────────────────────────────────────────────────
+async function fetchData() {
+  loading.value = true
+  try {
+    const url = isAdmin.value ? '/api/v1/stock-mutations/admin' : '/api/v1/stock-mutations'
+    const res = await api.get(url)
+    const data = res.data.data
+    
+    if (Array.isArray(data)) {
+      mutations.value = data
+    } else {
+      mutations.value = data.content || []
+    }
+  } catch (err) {
+    toast.error('Gagal memuat riwayat mutasi stok.')
+  } finally {
+    loading.value = false
+  }
+}
 
-const referenceTypes = [
-  { value: 'order', label: 'Pesanan (Order)' },
-  { value: 'transfer_request', label: 'Permintaan Transfer' },
-  { value: 'stock_opname', label: 'Stock Opname' },
-]
-
-// ─── Form State ───────────────────────────────────────────────────────────────
-const showDrawer = ref(false)
-const saving = ref(false)
-const formError = ref(null)
-
-const emptyForm = () => ({
-  id: null,
-  partner_id: '',
-  product_id: '',
-  type: 'sale_out',
-  from_location_type: '',
-  from_location_id: '',
-  to_location_type: '',
-  to_location_id: '',
-  qty: 1,
-  reference_type: '',
-  reference_id: '',
-  notes: '',
-})
-
-const form = ref(emptyForm())
-
-// ─── Computed ────────────────────────────────────────────────────────────────
+// ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredMutations = computed(() => {
-  if (!searchQuery.value) return mutations.value
-  const q = searchQuery.value.toLowerCase()
-  return mutations.value.filter(m => 
-    m.productName?.toLowerCase().includes(q) || 
-    m.notes?.toLowerCase().includes(q) ||
-    m.type?.toLowerCase().includes(q)
-  )
+  let r = mutations.value
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    r = r.filter(m => 
+      (m.product?.name && m.product.name.toLowerCase().includes(q)) ||
+      (m.mutationType && m.mutationType.toLowerCase().includes(q)) ||
+      (m.referenceNumber && m.referenceNumber.toLowerCase().includes(q))
+    )
+  }
+  return r
 })
 
 const paginatedMutations = computed(() => {
@@ -102,355 +74,173 @@ const paginatedMutations = computed(() => {
   return filteredMutations.value.slice(start, start + pageSize.value)
 })
 
-// ─── Actions ──────────────────────────────────────────────────────────────────
-async function fetchMutations() {
-  loading.value = true
-  try {
-    const res = await api.get('/api/v1/stock-mutations')
-    mutations.value = res.data.data
-  } catch (err) {
-    if (import.meta.env.DEV) {
-      // Mock data for dev
-      mutations.value = Array.from({ length: 5 }).map((_, i) => ({
-        id: `m-${i}`,
-        productName: 'Kaos Polos Putih',
-        type: i % 2 === 0 ? 'sale_out' : 'purchase_in',
-        qty: 10 + i,
-        notes: 'Mutasi stok harian',
-        createdAt: new Date().toISOString(),
-        createdBy: 'Admin',
-      }))
-    } else {
-      error.value = 'Gagal memuat data mutasi.'
-    }
-  } finally {
-    loading.value = false
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatDate(dt) {
+  return dt ? new Date(dt).toLocaleDateString('id-ID', { 
+    day: '2-digit', 
+    month: 'short', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }) : '-'
+}
+
+function typeColor(t) {
+  const m = {
+    SALE: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50',
+    PURCHASE_RECEIPT: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
+    TRANSFER_IN: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50',
+    TRANSFER_OUT: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50',
+    ADJUSTMENT: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'
   }
+  return m[t] || 'bg-zinc-100 text-zinc-700 border-zinc-200'
 }
 
-async function fetchProducts() {
-  try {
-    const res = await api.get('/api/v1/products?size=100')
-    products.value = res.data.data.content
-  } catch (_) {}
-}
-
-async function fetchPartners() {
-  // Mocking partners for now
-  partners.value = [
-    { id: 'p1', name: 'Supplier A' },
-    { id: 'p2', name: 'Customer B' },
-  ]
-}
-
-function openCreate() {
-  form.value = emptyForm()
-  formError.value = null
-  showDrawer.value = true
-}
-
-async function saveMutation() {
-  saving.value = true
-  formError.value = null
-  try {
-    await api.post('/api/v1/stock-mutations', form.value)
-    toast.success('Mutasi stok berhasil dicatat!')
-    showDrawer.value = false
-    fetchMutations()
-  } catch (err) {
-    formError.value = err.response?.data?.message || 'Gagal menyimpan mutasi.'
-  } finally {
-    saving.value = false
-  }
-}
-
-function getTypeInfo(type) {
-  return mutationTypes.find(t => t.value === type) || mutationTypes[0]
-}
-
-onMounted(() => {
-  fetchMutations()
-  fetchProducts()
-  fetchPartners()
-})
+onMounted(fetchData)
 </script>
 
 <template>
   <AppLayout>
-    <div class="pb-6">
+    <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
       <!-- Header -->
-      <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Mutasi Stok</h1>
-          <p class="text-xs text-zinc-500 mt-0.5">Pantau dan kelola pergerakan stok barang.</p>
+          <h1 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Riwayat Mutasi</h1>
+          <p class="text-muted-foreground text-sm mt-1">Audit log pergerakan stok barang secara real-time.</p>
         </div>
-        <Button @click="openCreate" class="bg-primary hover:bg-primary/90 flex items-center gap-2">
-          <Plus class="h-4 w-4" />
-          <span>Tambah Mutasi</span>
-        </Button>
+        <div class="flex items-center gap-3 w-full md:w-auto">
+          <div class="w-full sm:w-80">
+            <DataTableSearch v-model="searchQuery" placeholder="Cari produk, tipe, atau referensi..." />
+          </div>
+        </div>
       </div>
 
-      <!-- Controls -->
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-5">
-        <DataTableSearch v-model="searchQuery" placeholder="Cari mutasi..." class="w-full sm:max-w-sm" />
-      </div>
-
-      <!-- Table -->
-      <Card>
+      <!-- Table Card -->
+      <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden bg-white dark:bg-zinc-950">
         <CardContent class="p-0">
-          <div v-if="loading" class="flex items-center justify-center py-20">
-            <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+          <div v-if="loading" class="flex items-center justify-center py-24">
+            <Loader2 class="h-7 w-7 animate-spin text-primary/50" />
           </div>
 
-          <div v-else-if="filteredMutations.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <History class="h-10 w-10 mb-3 opacity-20" />
-            <p class="text-sm">Belum ada data mutasi stok.</p>
+          <div v-else-if="filteredMutations.length === 0" class="flex flex-col items-center justify-center py-24 text-muted-foreground">
+            <div class="w-14 h-14 rounded-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center mb-4">
+              <History class="h-7 w-7 opacity-20" />
+            </div>
+            <p class="text-sm font-medium">Belum ada riwayat mutasi stok.</p>
           </div>
 
           <div v-else>
-            <!-- ─── Mobile List View ─── -->
+            <!-- Mobile List -->
             <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
-              <div
-                v-for="m in paginatedMutations"
-                :key="'mobile-' + m.id"
-                class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex items-center gap-3">
-                    <div :class="['p-2 rounded-lg shrink-0', getTypeInfo(m.type).color]">
-                      <component :is="getTypeInfo(m.type).icon" class="h-4 w-4" />
+              <div v-for="m in paginatedMutations" :key="m.id" class="p-4 flex flex-col gap-3">
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
+                      <ArrowUpRight v-if="m.qtyChange > 0" class="h-4 w-4 text-emerald-500" />
+                      <ArrowDownLeft v-else class="h-4 w-4 text-red-500" />
                     </div>
                     <div>
-                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ m.productName }}</h4>
-                      <span class="text-[10px] text-zinc-500">{{ new Date(m.createdAt).toLocaleString('id-ID') }}</span>
+                      <p class="text-xs font-bold text-zinc-900 dark:text-white leading-none mb-1">{{ m.product?.name || '-' }}</p>
+                      <p class="text-[10px] font-mono text-muted-foreground">{{ m.referenceNumber || 'NO-REF' }}</p>
                     </div>
+                  </div>
+                  <Badge :class="['text-[9px] uppercase tracking-widest font-bold', typeColor(m.mutationType)]" variant="outline">
+                    {{ m.mutationType }}
+                  </Badge>
+                </div>
+                <div class="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                  <div class="flex flex-col">
+                    <span class="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">Lokasi</span>
+                    <span class="text-[10px] font-bold">{{ m.locationName || '-' }}</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold" :class="m.type.endsWith('_in') ? 'text-emerald-600' : 'text-red-600'">
-                      {{ m.type.endsWith('_in') ? '+' : '-' }}{{ m.qty }}
-                    </div>
-                    <span class="text-[10px] font-medium text-zinc-400 uppercase tracking-tighter">{{ getTypeInfo(m.type).label }}</span>
+                    <span class="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">Perubahan</span>
+                    <p :class="['text-sm font-black', m.qtyChange > 0 ? 'text-emerald-600' : 'text-red-600']">
+                      {{ m.qtyChange > 0 ? '+' : '' }}{{ m.qtyChange }}
+                    </p>
                   </div>
                 </div>
-                <div v-if="m.notes" class="text-xs text-zinc-500 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded border border-zinc-100 dark:border-zinc-800/60 line-clamp-2">
-                  {{ m.notes }}
-                </div>
-                <div class="flex items-center justify-between text-[10px] text-zinc-400">
-                  <span>Oleh: {{ m.createdBy }}</span>
-                  <span>ID: {{ m.id }}</span>
+                <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <Calendar class="h-3 w-3" /> {{ formatDate(m.createdAt) }}
                 </div>
               </div>
             </div>
 
-            <!-- ─── Desktop Table ─── -->
+            <!-- Desktop Table -->
             <div class="hidden md:block overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
-                  <tr class="bg-muted/40 border-b">
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tanggal</th>
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Produk</th>
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tipe</th>
-                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Qty</th>
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Keterangan</th>
-                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Oleh</th>
+                  <tr class="border-b border-zinc-100 dark:border-zinc-800">
+                    <th class="pl-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Waktu</th>
+                    <th class="py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Produk</th>
+                    <th class="py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Lokasi</th>
+                    <th class="py-4 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Tipe Mutasi</th>
+                    <th class="py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Qty</th>
+                    <th class="py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Saldo Akhir</th>
+                    <th class="pr-5 py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Referensi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="m in paginatedMutations" :key="m.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td class="px-5 py-3 whitespace-nowrap text-xs text-muted-foreground">
-                      {{ new Date(m.createdAt).toLocaleString('id-ID') }}
-                    </td>
-                    <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ m.productName }}</td>
-                    <td class="px-5 py-3">
+                  <tr v-for="m in paginatedMutations" :key="m.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors group">
+                    <td class="pl-5 py-4 whitespace-nowrap">
                       <div class="flex items-center gap-2">
-                        <div :class="['p-1 rounded-md', getTypeInfo(m.type).color]">
-                          <component :is="getTypeInfo(m.type).icon" class="h-3 w-3" />
-                        </div>
-                        <span class="text-xs font-medium">{{ getTypeInfo(m.type).label }}</span>
+                        <Calendar class="h-3.5 w-3.5 text-zinc-400" />
+                        <span class="text-xs font-medium">{{ formatDate(m.createdAt) }}</span>
                       </div>
                     </td>
-                    <td class="px-5 py-3 text-right font-semibold" :class="m.type.endsWith('_in') ? 'text-emerald-600' : 'text-red-600'">
-                      {{ m.type.endsWith('_in') ? '+' : '-' }}{{ m.qty }}
+                    <td class="py-4">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-zinc-200 dark:border-zinc-700">
+                          <Package class="h-4 w-4 text-zinc-500" />
+                        </div>
+                        <div class="flex flex-col">
+                          <span class="text-sm font-bold text-zinc-800 dark:text-zinc-200">{{ m.product?.name || '-' }}</span>
+                          <span class="text-[10px] font-mono text-muted-foreground">{{ m.product?.sku || '-' }}</span>
+                        </div>
+                      </div>
                     </td>
-                    <td class="px-5 py-3 text-xs text-muted-foreground max-w-[200px] truncate">
-                      {{ m.notes || '—' }}
+                    <td class="py-4">
+                      <div class="flex items-center gap-2">
+                        <Warehouse v-if="m.locationType === 'warehouse'" class="h-3.5 w-3.5 text-zinc-400" />
+                        <Building2 v-else class="h-3.5 w-3.5 text-zinc-400" />
+                        <span class="text-xs font-medium">{{ m.locationName || '-' }}</span>
+                      </div>
                     </td>
-                    <td class="px-5 py-3 text-right text-xs text-muted-foreground">
-                      {{ m.createdBy }}
+                    <td class="py-4 text-center">
+                      <Badge :class="['text-[9px] uppercase tracking-widest font-black px-2 py-0.5', typeColor(m.mutationType)]" variant="outline">
+                        {{ m.mutationType }}
+                      </Badge>
+                    </td>
+                    <td class="py-4 text-right">
+                      <div class="flex items-center justify-end gap-1.5">
+                        <ArrowUpRight v-if="m.qtyChange > 0" class="h-3 w-3 text-emerald-500" />
+                        <ArrowDownLeft v-else class="h-3 w-3 text-red-500" />
+                        <span :class="['text-sm font-black', m.qtyChange > 0 ? 'text-emerald-600' : 'text-red-600']">
+                          {{ m.qtyChange > 0 ? '+' : '' }}{{ m.qtyChange }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="py-4 text-right font-bold text-zinc-900 dark:text-zinc-100">
+                      {{ m.stockAfter || '-' }}
+                    </td>
+                    <td class="pr-5 py-4 text-right font-mono text-[10px] text-muted-foreground group-hover:text-primary transition-colors">
+                      {{ m.referenceNumber || '-' }}
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
-          <DataTablePagination
-            v-if="filteredMutations.length > 0 && !loading"
-            :page="page"
-            :page-size="pageSize"
-            :total="filteredMutations.length"
-            @update:page="page = $event"
-            @update:page-size="pageSize = $event; page = 1"
+          <DataTablePagination 
+            v-if="filteredMutations.length > 0 && !loading" 
+            :page="page" 
+            :page-size="pageSize" 
+            :total="filteredMutations.length" 
+            @update:page="page = $event" 
+            @update:page-size="pageSize = $event; page = 1" 
           />
         </CardContent>
       </Card>
     </div>
-
-    <!-- ─── Drawer ─── -->
-    <Teleport to="body">
-      <!-- Backdrop -->
-      <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
-      </Transition>
-
-      <!-- Panel -->
-      <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[101] flex flex-col w-full sm:max-w-[480px] h-full bg-card shadow-2xl sm:border-l overflow-hidden">
-          <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div>
-              <h3 class="font-semibold text-base">Tambah Mutasi Stok</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">Catat pergerakan stok baru.</p>
-            </div>
-            <Button variant="ghost" size="icon" @click="showDrawer = false">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-
-          <!-- Body -->
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-
-            <!-- Tipe Mutasi -->
-            <div class="space-y-1.5">
-              <Label>Tipe Mutasi <span class="text-destructive">*</span></Label>
-              <div class="grid grid-cols-2 gap-2">
-                <button 
-                  v-for="t in mutationTypes" 
-                  :key="t.value"
-                  @click="form.type = t.value"
-                  class="flex flex-col items-center gap-2 p-3 rounded-lg border transition-all text-center"
-                  :class="form.type === t.value ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary' : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900'"
-                >
-                  <component :is="t.icon" class="h-5 w-5" />
-                  <span class="text-[10px] font-semibold leading-tight">{{ t.label }}</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- Produk -->
-            <div class="space-y-1.5">
-              <Label for="product">Produk <span class="text-destructive">*</span></Label>
-              <CustomSelect 
-                v-model="form.product_id" 
-                :options="products.map(p => ({ value: p.id, label: `${p.name} (${p.sku})` }))" 
-                placeholder="Pilih Produk..." 
-                :show-icon="false"
-                align="start"
-                class="w-full h-10"
-              />
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-              <!-- Partner -->
-              <div class="space-y-1.5">
-                <Label for="partner">Partner (Supplier/Cust)</Label>
-                <CustomSelect 
-                  v-model="form.partner_id" 
-                  :options="[{ value: '', label: 'None' }, ...partners.map(p => ({ value: p.id, label: p.name }))]" 
-                  placeholder="None" 
-                  :show-icon="false"
-                  align="start"
-                  class="w-full h-10"
-                />
-              </div>
-              <!-- Qty -->
-              <div class="space-y-1.5">
-                <Label for="qty">Jumlah <span class="text-destructive">*</span></Label>
-                <Input id="qty" type="number" v-model="form.qty" min="1" step="0.01" />
-              </div>
-            </div>
-
-            <hr class="border-zinc-100 dark:border-zinc-800" />
-
-            <!-- Locations -->
-            <div class="space-y-4">
-              <div class="grid grid-cols-2 gap-4">
-                <div class="space-y-1.5">
-                  <Label>Asal (From)</Label>
-                  <CustomSelect 
-                    v-model="form.from_location_id" 
-                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
-                    placeholder="None" 
-                    :show-icon="false"
-                    align="start"
-                    class="w-full h-10"
-                  />
-                </div>
-                <div class="space-y-1.5">
-                  <Label>Tujuan (To)</Label>
-                  <CustomSelect 
-                    v-model="form.to_location_id" 
-                    :options="[{ value: '', label: 'None' }, ...locations.map(l => ({ value: l.id, label: `[${l.type}] ${l.name}` }))]" 
-                    placeholder="None" 
-                    :show-icon="false"
-                    align="start"
-                    class="w-full h-10"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <!-- Reference -->
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <Label>Tipe Referensi</Label>
-                <CustomSelect 
-                  v-model="form.reference_type" 
-                  :options="[{ value: '', label: 'None' }, ...referenceTypes]" 
-                  placeholder="None" 
-                  :show-icon="false"
-                  align="start"
-                  class="w-full h-10"
-                />
-              </div>
-              <div class="space-y-1.5">
-                <Label>ID Referensi</Label>
-                <Input v-model="form.reference_id" placeholder="ID order/req..." />
-              </div>
-            </div>
-
-            <!-- Notes -->
-            <div class="space-y-1.5">
-              <Label for="notes">Catatan</Label>
-              <textarea 
-                id="notes" 
-                v-model="form.notes" 
-                rows="3" 
-                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="Tambahkan catatan mutasi..."
-              />
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="flex justify-end gap-3 px-6 py-4 border-t bg-muted/30">
-            <Button variant="outline" @click="showDrawer = false" :disabled="saving">Batal</Button>
-            <Button @click="saveMutation" :disabled="saving">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-              Simpan Mutasi
-            </Button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </AppLayout>
 </template>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
-</style>

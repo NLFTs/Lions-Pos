@@ -1,5 +1,4 @@
 import { useAuthStore } from '@/stores/auth'
-import { components } from 'reka-ui/constant'
 import { useLoadingBar } from '@/composables/useLoadingBar'
 
 export const routes = [
@@ -234,6 +233,17 @@ export const routes = [
       permission: 'stock-opname.index',
       pageTitle: 'Stock Opname',
       pageSubtitle: 'Hitung dan rekonsiliasi stok fisik.',
+    },
+  },
+  {
+    path: '/dashboard/stock-balances',
+    name: 'stock-balances',
+    component: () => import('@/pages/StockBalancesPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'stock_balance.index',
+      pageTitle: 'Saldo Stok',
+      pageSubtitle: 'Pantau ketersediaan barang di seluruh lokasi.',
     },
   },
 
