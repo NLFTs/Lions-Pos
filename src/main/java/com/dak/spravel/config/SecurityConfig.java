@@ -74,6 +74,7 @@ public class SecurityConfig {
                 "/_/**",
                 "/favicon.ico",
                 "/error",
+                "/uploads/**",
         };
 
         String[] jwtExcludedPaths = merge(publicApiPaths, webPaths);

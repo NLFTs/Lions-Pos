@@ -13,6 +13,7 @@ public class UserResponse {
     private String username;
     private String fullname;
     private String email;
+    private String avatar;
     private java.time.LocalDateTime createdAt;
     private List<RoleData> roles;
 

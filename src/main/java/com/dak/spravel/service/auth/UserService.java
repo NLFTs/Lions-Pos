@@ -128,6 +128,9 @@ public class UserService {
         user.setUsername(request.getUsername());
         user.setFullname(request.getFullname());
         user.setEmail(request.getEmail());
+        if (request.getAvatar() != null) {
+            user.setAvatar(request.getAvatar());
+        }
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
         // Admin partner hanya bisa create user untuk partnernya sendiri
@@ -181,6 +184,7 @@ public class UserService {
 
         if (request.getFullname() != null) user.setFullname(request.getFullname());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
 
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -236,6 +240,7 @@ public class UserService {
         res.setUsername(user.getUsername());
         res.setFullname(user.getFullname());
         res.setEmail(user.getEmail());
+        res.setAvatar(user.getAvatar());
         res.setCreatedAt(user.getCreatedAt());
 
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {

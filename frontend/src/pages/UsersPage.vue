@@ -262,12 +262,29 @@ async function saveUser() {
   if (!validateForm()) return
   saving.value = true
   try {
+    let avatarUrl = undefined
+    if (avatarFile.value) {
+      const formData = new FormData()
+      formData.append('file', avatarFile.value)
+      const uploadRes = await api.post('/api/v1/upload/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      avatarUrl = uploadRes.data.data.url
+    } else if (avatarPreview.value === null) {
+      // If user removed the avatar, we could theoretically send an empty string or null
+      avatarUrl = null
+    }
+
     const payload = { 
       username: form.value.username, 
       fullname: form.value.fullname || null, 
       email: form.value.email,
       roleIds: form.value.roleIds 
     }
+    if (avatarUrl !== undefined) {
+      payload.avatar = avatarUrl
+    }
+    
     if (drawerMode.value === 'create') {
       payload.password = form.value.password
       await api.post('/api/v1/users', payload)
