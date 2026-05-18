@@ -71,7 +71,7 @@ public class Orders  {
     private PaymentStatus status;
 
     public enum PaymentStatus {
-        DRAFT, PAID, CANCELED
+        DRAFT, RETURN, PAID, CANCELED
     }
 
     @Column(nullable = false)

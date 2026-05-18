@@ -58,7 +58,7 @@ public class PaymentsService {
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role ->
                         role.getSlug().equalsIgnoreCase("admin-partners") ||
-                                role.getSlug().equalsIgnoreCase("employee")
+                                role.getSlug().equalsIgnoreCase("employee-partners")
                 );
 
         boolean isNotSuperAdmin = user.getRoles().stream()
