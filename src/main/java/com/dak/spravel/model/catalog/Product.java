@@ -69,4 +69,5 @@ public class Product{
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     private User deletedBy;
+
 }
