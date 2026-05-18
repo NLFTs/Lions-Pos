@@ -19,7 +19,7 @@ import lombok.ToString;
 @AllArgsConstructor
 @Table(name = "warehouses")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class Warehouses   {
+public class Warehouses {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -38,18 +38,18 @@ public class Warehouses   {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
-    
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @ToString.Exclude 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
     private User updatedBy;
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     private User createdBy;

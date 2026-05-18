@@ -3,12 +3,9 @@ package com.dak.spravel.model.auth;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
-
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
-
 import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -35,6 +32,9 @@ public class User   {
     @JsonIgnore
     @Column(unique = true)
     private String email;
+
+    @Column(name = "avatar")
+    private String avatar;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id")

@@ -1,31 +1,22 @@
 package com.dak.spravel.dto.request.inventory;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @Data
 public class TransferRequestDTO {
-
-    @NotNull(message = "Partner ID tidak boleh kosong")
+    @JsonProperty("partner_id")
     private Long partnerId;
 
-    @NotBlank(message = "From location type tidak boleh kosong")
-    @Pattern(regexp = "branch|warehouse",
-            message = "From location type harus 'branch' atau 'warehouse'")
-    private String fromLocationType;
-
     @NotNull(message = "From location ID tidak boleh kosong")
-    private Long fromLocationId;
-
-    @NotBlank(message = "To location type tidak boleh kosong")
-    @Pattern(regexp = "branch|warehouse",
-            message = "To location type harus 'branch' atau 'warehouse'")
-    private String toLocationType;
+    @JsonProperty("from_location_id")
+    private Long fromLocationId; 
 
     @NotNull(message = "To location ID tidak boleh kosong")
+    @JsonProperty("to_location_id")
     private Long toLocationId;
 
     private String notes; // opsional

@@ -22,7 +22,7 @@ public class OrdersRequest {
     @Data
     public static class OrderItemRequest {
         private Long productId;
-        private BigDecimal qty;
+        private Long qty;
         private BigDecimal unitPrice;
     }
 

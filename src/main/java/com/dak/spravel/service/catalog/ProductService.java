@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import javax.management.RuntimeErrorException;
+
 @Service
 @RequiredArgsConstructor
 public class ProductService {
@@ -31,6 +33,25 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryProductRepository categoryRepository;
     private final UserRepository userRepository;
+    private final com.dak.spravel.repository.catalog.ProductPhotoRepository productPhotoRepository;
+
+    @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
+    private String uploadDir;
+
+    private void deleteFileDisk(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) return;
+        try {
+            String cleanPath = fileUrl;
+            if (cleanPath.startsWith("/uploads/")) {
+                cleanPath = cleanPath.substring("/uploads/".length());
+            }
+            java.nio.file.Path path = java.nio.file.Paths.get(uploadDir, cleanPath);
+            java.nio.file.Files.deleteIfExists(path);
+            log.info("[DELETE FILE] Berhasil menghapus file foto produk lama: {}", path);
+        } catch (Exception e) {
+            log.error("[DELETE FILE] Gagal menghapus file foto produk lama {}: {}", fileUrl, e.getMessage());
+        }
+    }
 
     // --- HELPER: AUTH & VALIDATION ---
 
@@ -119,6 +140,10 @@ public class ProductService {
 
         Product product = new Product();
         product.setPartner(partner);
+
+        if (category != null) {
+            // throw new RuntimeErrorException();
+        }
         product.setCategory(category);
 
         if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -247,6 +272,12 @@ public class ProductService {
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Product product = getValidatedProduct(id, currentUser.getPartner());
+        List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
+        for (com.dak.spravel.model.catalog.ProductPhoto photo : photos) {
+            if (photo.getUrl() != null) {
+                deleteFileDisk(photo.getUrl());
+            }
+        }
         productRepository.delete(product);
     }
 

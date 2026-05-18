@@ -27,6 +27,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         // Favicon dan file root di static/
         registry.addResourceHandler("/*.svg", "/*.ico", "/*.png")
                 .addResourceLocations("classpath:/static/");
+
+        // Serve uploads folder locally
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:./uploads/");
     }
 
     /**
