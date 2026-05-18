@@ -22,7 +22,7 @@ public class Payments   {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", referencedColumnName = "id", nullable = false)
-    private Orders order;
+    private Orders orders;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

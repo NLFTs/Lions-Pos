@@ -212,7 +212,7 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrder(savedOrder);
+            payment.setOrders(savedOrder);
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
