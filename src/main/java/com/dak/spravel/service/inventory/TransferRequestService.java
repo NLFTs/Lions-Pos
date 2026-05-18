@@ -282,7 +282,7 @@ public class TransferRequestService {
 
     // UPDATE STATUS
     @Transactional
-    public TransferRequest updateStatus(Long id, String status) {
+    public TransferRequestResponse updateStatus(Long id, String status) {
         User currentUser = getAuthenticatedUser();
         TransferRequest transferRequest = getValidatedTransferRequest(id, currentUser);
 

@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -187,7 +188,7 @@ public class OrdersService {
         // Recalculate discount if voucher exists
         if (voucher != null) {
             if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
-                discount = subtotal.multiply(new BigDecimal(voucher.getDiscountValue())).divide(new BigDecimal(100));
+                discount = subtotal.multiply(new BigDecimal(String.valueOf(voucher.getDiscountValue()))).divide(new BigDecimal(100));
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
                 }
@@ -202,14 +203,14 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrder(savedOrder);
-            payment.setMethod(Payments.PaymentMethod.valueOf(request.getPayment().getMethod().toUpperCase()));
+            payment.setOrders(Set.of(savedOrder));
+            payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
             payment.setChangeDue(request.getPayment().getChangeDue());
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.PaymentStatus.SUCCESS);
+            payment.setStatus(Payments.Status.SUCCESS);
             payment.setCreatedAt(java.time.LocalDateTime.now());
             paymentsRepository.save(payment);
         }
