@@ -20,14 +20,11 @@ public class Payments   {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "payments_orders",
-        joinColumns = @JoinColumn(name = "payment_id"),
-        inverseJoinColumns = @JoinColumn(name = "order_id")
-    )
-    private Set<Orders> orders;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", referencedColumnName = "id", nullable = false)
+    private Orders order;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Method method;
 
@@ -35,6 +32,7 @@ public class Payments   {
         CASH, TRANSFER
     }
     
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING;
 
