@@ -11,10 +11,12 @@ import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.StockOpname;
 import com.dak.spravel.model.inventory.StockOpnameItem;
+import com.dak.spravel.model.inventory.StockBalance; // Import Model StockBalance
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockOpnameItemRepository;
 import com.dak.spravel.repository.inventory.StockOpnameRepository;
+import com.dak.spravel.repository.inventory.StockBalanceRepository; // Import Repository StockBalance
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,6 +39,7 @@ public class StockOpnameService {
     private final StockOpnameItemRepository stockOpnameItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final StockBalanceRepository stockBalanceRepository; // Ditambahkan untuk sinkronisasi stok
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -54,7 +57,7 @@ public class StockOpnameService {
         return user;
     }
 
-     private User getAuthenticatedSuperAdmin() {
+    private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
                 .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
@@ -62,12 +65,12 @@ public class StockOpnameService {
         return user;
     }
 
-     private User getAuthenticatedAdminPartnerOrEmployee() {
+    private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") || 
-                                role.getName().equalsIgnoreCase("EMPLOYEE"));
-        
+                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") ||
+                        role.getName().equalsIgnoreCase("EMPLOYEE"));
+
         boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
 
         if (!isAuthorized || !isStaff) {
@@ -76,14 +79,12 @@ public class StockOpnameService {
         return user;
     }
 
-
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
     private boolean isAdminPartnerAndEmployee(User user) {
-        // Cek slug super_admin atau admin (sesuaikan dengan seeder lo)
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
     }
@@ -100,127 +101,106 @@ public class StockOpnameService {
         return opname;
     }
 
-    // Method mapToResponse
     private StockOpnameResponse mapToResponse(StockOpname opname) {
+        PartnerSimpleDto partnerDto = null;
+        if (opname.getPartner() != null) {
+            partnerDto = new PartnerSimpleDto();
+            partnerDto.setId(opname.getPartner().getId());
+            partnerDto.setName(opname.getPartner().getName());
+        }
 
-    PartnerSimpleDto partnerDto = null;
-    if (opname.getPartner() != null) {
-        partnerDto = new PartnerSimpleDto();
-        partnerDto.setId(opname.getPartner().getId());
-        partnerDto.setName(opname.getPartner().getName());
+        List<StockOpnameResponse.StockOpnameItemResponse> itemResponses =
+                stockOpnameItemRepository.findByStockOpnameId(opname.getId())
+                        .stream()
+                        .map(this::mapItemToResponse)
+                        .collect(Collectors.toList());
+
+        return StockOpnameResponse.builder()
+                .id(opname.getId())
+                .partner(partnerDto)
+                .location(opname.getLocation())
+                .locationId(opname.getLocationId())
+                .date(opname.getDate())
+                .status(opname.getStatus())
+                .notes(opname.getNotes())
+                .reviewedAt(opname.getReviewedAt())
+                .approvedAt(opname.getApprovedAt())
+                .createdAt(opname.getCreatedAt())
+                .updatedAt(opname.getUpdatedAt())
+                .deletedAt(opname.getDeletedAt())
+                .createdBy(mapUserToSimpleDto(opname.getCreatedBy()))
+                .updatedBy(mapUserToSimpleDto(opname.getUpdatedBy()))
+                .deletedBy(mapUserToSimpleDto(opname.getDeletedBy()))
+                .reviewedBy(mapUserToSimpleDto(opname.getReviewedBy()))
+                .approvedBy(mapUserToSimpleDto(opname.getApprovedBy()))
+                .items(itemResponses)
+                .build();
     }
 
-    List<StockOpnameResponse.StockOpnameItemResponse> itemResponses =
-            stockOpnameItemRepository.findByStockOpnameId(opname.getId())
-                    .stream()
-                    .map(this::mapItemToResponse)
-                    .collect(Collectors.toList());
-
-    return StockOpnameResponse.builder()
-            .id(opname.getId())
-            .partner(partnerDto)
-            .location(opname.getLocation())
-            .locationId(opname.getLocationId())
-            .date(opname.getDate())
-            .status(opname.getStatus())
-            .notes(opname.getNotes())
-            .reviewedAt(opname.getReviewedAt())
-            .approvedAt(opname.getApprovedAt())
-            .createdAt(opname.getCreatedAt())
-            .updatedAt(opname.getUpdatedAt())
-            .deletedAt(opname.getDeletedAt())
-            .createdBy(mapUserToSimpleDto(opname.getCreatedBy()))
-            .updatedBy(mapUserToSimpleDto(opname.getUpdatedBy()))
-            .deletedBy(mapUserToSimpleDto(opname.getDeletedBy()))
-            .reviewedBy(mapUserToSimpleDto(opname.getReviewedBy()))
-            .approvedBy(mapUserToSimpleDto(opname.getApprovedBy()))
-            .items(itemResponses)
-            .build();
-}
-
-    // Helper Untuk item
     private StockOpnameResponse.StockOpnameItemResponse mapItemToResponse(StockOpnameItem item) {
+        StockOpnameResponse.ProductSimpleDto productDto = null;
 
-    StockOpnameResponse.ProductSimpleDto productDto = null;
+        if (item.getProduct() != null) {
+            productDto = new StockOpnameResponse.ProductSimpleDto();
+            productDto.setId(item.getProduct().getId());
+            productDto.setName(item.getProduct().getName());
+            productDto.setSku(item.getProduct().getSku());
+        }
 
-    if (item.getProduct() != null) {
-        productDto = new StockOpnameResponse.ProductSimpleDto();
-        productDto.setId(item.getProduct().getId());
-        productDto.setName(item.getProduct().getName());
-        productDto.setSku(item.getProduct().getSku());
+        StockOpnameResponse.StockOpnameItemResponse response = new StockOpnameResponse.StockOpnameItemResponse();
+        response.setId(item.getId());
+        response.setProduct(productDto);
+        response.setQtySystem(item.getQtySystem());
+        response.setQtyPhysical(item.getQtyPhysical());
+        response.setQtyDifference(item.getQtyDifference());
+        response.setNotes(item.getNotes());
+        response.setCountedBy(mapUserToSimpleDto(item.getCountedBy()));
+        response.setCountedAt(item.getCountedAt());
+
+        return response;
     }
 
-    StockOpnameResponse.StockOpnameItemResponse response =
-            new StockOpnameResponse.StockOpnameItemResponse();
-
-    response.setId(item.getId());
-    response.setProduct(productDto);
-    response.setQtySystem(item.getQtySystem());
-    response.setQtyPhysical(item.getQtyPhysical());
-    response.setQtyDifference(item.getQtyDifference());
-    response.setNotes(item.getNotes());
-    response.setCountedBy(mapUserToSimpleDto(item.getCountedBy()));
-    response.setCountedAt(item.getCountedAt());
-
-    return response;
-}
-    // Helper Untuk User
     private UserSimpleDto mapUserToSimpleDto(User user) {
-    if (user == null) {
-        return null;
+        if (user == null) return null;
+        UserSimpleDto dto = new UserSimpleDto();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        return dto;
     }
 
-    UserSimpleDto dto = new UserSimpleDto();
-    dto.setId(user.getId());
-    dto.setUsername(user.getUsername());
-
-    return dto;
-}
-
-    // Khusus Untuk Superadmin
-    public List <StockOpnameResponse> findAllOpName(){
+    public List<StockOpnameResponse> findAllOpName() {
         User currentUser = getAuthenticatedUser();
-
         if (isAdminPartnerAndEmployee(currentUser)) {
             throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
         }
-        List<StockOpname>  allStockOpnames = stockOpnameRepository.findAll();
-        
-        return allStockOpnames.stream()
-        .map(this::mapToResponse)
-        .collect(Collectors.toList());
+        List<StockOpname> allStockOpnames = stockOpnameRepository.findAll();
+        return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
-    // GET ALL
     public List<StockOpname> findAll() {
         User currentUser = getAuthenticatedUser();
         return stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
     }
 
-    // GET ALL PAGINATED
     public Page<StockOpname> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
         return stockOpnameRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
     }
 
-    // GET BY ID
     public StockOpname findById(Long id) {
         User currentUser = getAuthenticatedUser();
         return getValidatedOpname(id, currentUser);
     }
 
-    // GET ITEMS BY OPNAME ID
     public List<StockOpnameItem> findItemsByOpnameId(Long opnameId) {
         User currentUser = getAuthenticatedUser();
         getValidatedOpname(opnameId, currentUser);
         return stockOpnameItemRepository.findByStockOpnameId(opnameId);
     }
 
-    // CREATE
     @Transactional
     public StockOpname create(StockOpnameRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
@@ -257,29 +237,69 @@ public class StockOpnameService {
             }
             stockOpnameItemRepository.saveAll(items);
         }
-
         return saved;
     }
 
-    // UPDATE STATUS
     @Transactional
     public StockOpname updateStatus(Long id, String status) {
-        User currentUser = getAuthenticatedUser();
-        StockOpname opname = getValidatedOpname(id, currentUser);
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        StockOpname stockOpname = getValidatedOpname(id, currentUser);
 
         StockOpname.Status newStatus = StockOpname.Status.valueOf(status.toUpperCase());
-        opname.setStatus(newStatus);
+        stockOpname.setStatus(newStatus);
 
-        if (newStatus == StockOpname.Status.RIEVIEWED) {
-            opname.setReviewedAt(LocalDateTime.now());
-        } else if (newStatus == StockOpname.Status.APPROVED) {
-            opname.setApprovedAt(LocalDateTime.now());
+        if (newStatus == StockOpname.Status.RIEVIEWED || status.equalsIgnoreCase("RIEVIEWED")) {
+            stockOpname.setReviewedAt(LocalDateTime.now());
+            stockOpname.setReviewedBy(currentUser);
+        }
+        else if (newStatus == StockOpname.Status.APPROVED) {
+            stockOpname.setApprovedAt(LocalDateTime.now());
+            stockOpname.setApprovedBy(currentUser);
+
+            List<StockOpnameItem> stockOpnameItems = stockOpnameItemRepository
+                    .findByStockOpnameId(stockOpname.getId());
+
+            for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
+                BigDecimal qtySystem = stockOpnameItem.getQtySystem();
+                BigDecimal qtyPhysical = stockOpnameItem.getQtyPhysical();
+                BigDecimal qtyDifference = qtyPhysical.subtract(qtySystem);
+                stockOpnameItem.setQtyDifference(qtyDifference);
+
+                if (qtyDifference.compareTo(BigDecimal.ZERO) < 0) {
+                    stockOpnameItem.setNotes("STOK MINUS" + qtyDifference);
+                } else if (qtyDifference.compareTo(BigDecimal.ZERO) > 0) {
+                    stockOpnameItem.setNotes("STOK PLUS" + qtyDifference);
+                } else {
+                    stockOpnameItem.setNotes("STOK SESUAI");
+                }
+
+                stockOpnameItemRepository.save(stockOpnameItem);
+
+                if (stockOpnameItem.getProduct() != null) {
+                    StockBalance stockBalance = stockBalanceRepository
+                            .findByProductIdAndLocationTypeAndLocationId(stockOpnameItem.getProduct().getId(), stockOpname.getLocation(), stockOpname.getLocationId()).orElse(new StockBalance());
+
+                    if (stockBalance.getId() == null) {
+                        stockBalance.setProduct(stockOpnameItem.getProduct());
+                        stockBalance.setLocationType(stockOpname.getLocation());
+                        stockBalance.setLocationId(stockOpname.getLocationId());
+                        stockBalance.setCreatedBy(currentUser);
+                    }
+
+                    stockBalance.setQty(qtyPhysical);
+                    stockBalance.setUpdatedBy(currentUser);
+
+                    stockBalanceRepository.save(stockBalance);
+                }
+            }
         }
 
-        return stockOpnameRepository.save(opname);
+        stockOpname.setUpdatedAt(LocalDateTime.now());
+        stockOpname.setUpdatedBy(currentUser);
+
+        return stockOpnameRepository.save(stockOpname);
     }
 
-    // SOFT DELETE
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
         StockOpname opname = getValidatedOpname(id, currentUser);

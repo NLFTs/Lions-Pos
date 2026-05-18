@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -187,12 +188,7 @@ public class OrdersService {
 
             // 1. Cek tipe voucher (Gunakan .name() kalau discountType itu Enum)
             if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
-                
-                // 2. Hitung persenan + kasih Rounding Mode biar gak crash kalau ketemu desimal ribet
-                discount = subtotal.multiply(discountValue)
-                                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                
-                // 3. Cek apakah melebihi batasan maksimum diskon
+                discount = subtotal.multiply(new BigDecimal(String.valueOf(voucher.getDiscountValue()))).divide(new BigDecimal(100));
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
                 }
@@ -208,14 +204,14 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrders(savedOrder);
+            payment.setOrders(Set.of(savedOrder));
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
             payment.setChangeDue(request.getPayment().getChangeDue());
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.Status.COMPLETED);
+            payment.setStatus(Payments.Status.SUCCESS);
             payment.setCreatedAt(java.time.LocalDateTime.now());
             paymentsRepository.save(payment);
         }
