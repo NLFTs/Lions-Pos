@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,15 +29,6 @@ import java.util.List;
 public class BranchesController { 
 
     private final BranchesService branchesService;
-
-    @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('branch.index')")
-    public ResponseEntity<ResData<Page<BranchResponse>>> getAllForAdmin(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /api/v1/branches/admin - Superadmin access, page: {}, size: {}", page, size);
-        return ResponseBuilder.ok(branchesService.findAll(page, size));
-    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('branch.index')")
