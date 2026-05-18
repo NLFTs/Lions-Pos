@@ -1,14 +1,11 @@
 package com.dak.spravel.dto.response.inventoryresponse;
 
 import com.dak.spravel.dto.response.components.UserSimpleDto;
-import com.dak.spravel.model.inventory.StockBalance;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -25,7 +22,7 @@ public class StockBalanceResponse {
     @JsonProperty("location_id")
     private Long locationId;
 
-    private BigDecimal qty;
+    private Long qty;
 
     @JsonProperty("updated_at")
     private LocalDateTime updatedAt;

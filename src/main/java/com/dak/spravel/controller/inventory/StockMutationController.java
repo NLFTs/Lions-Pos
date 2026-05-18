@@ -2,7 +2,6 @@ package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
-import com.dak.spravel.model.inventory.StockMutation;
 import com.dak.spravel.service.inventory.StockMutationService;
 import com.dak.spravel.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +38,7 @@ public class StockMutationController {
     @PreAuthorize("hasAuthority('stock_mutation.index')")
     public ResponseEntity<ResData<List<StockMutationResponse>>> index() {
         log.info("[GET] /api/v1/stock-mutations");
-        return ResponseBuilder.ok(stockMutationService.findAll().stream().map(stockMutationService::mapToResponse).toList());
+        return ResponseBuilder.ok(stockMutationService.findAll());
     }
 
     @GetMapping("/page")
@@ -62,14 +61,14 @@ public class StockMutationController {
     @PreAuthorize("hasAuthority('stock_mutation.index')")
     public ResponseEntity<ResData<List<StockMutationResponse>>> getByProduct(@PathVariable Long productId) {
         log.info("[GET] /api/v1/stock-mutations/product/{}", productId);
-        return ResponseBuilder.ok(stockMutationService.findByProductId(productId).stream().map(stockMutationService::mapToResponse).toList());
+        return ResponseBuilder.ok(stockMutationService.findByProductId(productId));
     }
 
     @GetMapping("/partner/{partnerId}")
     @PreAuthorize("hasAuthority('stock_mutation.index')")
-    public ResponseEntity<List<StockMutation>> getByPartner(@PathVariable Long partnerId) {
+    public ResponseEntity<ResData<List<StockMutationResponse>>> getByPartner(@PathVariable Long partnerId) {
         log.info("[GET] /api/v1/stock-mutations/partner/{}", partnerId);
-        return ResponseEntity.ok(stockMutationService.findByPartnerId(partnerId));
+        return ResponseBuilder.ok(stockMutationService.findByPartnerId(partnerId));
     }
 
     

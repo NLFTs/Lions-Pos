@@ -8,7 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UpdateTimestamp;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -79,8 +78,8 @@ public class StockBalance {
 //         }
 // }
 
-        @Column(name = "qty", nullable = false, precision = 19, scale = 4)
-        private BigDecimal qty = BigDecimal.ZERO;
+        @Column(name = "qty", nullable = false)
+        private Long qty;
 
         @Column(name = "created_at", updatable = false)
         private LocalDateTime createdAt = LocalDateTime.now();

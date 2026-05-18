@@ -9,6 +9,8 @@ import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.common.PartnerRepository;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

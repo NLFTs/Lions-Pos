@@ -8,8 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,6 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 public class TransferRequestResponse {
     private Long id;
+
     private PartnerSimpleDto partner;
 
     @JsonProperty("from_location_type")
@@ -77,10 +76,10 @@ public class TransferRequestResponse {
         private ProductSimpleDto product;
 
         @JsonProperty("qty_requested")
-        private BigDecimal qtyRequested;
+        private Long qtyRequested;
 
         @JsonProperty("qty_received")
-        private BigDecimal qtyReceived;
+        private Long qtyReceived;
     }
 
     @Data

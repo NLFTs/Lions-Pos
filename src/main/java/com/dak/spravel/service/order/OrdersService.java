@@ -163,21 +163,20 @@ public class OrdersService {
             item.setProduct(product);
             item.setQty(itemReq.getQty());
             item.setUnitPrice(itemReq.getUnitPrice());
-            item.setSubtotal(itemReq.getUnitPrice().multiply(itemReq.getQty()));
+            item.setSubtotal(itemReq.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQty())));
             
             subtotal = subtotal.add(item.getSubtotal());
             orderItems.add(item);
 
             // REDUCE STOCK
-            stockBalanceService.adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate());
+            stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), item.getQty());
+            // adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate())
             
             // RECORD MUTATION
-            stockMutationService.recordMutation(
-                product, partner, "sale_out", 
-                "branch", branch.getId(), 
-                null, null, 
-                item.getQty(), "order", savedOrder.getId(), 
+            stockMutationService.recordMutation( product, partner, "SALE_OUT", "branch", branch.getId(),null, null, 
+                item.getQty(), "order", savedOrder.getId(),
                 "Order #" + savedOrder.getOrderNumber(), currentUser
+                
             );
         }
         orderItemsRepository.saveAll(orderItems);

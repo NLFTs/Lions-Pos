@@ -1,8 +1,6 @@
 package com.dak.spravel.dto.response.common;
 
 import java.time.LocalDateTime;
-
-import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
