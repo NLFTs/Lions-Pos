@@ -11,7 +11,6 @@ import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
@@ -24,11 +23,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +36,6 @@ public class OrdersService {
     private final OrdersRepository ordersRepository;
     private final OrderItemsRepository orderItemsRepository;
     private final PaymentsRepository paymentsRepository;
-    private final PartnerRepository partnerRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
