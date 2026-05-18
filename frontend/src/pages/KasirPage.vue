@@ -127,7 +127,7 @@ const appliedVoucher = ref(null)
 function applyVoucher() {
   if (!voucherCode.value) return
   const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
-  if (v) { 
+  if (v) {
     appliedVoucher.value = v
     toast.success(`Voucher "${v.name}" diterapkan!`) 
   } else { 

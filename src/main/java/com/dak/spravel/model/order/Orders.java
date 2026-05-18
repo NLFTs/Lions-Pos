@@ -6,6 +6,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
@@ -36,8 +39,8 @@ public class Orders  {
     private Branches branch;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", referencedColumnName = "id", nullable = false)
-    private User customer;
+    @JoinColumn(name = "cashier_id", referencedColumnName = "id", nullable = false)
+    private User cashier;
 
     @Column(nullable = false)
     private String orderNumber;
@@ -63,12 +66,12 @@ public class Orders  {
     //     // set field lainnya...
     //     return orderRepository.save(order);
     // }
-
+    @Enumerated (EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status;
 
     public enum PaymentStatus {
-        DRAFT, PAID, CANCELED
+        DRAFT, RETURN, PAID, CANCELED
     }
 
     @Column(nullable = false)
@@ -107,4 +110,11 @@ public class Orders  {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     private User deletedBy;
+
+    // Menambah Relasi Yang Belum Di Panggil Dari Repo
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    private List<OrderItems> items;
+
+    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
+    private Set<Payments> payments;
 }

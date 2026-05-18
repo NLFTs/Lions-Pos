@@ -47,6 +47,7 @@ public class PaymentsController {
         return ResponseBuilder.ok(paymentsService.findAll(page, size));
     }
 
+
     @PostMapping
     @PreAuthorize("hasAuthority('payments.store')")
     public ResponseEntity<Payments> pay(@Valid @RequestBody PaymentsRequest request) {

@@ -1,5 +1,4 @@
 package com.dak.spravel.service.order;
-
 import com.dak.spravel.dto.request.order.PaymentsRequest;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.order.Orders;
@@ -20,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -60,7 +58,7 @@ public class PaymentsService {
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role ->
                         role.getSlug().equalsIgnoreCase("admin-partners") ||
-                                role.getSlug().equalsIgnoreCase("employee")
+                                role.getSlug().equalsIgnoreCase("employee-partners")
                 );
 
         boolean isNotSuperAdmin = user.getRoles().stream()
@@ -82,15 +80,13 @@ public class PaymentsService {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
 
-        if (payment.getOrders() == null || payment.getOrders().isEmpty()) {
+        if (payment.getOrders() == null) {
             throw new RuntimeException("Payment tidak memiliki order.");
         }
-
-        boolean valid = payment.getOrders().stream()
-                .allMatch(order ->
-                        order.getPartner() != null &&
-                                order.getPartner().getId().equals(currentUser.getPartner().getId())
-                );
+        
+        boolean valid =payment.getOrders().getPartner() != null &&
+        payment.getOrders().getPartner().getId()
+        .equals(currentUser.getPartner().getId());
 
         if (!valid) {
             throw new RuntimeException("Akses Ditolak: Payment milik partner lain.");
@@ -113,8 +109,8 @@ public class PaymentsService {
 
         return paymentsRepository.findAll()
                 .stream()
-                .filter(payment -> payment.getOrders() != null && payment.getOrders().stream().anyMatch(order ->
-                                order.getPartner() != null && order.getPartner().getId().equals(currentUser.getPartner().getId())))
+                .filter(payment -> payment.getOrders() != null && payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
+                .equals(currentUser.getPartner().getId()))
                 .toList();
     }
 
@@ -132,11 +128,8 @@ public class PaymentsService {
                 .map(payment -> {
                     if (payment.getOrders() == null) return null;
 
-                    boolean allowed = payment.getOrders().stream().anyMatch(order ->
-                            order.getPartner() != null &&
-                                    order.getPartner().getId().equals(currentUser.getPartner().getId())
-                    );
-
+                    boolean allowed = payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
+                    .equals(currentUser.getPartner().getId());
                     return allowed ? payment : null;
                 });
     }
@@ -157,7 +150,7 @@ public class PaymentsService {
 
         Payments payments = new Payments();
 
-        payments.setOrders(Set.of(orders));
+        payments.setOrders(orders);
         payments.setMethod(Payments.Method.valueOf(request.getMethod().toUpperCase()));
         payments.setAmount(request.getAmount());
         payments.setCreatedAt(LocalDateTime.now());

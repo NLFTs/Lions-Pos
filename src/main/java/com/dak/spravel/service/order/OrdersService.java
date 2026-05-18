@@ -11,7 +11,6 @@ import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
@@ -28,7 +27,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -138,7 +136,7 @@ public class OrdersService {
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
-        order.setCustomer(currentUser); // Default cashier
+        order.setCashier(currentUser); // Default cashier
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
@@ -210,7 +208,7 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrders(Set.of(savedOrder));
+            payment.setOrders(savedOrder);
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
