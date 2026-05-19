@@ -292,23 +292,9 @@ public class StockBalanceService {
                 .toList();
     }
 
-    // =========================
-    // GET BY WAREHOUSE — filter hanya WAREHOUSE
-    // =========================
-    public List<StockBalanceResponse> findByWarehouse(Long warehouseId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // Validasi warehouse milik partner
-        Warehouses warehouse = warehousesRepository.findById(warehouseId)
-                .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
-        if (warehouse.getPartners() == null
-                || !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
-        }
-
-        return stockBalanceRepository
-                .findByLocationTypeAndLocationId("WAREHOUSE", warehouseId)
-                .stream()
+    public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
+        getAuthenticatedUser();
+        return stockBalanceRepository.findByLocationTypeAndLocationId(locationType, locationId).stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -326,11 +312,7 @@ public class StockBalanceService {
             throw new RuntimeException("User tidak terasosiasi dengan Partner manapun.");
         }
 
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
-
-        if (product.getPartner() == null
-                || !product.getPartner().getId().equals(partner.getId())) {
+        if (partner == null || !products.getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
         }
 

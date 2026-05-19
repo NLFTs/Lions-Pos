@@ -25,6 +25,7 @@ public class ProductResponse {
     private CategoryProductSimpleDto categoryId;
 
     private String name;
+    
     private String sku;
 
     @JsonProperty("base_price")

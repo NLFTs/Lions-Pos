@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
 import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.service.inventory.WarehousesService;
 import com.dak.spravel.util.ResponseBuilder;
@@ -34,7 +36,7 @@ public class WarehousesController {
     // --- SUPER ADMIN ---
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<Page<Warehouses>>> getAllForAdmin(
+    public ResponseEntity<ResData<Page<WarehouseResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/warehouses/admin - Superadmin access, page: {}, size: {}", page, size);
@@ -44,14 +46,14 @@ public class WarehousesController {
     // --- PARTNER ---
     @GetMapping
     @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<List<Warehouses>>> findAll() {
+    public ResponseEntity<ResData<List<WarehouseResponse>>> findAll() {
         return ResponseBuilder.ok(warehousesService.findAllByPartner());
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('warehouse.store')")
-    public ResponseEntity<ResData<Warehouses>> create(@Valid @RequestBody Warehouses warehouse) {
-        return ResponseBuilder.created(warehousesService.create(warehouse));
+    public ResponseEntity<ResData<WarehouseResponse>> create(@Valid @RequestBody WarehousesRequestDTO request, Warehouses warehouse) {
+        return ResponseBuilder.created(warehousesService.create(request));
     }
 
     @DeleteMapping("/{id}")
@@ -63,7 +65,7 @@ public class WarehousesController {
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<Page<Warehouses>>> findPageByPartner(
+    public ResponseEntity<ResData<Page<WarehouseResponse>>> findPageByPartner(
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "10") int size) {
     log.info("[GET] /api/v1/warehouses/page - Access by Partner, Page: {}", page);
