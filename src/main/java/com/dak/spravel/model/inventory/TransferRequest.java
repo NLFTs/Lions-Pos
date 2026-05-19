@@ -11,7 +11,6 @@ import lombok.ToString;
 import java.time.LocalDateTime;
 import java.util.List;
 
-
 @Entity
 @Data
 @AllArgsConstructor
@@ -24,9 +23,15 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    //agar bisa membaca/menyimpan partnerId dari DTO dan database
+    @Column(name = "partner_id", nullable = false)
+    private Long partnerId;
+
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Partners partner;
+
     /**
      * "branch" | "warehouse"
      */
@@ -66,7 +71,7 @@ public class TransferRequest {
     private String notes;
 
     @Column(name = "requested_at")
-    private LocalDateTime requestedAt;
+    private LocalDateTime requestedAt = LocalDateTime.now(); // Set default waktu saat request dibuat
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
@@ -88,20 +93,24 @@ public class TransferRequest {
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
     private User updatedBy;
     
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     private User createdBy;
 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     private User deletedBy;
 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "approved_by", referencedColumnName = "id", updatable = false)
+    @JoinColumn(name = "approved_by", referencedColumnName = "id")
     private User approvedByUser;
 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "received_by", referencedColumnName = "id", updatable = false)
+    @JoinColumn(name = "received_by", referencedColumnName = "id")
     private User receivedByUser;
 
     @OneToMany(mappedBy = "transferRequest", cascade = CascadeType.ALL, orphanRemoval = true)

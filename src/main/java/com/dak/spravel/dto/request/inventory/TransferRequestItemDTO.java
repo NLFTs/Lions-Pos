@@ -1,9 +1,11 @@
 package com.dak.spravel.dto.request.inventory;
 
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
+import java.math.BigDecimal;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Data;
 
 @Data
 public class TransferRequestItemDTO {
@@ -14,5 +16,5 @@ public class TransferRequestItemDTO {
 
     @NotNull(message = "Qty requested tidak boleh kosong")
     @JsonProperty("qty_requested")
-    private Long qtyRequested;
+    private BigDecimal qtyRequested;
 }
