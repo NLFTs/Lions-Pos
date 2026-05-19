@@ -346,4 +346,36 @@ public class TransferRequestService {
         transferRequest.setDeletedBy(currentUser);
         transferRequestRepository.save(transferRequest);
     }
+
+    // UPDATE STATUS (approve: pending→approved, in_transit, dll)
+    @Transactional
+    public TransferRequestResponse updateStatus(Long id, String newStatus) {
+        User currentUser = getAuthenticatedUser();
+        TransferRequest tr = transferRequestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Transfer Request tidak ditemukan"));
+
+        if (!isAdmin(currentUser)) {
+            if (currentUser.getPartner() == null ||
+                !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
+            }
+        }
+
+        try {
+            TransferRequest.Status status = TransferRequest.Status.valueOf(newStatus.toUpperCase());
+            tr.setStatus(status);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Status tidak valid: " + newStatus);
+        }
+
+        if ("approved".equalsIgnoreCase(newStatus)) {
+            tr.setApprovedAt(LocalDateTime.now());
+            tr.setApprovedByUser(currentUser);
+        }
+
+        tr.setUpdatedAt(LocalDateTime.now());
+        tr.setUpdatedBy(currentUser);
+        TransferRequest saved = transferRequestRepository.save(tr);
+        return mapToResponse(saved);
+    }
 }

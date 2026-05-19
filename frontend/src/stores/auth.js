@@ -73,6 +73,8 @@ export const useAuthStore = defineStore('auth', () => {
         username: me.username,
         fullname: me.fullname,
         roles: me.roles ?? [],
+        branchId: me.branchId ?? null,
+        branchName: me.branchName ?? null,
       }
       permissions.value = me.permissions ?? []
       localStorage.setItem('auth_user', JSON.stringify(user.value))

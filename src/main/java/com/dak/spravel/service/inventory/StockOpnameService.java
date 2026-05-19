@@ -78,7 +78,7 @@ public class StockOpnameService {
 
     private boolean isAdminPartnerAndEmployee(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee") || role.getSlug().equals("admin-partners"));
+                .anyMatch(role -> role.getSlug().equals("employee-partners") || role.getSlug().equals("admin-partners"));
     }
 
     private StockOpname getValidatedOpname(Long id, User currentUser) {

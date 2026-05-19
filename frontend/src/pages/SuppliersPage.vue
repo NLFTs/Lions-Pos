@@ -61,7 +61,8 @@ async function fetchSuppliers() {
   loading.value = true
   try {
     const res = await api.get('/api/v1/suppliers')
-    suppliers.value = res.data.data || []
+    // Backend returns ResponseEntity<List<Supplier>> directly, no ResData wrapper
+    suppliers.value = Array.isArray(res.data) ? res.data : (res.data?.data || [])
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal memuat data supplier.')
   } finally {

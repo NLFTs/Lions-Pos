@@ -55,6 +55,7 @@ public class PermissionSeeder {
         {"transfer_request", "Transfer Request", "Manage stock transfers"},
         {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"purchase_order", "Purchase Order", "Manage purchase orders"},
+        {"supplier", "Supplier", "Manage suppliers"},
     };
 
     // slug, name, moduleSlug
@@ -158,6 +159,13 @@ public class PermissionSeeder {
         {"purchase_order.store", "Create Purchase Order", "purchase_order"},
         {"purchase_order.update", "Update Purchase Order", "purchase_order"},
         {"purchase_order.delete", "Delete Purchase Order", "purchase_order"},
+
+        {"supplier.index",  "View All Suppliers",   "supplier"},
+        {"supplier.show",   "View Supplier Detail", "supplier"},
+        {"supplier.store",  "Create Supplier",      "supplier"},
+        {"supplier.update", "Update Supplier",      "supplier"},
+        {"supplier.delete", "Delete Supplier",      "supplier"},
+        {"supplier.admin",  "Admin Access to Suppliers", "supplier"},
     };
 
     @Transactional
@@ -237,6 +245,7 @@ public class PermissionSeeder {
                 moduleSlug.equals("transfer_request") ||
                 moduleSlug.equals("stock_opname") ||
                 moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("supplier") ||
                 moduleSlug.equals("dashboard") ||
                 moduleSlug.equals("pos") ||
                 moduleSlug.equals("report")) {
@@ -254,6 +263,7 @@ public class PermissionSeeder {
                 moduleSlug.equals("transfer_request") ||
                 moduleSlug.equals("stock_opname") ||
                 moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("supplier") ||
                 moduleSlug.equals("dashboard") ||
                 moduleSlug.equals("pos") ||
                 moduleSlug.equals("report")) {

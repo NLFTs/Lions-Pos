@@ -53,17 +53,20 @@ async function fetchData() {
       api.get('/api/v1/branches')
     ])
     
-    // Product data normalization
+    // Product data normalization: ResData<Page>
     const pData = resP.data.data
-    products.value = (Array.isArray(pData) ? pData : (pData.content || [])).filter(p => p.isActive)
+    products.value = (Array.isArray(pData) ? pData : (pData?.content || [])).filter(p => p.isActive)
     
-    categories.value = resC.data.data || []
-    vouchers.value = resV.data.data || []
+    categories.value = resC.data?.data || []
     
-    const bData = resB.data.data || []
-    branches.value = bData
-    if (bData.length > 0) {
-      selectedBranchId.value = bData[0].id
+    // Vouchers: plain List<VoucherResponse> without ResData
+    vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
+    
+    // Branches: ResData<List>
+    const bData = resB.data?.data || []
+    branches.value = Array.isArray(bData) ? bData : (bData.content || [])
+    if (branches.value.length > 0) {
+      selectedBranchId.value = branches.value[0].id
     }
   } catch (err) {
     toast.error('Gagal memuat data POS')

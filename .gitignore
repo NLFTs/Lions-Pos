@@ -49,6 +49,7 @@ src/main/resources/application.properties
 
 # summary
 /summary
+/davin
 
 
 # Ignore semua isi uploads

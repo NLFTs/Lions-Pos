@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,7 +53,7 @@ public class WarehousesController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('warehouse.store')")
-    public ResponseEntity<ResData<WarehouseResponse>> create(@Valid @RequestBody WarehousesRequestDTO request, Warehouses warehouse) {
+    public ResponseEntity<ResData<WarehouseResponse>> create(@Valid @RequestBody WarehousesRequestDTO request) {
         return ResponseBuilder.created(warehousesService.create(request));
     }
 
@@ -61,6 +62,15 @@ public class WarehousesController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         warehousesService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('warehouse.update')")
+    public ResponseEntity<ResData<WarehouseResponse>> update(
+            @PathVariable Long id,
+            @Valid @RequestBody WarehousesRequestDTO request) {
+        log.info("[PUT] /api/v1/warehouses/{}", id);
+        return ResponseBuilder.ok(warehousesService.update(id, request));
     }
 
     @GetMapping("/page")

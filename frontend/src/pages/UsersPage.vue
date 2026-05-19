@@ -329,10 +329,16 @@ async function confirmDelete() {
     deleteError.value = 'Please enter admin username and password.'
     return
   }
-  // Style only – no real delete logic
-  toast.success(`User "${deletingUser.value.username}" will be deleted (mock).`)
-  showDeleteDialog.value = false
-  deletingUser.value = null
+  try {
+    deleteError.value = ''
+    await api.delete(`/api/v1/users/${deletingUser.value.id}`)
+    toast.success(`User "${deletingUser.value.username}" has been deleted successfully.`)
+    showDeleteDialog.value = false
+    deletingUser.value = null
+    fetchUsers()
+  } catch (err) {
+    deleteError.value = err.response?.data?.message || 'Failed to delete user.'
+  }
 }
 
 // ─── Utils ──────────────────────────────────────────────────────────

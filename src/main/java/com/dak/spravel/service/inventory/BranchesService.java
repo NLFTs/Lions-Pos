@@ -23,12 +23,26 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.dak.spravel.model.auth.Role;
+import com.dak.spravel.model.inventory.StockBalance;
+import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.repository.auth.RoleRepository;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import java.util.Set;
+import java.util.HashSet;
+
 @Service
 @RequiredArgsConstructor
 public class BranchesService {
  
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final StockBalanceRepository stockBalanceRepository;
+    private final ProductRepository productRepository;
 
 
     private User getAuthenticatedUser() {
@@ -64,7 +78,7 @@ public class BranchesService {
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role ->
                         role.getSlug().equalsIgnoreCase("admin-partners") ||
-                                role.getSlug().equalsIgnoreCase("employee")
+                                role.getSlug().equalsIgnoreCase("employee-partners")
                 );
 
         boolean isNotSuperAdmin = user.getRoles().stream()
@@ -171,7 +185,47 @@ public class BranchesService {
         branch.setCreatedAt(LocalDateTime.now());
         branch.setCreatedBy(currentUser);
 
-        return mapToResponse(branchesRepository.save(branch));
+        Branches savedBranch = branchesRepository.save(branch);
+
+        // Create user if username and password are provided
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
+            String username = request.getUsername().trim();
+            if (userRepository.findByUsername(username).isPresent()) {
+                throw new IllegalArgumentException("Username '" + username + "' sudah digunakan.");
+            }
+
+            User branchUser = new User();
+            branchUser.setUsername(username);
+            branchUser.setFullname("Cabang " + savedBranch.getName());
+            branchUser.setEmail(username + "@gaptek.com");
+            branchUser.setPassword(passwordEncoder.encode(request.getPassword()));
+            branchUser.setPartner(partner);
+            branchUser.setBranch(savedBranch);
+
+            Role employeeRole = roleRepository.findBySlug("employee-partners")
+                    .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
+            Set<Role> roles = new HashSet<>();
+            roles.add(employeeRole);
+            branchUser.setRoles(roles);
+
+            userRepository.save(branchUser);
+        }
+
+        // Inisialisasi Stock Balance untuk semua produk partner di branch baru
+        List<Product> products = productRepository.findAllByPartner(partner);
+        for (Product product : products) {
+            StockBalance stock = new StockBalance();
+            stock.setProduct(product);
+            stock.setLocationType("BRANCH");
+            stock.setLocationId(savedBranch.getId());
+            stock.setQty(0L);
+            stock.setCreatedAt(LocalDateTime.now());
+            stock.setCreatedBy(currentUser);
+            stock.setUpdatedBy(currentUser);
+            stockBalanceRepository.save(stock);
+        }
+
+        return mapToResponse(savedBranch);
     }
 
 

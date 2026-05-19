@@ -53,7 +53,7 @@ public class PartnerService {
     }
 
     private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("employee") ||
+        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("employee-partners") ||
                 role.getSlug().equals("admin-partners")
         );
     }
