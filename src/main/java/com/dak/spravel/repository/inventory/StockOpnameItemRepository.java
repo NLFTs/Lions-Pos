@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface StockOpnameItemRepository extends JpaRepository<StockOpnameItem, Long> {
-
     List<StockOpnameItem> findByStockOpnameId(Long stockOpnameId);
+    void deleteByStockOpnameId(Long stockOpnameId);
 }

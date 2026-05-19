@@ -1,14 +1,7 @@
 package com.dak.spravel.controller.inventory;
 
-import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
-import com.dak.spravel.dto.response.ResData;
-import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
-import com.dak.spravel.model.inventory.TransferRequest;
-import com.dak.spravel.service.inventory.TransferRequestService;
-import com.dak.spravel.util.ResponseBuilder;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,7 +14,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
+import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
+import com.dak.spravel.service.inventory.TransferRequestService;
+import com.dak.spravel.util.ResponseBuilder;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
@@ -31,6 +32,7 @@ public class TransferRequestController {
 
     private final TransferRequestService transferRequestService;
 
+    //Dipakai Superadmin untuk melihat semua data (Paginated)
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('transfer_request.index')")
     public ResponseEntity<ResData<Page<TransferRequestResponse>>> getAllForAdmin(
@@ -40,15 +42,20 @@ public class TransferRequestController {
         return ResponseBuilder.ok(transferRequestService.findAll(page, size));
     }
 
+    //Mengambil data list milik partner yang sedang login (Non-paginated)
     @GetMapping
     @PreAuthorize("hasAuthority('transfer_request.index')")
     public ResponseEntity<ResData<List<TransferRequestResponse>>> index() {
         log.info("[GET] /api/v1/transfer-requests");
-        return ResponseBuilder.ok(transferRequestService.findAll().stream()
+        // Di Service, method findAll() sudah mengembalikan List<TransferRequest>. 
+        // Kita map ke Response DTO agar seragam dengan standard respons data kamu.
+        List<TransferRequestResponse> responses = transferRequestService.findAll().stream()
                 .map(transferRequestService::mapToResponse)
-                .toList());
+                .toList();
+        return ResponseBuilder.ok(responses);
     }
 
+    //Mengambil data dengan paging (Otomatis memfilter data partner atau superadmin)
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('transfer_request.index')")
     public ResponseEntity<ResData<Page<TransferRequestResponse>>> paginated(
@@ -58,6 +65,7 @@ public class TransferRequestController {
         return ResponseBuilder.ok(transferRequestService.findAll(page, size));
     }
 
+    //Melihat detail 1 data transfer request berdasarkan ID dengan proteksi hak akses partner
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('transfer_request.show')")
     public ResponseEntity<ResData<TransferRequestResponse>> show(@PathVariable Long id) {
@@ -65,13 +73,20 @@ public class TransferRequestController {
         return ResponseBuilder.ok(transferRequestService.findById(id));
     }
 
+    //Mengambil list data transfer khusus ID partner tertentu
     @GetMapping("/partner/{partnerId}")
     @PreAuthorize("hasAuthority('transfer_request.index')")
-    public ResponseEntity<List<TransferRequest>> getByPartner(@PathVariable Long partnerId) {
+    public ResponseEntity<ResData<List<TransferRequestResponse>>> getByPartner(@PathVariable Long partnerId) {
         log.info("[GET] /api/v1/transfer-requests/partner/{}", partnerId);
-        return ResponseEntity.ok(transferRequestService.findByPartnerId(partnerId));
+        // Kita konversi output List<TransferRequest> dari service menjadi List<TransferRequestResponse>
+        // dan dibungkus menggunakan ResponseBuilder.ok agar format JSON-nya rapi & seragam
+        List<TransferRequestResponse> responses = transferRequestService.findByPartnerId(partnerId).stream()
+                .map(transferRequestService::mapToResponse)
+                .toList();
+        return ResponseBuilder.ok(responses);
     }
 
+    //Membuat data request transfer baru dengan otomasi pengecekan Gudang & Cabang
     @PostMapping
     @PreAuthorize("hasAuthority('transfer_request.store')")
     public ResponseEntity<ResData<TransferRequestResponse>> store(@Valid @RequestBody TransferRequestDTO request) {
@@ -79,6 +94,7 @@ public class TransferRequestController {
         return ResponseBuilder.created(transferRequestService.create(request));
     }
 
+    //Proses soft-delete (Mengisi flag deleted_at & deleted_by ke DB)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('transfer_request.delete')")
     public ResponseEntity<Void> destroy(@PathVariable Long id) {

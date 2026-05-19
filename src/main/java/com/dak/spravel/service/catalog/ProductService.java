@@ -169,7 +169,20 @@ public class ProductService {
         product.setCreatedBy(currentUser);
         product.setCreatedAt(LocalDateTime.now());
 
-        return mapToResponse(productRepository.save(product));
+        Product savedProduct = productRepository.save(product);
+
+        if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
+            com.dak.spravel.model.catalog.ProductPhoto photo = new com.dak.spravel.model.catalog.ProductPhoto();
+            photo.setProduct(savedProduct);
+            photo.setUrl(request.getImageUrl().trim());
+            photo.setIsPrimary(true);
+            photo.setSortOrder(0);
+            photo.setCreatedAt(LocalDateTime.now());
+            photo.setCreatedBy(currentUser);
+            productPhotoRepository.save(photo);
+        }
+
+        return mapToResponse(savedProduct);
     }
 
     public Page<ProductResponse> findAll(int page, int size) {
@@ -215,6 +228,40 @@ public class ProductService {
                 throw new RuntimeException("SKU " + newSku + " sudah terpakai!");
             }
             product.setSku(newSku);
+        }
+
+        if (request.getImageUrl() != null) {
+            List<com.dak.spravel.model.catalog.ProductPhoto> existingPhotos = productPhotoRepository.findByProductId(product.getId());
+            com.dak.spravel.model.catalog.ProductPhoto primaryPhoto = existingPhotos.stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
+                    .findFirst()
+                    .orElse(existingPhotos.isEmpty() ? null : existingPhotos.get(0));
+
+            if (request.getImageUrl().trim().isEmpty()) {
+                if (primaryPhoto != null) {
+                    if (primaryPhoto.getUrl() != null) {
+                        deleteFileDisk(primaryPhoto.getUrl());
+                    }
+                    productPhotoRepository.delete(primaryPhoto);
+                }
+            } else {
+                if (primaryPhoto != null) {
+                    if (primaryPhoto.getUrl() != null && !primaryPhoto.getUrl().equals(request.getImageUrl().trim())) {
+                        deleteFileDisk(primaryPhoto.getUrl());
+                    }
+                    primaryPhoto.setUrl(request.getImageUrl().trim());
+                    productPhotoRepository.save(primaryPhoto);
+                } else {
+                    com.dak.spravel.model.catalog.ProductPhoto newPhoto = new com.dak.spravel.model.catalog.ProductPhoto();
+                    newPhoto.setProduct(product);
+                    newPhoto.setUrl(request.getImageUrl().trim());
+                    newPhoto.setIsPrimary(true);
+                    newPhoto.setSortOrder(0);
+                    newPhoto.setCreatedAt(LocalDateTime.now());
+                    newPhoto.setCreatedBy(currentUser);
+                    productPhotoRepository.save(newPhoto);
+                }
+            }
         }
 
         product.setUpdatedBy(currentUser);
@@ -321,6 +368,15 @@ public class ProductService {
             cDto.setId(product.getCategory().getId());
             cDto.setName(product.getCategory().getName());
             resp.setCategoryId(cDto);
+        }
+
+        List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
+        com.dak.spravel.model.catalog.ProductPhoto primaryPhoto = photos.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
+                .findFirst()
+                .orElse(photos.isEmpty() ? null : photos.get(0));
+        if (primaryPhoto != null) {
+            resp.setImageUrl(primaryPhoto.getUrl());
         }
 
         resp.setCreatedBy(mapUserToDto(product.getCreatedBy()));

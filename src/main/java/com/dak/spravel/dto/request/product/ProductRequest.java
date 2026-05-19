@@ -37,4 +37,13 @@ public class ProductRequest {
 
     @JsonProperty("is_active")
     private Boolean isActive;
+
+    @JsonProperty("image_url")
+    private String imageUrl;
+
+    @JsonProperty("imageUrl")
+    public void setImageUrlCamel(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 }
+
