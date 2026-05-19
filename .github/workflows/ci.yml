@@ -55,16 +55,16 @@ jobs:
     runs-on: ubuntu-latest
     
     services:
-      postgres:
+      postgres: 
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: db_spravel
+          POSTGRES_DB: db_screet
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: davingm
+          POSTGRES_PASSWORD: postgres
         ports:
-          - 5433:5432
+          - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d db_spravel"
+          --health-cmd "pg_isready -U postgres -d db_screet"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
