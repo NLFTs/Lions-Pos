@@ -5,11 +5,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.Collections;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Server-side permission cache using Caffeine (cache-aside pattern).

@@ -190,6 +190,13 @@ public class StockBalanceService {
                 .toList();
     }
 
+    public List<StockBalanceResponse> findByWarehouse() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return stockBalanceRepository.findByLocationTypeAndLocationId("WAREHOUSE", currentUser.getPartner().getId()).stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
     // =========================
     // PAGINATION
     // =========================
@@ -292,13 +299,6 @@ public class StockBalanceService {
                 .toList();
     }
 
-    public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
-        getAuthenticatedUser();
-        return stockBalanceRepository.findByLocationTypeAndLocationId(locationType, locationId).stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
-
     // =========================
     // CREATE — stock awal manual (1 produk 1 lokasi)
     // otomatis catat stock mutation
@@ -308,11 +308,14 @@ public class StockBalanceService {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partner = currentUser.getPartner();
 
+        Product product = productRepository.findById(request.getProduct())
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner manapun.");
         }
 
-        if (partner == null || !products.getPartner().getId().equals(partner.getId())) {
+        if (partner == null || !product.getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
         }
 
@@ -321,7 +324,7 @@ public class StockBalanceService {
 
         // Cek duplikat
         stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
-                request.getProductId(),
+                request.getProduct(),
                 request.getLocationType().toUpperCase(),
                 request.getLocationId()
         ).ifPresent(existing -> {

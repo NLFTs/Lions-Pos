@@ -5,6 +5,7 @@ import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.StockOpnameResponse;
+import com.dak.spravel.dto.response.inventoryresponse.StockOpnameResponse.StockOpnameItemResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -25,7 +26,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,14 +56,6 @@ public class StockOpnameService {
 
         return user;
     }
-
-    // private User getAuthenticatedSuperAdmin() {
-    //     User user = getAuthenticatedUser();
-    //     boolean isSuperAdmin = user.getRoles().stream()
-    //             .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
-    //     if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-    //     return user;
-    // }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
@@ -177,34 +169,44 @@ public class StockOpnameService {
         return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
-    public List<StockOpname> findAll() {
-        User currentUser = getAuthenticatedUser();
-        return stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
-    }
-
-    public Page<StockOpname> findAll(int page, int size) {
+    public List<StockOpnameResponse> findAll() {
         User currentUser = getAuthenticatedUser();
 
         if (isAdminPartnerAndEmployee(currentUser)) {
             throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
         }
 
-        return stockOpnameRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
+        List<StockOpname> allStockOpnames = stockOpnameRepository.findAll();
+        return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
-    public StockOpname findById(Long id) {
+    public Page<StockOpnameResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        return getValidatedOpname(id, currentUser);
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+        }
+
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<StockOpname> opnames = stockOpnameRepository.findAll(pageRequest);
+        return opnames.map(this::mapToResponse);
     }
 
-    public List<StockOpnameItem> findItemsByOpnameId(Long opnameId) {
+    public StockOpnameResponse findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        return mapToResponse(getValidatedOpname(id, currentUser));
+    }
+
+    public List<StockOpnameItemResponse> findItemsByOpnameId(Long opnameId) {
         User currentUser = getAuthenticatedUser();
         getValidatedOpname(opnameId, currentUser);
-        return stockOpnameItemRepository.findByStockOpnameId(opnameId);
+
+        List<StockOpnameItem> items = stockOpnameItemRepository.findByStockOpnameId(opnameId);
+        return items.stream().map(this::mapItemToResponse).collect(Collectors.toList());
     }
 
     @Transactional
-    public StockOpname create(StockOpnameRequestDTO request) {
+    public StockOpnameResponse create(StockOpnameRequestDTO request) {
         User currentUser = getAuthenticatedUser();
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -213,7 +215,7 @@ public class StockOpnameService {
 
         StockOpname opname = new StockOpname();
         opname.setPartner(partner);
-        opname.setLocation(request.getLocation());
+        opname.setLocation(request.getLocationType());
         opname.setLocationId(request.getLocationId());
         opname.setDate(request.getDate());
         opname.setNotes(request.getNotes());
@@ -234,15 +236,20 @@ public class StockOpnameService {
                 StockOpnameItem item = new StockOpnameItem();
                 item.setStockOpname(saved);
                 item.setProduct(product);
-                item.setQtySystem(itemDTO.getQtySystem() != null ? itemDTO.getQtySystem() : BigDecimal.ZERO);
-                item.setQtyPhysical(itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : BigDecimal.ZERO);
-                item.setQtyDifference(item.getQtyPhysical().subtract(item.getQtySystem()));
+                item.setQtySystem(itemDTO.getQtySystem() != null ? itemDTO.getQtySystem() : 0L);
+
+                long qtyPhysical = itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : 0L;
+                item.setQtyPhysical(qtyPhysical);
+                
+                long qtyDifference = qtyPhysical - itemDTO.getQtySystem();
+                item.setQtyDifference(qtyDifference);
+
                 item.setNotes(itemDTO.getNotes());
                 items.add(item);
             }
             stockOpnameItemRepository.saveAll(items);
         }
-        return saved;
+        return mapToResponse(saved);
     }
 
     @Transactional
@@ -269,7 +276,7 @@ public class StockOpnameService {
                 Long qtyPhysical = stockOpnameItem.getQtyPhysical() != null ? stockOpnameItem.getQtyPhysical().longValue() : 0L;
 
                 Long qtyDifference = qtyPhysical - qtySystem;
-                stockOpnameItem.setQtyDifference(BigDecimal.valueOf(qtyDifference));
+                stockOpnameItem.setQtyDifference(qtyDifference);
 
                 if (qtyDifference < 0) {
                     stockOpnameItem.setNotes("STOK MINUS " + qtyDifference);

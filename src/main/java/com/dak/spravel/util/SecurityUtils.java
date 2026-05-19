@@ -11,6 +11,9 @@ public class SecurityUtils {
         if (auth != null && auth.getPrincipal() instanceof org.springframework.security.core.userdetails.UserDetails) {
 
             String username = auth.getName();
+            if (username != null) {
+                return (User) auth.getPrincipal();
+            }
             throw new RuntimeException("Gunakan cara ambil di Service saja");
         }
         throw new RuntimeException("User tidak terautentikasi");
