@@ -9,9 +9,7 @@ import org.springframework.http.ResponseEntity;
  */
 public class ResponseBuilder {
     
-    private static String getStatusLabel(int code) {
-        return (code >= 200 && code < 300) ? "success" : "error";
-    }
+    
 
     public static <T> ResponseEntity<ResData<T>> ok(T data) {
         return ResponseEntity.ok(ResData.of(data));

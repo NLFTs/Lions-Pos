@@ -3,8 +3,6 @@ package com.dak.spravel.model.inventory;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -30,28 +28,11 @@ public class StockOpnameItem {
     @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
     private Product product;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal qtySystem = BigDecimal.ZERO;
+    private Long qtySystem ;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal qtyPhysical = BigDecimal.ZERO;
+    private Long qtyPhysical;
 
-    @Column(precision = 10, scale = 2)
-    private BigDecimal qtyDifference = BigDecimal.ZERO;
-
-        // // Service akan menghitung qtyDifference = qtyPhysical - qtySystem, dan menyimpan snapshot unit cost dari stock balance saat ini
-        // public void inputPhysicalCount(String opnameItemId, BigDecimal qtyPhysical) {
-        //     OpnameItem item = opnameItemRepository.findByUid(opnameItemId)
-        //         .orElseThrow(() -> new RuntimeException("Item tidak ditemukan"));
-
-        //     item.setQtyPhysical(qtyPhysical);
-            
-        //     // Otomatis hitung selisih
-        //     // positif = surplus, negatif = loss
-        //     item.setQtyDifference(qtyPhysical.subtract(item.getQtySystem()));
-
-        //     opnameItemRepository.save(item);
-        // }   
+    private Long qtyDifference;
 
     @Column(columnDefinition = "TEXT")
     private String notes;

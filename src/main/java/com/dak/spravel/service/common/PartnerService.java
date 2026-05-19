@@ -46,35 +46,6 @@ public class PartnerService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                                role.getSlug().equalsIgnoreCase("employee")
-                );
-
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan."
-            );
-        }
-
-        return user;
-    }
-
     private boolean isAdmin(User user) {
         return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("admin") ||
                 role.getSlug().equals("admin")

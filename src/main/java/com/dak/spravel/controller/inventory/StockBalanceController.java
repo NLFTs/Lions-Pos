@@ -11,7 +11,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -93,7 +92,7 @@ public class StockBalanceController {
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByWarehouse(
             @PathVariable Long warehouseId) {
         log.info("[GET] /api/v1/stock-balances/warehouse/{}", warehouseId);
-        return ResponseBuilder.ok(stockBalanceService.findByWarehouse(warehouseId));
+        return ResponseBuilder.ok(stockBalanceService.findByWarehouse());
     }
 
     // CREATE — stock awal manual 1 produk
@@ -102,10 +101,8 @@ public class StockBalanceController {
     public ResponseEntity<ResData<StockBalanceResponse>> store(
             @Valid @RequestBody StockBalanceRequestDTO request) {
         log.info("[POST] /api/v1/stock-balances productId={} locationType={} locationId={}",
-                request.getProductId(), request.getLocationType(), request.getLocationId());
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ResponseBuilder.buildCreated(stockBalanceService.create(request)));
+                request.getProduct(), request.getLocationType(), request.getLocationId());
+        return ResponseBuilder.ok(stockBalanceService.create(request));
     }
 
     // INISIASI STOCK AWAL BATCH — banyak produk sekaligus
@@ -115,8 +112,6 @@ public class StockBalanceController {
             @Valid @RequestBody StockBalanceInitRequest request) {
         log.info("[POST] /api/v1/stock-balances/initialize locationType={} locationId={}",
                 request.getLocationType(), request.getLocationId());
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ResponseBuilder.buildCreated(stockBalanceService.initializeStock(request)));
+        return ResponseBuilder.ok(stockBalanceService.initializeStock(request));
     }
 }

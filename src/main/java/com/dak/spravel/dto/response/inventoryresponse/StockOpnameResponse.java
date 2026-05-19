@@ -8,8 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -67,13 +65,13 @@ public class StockOpnameResponse {
         private ProductSimpleDto product;
 
         @JsonProperty("qty_system")
-        private BigDecimal qtySystem;
+        private Long qtySystem;
 
         @JsonProperty("qty_physical")
-        private BigDecimal qtyPhysical;
+        private Long qtyPhysical;
 
         @JsonProperty("qty_difference")
-        private BigDecimal qtyDifference;
+        private Long qtyDifference;
 
         private String notes;
 

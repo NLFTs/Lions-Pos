@@ -9,7 +9,7 @@ import lombok.Data;
 public class StockBalanceRequestDTO {
 
     @NotNull(message = "Product ID tidak boleh kosong")
-    private Long productId;
+    private Long product;
 
     @NotBlank(message = "Location type tidak boleh kosong")
     @Pattern(regexp = "branch|warehouse", message = "Location type harus 'branch' atau 'warehouse'")

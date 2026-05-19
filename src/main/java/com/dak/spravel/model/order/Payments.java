@@ -6,8 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
-
 import com.dak.spravel.model.auth.User;
 @Data
 @NoArgsConstructor

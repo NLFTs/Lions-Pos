@@ -96,6 +96,8 @@ public class BranchWarehousesService {
                 .filter(b -> b.getPartners().getId().equals(currentUser.getPartner().getId()))
                 .orElseThrow(() -> new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda."));
 
+        if (branch == null) throw new RuntimeException("Branch tidak ditemukan.");
+
         return branchWarehousesRepository.findByBranchesId(branchesId);
     }
 
