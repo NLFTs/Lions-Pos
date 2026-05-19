@@ -253,7 +253,6 @@ public class StockOpnameService {
         StockOpname.Status newStatus = StockOpname.Status.valueOf(status.toUpperCase());
         stockOpname.setStatus(newStatus);
 
-        // Tetap pertahankan typo 'RIEVIEWED' sesuai dengan nama di Enum lu ya, Mip
         if (newStatus == StockOpname.Status.RIEVIEWED || status.equalsIgnoreCase("RIEVIEWED")) {
             stockOpname.setReviewedAt(LocalDateTime.now());
             stockOpname.setReviewedBy(currentUser);
@@ -266,16 +265,12 @@ public class StockOpnameService {
                     .findByStockOpnameId(stockOpname.getId());
 
             for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
-                // 🔥 FIX 1: Ubah tipe data tampungan dari BigDecimal ke Long bulat murni
-                // Ditambah pengaman .longValue() kalau semisal di DTO/Entity Item lu masih kesisa BigDecimal
                 Long qtySystem = stockOpnameItem.getQtySystem() != null ? stockOpnameItem.getQtySystem().longValue() : 0L;
                 Long qtyPhysical = stockOpnameItem.getQtyPhysical() != null ? stockOpnameItem.getQtyPhysical().longValue() : 0L;
-                
-                // 🔥 FIX 2: Matematika jadi super simpel, gak perlu pake .subtract() lagi
+
                 Long qtyDifference = qtyPhysical - qtySystem;
                 stockOpnameItem.setQtyDifference(BigDecimal.valueOf(qtyDifference));
 
-                // 🔥 FIX 3: Gak perlu compareTo ribet, langsung hajar pakai operator < dan > biasa
                 if (qtyDifference < 0) {
                     stockOpnameItem.setNotes("STOK MINUS " + qtyDifference);
                 } else if (qtyDifference > 0) {
@@ -289,8 +284,8 @@ public class StockOpnameService {
                 if (stockOpnameItem.getProduct() != null) {
                     StockBalance stockBalance = stockBalanceRepository
                             .findByProductIdAndLocationTypeAndLocationId(
-                                    stockOpnameItem.getProduct().getId(), 
-                                    stockOpname.getLocation(), 
+                                    stockOpnameItem.getProduct().getId(),
+                                    stockOpname.getLocation(),
                                     stockOpname.getLocationId()
                             ).orElse(new StockBalance());
 
@@ -301,7 +296,6 @@ public class StockOpnameService {
                         stockBalance.setCreatedBy(currentUser);
                     }
 
-                    // 🔥 FIX 4: Sekarang karena udah sama-sama Long, langsung nancep tanpa error!
                     stockBalance.setQty(qtyPhysical);
                     stockBalance.setUpdatedBy(currentUser);
 

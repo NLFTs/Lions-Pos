@@ -1,31 +1,20 @@
 package com.dak.spravel.controller.inventory;
 
-import java.util.List;
-
-import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
-import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.request.inventory.StockOpnameCountRequest;
+import com.dak.spravel.dto.request.inventory.StockOpnameRequest;
+import com.dak.spravel.dto.response.inventoryresponse.StockOpnameItemResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockOpnameResponse;
-import com.dak.spravel.model.inventory.StockOpname;
-import com.dak.spravel.model.inventory.StockOpnameItem;
 import com.dak.spravel.service.inventory.StockOpnameService;
-import com.dak.spravel.util.ResponseBuilder;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -35,65 +24,98 @@ public class StockOpnameController {
 
     private final StockOpnameService stockOpnameService;
 
-
+    // SUPER ADMIN ONLY
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<ResData<List<StockOpnameResponse>>> getAllForAdmin() {
-        log.info("[GET] /api/v1/stock-opnames/admin - Superadmin access fetching all partner data");
-        return ResponseBuilder.ok(stockOpnameService.findAllOpName());
+    public ResponseEntity<List<StockOpnameResponse>> getAllForAdmin() {
+        log.info("[GET] /api/v1/stock-opnames/admin");
+        return ResponseEntity.ok(stockOpnameService.findAllStockOpname());
     }
 
+    // PARTNER / EMPLOYEE
     @GetMapping
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<ResData<List<StockOpname>>> index() {
+    public ResponseEntity<List<StockOpnameResponse>> index() {
         log.info("[GET] /api/v1/stock-opnames");
-        return ResponseBuilder.ok(stockOpnameService.findAll());
+        return ResponseEntity.ok(stockOpnameService.findAll());
     }
 
+    // PAGINATION
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<ResData<Page<StockOpname>>> paginated(
+    public ResponseEntity<Page<StockOpnameResponse>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-opnames/page page={} size={}", page, size);
-        return ResponseBuilder.ok(stockOpnameService.findAll(page, size));
+        return ResponseEntity.ok(stockOpnameService.findAll(page, size));
     }
 
+    // GET BY ID
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_opname.show')")
-    public ResponseEntity<ResData<StockOpname>> show(@PathVariable Long id) {
+    public ResponseEntity<StockOpnameResponse> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-opnames/{}", id);
-        return ResponseBuilder.ok(stockOpnameService.findById(id));
+        return ResponseEntity.ok(stockOpnameService.findById(id));
     }
 
+    // GET ITEMS
     @GetMapping("/{id}/items")
     @PreAuthorize("hasAuthority('stock_opname.show')")
-    public ResponseEntity<ResData<List<StockOpnameItem>>> getItems(@PathVariable Long id) {
+    public ResponseEntity<List<StockOpnameItemResponse>> getItems(@PathVariable Long id) {
         log.info("[GET] /api/v1/stock-opnames/{}/items", id);
-        return ResponseBuilder.ok(stockOpnameService.findItemsByOpnameId(id));
+        return ResponseEntity.ok(stockOpnameService.findItems(id));
     }
 
+    // STEP 1: CREATE — buat sesi opname (DRAFT)
     @PostMapping
     @PreAuthorize("hasAuthority('stock_opname.store')")
-    public ResponseEntity<ResData<StockOpname>> store(@Valid @RequestBody StockOpnameRequestDTO request) {
-        log.info("[POST] /api/v1/stock-opnames location={}", request.getLocation());
-        return ResponseBuilder.created(stockOpnameService.create(request));
+    public ResponseEntity<StockOpnameResponse> store(
+            @Valid @RequestBody StockOpnameRequest request) {
+        log.info("[POST] /api/v1/stock-opnames locationType={} locationId={}",
+                request.getLocationType(), request.getLocationId());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(stockOpnameService.create(request));
     }
 
-    @PatchMapping("/{id}/status")
+    // STEP 2: START COUNTING — snapshot qty_system, status → COUNTING
+    @PatchMapping("/{id}/start-counting")
     @PreAuthorize("hasAuthority('stock_opname.update')")
-    public ResponseEntity<ResData<StockOpname>> updateStatus(
-            @PathVariable Long id,
-            @RequestParam String status) {
-        log.info("[PATCH] /api/v1/stock-opnames/{}/status status={}", id, status);
-        return ResponseBuilder.ok(stockOpnameService.updateStatus(id, status));
+    public ResponseEntity<StockOpnameResponse> startCounting(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/stock-opnames/{}/start-counting", id);
+        return ResponseEntity.ok(stockOpnameService.startCounting(id));
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('stock_opname.delete')")
-    public ResponseEntity<Void> destroy(@PathVariable Long id) {
-        log.info("[DELETE] /api/v1/stock-opnames/{}", id);
-        stockOpnameService.delete(id);
-        return ResponseEntity.noContent().build();
+    // STEP 3: INPUT COUNTING — isi qty_physical, hitung selisih
+    @PatchMapping("/{id}/count")
+    @PreAuthorize("hasAuthority('stock_opname.update')")
+    public ResponseEntity<List<StockOpnameItemResponse>> inputCounting(
+            @PathVariable Long id,
+            @Valid @RequestBody StockOpnameCountRequest request) {
+        log.info("[PATCH] /api/v1/stock-opnames/{}/count", id);
+        return ResponseEntity.ok(stockOpnameService.inputCounting(id, request));
+    }
+
+    // STEP 4: SUBMIT REVIEW — status → REVIEWED
+    @PatchMapping("/{id}/submit-review")
+    @PreAuthorize("hasAuthority('stock_opname.update')")
+    public ResponseEntity<StockOpnameResponse> submitReview(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/stock-opnames/{}/submit-review", id);
+        return ResponseEntity.ok(stockOpnameService.submitReview(id));
+    }
+
+    // STEP 5: APPROVE — status → APPROVED
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('stock_opname.update')")
+    public ResponseEntity<StockOpnameResponse> approve(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/stock-opnames/{}/approve", id);
+        return ResponseEntity.ok(stockOpnameService.approve(id));
+    }
+
+    // STEP 6: ADJUST — apply koreksi stock, status → ADJUSTED
+    @PatchMapping("/{id}/adjust")
+    @PreAuthorize("hasAuthority('stock_opname.update')")
+    public ResponseEntity<StockOpnameResponse> adjust(@PathVariable Long id) {
+        log.info("[PATCH] /api/v1/stock-opnames/{}/adjust", id);
+        return ResponseEntity.ok(stockOpnameService.adjust(id));
     }
 }
