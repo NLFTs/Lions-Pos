@@ -153,7 +153,7 @@ function clearFilters() {
 
 // ─── Filtered + Paginated Data ──────────────────────────────────────
 const filteredUsers = computed(() => {
-  const list = Array.isArray(allUsers.value) ? allUsers.value : []
+  let list = Array.isArray(allUsers.value) ? allUsers.value : []
 
   // Search query
   const q = searchQuery.value.trim().toLowerCase()
