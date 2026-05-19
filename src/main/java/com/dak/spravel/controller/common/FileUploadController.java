@@ -64,4 +64,45 @@ public class FileUploadController {
             throw new RuntimeException("Failed to store file: " + e.getMessage());
         }
     }
+
+    @PostMapping("/product")
+    public ResponseEntity<ResData<Map<String, String>>> uploadProductPhoto(@RequestParam("file") MultipartFile file) {
+        log.info("[POST] /api/v1/upload/product - Uploading product photo...");
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        try {
+            // Setup folder /uploads/products/
+            String folderPath = uploadDir + "/products/";
+            File dir = new File(folderPath);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String extension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String newFilename = UUID.randomUUID().toString() + extension;
+
+            // Save file
+            Path path = Paths.get(folderPath + newFilename);
+            Files.write(path, file.getBytes());
+
+            String fileUrl = "/uploads/products/" + newFilename;
+            
+            Map<String, String> result = new HashMap<>();
+            result.put("url", fileUrl);
+
+            return ResponseBuilder.ok(result);
+
+        } catch (IOException e) {
+            log.error("Failed to store file", e);
+            throw new RuntimeException("Failed to store file: " + e.getMessage());
+        }
+    }
 }
+
