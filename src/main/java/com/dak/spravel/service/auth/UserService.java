@@ -4,13 +4,12 @@ import com.dak.spravel.dto.request.user.ChangePasswordRequest;
 import com.dak.spravel.dto.request.user.CreateUserRequest;
 import com.dak.spravel.dto.request.user.UpdateUserRequest;
 import com.dak.spravel.dto.response.UserResponse;
+import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -275,6 +274,16 @@ public class UserService {
         res.setEmail(user.getEmail());
         res.setAvatar(user.getAvatar());
         res.setCreatedAt(user.getCreatedAt());
+
+        if (user.getPartner() != null) {
+
+            PartnerSimpleDto partnerDto = new PartnerSimpleDto();
+
+            partnerDto.setId(user.getPartner().getId());
+            partnerDto.setName(user.getPartner().getName());
+
+            res.setPartner(partnerDto);
+        }
 
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
             UserResponse.RoleData rd = new UserResponse.RoleData();

@@ -57,13 +57,13 @@ public class StockOpnameService {
         return user;
     }
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
+    // private User getAuthenticatedSuperAdmin() {
+    //     User user = getAuthenticatedUser();
+    //     boolean isSuperAdmin = user.getRoles().stream()
+    //             .anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
+    //     if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+    //     return user;
+    // }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
@@ -184,6 +184,11 @@ public class StockOpnameService {
 
     public Page<StockOpname> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
+
+        if (isAdminPartnerAndEmployee(currentUser)) {
+            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+        }
+
         return stockOpnameRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()));
     }
 

@@ -20,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -167,8 +168,9 @@ public class BranchesService {
         branch.setPartners(partner);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
-
-        AuditHelper.setCreated(branch);
+        branch.setIsActive(true);
+        branch.setCreatedAt(LocalDateTime.now());
+        branch.setCreatedBy(currentUser);
 
         return mapToResponse(branchesRepository.save(branch));
     }

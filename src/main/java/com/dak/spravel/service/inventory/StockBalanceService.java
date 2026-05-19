@@ -228,7 +228,6 @@ public class StockBalanceService {
                 .toList();
     }
 
-    // 🔥 FIX 1: Ubah return type jadi DTO Response biar aman di Controller
     public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
         getAuthenticatedUser();
         return stockBalanceRepository.findByLocationTypeAndLocationId(locationType, locationId).stream()
@@ -245,9 +244,6 @@ public class StockBalanceService {
         Product products = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
 
-
-        List<StockBalance> allStocks = stockBalanceRepository
-                .findByProductPartnerId(currentUser.getPartner().getId());
 
         if (partner == null || !products.getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");

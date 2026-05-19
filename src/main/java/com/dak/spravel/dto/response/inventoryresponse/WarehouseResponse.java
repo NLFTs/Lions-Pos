@@ -16,8 +16,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class WarehouseResponse {
     private Long id;
+
     private PartnerSimpleDto partner;
+
     private String name;
+
     private String address;
 
     @JsonProperty("is_active")
@@ -25,11 +28,13 @@ public class WarehouseResponse {
 
     @JsonProperty("created_at")
     private LocalDateTime createdAt;
+
     @JsonProperty("updated_at")
     private LocalDateTime updatedAt;
 
     @JsonProperty("created_by")
     private UserSimpleDto createdBy;
+    
     @JsonProperty("updated_by")
     private UserSimpleDto updatedBy;
 }
