@@ -49,3 +49,16 @@ src/main/resources/application.properties
 
 # summary
 /summary
+
+
+# Ignore semua isi uploads
+uploads/**
+
+# Tapi tetap izinkan foldernya
+!uploads/
+!uploads/avatar/
+!uploads/products/
+
+# Simpan placeholder supaya folder ikut ke git
+!uploads/avatar/.gitkeep
+!uploads/products/.gitkeep

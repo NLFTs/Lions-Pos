@@ -228,8 +228,18 @@ async function saveProduct() {
   formError.value = null
   saving.value = true
   try {
-    // Note: In real app, we would use FormData to upload the image file.
-    // For now we send standard JSON payload as per backend expectation.
+    let imageUrl = undefined
+    if (form.value.image) {
+      const formData = new FormData()
+      formData.append('file', form.value.image)
+      const uploadRes = await api.post('/api/v1/upload/product', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      imageUrl = uploadRes.data.data.url
+    } else if (form.value.imagePreview === null) {
+      imageUrl = ''
+    }
+
     const payload = {
       name: form.value.name,
       sku: form.value.sku || undefined,
@@ -238,11 +248,9 @@ async function saveProduct() {
       track_stock: form.value.trackStock,
       is_active: form.value.isActive,
     }
-    
-    // If backend supports multipart/form-data:
-    // const formData = new FormData()
-    // Object.entries(payload).forEach(([k,v]) => formData.append(k, v))
-    // if (form.value.image) formData.append('image', form.value.image)
+    if (imageUrl !== undefined) {
+      payload.image_url = imageUrl
+    }
     
     if (modalMode.value === 'create') {
       await api.post('/api/v1/products', payload)
@@ -258,6 +266,11 @@ async function saveProduct() {
   } finally {
     saving.value = false
   }
+}
+
+function removeProductImage() {
+  form.value.image = null
+  form.value.imagePreview = null
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -769,18 +782,30 @@ function productAvatarStyle(name = '') {
                   />
                 </div>
                 <div class="flex flex-col gap-2">
-                  <div class="relative">
-                    <Button type="button" variant="outline" size="sm">
-                      <Upload class="h-3.5 w-3.5 mr-2" />
-                      Pilih Foto
+                  <div class="flex items-center gap-2">
+                    <div class="relative">
+                      <Button type="button" variant="outline" size="sm">
+                        <Upload class="h-3.5 w-3.5 mr-2" />
+                        Pilih Foto
+                      </Button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        @change="handleImageUpload"
+                        :disabled="saving"
+                      />
+                    </div>
+                    <Button
+                      v-if="form.imagePreview"
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="text-destructive hover:bg-destructive/10"
+                      @click="removeProductImage"
+                    >
+                      Hapus Foto
                     </Button>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      @change="handleImageUpload"
-                      :disabled="saving"
-                    />
                   </div>
                   <p class="text-[10px] text-muted-foreground">Format: JPG, PNG. Maks 2MB.</p>
                 </div>

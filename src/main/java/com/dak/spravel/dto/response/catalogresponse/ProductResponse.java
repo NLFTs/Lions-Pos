@@ -54,6 +54,14 @@ public class ProductResponse {
     @JsonProperty("deleted_by")
     private UserSimpleDto deletedBy;
 
+    @JsonProperty("image_url")
+    private String imageUrl;
+
+    @JsonProperty("imageUrl")
+    public String getImageUrlCamel() {
+        return imageUrl;
+    }
+
 
     @Data
     public static class CategoryProductSimpleDto {
