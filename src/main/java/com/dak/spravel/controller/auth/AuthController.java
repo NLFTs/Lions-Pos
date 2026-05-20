@@ -65,6 +65,10 @@ public class AuthController {
                 .distinct()
                 .sorted()
                 .toList());
+        if (user.getBranch() != null) {
+            me.setBranchId(user.getBranch().getId());
+            me.setBranchName(user.getBranch().getName());
+        }
         log.info("[AUTH] User '{}' has permissions: {}", user.getUsername(), me.getPermissions());
         return ResponseBuilder.ok(me);
     }

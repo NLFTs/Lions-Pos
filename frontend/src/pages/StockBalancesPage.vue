@@ -103,17 +103,33 @@ async function fetchData() {
       api.get(urlWarehouses)
     ])
     
-    const dataB = resB.data.data
-    if (Array.isArray(dataB)) {
-      balances.value = dataB
+    const dataB = resB.data?.data
+    if (dataB) {
+      const rawBalances = Array.isArray(dataB) ? dataB : (dataB.content || [])
+      balances.value = rawBalances.map(b => ({
+        ...b,
+        locationType: b.locationType || b.location_type,
+        locationId: b.locationId || b.location_id,
+        updatedAt: b.updatedAt || b.updated_at,
+        updatedBy: b.updatedBy || b.updated_by
+      }))
     } else {
-      balances.value = dataB.content || []
+      balances.value = []
     }
     
     // Combine locations for filter
-    const b = (resBr.data.data || []).map(x => ({ ...x, type: 'branch' }))
-    const w = (resWh.data.data || []).map(x => ({ ...x, type: 'warehouse' }))
-    locations.value = [...b, ...w]
+    // Admin branches: plain List (no wrapper); Partner: ResData<List>
+    const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
+    const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
+    
+    // Admin warehouses: ResData<Page>; Partner: ResData<List>
+    const whRaw = resWh.data?.data
+    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    
+    locations.value = [
+      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...whArr.map(x => ({ ...x, type: 'warehouse' }))
+    ]
     
   } catch (err) {
     toast.error('Gagal memuat data inventaris.')
@@ -150,7 +166,8 @@ async function openAdjustment() {
     try {
       const urlProducts = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
       const res = await api.get(urlProducts)
-      products.value = res.data.data || []
+      const pRaw = res.data?.data
+      products.value = pRaw && pRaw.content ? pRaw.content : (Array.isArray(pRaw) ? pRaw : [])
     } catch (err) {
       toast.error('Gagal memuat produk.')
     }
@@ -166,7 +183,12 @@ async function saveAdjustment() {
   saving.value = true
   formError.value = null
   try {
-    await api.post('/api/v1/stock-balances', form.value)
+    await api.post('/api/v1/stock-balances', {
+      product: form.value.productId,
+      locationType: form.value.locationType,
+      locationId: form.value.locationId,
+      qty: form.value.qty
+    })
     toast.success('Stok berhasil disesuaikan!')
     showDrawer.value = false
     fetchData()

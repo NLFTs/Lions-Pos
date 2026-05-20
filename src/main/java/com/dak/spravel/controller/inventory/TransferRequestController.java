@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -101,5 +102,22 @@ public class TransferRequestController {
         log.info("[DELETE] /api/v1/transfer-requests/{}", id);
         transferRequestService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Update status: pending→approved, approved→received
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('transfer_request.update')")
+    public ResponseEntity<ResData<TransferRequestResponse>> updateStatus(
+            @PathVariable Long id,
+            @RequestParam String status,
+            @RequestBody(required = false) java.util.List<com.dak.spravel.dto.request.inventory.TransferRequestItemDTO> items) {
+        log.info("[PATCH] /api/v1/transfer-requests/{}/status status={}", id, status);
+        TransferRequestResponse result;
+        if ("received".equalsIgnoreCase(status)) {
+            result = transferRequestService.receiveTransfer(id, items != null ? items : java.util.Collections.emptyList());
+        } else {
+            result = transferRequestService.updateStatus(id, status);
+        }
+        return ResponseBuilder.ok(result);
     }
 }

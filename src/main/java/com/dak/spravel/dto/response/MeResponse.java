@@ -14,4 +14,6 @@ public class MeResponse {
     private String fullname;
     private List<String> roles;
     private List<String> permissions;
+    private Long branchId;
+    private String branchName;
 }

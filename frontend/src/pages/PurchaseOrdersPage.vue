@@ -25,7 +25,11 @@ import {
   Calendar,
   Truck,
   MapPin,
-  Package
+  Package,
+  Warehouse,
+  Building2,
+  CheckCircle2,
+  Send
 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -60,7 +64,9 @@ const products = ref([])
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredPOs = computed(() => {
   let r = pos.value
-  if (statusFilter.value !== 'all') r = r.filter(p => p.status === statusFilter.value)
+  if (statusFilter.value !== 'all') {
+    r = r.filter(p => p.status?.toLowerCase() === statusFilter.value.toLowerCase())
+  }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     r = r.filter(p => 
@@ -100,7 +106,7 @@ async function fetchData() {
   loading.value = true
   try {
     const res = await api.get('/api/v1/purchase-orders')
-    pos.value = res.data.data || []
+    pos.value = Array.isArray(res.data) ? res.data : (res.data?.data || [])
   } catch (err) {
     toast.error('Gagal memuat data Purchase Order.')
   } finally {
@@ -116,13 +122,22 @@ async function loadFormOptions() {
       api.get('/api/v1/warehouses'),
       api.get('/api/v1/products')
     ])
-    suppliers.value = resS.data.data || []
+    // Suppliers: plain List without wrapper
+    suppliers.value = Array.isArray(resS.data) ? resS.data : (resS.data?.data || [])
     
-    const branches = (resB.data.data || []).map(x => ({ ...x, type: 'branch' }))
-    const warehouses = (resW.data.data || []).map(x => ({ ...x, type: 'warehouse' }))
+    // Branches: ResData<List>
+    const brData = resB.data?.data || []
+    const branches = (Array.isArray(brData) ? brData : (brData.content || [])).map(x => ({ ...x, type: 'branch' }))
+    
+    // Warehouses: ResData<List> or ResData<Page>
+    const whRaw = resW.data?.data
+    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    const warehouses = whArr.map(x => ({ ...x, type: 'warehouse' }))
     locations.value = [...branches, ...warehouses]
     
-    products.value = resP.data.data || []
+    // Products: ResData<Page>
+    const pData = resP.data?.data
+    products.value = pData && pData.content ? pData.content : (Array.isArray(pData) ? pData : [])
   } catch (err) {
     toast.error('Gagal memuat opsi form.')
   }
@@ -189,24 +204,45 @@ function formatDate(dt) {
 }
 
 function statusColor(s) {
+  if (!s) return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+  const key = s.toLowerCase()
   const map = {
-    received: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
-    ordered: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50',
-    partial: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50',
+    draft: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800/50',
+    ordered: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
+    received: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800/50',
+    partial: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50',
     cancelled: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50'
   }
-  return map[s] || 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+  return map[key] || 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
 }
 
 function statusLabel(s) {
+  if (!s) return '-'
   const m = { draft: 'Draft', ordered: 'Dipesan', partial: 'Sebagian', received: 'Diterima', cancelled: 'Batal' }
-  return m[s] || s
+  return m[s.toLowerCase()] || s
 }
 
 function getLocationName(type, id) {
   // Try to find in loaded locations or use the ones from PO detail
   const loc = locations.value.find(l => l.type === type && l.id === id)
   return loc ? loc.name : `Lokasi #${id}`
+}
+
+// ─── Status Update ──────────────────────────────────────────────────────────────────
+const updatingStatus = ref(false)
+
+async function updatePOStatus(id, newStatus) {
+  updatingStatus.value = true
+  try {
+    await api.patch(`/api/v1/purchase-orders/${id}/status?status=${newStatus}`)
+    toast.success(`Status PO berhasil diubah ke ${statusLabel(newStatus)}!`)
+    showDrawer.value = false
+    fetchData()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal mengubah status PO.')
+  } finally {
+    updatingStatus.value = false
+  }
 }
 
 onMounted(fetchData)
@@ -226,7 +262,7 @@ onMounted(fetchData)
             <DataTableSearch v-model="searchQuery" placeholder="Cari No. PO atau Supplier..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('purchase-order.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('purchase_order.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat PO</span>
           </Button>
@@ -245,7 +281,7 @@ onMounted(fetchData)
               <ClipboardList class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada Purchase Order.</p>
-            <Button v-if="can('purchase-order.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('purchase_order.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Buat PO Pertama
             </Button>
@@ -563,8 +599,36 @@ onMounted(fetchData)
                 <span class="text-2xl font-black text-primary">{{ formatCurrency(selectedPO.total) }}</span>
               </div>
               <div class="flex gap-2">
-                <Button v-if="selectedPO.status === 'draft'" class="flex-1">Kirim PO</Button>
-                <Button v-if="selectedPO.status === 'ordered'" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">Terima Barang</Button>
+                <Button 
+                  v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update')"
+                  class="flex-1"
+                  :disabled="updatingStatus"
+                  @click="updatePOStatus(selectedPO.id, 'ordered')"
+                >
+                  <Send class="h-4 w-4 mr-2" />
+                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                  Kirim PO
+                </Button>
+                <Button 
+                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && can('purchase_order.update')"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  :disabled="updatingStatus"
+                  @click="updatePOStatus(selectedPO.id, 'received')"
+                >
+                  <CheckCircle2 class="h-4 w-4 mr-2" />
+                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                  Terima Barang
+                </Button>
+                <Button 
+                  v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update')"
+                  variant="destructive"
+                  class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border-red-200"
+                  :disabled="updatingStatus"
+                  @click="updatePOStatus(selectedPO.id, 'cancelled')"
+                >
+                  <X class="h-4 w-4 mr-2" />
+                  Batalkan PO
+                </Button>
                 <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
               </div>
             </div>

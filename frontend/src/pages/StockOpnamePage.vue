@@ -101,7 +101,13 @@ async function fetchData() {
   try {
     const url = isAdmin.value ? '/api/v1/stock-opnames/admin' : '/api/v1/stock-opnames'
     const res = await api.get(url)
-    opnames.value = res.data.data || []
+    const dataO = Array.isArray(res.data) ? res.data : (res.data?.data || [])
+    opnames.value = dataO.map(o => ({
+      ...o,
+      locationType: o.locationType || o.location_type,
+      locationId: o.locationId || o.location_id,
+      locationName: o.locationName || o.location_name,
+    }))
   } catch (err) {
     toast.error('Gagal memuat data stock opname.')
   } finally {
@@ -120,10 +126,23 @@ async function loadFormOptions() {
       api.get(urlW),
       api.get(urlP)
     ])
-    const branches = (resB.data.data || []).map(x => ({ ...x, type: 'branch' }))
-    const warehouses = (resW.data.data || []).map(x => ({ ...x, type: 'warehouse' }))
-    locations.value = [...branches, ...warehouses]
-    products.value = resP.data.data || []
+    // Admin branches: plain List (no wrapper); Partner: ResData<List>
+    const brRaw = isAdmin.value ? resB.data : (resB.data?.data || [])
+    const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
+    
+    // Admin warehouses: ResData<Page>; Partner: ResData<List>
+    const whRaw = resW.data?.data
+    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    
+    // Products: ResData<Page> for both
+    const pRaw = resP.data?.data
+    const pArr = pRaw && pRaw.content ? pRaw.content : (Array.isArray(pRaw) ? pRaw : [])
+    
+    locations.value = [
+      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...whArr.map(x => ({ ...x, type: 'warehouse' }))
+    ]
+    products.value = pArr
   } catch (err) {
     toast.error('Gagal memuat opsi lokasi/produk.')
   }
@@ -251,7 +270,7 @@ onMounted(fetchData)
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi atau catatan..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('stock-opname.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('stock_opname.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat Opname</span>
           </Button>
@@ -270,7 +289,7 @@ onMounted(fetchData)
               <PackageSearch class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada data Stock Opname.</p>
-            <Button v-if="can('stock-opname.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('stock_opname.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Mulai Opname Baru
             </Button>

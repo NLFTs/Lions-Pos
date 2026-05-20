@@ -65,6 +65,8 @@ const emptyForm = () => ({
   name: '',
   type: 'warehouse', // 'warehouse' | 'branch'
   address: '',
+  username: '',
+  password: '',
 })
 
 const form = ref(emptyForm())
@@ -81,8 +83,23 @@ async function fetchLocations() {
       api.get(urlB),
       api.get(urlW)
     ])
-    branches.value = resB.data.data || []
-    warehouses.value = resW.data.data || []
+    
+    // Admin branches: returns List<BranchResponse> directly (no ResData)
+    // Partner branches: returns ResData<List<BranchResponse>>
+    if (isAdmin.value) {
+      branches.value = Array.isArray(resB.data) ? resB.data : (resB.data?.data || [])
+    } else {
+      branches.value = resB.data?.data || []
+    }
+    
+    // Admin warehouses: returns ResData<Page<WarehouseResponse>> (paginated)
+    // Partner warehouses: returns ResData<List<WarehouseResponse>>
+    const whData = resW.data?.data
+    if (whData && !Array.isArray(whData) && whData.content) {
+      warehouses.value = whData.content
+    } else {
+      warehouses.value = Array.isArray(whData) ? whData : []
+    }
   } catch (err) {
     error.value = 'Gagal memuat data lokasi.'
     toast.error(error.value)
@@ -115,17 +132,37 @@ async function saveLocation() {
     formError.value = 'Nama lokasi wajib diisi.'
     return
   }
+
+  if (form.value.type === 'branch' && modalMode.value === 'create') {
+    if (!form.value.username?.trim()) {
+      formError.value = 'Username wajib diisi untuk pembuatan Cabang.'
+      return
+    }
+    if (!form.value.password || form.value.password.length < 6) {
+      formError.value = 'Password wajib diisi dan minimal 6 karakter.'
+      return
+    }
+  }
   
   saving.value = true
   formError.value = null
   try {
     const endpoint = form.value.type === 'branch' ? '/api/v1/branches' : '/api/v1/warehouses'
     
+    const payload = {
+      name: form.value.name,
+      address: form.value.address,
+    }
+    if (form.value.type === 'branch') {
+      payload.username = form.value.username
+      payload.password = form.value.password
+    }
+    
     if (modalMode.value === 'create') {
-      await api.post(endpoint, form.value)
+      await api.post(endpoint, payload)
       toast.success(`${form.value.type === 'branch' ? 'Cabang' : 'Gudang'} berhasil ditambahkan!`)
     } else {
-      await api.put(`${endpoint}/${form.value.id}`, form.value)
+      await api.put(`${endpoint}/${form.value.id}`, payload)
       toast.success('Data lokasi berhasil diperbarui!')
     }
     showDrawer.value = false
@@ -354,6 +391,20 @@ onMounted(fetchLocations)
                 placeholder="Alamat lengkap lokasi..."
                 :disabled="saving"
               />
+            </div>
+
+            <div v-if="form.type === 'branch' && modalMode === 'create'" class="space-y-4 border-t border-border pt-4 mt-4">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Akun Pengguna Cabang</h4>
+              
+              <div class="space-y-1.5">
+                <Label for="l-username">Username <span class="text-destructive">*</span></Label>
+                <Input id="l-username" v-model="form.username" placeholder="Username untuk login cabang" :disabled="saving" />
+              </div>
+
+              <div class="space-y-1.5">
+                <Label for="l-password">Password <span class="text-destructive">*</span></Label>
+                <Input id="l-password" type="password" v-model="form.password" placeholder="Password untuk login cabang" :disabled="saving" />
+              </div>
             </div>
           </div>
           <div class="flex justify-end gap-3 px-6 py-4 border-t bg-muted/30">

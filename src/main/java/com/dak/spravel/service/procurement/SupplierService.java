@@ -101,4 +101,24 @@ public class SupplierService {
         supplier.setDeletedBy(currentUser);
         supplierRepository.save(supplier);
     }
+
+    @Transactional
+    public Supplier update(Long id, Supplier updatedData) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        Supplier supplier = supplierRepository.findById(id)
+                .filter(s -> s.getPartner().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Supplier tidak ditemukan atau bukan milik partner Anda"));
+
+        if (updatedData.getName() != null && !updatedData.getName().isBlank()) {
+            supplier.setName(updatedData.getName());
+        }
+        if (updatedData.getPhone() != null) supplier.setPhone(updatedData.getPhone());
+        if (updatedData.getEmail() != null) supplier.setEmail(updatedData.getEmail());
+        if (updatedData.getAddress() != null) supplier.setAddress(updatedData.getAddress());
+        if (updatedData.getNotes() != null) supplier.setNotes(updatedData.getNotes());
+
+        supplier.setUpdatedAt(LocalDateTime.now());
+        supplier.setUpdatedBy(currentUser);
+        return supplierRepository.save(supplier);
+    }
 }

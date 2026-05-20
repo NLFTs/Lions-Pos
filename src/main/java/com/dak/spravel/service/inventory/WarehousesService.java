@@ -20,12 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.dak.spravel.model.inventory.StockBalance;
+import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
+
 @Service
 @RequiredArgsConstructor
 public class WarehousesService {
 
     private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
+    private final StockBalanceRepository stockBalanceRepository;
+    private final ProductRepository productRepository;
 
     // =========================
     // AUTH HELPERS (POLA BARU)
@@ -159,7 +166,23 @@ public class WarehousesService {
         warehouse.setCreatedAt(LocalDateTime.now());
         warehouse.setCreatedBy(currentUser);
 
-        return mapToResponse(warehousesRepository.save(warehouse));
+        Warehouses savedWarehouse = warehousesRepository.save(warehouse);
+
+        // Inisialisasi Stock Balance untuk semua produk partner di warehouse baru
+        List<Product> products = productRepository.findAllByPartner(partners);
+        for (Product product : products) {
+            StockBalance stock = new StockBalance();
+            stock.setProduct(product);
+            stock.setLocationType("WAREHOUSE");
+            stock.setLocationId(savedWarehouse.getId());
+            stock.setQty(0L);
+            stock.setCreatedAt(LocalDateTime.now());
+            stock.setCreatedBy(currentUser);
+            stock.setUpdatedBy(currentUser);
+            stockBalanceRepository.save(stock);
+        }
+
+        return mapToResponse(savedWarehouse);
     }
 
     @Transactional
@@ -172,5 +195,23 @@ public class WarehousesService {
         warehouse.setDeletedAt(LocalDateTime.now());
         warehouse.setDeletedBy(currentUser);
         warehousesRepository.save(warehouse);
+    }
+
+    @Transactional
+    public WarehouseResponse update(Long id, WarehousesRequestDTO request) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        Warehouses warehouse = warehousesRepository.findById(id)
+                .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse tidak ditemukan atau bukan milik partner Anda"));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            warehouse.setName(request.getName());
+        }
+        if (request.getAddress() != null) {
+            warehouse.setAddress(request.getAddress());
+        }
+        warehouse.setUpdatedAt(LocalDateTime.now());
+        warehouse.setUpdatedBy(currentUser);
+        return mapToResponse(warehousesRepository.save(warehouse));
     }
 }

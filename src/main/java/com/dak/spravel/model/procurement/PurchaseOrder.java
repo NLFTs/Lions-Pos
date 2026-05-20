@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,6 +20,7 @@ import lombok.NoArgsConstructor;
     name = "purchase_orders",
     uniqueConstraints = @UniqueConstraint(columnNames = {"partner_id", "po_number"})
 )
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PurchaseOrder  {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,10 +28,12 @@ public class PurchaseOrder  {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "createdBy", "updatedBy", "deletedBy"})
     private Partners partner;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "supplier_id", referencedColumnName = "id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "partner", "createdBy", "updatedBy", "deletedBy"})
     private Supplier supplier;
 
     @Column(nullable = false, updatable = false)
@@ -128,13 +132,16 @@ public class PurchaseOrder  {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by", referencedColumnName = "id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "roles", "partner"})
     private User updatedBy;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "roles", "partner"})
     private User createdBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "roles", "partner"})
     private User deletedBy;
 }

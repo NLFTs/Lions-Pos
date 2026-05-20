@@ -40,6 +40,10 @@ public class User   {
     @JoinColumn(name = "partner_id", referencedColumnName = "id")
     private Partners partner;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "branch_id", referencedColumnName = "id")
+    private com.dak.spravel.model.inventory.Branches branch;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "user_roles",

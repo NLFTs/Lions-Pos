@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import AppLayout from '@/components/AppLayout.vue'
@@ -15,6 +17,8 @@ import api from '@/lib/api'
 
 const { can } = usePermission()
 const { toast } = useToast()
+const auth = useAuthStore()
+const { isAdmin } = storeToRefs(auth)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const orders = ref([])
@@ -29,7 +33,8 @@ const detailDrawer = ref({ show: false, order: null })
 async function fetchOrders() {
   loading.value = true
   try {
-    const res = await api.get('/api/v1/orders')
+    const url = isAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
+    const res = await api.get(url)
     const data = res.data.data
     orders.value = Array.isArray(data) ? data : (data.content || [])
   } catch (err) {

@@ -37,7 +37,7 @@ import {
 } from 'lucide-vue-next'
 
 const auth = useAuthStore()
-const { user } = storeToRefs(auth)
+const { user, isAdmin } = storeToRefs(auth)
 const { can } = usePermission()
 
 const loading = ref(true)
@@ -82,9 +82,10 @@ async function fetchStats() {
   loading.value = true
   error.value = null
   try {
+    const productsUrl = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
     const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes] = await Promise.allSettled([
       api.get('/api/v1/users'),
-      api.get('/api/v1/products'),
+      api.get(productsUrl),
       api.get('/api/v1/categories'),
       api.get('/api/v1/roles'),
       api.get('/api/v1/permissions'),

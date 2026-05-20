@@ -89,7 +89,7 @@ export const routes = [
     component: () => import('@/pages/LocationsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'location.index',
+      permission: 'branch.index',
       pageTitle: 'Manajemen Lokasi',
       pageSubtitle: 'Atur data gudang dan cabang.',
     },
@@ -208,7 +208,7 @@ export const routes = [
     component: () => import('@/pages/PurchaseOrdersPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'purchase-order.index',
+      permission: 'purchase_order.index',
       pageTitle: 'Purchase Order',
       pageSubtitle: 'Kelola pesanan pembelian barang.',
     },
@@ -219,7 +219,7 @@ export const routes = [
     component: () => import('@/pages/TransferRequestsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'transfer-request.index',
+      permission: 'transfer_request.index',
       pageTitle: 'Transfer Stok',
       pageSubtitle: 'Kelola permintaan transfer antar lokasi.',
     },
@@ -230,7 +230,7 @@ export const routes = [
     component: () => import('@/pages/StockOpnamePage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'stock-opname.index',
+      permission: 'stock_opname.index',
       pageTitle: 'Stock Opname',
       pageSubtitle: 'Hitung dan rekonsiliasi stok fisik.',
     },

@@ -22,7 +22,6 @@ const { confirm } = useConfirm()
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const vouchers = ref([])
-const partners = ref([])
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
@@ -51,17 +50,16 @@ const formError = ref(null)
 
 const emptyForm = () => ({
   id: null,
-  partner_id: '',
   code: '',
   name: '',
-  discount_type: 'percent',
-  discount_value: 0,
-  min_purchase: 0,
-  max_discount: null,
+  discountType: 'percent',
+  discountValue: 0,
+  minPurchase: 0,
+  maxDiscount: null,
   quota: null,
-  valid_from: '',
-  valid_until: '',
-  is_active: true,
+  validFrom: '',
+  validUntil: '',
+  isActive: true,
 })
 
 const form = ref(emptyForm())
@@ -109,21 +107,17 @@ async function confirmDelete() {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 async function fetchVouchers() {
   loading.value = true
+  error.value = null
   try {
     const res = await api.get('/api/v1/vouchers')
-    vouchers.value = res.data.data
+    // Backend returns plain List<VoucherResponse> without ResData wrapper
+    vouchers.value = Array.isArray(res.data) ? res.data : (res.data?.data || [])
   } catch (err) {
     error.value = 'Gagal memuat data voucer.'
+    toast.error('Gagal memuat data voucer.')
   } finally {
     loading.value = false
   }
-}
-
-async function fetchPartners() {
-  try {
-    const res = await api.get('/api/v1/partners')
-    partners.value = res.data.data
-  } catch (err) {}
 }
 
 function openCreate() {
@@ -134,10 +128,16 @@ function openCreate() {
 }
 
 function openEdit(v) {
-  form.value = { ...v }
-  // Format dates for input type="date"
-  if (form.value.valid_from) form.value.valid_from = form.value.valid_from.split('T')[0]
-  if (form.value.valid_until) form.value.valid_until = form.value.valid_until.split('T')[0]
+  form.value = {
+    ...v,
+    discountType: v.discountType || v.discount_type || 'percent',
+    discountValue: v.discountValue ?? v.discount_value ?? 0,
+    minPurchase: v.minPurchase ?? v.min_purchase ?? 0,
+    maxDiscount: v.maxDiscount ?? v.max_discount ?? null,
+    isActive: v.isActive ?? v.is_active ?? true,
+    validFrom: (v.validFrom || v.valid_from || '').split('T')[0],
+    validUntil: (v.validUntil || v.valid_until || '').split('T')[0],
+  }
   formError.value = null
   modalMode.value = 'edit'
   showDrawer.value = true
@@ -168,13 +168,21 @@ function formatCurrency(val) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val)
 }
 
-function getPartnerName(id) {
-  return partners.value.find(p => p.id === id)?.name || 'Unknown Partner'
+function discountDisplay(v) {
+  const type = v.discountType || v.discount_type
+  const val = v.discountValue ?? v.discount_value ?? 0
+  return type === 'percent' ? `${val}%` : formatCurrency(val)
 }
+
+function getMinPurchase(v) { return v.minPurchase ?? v.min_purchase ?? 0 }
+function getQuota(v) { return v.quota ?? null }
+function getUsedCount(v) { return v.usedCount ?? v.used_count ?? 0 }
+function getValidUntil(v) { return v.validUntil || v.valid_until || null }
+function getValidFrom(v) { return v.validFrom || v.valid_from || null }
+function getIsActive(v) { return v.isActive ?? v.is_active ?? true }
 
 onMounted(() => {
   fetchVouchers()
-  fetchPartners()
 })
 </script>
 
@@ -252,28 +260,27 @@ onMounted(() => {
                   <div class="space-y-1">
                     <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Diskon</span>
                     <div class="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                      {{ v.discount_type === 'percent' ? v.discount_value + '%' : formatCurrency(v.discount_value) }}
+                      {{ discountDisplay(v) }}
                     </div>
                   </div>
                   <div class="space-y-1">
                     <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Kuota</span>
                     <div class="text-xs font-medium text-zinc-800 dark:text-zinc-200">
-                      {{ v.quota || '∞' }} / {{ v.used_count || 0 }}
+                      {{ getQuota(v) || '∞' }} / {{ getUsedCount(v) }}
                     </div>
                   </div>
                   <div class="space-y-1 col-span-2">
                     <span class="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Berlaku Sampai</span>
                     <div class="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                       <Calendar class="h-3 w-3" />
-                      <span>{{ v.valid_until || 'Selamanya' }}</span>
+                      <span>{{ getValidUntil(v) || 'Selamanya' }}</span>
                     </div>
                   </div>
                 </div>
 
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] text-muted-foreground">{{ getPartnerName(v.partner_id) }}</span>
-                  <Badge :variant="v.is_active ? 'default' : 'secondary'" class="text-[9px] px-1.5 py-0">
-                    {{ v.is_active ? 'Aktif' : 'Nonaktif' }}
+                <div class="flex items-center justify-end">
+                  <Badge :variant="getIsActive(v) ? 'default' : 'secondary'" class="text-[9px] px-1.5 py-0">
+                    {{ getIsActive(v) ? 'Aktif' : 'Nonaktif' }}
                   </Badge>
                 </div>
               </div>
@@ -298,26 +305,25 @@ onMounted(() => {
                       <div class="flex flex-col">
                         <span class="font-mono text-xs font-bold text-primary">{{ v.code }}</span>
                         <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ v.name }}</span>
-                        <span class="text-[10px] text-muted-foreground">{{ getPartnerName(v.partner_id) }}</span>
                       </div>
                     </td>
                     <td class="px-5 py-3">
                       <div class="flex flex-col">
                         <span class="font-semibold text-zinc-800 dark:text-zinc-200">
-                          {{ v.discount_type === 'percent' ? v.discount_value + '%' : formatCurrency(v.discount_value) }}
+                          {{ discountDisplay(v) }}
                         </span>
-                        <span v-if="v.min_purchase > 0" class="text-[10px] text-muted-foreground">
-                          Min. {{ formatCurrency(v.min_purchase) }}
+                        <span v-if="getMinPurchase(v) > 0" class="text-[10px] text-muted-foreground">
+                          Min. {{ formatCurrency(getMinPurchase(v)) }}
                         </span>
                       </div>
                     </td>
                     <td class="px-5 py-3">
                       <div class="flex flex-col">
-                        <span class="text-xs">{{ v.quota || '∞' }} / {{ v.used_count || 0 }}</span>
+                        <span class="text-xs">{{ getQuota(v) || '∞' }} / {{ getUsedCount(v) }}</span>
                         <div class="w-24 h-1 bg-muted rounded-full mt-1.5 overflow-hidden">
                           <div 
                             class="h-full bg-primary" 
-                            :style="{ width: v.quota ? Math.min((v.used_count / v.quota) * 100, 100) + '%' : '0%' }"
+                            :style="{ width: getQuota(v) ? Math.min((getUsedCount(v) / getQuota(v)) * 100, 100) + '%' : '0%' }"
                           />
                         </div>
                       </div>
@@ -326,17 +332,17 @@ onMounted(() => {
                       <div class="flex flex-col gap-0.5 text-muted-foreground">
                         <div class="flex items-center gap-1">
                           <Calendar class="h-3 w-3" />
-                          <span>{{ v.valid_from || '-' }}</span>
+                          <span>{{ getValidFrom(v) || '-' }}</span>
                         </div>
                         <div class="flex items-center gap-1">
                           <Calendar class="h-3 w-3" />
-                          <span>{{ v.valid_until || '-' }}</span>
+                          <span>{{ getValidUntil(v) || '-' }}</span>
                         </div>
                       </div>
                     </td>
                     <td class="px-5 py-3">
-                      <Badge :variant="v.is_active ? 'default' : 'secondary'" class="text-[10px] px-2 py-0.5">
-                        {{ v.is_active ? 'Aktif' : 'Nonaktif' }}
+                      <Badge :variant="getIsActive(v) ? 'default' : 'secondary'" class="text-[10px] px-2 py-0.5">
+                        {{ getIsActive(v) ? 'Aktif' : 'Nonaktif' }}
                       </Badge>
                     </td>
                     <td class="px-5 py-3 text-right">
@@ -388,18 +394,9 @@ onMounted(() => {
           <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar">
             <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
 
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-1.5">
-                <Label for="code">Kode Voucer <span class="text-destructive">*</span></Label>
-                <Input id="code" v-model="form.code" placeholder="CONTOH: PROMO10" class="font-mono uppercase" />
-              </div>
-              <div class="space-y-1.5">
-                <Label for="partner">Partner <span class="text-destructive">*</span></Label>
-                <select id="partner" v-model="form.partner_id" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="" disabled>Pilih Partner</option>
-                  <option v-for="p in partners" :key="p.id" :value="p.id">{{ p.name }}</option>
-                </select>
-              </div>
+            <div class="space-y-1.5">
+              <Label for="code">Kode Voucer <span class="text-destructive">*</span></Label>
+              <Input id="code" v-model="form.code" placeholder="CONTOH: PROMO10" class="font-mono uppercase" />
             </div>
 
             <div class="space-y-1.5">
@@ -409,26 +406,26 @@ onMounted(() => {
 
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <Label for="discount_type">Tipe Diskon</Label>
-                <select id="discount_type" v-model="form.discount_type" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <Label for="discountType">Tipe Diskon</Label>
+                <select id="discountType" v-model="form.discountType" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
                   <option value="percent">Persentase (%)</option>
                   <option value="fixed">Nominal Tetap (Rp)</option>
                 </select>
               </div>
               <div class="space-y-1.5">
-                <Label for="discount_value">Nilai Diskon <span class="text-destructive">*</span></Label>
-                <Input id="discount_value" type="number" v-model="form.discount_value" />
+                <Label for="discountValue">Nilai Diskon <span class="text-destructive">*</span></Label>
+                <Input id="discountValue" type="number" v-model="form.discountValue" />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <Label for="min_purchase">Min. Pembelian</Label>
-                <Input id="min_purchase" type="number" v-model="form.min_purchase" />
+                <Label for="minPurchase">Min. Pembelian</Label>
+                <Input id="minPurchase" type="number" v-model="form.minPurchase" />
               </div>
               <div class="space-y-1.5">
-                <Label for="max_discount">Maks. Diskon (Cap)</Label>
-                <Input id="max_discount" type="number" v-model="form.max_discount" placeholder="Kosongkan jika tidak ada cap" />
+                <Label for="maxDiscount">Maks. Diskon (Cap)</Label>
+                <Input id="maxDiscount" type="number" v-model="form.maxDiscount" placeholder="Kosongkan jika tidak ada cap" />
               </div>
             </div>
 
@@ -439,20 +436,20 @@ onMounted(() => {
               </div>
               <div class="space-y-1.5 flex flex-col justify-end">
                 <div class="flex items-center space-x-2 h-10">
-                  <input type="checkbox" id="is_active" v-model="form.is_active" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                  <Label for="is_active" class="cursor-pointer">Status Aktif</Label>
+                  <input type="checkbox" id="isActive" v-model="form.isActive" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                  <Label for="isActive" class="cursor-pointer">Status Aktif</Label>
                 </div>
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-4 pt-2">
               <div class="space-y-1.5">
-                <Label for="valid_from">Berlaku Dari</Label>
-                <Input id="valid_from" type="date" v-model="form.valid_from" />
+                <Label for="validFrom">Berlaku Dari</Label>
+                <Input id="validFrom" type="date" v-model="form.validFrom" />
               </div>
               <div class="space-y-1.5">
-                <Label for="valid_until">Berlaku Sampai</Label>
-                <Input id="valid_until" type="date" v-model="form.valid_until" />
+                <Label for="validUntil">Berlaku Sampai</Label>
+                <Input id="validUntil" type="date" v-model="form.validUntil" />
               </div>
             </div>
           </div>
