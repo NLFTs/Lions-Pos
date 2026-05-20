@@ -48,10 +48,21 @@ public class JwtUtil {
         return getClaims(token).getSubject();
     }
 
+    // public boolean validateToken(String token) {
+    //     try {
+    //         getClaims(token);
+    //         return true;
+    //     } catch (JwtException | IllegalArgumentException e) {
+    //         return false;
+    //     }
+    // }
+
     public boolean validateToken(String token) {
         try {
             getClaims(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            throw e; 
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
