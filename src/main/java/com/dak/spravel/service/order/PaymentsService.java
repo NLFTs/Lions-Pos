@@ -15,7 +15,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -80,12 +79,12 @@ public class PaymentsService {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
 
-        if (payment.getOrders() == null) {
+        if (payment.getOrder() == null) {
             throw new RuntimeException("Payment tidak memiliki order.");
         }
         
-        boolean valid =payment.getOrders().getPartner() != null &&
-        payment.getOrders().getPartner().getId()
+        boolean valid =payment.getOrder().getPartner() != null &&
+        payment.getOrder().getPartner().getId()
         .equals(currentUser.getPartner().getId());
 
         if (!valid) {
@@ -109,7 +108,7 @@ public class PaymentsService {
 
         return paymentsRepository.findAll()
                 .stream()
-                .filter(payment -> payment.getOrders() != null && payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
+                .filter(payment -> payment.getOrder() != null && payment.getOrder().getPartner() != null && payment.getOrder().getPartner().getId()
                 .equals(currentUser.getPartner().getId()))
                 .toList();
     }
@@ -126,9 +125,9 @@ public class PaymentsService {
 
         return paymentsRepository.findAll(pageRequest)
                 .map(payment -> {
-                    if (payment.getOrders() == null) return null;
+                    if (payment.getOrder() == null) return null;
 
-                    boolean allowed = payment.getOrders().getPartner() != null && payment.getOrders().getPartner().getId()
+                    boolean allowed = payment.getOrder().getPartner() != null && payment.getOrder().getPartner().getId()
                     .equals(currentUser.getPartner().getId());
                     return allowed ? payment : null;
                 });
@@ -150,7 +149,7 @@ public class PaymentsService {
 
         Payments payments = new Payments();
 
-        payments.setOrders(orders);
+        payments.setOrder(orders);
         payments.setMethod(Payments.Method.valueOf(request.getMethod().toUpperCase()));
         payments.setAmount(request.getAmount());
         payments.setCreatedAt(LocalDateTime.now());

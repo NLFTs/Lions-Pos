@@ -2,6 +2,7 @@
 
     import com.dak.spravel.dto.request.order.OrdersRequest;
     import com.dak.spravel.dto.response.ResData;
+    import com.dak.spravel.dto.response.order.OrdersResponse;
     import com.dak.spravel.model.order.Orders;
     import com.dak.spravel.service.order.OrdersService;
     import com.dak.spravel.util.ResponseBuilder;
@@ -32,21 +33,21 @@
         // PARTNER / EMPLOYEE ONLY
         @GetMapping
         @PreAuthorize("hasAuthority('order.index')")
-        public ResponseEntity<ResData<List<Orders>>> findAll() {
+        public ResponseEntity<ResData<List<OrdersResponse>>> findAll() {
             log.info("[GET] /api/v1/orders");
             return ResponseBuilder.ok(ordersService.findAll());
         }
 
         @GetMapping("/{id}")
         @PreAuthorize("hasAuthority('order.show')")
-        public ResponseEntity<ResData<Orders>> findById(@PathVariable Long id) {
+        public ResponseEntity<ResData<OrdersResponse>> findById(@PathVariable Long id) {
             log.info("[GET] /api/v1/orders/{}", id);
             return ResponseBuilder.ok(ordersService.findById(id));
         }
 
         @PostMapping
         @PreAuthorize("hasAuthority('order.store')")
-        public ResponseEntity<ResData<Orders>> create(@RequestBody OrdersRequest request) {
+        public ResponseEntity<ResData<OrdersResponse>> create(@RequestBody OrdersRequest request) {
             log.info("[POST] /api/v1/orders - Request: {}", request);
             return ResponseBuilder.ok(ordersService.create(request));
         }

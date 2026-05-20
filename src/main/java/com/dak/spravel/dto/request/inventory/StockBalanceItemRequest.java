@@ -1,7 +1,7 @@
 package com.dak.spravel.dto.request.inventory;
 
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -13,6 +13,6 @@ public class StockBalanceItemRequest {
     private Long productId;
 
     @NotNull(message = "qty wajib diisi")
-    @PositiveOrZero(message = "qty tidak boleh negatif")
-    private BigDecimal qty;
+    @Positive(message = "qty minimal harus 1")
+    private Long qty;
 }

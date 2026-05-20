@@ -29,7 +29,9 @@ import {
   Warehouse,
   Building2,
   CheckCircle2,
-  Send
+  Send,
+  Copy,
+  ClipboardCheck
 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -44,11 +46,11 @@ const page = ref(1)
 const pageSize = ref(10)
 
 const statusOptions = [
-  { value: 'all', label: 'Semua Status' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'ordered', label: 'Dipesan' },
-  { value: 'received', label: 'Diterima' },
-  { value: 'cancelled', label: 'Batal' }
+  { value: 'all', label: 'Semua Status', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-zinc-100/70 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700 focus:bg-zinc-200/60 dark:focus:bg-zinc-800/80' },
+  { value: 'draft', label: 'Draft', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-orange-100/70 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/40 focus:bg-orange-200/50 dark:focus:bg-orange-950/55' },
+  { value: 'ordered', label: 'Dipesan', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-emerald-100/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 focus:bg-emerald-200/50 dark:focus:bg-emerald-950/55' },
+  { value: 'received', label: 'Diterima', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-teal-100/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 focus:bg-teal-200/50 dark:focus:bg-teal-950/55' },
+  { value: 'cancelled', label: 'Batal', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-red-100/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 focus:bg-red-200/50 dark:focus:bg-red-950/55' }
 ]
 
 const locationTypeOptions = [
@@ -102,6 +104,31 @@ const emptyForm = () => ({
 const form = ref(emptyForm())
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
+const locationsLoaded = ref(false)
+const updatingPoId = ref(null)
+
+async function loadLocations() {
+  if (locationsLoaded.value) return
+  try {
+    const [resB, resW] = await Promise.all([
+      api.get('/api/v1/branches'),
+      api.get('/api/v1/warehouses')
+    ])
+    // Branches: ResData<List>
+    const brData = resB.data?.data || []
+    const branches = (Array.isArray(brData) ? brData : (brData.content || [])).map(x => ({ ...x, type: 'branch' }))
+    
+    // Warehouses: ResData<List> or ResData<Page>
+    const whRaw = resW.data?.data
+    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    const warehouses = whArr.map(x => ({ ...x, type: 'warehouse' }))
+    locations.value = [...branches, ...warehouses]
+    locationsLoaded.value = true
+  } catch (err) {
+    console.error('Gagal memuat lokasi:', err)
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
@@ -116,28 +143,18 @@ async function fetchData() {
 
 async function loadFormOptions() {
   try {
-    const [resS, resB, resW, resP] = await Promise.all([
+    const [resS, resP] = await Promise.all([
       api.get('/api/v1/suppliers'),
-      api.get('/api/v1/branches'),
-      api.get('/api/v1/warehouses'),
       api.get('/api/v1/products')
     ])
     // Suppliers: plain List without wrapper
     suppliers.value = Array.isArray(resS.data) ? resS.data : (resS.data?.data || [])
     
-    // Branches: ResData<List>
-    const brData = resB.data?.data || []
-    const branches = (Array.isArray(brData) ? brData : (brData.content || [])).map(x => ({ ...x, type: 'branch' }))
-    
-    // Warehouses: ResData<List> or ResData<Page>
-    const whRaw = resW.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
-    const warehouses = whArr.map(x => ({ ...x, type: 'warehouse' }))
-    locations.value = [...branches, ...warehouses]
-    
     // Products: ResData<Page>
     const pData = resP.data?.data
     products.value = pData && pData.content ? pData.content : (Array.isArray(pData) ? pData : [])
+    
+    await loadLocations()
   } catch (err) {
     toast.error('Gagal memuat opsi form.')
   }
@@ -222,16 +239,71 @@ function statusLabel(s) {
   return m[s.toLowerCase()] || s
 }
 
+function statusDotClass(s) {
+  if (!s) return 'bg-zinc-400 dark:bg-zinc-500 shadow-[0_0_8px_#a1a1aa]'
+  const key = s.toLowerCase()
+  const map = {
+    draft: 'bg-orange-500 shadow-[0_0_8px_#f97316] dark:shadow-[0_0_8px_#ea580c]',
+    ordered: 'bg-emerald-500 shadow-[0_0_8px_#10b981] dark:shadow-[0_0_8px_#059669]',
+    received: 'bg-teal-500 shadow-[0_0_8px_#14b8a6] dark:shadow-[0_0_8px_#0d9488]',
+    partial: 'bg-blue-500 shadow-[0_0_8px_#3b82f6] dark:shadow-[0_0_8px_#2563eb]',
+    cancelled: 'bg-red-500 shadow-[0_0_8px_#ef4444] dark:shadow-[0_0_8px_#dc2626]'
+  }
+  return map[key] || 'bg-zinc-400 dark:bg-zinc-500 shadow-[0_0_8px_#a1a1aa]'
+}
+
 function getLocationName(type, id) {
   // Try to find in loaded locations or use the ones from PO detail
   const loc = locations.value.find(l => l.type === type && l.id === id)
   return loc ? loc.name : `Lokasi #${id}`
 }
 
+// ─── Copy Helpers ─────────────────────────────────────────────────────────────
+const copiedCode = ref(false)
+const copiedAll = ref(false)
+
+function copyPOCode() {
+  if (!selectedPO.value?.poNumber) return
+  navigator.clipboard.writeText(selectedPO.value.poNumber).then(() => {
+    copiedCode.value = true
+    setTimeout(() => { copiedCode.value = false }, 2000)
+  })
+}
+
+function copyAllInfo() {
+  if (!selectedPO.value) return
+  const po = selectedPO.value
+  const lines = [
+    `Purchase Order: ${po.poNumber}`,
+    `Status: ${statusLabel(po.status)}`,
+    ``,
+    `Supplier: ${po.supplier?.name || '-'}`,
+    `Alamat Supplier: ${po.supplier?.address || '-'}`,
+    `Telepon: ${po.supplier?.phone || '-'}`,
+    ``,
+    `Tujuan: ${getLocationName(po.locationType, po.locationId)} (${po.locationType})`,
+    `Tanggal Order: ${formatDate(po.orderDate || po.createdAt)}`,
+    `Estimasi Tiba: ${formatDate(po.expectedDate)}`,
+    ``,
+    `Item Pesanan:`,
+    ...(po.items || []).map((item, i) => 
+      `  ${i + 1}. ${item.product?.name || `Produk #${item.productId}`} — ${item.qtyOrdered} pcs × ${formatCurrency(item.unitCost)} = ${formatCurrency(item.qtyOrdered * item.unitCost)}`
+    ),
+    ``,
+    `Total: ${formatCurrency(po.total)}`,
+    ...(po.notes ? [``, `Catatan: ${po.notes}`] : [])
+  ]
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    copiedAll.value = true
+    setTimeout(() => { copiedAll.value = false }, 2000)
+  })
+}
+
 // ─── Status Update ──────────────────────────────────────────────────────────────────
 const updatingStatus = ref(false)
 
 async function updatePOStatus(id, newStatus) {
+  updatingPoId.value = id
   updatingStatus.value = true
   try {
     await api.patch(`/api/v1/purchase-orders/${id}/status?status=${newStatus}`)
@@ -242,10 +314,14 @@ async function updatePOStatus(id, newStatus) {
     toast.error(err.response?.data?.message || 'Gagal mengubah status PO.')
   } finally {
     updatingStatus.value = false
+    updatingPoId.value = null
   }
 }
 
-onMounted(fetchData)
+onMounted(async () => {
+  fetchData()
+  await loadLocations()
+})
 </script>
 
 <template>
@@ -290,21 +366,61 @@ onMounted(fetchData)
           <div v-else>
             <!-- Mobile List -->
             <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
-              <div v-for="po in paginatedPOs" :key="po.id" class="p-4 flex flex-col gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="openDetail(po)">
+              <div v-for="po in paginatedPOs" :key="po.id" class="p-4 flex flex-col gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="openDetail(po)">
                 <div class="flex justify-between items-center">
-                  <span class="font-mono text-[11px] font-bold text-primary">{{ po.poNumber }}</span>
-                  <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(po.status)]" variant="outline">
-                    {{ statusLabel(po.status) }}
-                  </Badge>
+                  <span class="font-mono text-[11px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">{{ po.poNumber }}</span>
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <span :class="['w-1.5 h-1.5 rounded-full animate-pulse shrink-0', statusDotClass(po.status)]"></span>
+                    <span>{{ statusLabel(po.status) }}</span>
+                  </div>
                 </div>
-                <div class="flex justify-between items-end mt-1">
+                <div class="flex justify-between items-start mt-0.5">
                   <div>
-                    <div class="text-sm font-medium">{{ po.supplier?.name }}</div>
-                    <div class="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Calendar class="h-3 w-3" /> {{ formatDate(po.createdAt) }}
+                    <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ po.supplier?.name }}</div>
+                    <div class="text-[10px] text-zinc-400 italic mb-1">{{ po.supplier?.phone || '' }}</div>
+                    <div class="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-1">
+                      <Warehouse v-if="po.locationType === 'warehouse'" class="h-3 w-3 opacity-60" />
+                      <Building2 v-else class="h-3 w-3 opacity-60" />
+                      <span>{{ getLocationName(po.locationType, po.locationId) }}</span>
+                    </div>
+                    <div class="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-1.5">
+                      <div class="flex items-center gap-1">
+                        <Calendar class="h-3 w-3 opacity-60" /> <span class="font-medium text-zinc-600 dark:text-zinc-400">Pesan:</span> {{ formatDate(po.orderDate || po.createdAt) }}
+                      </div>
+                      <div class="flex items-center gap-1">
+                        <Truck class="h-3 w-3 opacity-60" /> <span class="font-medium text-zinc-600 dark:text-zinc-400">Tiba:</span> {{ formatDate(po.expectedDate) }}
+                      </div>
                     </div>
                   </div>
-                  <div class="text-sm font-bold">{{ formatCurrency(po.total) }}</div>
+                  <div class="text-sm font-bold text-right text-zinc-900 dark:text-zinc-100">{{ formatCurrency(po.total) }}</div>
+                </div>
+                
+                <!-- Action Buttons directly on Mobile Card -->
+                <div v-if="['draft', 'ordered'].includes(po.status?.toLowerCase()) && can('purchase_order.update')" class="flex justify-end gap-2 mt-1 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40">
+                  <Button 
+                    v-if="po.status?.toLowerCase() === 'draft'"
+                    size="sm"
+                    variant="outline"
+                    class="h-7 w-28 text-[11px] flex items-center justify-center gap-1 bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-700 shrink-0"
+                    :disabled="updatingStatus"
+                    @click.stop="updatePOStatus(po.id, 'ordered')"
+                  >
+                    <Loader2 v-if="updatingPoId === po.id" class="h-3 w-3 animate-spin" />
+                    <Send v-else class="h-3 w-3 text-primary" />
+                    <span>Kirim PO</span>
+                  </Button>
+                  
+                  <Button 
+                    v-if="po.status?.toLowerCase() === 'ordered'"
+                    size="sm"
+                    class="h-7 w-28 text-[11px] flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                    :disabled="updatingStatus"
+                    @click.stop="updatePOStatus(po.id, 'received')"
+                  >
+                    <Loader2 v-if="updatingPoId === po.id" class="h-3 w-3 animate-spin" />
+                    <CheckCircle2 v-else class="h-3 w-3 text-white" />
+                    <span>Terima Barang</span>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -319,7 +435,8 @@ onMounted(fetchData)
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tujuan</th>
                     <th class="py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Total</th>
                     <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
-                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tanggal</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tgl Dipesan</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Estimasi Tiba</th>
                     <th class="pr-5 py-3 text-right"></th>
                   </tr>
                 </thead>
@@ -335,27 +452,58 @@ onMounted(fetchData)
                       <div class="text-[10px] text-zinc-400 italic">{{ po.supplier?.phone || '' }}</div>
                     </td>
                     <td class="py-4">
-                      <div class="flex items-center gap-1.5 text-xs">
-                        <Warehouse v-if="po.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
-                        <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
-                        {{ po.locationName || `ID: ${po.locationId}` }}
+                      <div class="flex items-center gap-1.5 text-xs text-zinc-700 dark:text-zinc-300">
+                        <Warehouse v-if="po.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-60" />
+                        <Building2 v-else class="h-3.5 w-3.5 opacity-60" />
+                        <span>{{ getLocationName(po.locationType, po.locationId) }}</span>
                       </div>
                     </td>
                     <td class="py-4 text-right font-bold text-zinc-900 dark:text-zinc-100">
                       {{ formatCurrency(po.total) }}
                     </td>
                     <td class="py-4 text-center">
-                      <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(po.status)]" variant="outline">
-                        {{ statusLabel(po.status) }}
-                      </Badge>
+                      <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        <span :class="['w-2 h-2 rounded-full animate-pulse shrink-0', statusDotClass(po.status)]"></span>
+                        <span>{{ statusLabel(po.status) }}</span>
+                      </div>
                     </td>
                     <td class="py-4 text-xs text-muted-foreground">
-                      {{ formatDate(po.createdAt) }}
+                      {{ formatDate(po.orderDate || po.createdAt) }}
+                    </td>
+                    <td class="py-4 text-xs text-muted-foreground">
+                      {{ formatDate(po.expectedDate) }}
                     </td>
                     <td class="pr-5 py-4 text-right">
-                      <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openDetail(po)">
-                        <Eye class="h-4 w-4" />
-                      </Button>
+                      <div class="flex items-center justify-end gap-2">
+                        <Button 
+                          v-if="po.status?.toLowerCase() === 'draft' && can('purchase_order.update')"
+                          size="sm"
+                          variant="outline"
+                          class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-700 hover:text-zinc-900 shrink-0"
+                          :disabled="updatingStatus"
+                          @click.stop="updatePOStatus(po.id, 'ordered')"
+                        >
+                          <Loader2 v-if="updatingPoId === po.id" class="h-3.5 w-3.5 animate-spin" />
+                          <Send v-else class="h-3.5 w-3.5 text-primary" />
+                          <span>Kirim PO</span>
+                        </Button>
+                        
+                        <Button 
+                          v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update')"
+                          size="sm"
+                          class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm shrink-0"
+                          :disabled="updatingStatus"
+                          @click.stop="updatePOStatus(po.id, 'received')"
+                        >
+                          <Loader2 v-if="updatingPoId === po.id" class="h-3.5 w-3.5 animate-spin" />
+                          <CheckCircle2 v-else class="h-3.5 w-3.5 text-white" />
+                          <span>Terima Barang</span>
+                        </Button>
+                        
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openDetail(po)">
+                          <Eye class="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -524,14 +672,44 @@ onMounted(fetchData)
           <!-- DETAIL MODE -->
           <template v-else-if="selectedPO">
             <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
-                <div>
-                  <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Purchase Order</span>
-                  <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
+              <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Purchase Order</span>
+                    <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
+                  </div>
+                  <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
+                    {{ statusLabel(selectedPO.status) }}
+                  </Badge>
                 </div>
-                <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
-                  {{ statusLabel(selectedPO.status) }}
-                </Badge>
+                <div class="flex items-center gap-2 pt-1 border-t border-primary/10">
+                  <button
+                    @click="copyPOCode"
+                    :class="[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                      copiedCode
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                        : 'bg-background border border-primary/20 text-primary hover:bg-primary/10'
+                    ]"
+                  >
+                    <ClipboardCheck v-if="copiedCode" class="h-3.5 w-3.5" />
+                    <Copy v-else class="h-3.5 w-3.5" />
+                    {{ copiedCode ? 'Tersalin!' : 'Salin Kode PO' }}
+                  </button>
+                  <button
+                    @click="copyAllInfo"
+                    :class="[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                      copiedAll
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                        : 'bg-background border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    ]"
+                  >
+                    <ClipboardCheck v-if="copiedAll" class="h-3.5 w-3.5" />
+                    <ClipboardList v-else class="h-3.5 w-3.5" />
+                    {{ copiedAll ? 'Tersalin!' : 'Salin Semua Info' }}
+                  </button>
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-6">
@@ -545,7 +723,7 @@ onMounted(fetchData)
                   <div class="flex items-center gap-1.5 text-sm font-semibold">
                     <Warehouse v-if="selectedPO.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
                     <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
-                    {{ selectedPO.locationName || `Lokasi #${selectedPO.locationId}` }}
+                    {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
                   </div>
                   <Badge variant="outline" class="text-[9px] h-4 px-1.5 uppercase tracking-tighter">{{ selectedPO.locationType }}</Badge>
                 </div>

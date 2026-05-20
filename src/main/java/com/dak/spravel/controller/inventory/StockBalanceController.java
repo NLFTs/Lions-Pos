@@ -91,7 +91,7 @@ public class StockBalanceController {
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByWarehouse(
             @PathVariable Long warehouseId) {
         log.info("[GET] /api/v1/stock-balances/warehouse/{}", warehouseId);
-        return ResponseBuilder.ok(stockBalanceService.findByWarehouse());
+        return ResponseBuilder.ok(stockBalanceService.findByWarehouse(warehouseId));
     }
 
     // CREATE — stock awal manual 1 produk
