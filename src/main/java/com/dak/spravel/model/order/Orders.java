@@ -6,13 +6,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Data
 @NoArgsConstructor
@@ -112,9 +114,11 @@ public class Orders  {
     private User deletedBy;
 
     // Menambah Relasi Yang Belum Di Panggil Dari Repo
+    @JsonManagedReference("orders-items")
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
-    private List<OrderItems> items;
+    private List<OrderItems> items = new ArrayList<>();
 
-    @OneToMany(mappedBy = "orders", fetch = FetchType.LAZY)
-    private Set<Payments> payments;
+    @JsonManagedReference("orders-payments")
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
+    private Set<Payments> payments = new HashSet<>();
 }
