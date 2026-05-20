@@ -28,6 +28,8 @@ public class CreateUserRequest {
 
     private String avatar;
 
+    private Long branchId;
+
     @JsonProperty("partner_id")
     private Long partnerId;
 

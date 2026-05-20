@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.Branches;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -40,9 +41,9 @@ public class User   {
     @JoinColumn(name = "partner_id", referencedColumnName = "id")
     private Partners partner;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", referencedColumnName = "id")
-    private com.dak.spravel.model.inventory.Branches branch;
+    private Branches branch;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

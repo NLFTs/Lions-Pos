@@ -11,7 +11,6 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -143,7 +143,8 @@ public class PartnerService {
         partner.setName(request.getName());
         partner.setPlan(request.getPlan());
         partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
-        AuditHelper.setCreated(partner);
+        partner.setCreatedAt(LocalDateTime.now());
+        partner.setCreatedBy(currentUser);
         Partners savedPartner = partnerRepository.save(partner);
 
         // Ambil role admin-partners
@@ -188,8 +189,7 @@ public class PartnerService {
         }
 
         partner.setUpdatedBy(currentUser);
-
-        AuditHelper.setUpdated(partner);
+        partner.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(partnerRepository.save(partner));
     }

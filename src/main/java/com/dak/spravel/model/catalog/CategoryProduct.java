@@ -5,9 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
 import java.time.LocalDateTime;
-
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
