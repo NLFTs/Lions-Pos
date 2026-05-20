@@ -1,7 +1,6 @@
 package com.dak.spravel.service.inventory;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,7 +20,6 @@ import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
-import com.dak.spravel.model.inventory.StockMutation;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
 import com.dak.spravel.repository.auth.UserRepository;
@@ -297,8 +295,6 @@ public class TransferRequestService {
         tr.setUpdatedAt(LocalDateTime.now());
         tr.setUpdatedBy(currentUser);
 
-        List<StockMutation> mutations = new ArrayList<>();
-
         for (TransferRequestItem item : tr.getItems()) {
             Long realQtyReceived = receivedItemsPayload.stream()
                     .filter(p -> p.getProductId().equals(item.getProduct().getId()))
@@ -309,29 +305,10 @@ public class TransferRequestService {
             // Simpan jumlah barang yang benar-benar diterima ke database detail TR item
             item.setQtyReceived(realQtyReceived);
             
-            // Generate objek mutasi stok otomatis
-            StockMutation mutation = new StockMutation();
-            mutation.setPartner(tr.getPartner());
-            mutation.setProduct(item.getProduct());
-            mutation.setQty(realQtyReceived); 
-            mutation.setType(StockMutation.Type.TRANSFER); 
-            
-            mutation.setFromLocationType(StockMutation.Location.valueOf(tr.getFromLocationType().name()));
-            mutation.setFromLocationId(tr.getFromLocationId());
-            mutation.setToLocationType(StockMutation.Location.valueOf(tr.getToLocationType().name()));
-            mutation.setToLocationId(tr.getToLocationId());
-            
-            mutation.setReferenceType(StockMutation.ReferenceType.TRANSFER_REQUEST);
-            mutation.setReferenceId(tr.getId());
-            mutation.setNotes("Otomatis dari Penerimaan TR No: " + tr.getId());
-            mutation.setCreatedAt(LocalDateTime.now());
-            mutation.setCreatedBy(currentUser);
-
-            mutations.add(mutation);
         }
 
         transferRequestItemRepository.saveAll(tr.getItems());
-        stockMutationRepository.saveAll(mutations); 
+       
         
         TransferRequest updatedTR = transferRequestRepository.save(tr);
         return mapToResponse(updatedTR);
