@@ -1,6 +1,9 @@
 package com.dak.spravel.service.order;
 
 import com.dak.spravel.dto.request.order.OrdersRequest;
+import com.dak.spravel.dto.response.order.OrderItemResponse;
+import com.dak.spravel.dto.response.order.OrdersResponse;
+import com.dak.spravel.dto.response.order.PaymentResponse;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
@@ -24,15 +27,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class OrdersService {
-
     private final OrdersRepository ordersRepository;
     private final OrderItemsRepository orderItemsRepository;
     private final PaymentsRepository paymentsRepository;
@@ -92,24 +92,23 @@ public class OrdersService {
         return ordersRepository.findAllWithDetails();
     }
 
-    public List<Orders> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        return ordersRepository.findAllWithDetails()
-                .stream()
-                .filter(order ->
-                        order.getPartner() != null
-                                && order.getPartner().getId()
-                                .equals(currentUser.getPartner().getId()))
-                .toList();
-    }
+   public List<OrdersResponse> findAll() {
+    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+    return ordersRepository.findAllWithDetails()
+            .stream()
+            .filter(order -> order.getPartner() != null
+                    && order.getPartner().getId().equals(currentUser.getPartner().getId()))
+            .map(this::mapToResponse)
+            .toList();
+}
 
-    public Orders findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        return getValidatedOrder(id, currentUser);
-    }
+   public OrdersResponse findById(Long id) {
+    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+    return mapToResponse(getValidatedOrder(id, currentUser));
+}
 
     @Transactional
-    public Orders create(OrdersRequest request) {
+    public OrdersResponse create(OrdersRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Partners partner = currentUser.getPartner();
@@ -141,7 +140,7 @@ public class OrdersService {
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
-        order.setStatus(Orders.PaymentStatus.PAID); // Typically paid if from POS
+        order.setStatus(Orders.PaymentStatus.DRAFT); // Typically paid if from POS
         order.setSubtotal(BigDecimal.ZERO);
         order.setDiscountAmount(discount);
         order.setTotal(BigDecimal.ZERO);
@@ -160,6 +159,7 @@ public class OrdersService {
             OrderItems item = new OrderItems();
             item.setOrder(savedOrder);
             item.setProduct(product);
+            item.setProductName(product.getName());
             item.setQty(itemReq.getQty());
             item.setUnitPrice(itemReq.getUnitPrice());
             item.setSubtotal(itemReq.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQty())));
@@ -168,7 +168,7 @@ public class OrdersService {
             orderItems.add(item);
 
             // REDUCE STOCK
-            stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), item.getQty());
+            stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), -item.getQty());
             // adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate())
             
             // RECORD MUTATION
@@ -179,6 +179,7 @@ public class OrdersService {
             );
         }
         orderItemsRepository.saveAll(orderItems);
+        savedOrder.setItems(orderItems);
 
         // Calculate Final Totals
         savedOrder.setSubtotal(subtotal);
@@ -204,20 +205,61 @@ public class OrdersService {
         // Process Payment
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrders((savedOrder));
+            payment.setOrder((savedOrder));
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
             payment.setChangeDue(request.getPayment().getChangeDue());
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.Status.SUCCESS);
+            payment.setStatus(Payments.Status.PENDING);
             payment.setCreatedAt(java.time.LocalDateTime.now());
-            paymentsRepository.save(payment);
+            payment.setOrder(savedOrder);
+            savedOrder.getPayments().add(payment);
         }
 
-        return savedOrder;
+        Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
+        .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        return mapToResponse(finalOrder);
     }
+
+    // Mapper Response Order
+    private OrdersResponse mapToResponse(Orders order) {
+    return OrdersResponse.builder()
+            .id(order.getId())
+            .orderNumber(order.getOrderNumber())
+            .status(order.getStatus().name())
+            .subtotal(order.getSubtotal())
+            .discountAmount(order.getDiscountAmount())
+            .total(order.getTotal())
+            .notes(order.getNotes())
+            .branchId(order.getBranch().getId())
+            .branchName(order.getBranch().getName())
+            .cashierId(order.getCashier().getId())
+            .cashierName(order.getCashier().getUsername())
+            .items(order.getItems().stream().map(item ->
+                    OrderItemResponse.builder()
+                            .id(item.getId())
+                            .productId(item.getProduct().getId())
+                            .productName(item.getProductName())
+                            .qty(item.getQty())
+                            .unitPrice(item.getUnitPrice())
+                            .subtotal(item.getSubtotal())
+                            .build()
+            ).toList())
+            .payments(order.getPayments().stream().map(payment ->
+                    PaymentResponse.builder()
+                            .id(payment.getId())
+                            .method(payment.getMethod().name())
+                            .status(payment.getStatus().name())
+                            .amount(payment.getAmount())
+                            .cashTendered(payment.getCashTendered())
+                            .changeDue(payment.getChangeDue())
+                            .build()
+            ).toList())
+            .build();
+}
 
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();

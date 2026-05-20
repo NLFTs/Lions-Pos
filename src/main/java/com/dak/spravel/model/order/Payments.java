@@ -6,9 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
 
 import com.dak.spravel.model.auth.User;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,9 +20,11 @@ public class Payments   {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    
+    @JsonBackReference("orders-payments")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", referencedColumnName = "id", nullable = false)
-    private Orders orders;
+    private Orders order;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -37,7 +39,7 @@ public class Payments   {
     private Status status = Status.PENDING;
 
     public enum Status {
-        PENDING, COMPLETED, VERIFIED, SUCCESS, FAILED
+        PENDING, VERIFIED, FAILED
     }
 
     @Column(nullable = false , precision = 19, scale = 4)
