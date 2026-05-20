@@ -1,11 +1,8 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.request.inventory.BranchStockInRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceItemRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
-import com.dak.spravel.dto.request.inventory.StockTransferRequest;
-import com.dak.spravel.dto.request.inventory.WarehouseStockInRequest;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
@@ -31,6 +28,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -77,23 +75,15 @@ public class StockBalanceService {
     // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Tambahkan role "employee" murni agar diizinkan lolos melihat data stok
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
         boolean isNotSuperAdmin = user.getRoles().stream()
                 .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
-    }
-
-    // 💡 HELPER BARU: Deteksi apakah user adalah Employee murni
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     // =========================
@@ -351,13 +341,8 @@ public class StockBalanceService {
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        
-        // 🔥 VALIDASI: Employee Dilarang Create Stock Awal Manual
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan menginisiasi stock.");
-        }
-
         Partners partner = currentUser.getPartner();
+
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner manapun.");
         }
@@ -405,11 +390,6 @@ public class StockBalanceService {
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee Dilarang Initialize Batch Stock
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan melakukan inisiasi batch stock.");
-        }
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -463,13 +443,12 @@ public class StockBalanceService {
                         "STOCK_OPNAME", saved.getId(),
                         "Stock awal batch untuk " + product.getName(), currentUser);
             }
+
             results.add(mapToResponse(saved));
         }
 
         return results;
     }
-    // @Transactional
-    // public 
 
     // =========================
     // ADJUST STOCK (dipakai OrdersService)
@@ -495,194 +474,5 @@ public class StockBalanceService {
         stock.setQty(newQty);
         stock.setUpdatedAt(LocalDateTime.now());
         stockBalanceRepository.save(stock);
-    }
-
-    @Transactional
-    public StockBalanceResponse createFromWarehouse(WarehouseStockInRequest request) {
-        Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
-                .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan dengan ID: " + request.getWarehouseId()));
-
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product tidak ditemukan dengan ID: " + request.getProductId()));
-
-        User currentUser = getAuthenticatedUser();
-
-        // Cari tahu apakah kombinasi produk + lokasi ini sudah terdaftar di DB
-        StockBalance stock = stockBalanceRepository
-                .findByProductIdAndLocationTypeAndLocationId(request.getProductId(), "WAREHOUSE", request.getWarehouseId())
-                .orElse(new StockBalance());
-
-        if (stock.getId() == null) {
-            // Jika belum ada, bikin record baru
-            stock.setProduct(product);
-            stock.setLocationType("WAREHOUSE");
-            stock.setLocationId(warehouse.getId());
-            stock.setQty(request.getQty());
-            stock.setCreatedBy(currentUser);
-        } else {
-            // Jika sudah ada, akumulasikan qty-nya (menghindari duplicate unique constraint)
-            long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
-            stock.setQty(currentQty + request.getQty());
-        }
-
-        stock.setUpdatedBy(currentUser);
-        stock.setUpdatedAt(LocalDateTime.now());
-
-        StockBalance stockBalance = stockBalanceRepository.save(stock);
-
-        StockMutation stockMutation = new StockMutation();
-        stockMutation.setProduct(stockBalance.getProduct());
-        stockMutation.setQty(stockBalance.getQty());
-        stockMutation.setPartner(stockBalance.getProduct().getPartner());
-        stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
-        stockMutation.setType(StockMutation.Type.PURCHASE_IN);       
-        stockMutation.setToLocationType(StockMutation.Location.valueOf(stockBalance.getLocationType()));
-        stockMutation.setToLocationId(stockBalance.getLocationId());
-        stockMutation.setCreatedBy(currentUser);
-        stockMutation.setCreatedAt(LocalDateTime.now());
-        
-        stockMutationRepository.save(stockMutation);
-        
-        return mapToResponse(stockBalance);
-    }
-
-    // ==========================================
-    // Saat transaksi dari BRANCH
-    // ==========================================
-    @Transactional
-    public StockBalanceResponse createFromBranch(BranchStockInRequest request) {       
-        Branches branch = branchesRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan dengan ID: " + request.getBranchId()));
-
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product tidak ditemukan dengan ID: " + request.getProductId()));
-
-        User currentUser = getAuthenticatedUser();
-
-        
-
-        // Cari tahu apakah kombinasi produk + lokasi ini sudah terdaftar di DB
-        StockBalance stock = stockBalanceRepository
-                .findByProductIdAndLocationTypeAndLocationId(request.getProductId(), "BRANCH", request.getBranchId())
-                .orElse(new StockBalance());
-
-        if (stock.getId() == null) {
-            // Jika belum ada, bikin record baru
-            stock.setProduct(product);
-            stock.setLocationType("BRANCH");
-            stock.setLocationId(branch.getId());
-            stock.setQty(request.getQty());
-            stock.setCreatedBy(currentUser);
-        } else {
-            // Jika sudah ada, akumulasikan qty-nya
-            stock.setQty(stock.getQty() + request.getQty());
-        }
-
-        stock.setUpdatedBy(currentUser);
-        stock.setUpdatedAt(LocalDateTime.now());
-
-        StockBalance stockBalance = stockBalanceRepository.save(stock);
-
-        StockMutation stockMutation = new StockMutation();
-        stockMutation.setProduct(stockBalance.getProduct());
-        stockMutation.setQty(stockBalance.getQty());
-        stockMutation.setPartner(stockBalance.getProduct().getPartner());        
-        stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
-        stockMutation.setType(StockMutation.Type.PURCHASE_IN);
-        stockMutation.setToLocationType(StockMutation.Location.valueOf(stockBalance.getLocationType()));
-        stockMutation.setToLocationId(stockBalance.getLocationId());
-        stockMutation.setCreatedBy(currentUser);
-        stockMutation.setCreatedAt(LocalDateTime.now());
-        
-        stockMutationRepository.save(stockMutation);
-        
-        return mapToResponse(stockBalance);
-    }
-
-    @Transactional
-    public StockBalanceResponse transferStock(StockTransferRequest request) {
-        Long productId = request.getProductId();
-        Long qty = request.getQty();
-    
-        // Antisipasi transfer ke lokasi yang sama persis
-        if (request.getFromLocationType().equals(request.getToLocationType()) && request.getFromLocationId().equals(request.getToLocationId())) {
-            throw new RuntimeException("Lokasi asal dan tujuan tidak boleh sama persis!");
-        }
-    
-        User currentUser = getAuthenticatedUser();
-    
-        // ==========================================
-        // STEP 1: POTONG STOK DI LOKASI ASAL (FROM)
-        // ==========================================
-        StockBalance sourceStock = stockBalanceRepository
-                .findByProductIdAndLocationTypeAndLocationId(productId, request.getFromLocationType(), request.getFromLocationId())
-                .orElseThrow(() -> new RuntimeException("Stok tidak ditemukan di lokasi asal (" + request.getFromLocationType() + " ID: " + request.getFromLocationId() + ")"));
-    
-        long currentSourceQty = sourceStock.getQty() != null ? sourceStock.getQty() : 0L;
-        if (currentSourceQty < qty) {
-            throw new RuntimeException("Stok di lokasi asal tidak mencukupi! Stok saat ini: " + currentSourceQty + ", diminta: " + qty);
-        }
-    
-        // Eksekusi potong stok
-        sourceStock.setQty(currentSourceQty - qty);
-        sourceStock.setUpdatedBy(currentUser);
-        sourceStock.setUpdatedAt(LocalDateTime.now());
-        stockBalanceRepository.save(sourceStock);
-    
-    
-        // ==========================================
-        // STEP 2: TAMBAH STOK DI LOKASI TUJUAN (TO)
-        // ==========================================
-        StockBalance destStock = stockBalanceRepository
-                .findByProductIdAndLocationTypeAndLocationId(productId, request.getToLocationType(), request.getToLocationId())
-                .orElse(new StockBalance());
-    
-        if (destStock.getId() == null) {
-            // Jika di lokasi tujuan belum pernah ada barang ini, bikin record baru (Insert)
-            Product product = productRepository.findById(productId)
-                    .orElseThrow(() -> new RuntimeException("Product tidak ditemukan"));
-            
-            destStock.setProduct(product);
-            destStock.setLocationType(request.getToLocationType());
-            destStock.setLocationId(request.getToLocationId());
-            destStock.setQty(qty);
-            destStock.setCreatedBy(currentUser);
-        } else {
-            // Jika sudah ada, tinggal tambahkan qty-nya (Update)
-            long currentDestQty = destStock.getQty() != null ? destStock.getQty() : 0L;
-            destStock.setQty(currentDestQty + qty);
-        }
-    
-        destStock.setUpdatedBy(currentUser);
-        destStock.setUpdatedAt(LocalDateTime.now());
-    
-        StockBalance savedDestStock = stockBalanceRepository.save(destStock);
-    
-        // ==========================================
-        // STEP 3: CATAT MUTASI STOK (TRANSFER)
-        // ==========================================
-        StockMutation stockMutation = new StockMutation();
-        stockMutation.setProduct(savedDestStock.getProduct());
-        stockMutation.setPartner(savedDestStock.getProduct().getPartner());     
-        stockMutation.setReferenceType(StockMutation.ReferenceType.TRANSFER_REQUEST);
-        stockMutation.setType(StockMutation.Type.TRANSFER);
-        
-        // ✅ BENAR: Catat jumlah barang yang beneran dipindah (bukan total gudang)
-        stockMutation.setQty(qty); 
-    
-        // ✅ BENAR: Lokasi Asal diambil dari sourceStock
-        stockMutation.setFromLocationType(StockMutation.Location.valueOf(sourceStock.getLocationType().toUpperCase()));
-        stockMutation.setFromLocationId(sourceStock.getLocationId());
-    
-        // ✅ BENAR: Lokasi Tujuan diambil dari savedDestStock
-        stockMutation.setToLocationType(StockMutation.Location.valueOf(savedDestStock.getLocationType().toUpperCase()));
-        stockMutation.setToLocationId(savedDestStock.getLocationId());
-    
-        stockMutation.setCreatedBy(currentUser);
-        stockMutation.setCreatedAt(LocalDateTime.now());
-        
-        stockMutationRepository.save(stockMutation);
-        
-        return mapToResponse(savedDestStock);
     }
 }
