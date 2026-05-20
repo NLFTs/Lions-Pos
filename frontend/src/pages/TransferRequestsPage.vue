@@ -130,10 +130,23 @@ async function loadFormOptions() {
       api.get(urlP)
     ])
     
-    const branches = (resB.data.data || []).map(x => ({ ...x, type: 'branch' }))
-    const warehouses = (resW.data.data || []).map(x => ({ ...x, type: 'warehouse' }))
-    locations.value = [...branches, ...warehouses]
-    products.value = resP.data.data || []
+    // Admin branches: plain List (no ResData), Partner: ResData<List>
+    const brRaw = isAdmin.value ? resB.data : (resB.data?.data || [])
+    const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
+    
+    // Warehouses: ResData<Page> for admin, ResData<List> for partner
+    const whRaw = resW.data?.data
+    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    
+    // Products: ResData<Page>
+    const pRaw = resP.data?.data
+    const pArr = pRaw && pRaw.content ? pRaw.content : (Array.isArray(pRaw) ? pRaw : [])
+    
+    locations.value = [
+      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...whArr.map(x => ({ ...x, type: 'warehouse' }))
+    ]
+    products.value = pArr
   } catch (err) {
     toast.error('Gagal memuat opsi form.')
   }
@@ -206,6 +219,23 @@ function statusLabel(s) {
   return m[s] || s
 }
 
+// ─── Status Update ──────────────────────────────────────────────────────────
+const updatingStatus = ref(false)
+
+async function updateTRStatus(id, newStatus) {
+  updatingStatus.value = true
+  try {
+    await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus}`)
+    toast.success(`Status transfer berhasil diubah!`)
+    showDrawer.value = false
+    fetchData()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal mengubah status transfer.')
+  } finally {
+    updatingStatus.value = false
+  }
+}
+
 onMounted(fetchData)
 </script>
 
@@ -223,7 +253,7 @@ onMounted(fetchData)
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi asal/tujuan..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('transfer-request.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('transfer_request.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat Transfer</span>
           </Button>
@@ -242,7 +272,7 @@ onMounted(fetchData)
               <Repeat2 class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada permintaan transfer.</p>
-            <Button v-if="can('transfer-request.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('transfer_request.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Mulai Transfer
             </Button>
@@ -522,9 +552,25 @@ onMounted(fetchData)
 
             <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
               <div class="flex gap-2">
-                <Button v-if="selectedTR.status === 'pending' && can('transfer-request.update')" class="flex-1 bg-primary">Setujui Transfer</Button>
-                <Button v-if="selectedTR.status === 'approved' && can('transfer-request.update')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <Truck class="h-4 w-4 mr-2" /> Terima Barang
+                <Button 
+                  v-if="selectedTR.status === 'pending' && can('transfer-request.update')"
+                  class="flex-1 bg-primary"
+                  :disabled="updatingStatus"
+                  @click="updateTRStatus(selectedTR.id, 'approved')"
+                >
+                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                  <Check v-else class="h-4 w-4 mr-2" />
+                  Setujui Transfer
+                </Button>
+                <Button 
+                  v-if="selectedTR.status === 'approved' && can('transfer-request.update')"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  :disabled="updatingStatus"
+                  @click="updateTRStatus(selectedTR.id, 'received')"
+                >
+                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                  <Truck v-else class="h-4 w-4 mr-2" />
+                  Terima Barang
                 </Button>
                 <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
               </div>

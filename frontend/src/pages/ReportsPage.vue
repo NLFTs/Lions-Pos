@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import api from '@/lib/api'
 import { 
@@ -57,6 +59,9 @@ const loading = ref(true)
 const rawOrders = ref([])
 const rawProducts = ref([])
 
+const auth = useAuthStore()
+const { isAdmin } = storeToRefs(auth)
+
 // --- Chart Data States ---
 const lineChartData = ref({
   labels: [],
@@ -103,9 +108,12 @@ const paymentDist = ref([
 async function fetchData() {
   loading.value = true
   try {
+    const urlOrders = isAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
+    const urlProducts = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
+    
     const [ordersRes, productsRes] = await Promise.all([
-      api.get('/api/v1/orders'),
-      api.get('/api/v1/products')
+      api.get(urlOrders),
+      api.get(urlProducts)
     ])
 
     rawOrders.value = ordersRes.data.data || []
@@ -393,7 +401,7 @@ const barChartOptions = {
            <p class="text-sm font-medium">Belum ada data penjualan produk di periode ini.</p>
         </div>
 
-        <template v-else>
+        <div v-else>
           <!-- Mobile List View -->
           <div class="md:hidden space-y-4">
             <div v-for="product in bestSellers" :key="'mobile-' + product.name" class="p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/30 dark:bg-zinc-900/20">
@@ -455,7 +463,7 @@ const barChartOptions = {
               </tbody>
             </table>
           </div>
-        </template>
+        </div>
         
         <div class="mt-6 flex justify-center">
           <RouterLink to="/dashboard/products" class="flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors">

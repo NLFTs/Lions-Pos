@@ -19,6 +19,8 @@ public class UserResponse {
     private String avatar;
     private java.time.LocalDateTime createdAt;
     private List<RoleData> roles;
+    private Long branchId;
+    private String branchName;
 
     @Data
     public static class RoleData {

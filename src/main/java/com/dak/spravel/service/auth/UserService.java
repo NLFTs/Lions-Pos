@@ -334,6 +334,11 @@ public class UserService {
             res.setPartner(partnerDto);
         }
 
+        if (user.getBranch() != null) {
+            res.setBranchId(user.getBranch().getId());
+            res.setBranchName(user.getBranch().getName());
+        }
+
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
             UserResponse.RoleData rd = new UserResponse.RoleData();
             rd.setId(role.getId());

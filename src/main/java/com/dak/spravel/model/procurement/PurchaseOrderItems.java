@@ -2,6 +2,7 @@ package com.dak.spravel.model.procurement;
 
 import java.math.BigDecimal;
 import com.dak.spravel.model.catalog.Product;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Entity
 @Table (name = "purchase_order_items")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PurchaseOrderItems {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,10 +21,12 @@ public class PurchaseOrderItems {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_order_id", referencedColumnName = "id", nullable = false )
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "partner", "supplier", "createdBy", "updatedBy"})
     private PurchaseOrder purchaseOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "partner", "category", "createdBy", "updatedBy"})
     private Product product;
 
     @Column(name = "product_name", nullable = false)

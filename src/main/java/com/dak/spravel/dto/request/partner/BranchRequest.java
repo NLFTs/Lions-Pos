@@ -9,4 +9,8 @@ public class BranchRequest {
 
     private String address;
 
+    private String username;
+
+    private String password;
+
 }
