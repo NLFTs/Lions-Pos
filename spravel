@@ -76,7 +76,7 @@ case "$1" in
     echo "Done."
     ;;
   full:dev)
-    echo "⚡ Starting Vite + Spring Boot in parallel..."
+    echo " Mari Memasak Tuan 😈😈"
     echo "   Press Ctrl+C to stop both."
     trap 'kill 0' EXIT
     (cd "$FRONTEND" && $PNPM run dev) &

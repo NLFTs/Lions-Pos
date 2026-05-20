@@ -58,7 +58,7 @@ const selectedLabel = computed(() => {
           v-for="opt in options" 
           :key="opt.value" 
           :value="opt.value"
-          class="cursor-pointer py-2"
+          :class="cn('cursor-pointer py-2', opt.class)"
         >
           {{ opt.label }}
         </DropdownMenuRadioItem>
