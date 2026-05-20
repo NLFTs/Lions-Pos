@@ -39,11 +39,11 @@ public class PaymentsController {
     }
 
     @GetMapping("/page")
-    @PreAuthorize("hasAuthority('partner.index')")
+    @PreAuthorize("hasAuthority('payments.index')")
     public ResponseEntity<ResData<Page<Payments>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        log.info("[GET] /partners/page page={} size={}", page, size);
+        log.info("[GET] /payments/page page={} size={}", page, size);
         return ResponseBuilder.ok(paymentsService.findAll(page, size));
     }
 
