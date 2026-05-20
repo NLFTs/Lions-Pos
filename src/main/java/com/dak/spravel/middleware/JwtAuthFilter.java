@@ -50,9 +50,31 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         log.info("[🔒] JWT Filter");
         String token = extractTokenFromHeader(request);
-        if (token != null && jwtUtil.validateToken(token)) {
-            setAuthenticationContext(token, request);
+        try {
+            if (token != null) {
+                // Misal kita validasi, kalau lolos langsung set login
+                if (jwtUtil.validateToken(token)) {
+                    setAuthenticationContext(token, request);
+                }
+            }
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // 1. Tangkap kalau tokennya expired!
+            log.warn("[⚠️] JWT Token Expired: {}", e.getMessage());
+            
+            // 2. Kirim header khusus atau custom status supaya Nuxt peka
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"TOKEN_EXPIRED\", \"message\": \"Access Token sudah kedaluwarsa\"}");
+            return; // STOP FILTER DISINI, jangan lanjut ke doFilter biar gak dihantam Spring Security default
+            
+        } catch (Exception e) {
+            log.error("[❌] JWT Authentication Failed: {}", e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\": \"INVALID_TOKEN\", \"message\": \"Token tidak valid\"}");
+            return;
         }
+        
         filterChain.doFilter(request, response);
     }
 

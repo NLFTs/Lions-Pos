@@ -31,7 +31,6 @@ public class TransferRequestDTO {
     private Long toLocationId;
 
     private String notes; // opsional
-
     
     @NotNull(message = "Items tidak boleh kosong")
     private List<TransferRequestItemDTO> items;

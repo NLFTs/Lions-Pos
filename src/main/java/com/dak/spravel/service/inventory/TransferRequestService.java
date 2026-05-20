@@ -299,37 +299,6 @@ public class TransferRequestService {
 
         List<StockMutation> mutations = new ArrayList<>();
 
-        for (TransferRequestItem item : tr.getItems()) {
-            Long realQtyReceived = receivedItemsPayload.stream()
-                    .filter(p -> p.getProductId().equals(item.getProduct().getId()))
-                    .map(p -> p.getQtyRequested() != null ? p.getQtyRequested().longValue() : 0L) 
-                    .findFirst()
-                    .orElse(item.getQtyRequested() != null ? item.getQtyRequested().longValue() : 0L); 
-
-            // Simpan jumlah barang yang benar-benar diterima ke database detail TR item
-            item.setQtyReceived(realQtyReceived);
-            
-            // Generate objek mutasi stok otomatis
-            StockMutation mutation = new StockMutation();
-            mutation.setPartner(tr.getPartner());
-            mutation.setProduct(item.getProduct());
-            mutation.setQty(realQtyReceived); 
-            mutation.setType(StockMutation.Type.TRANSFER); 
-            
-            mutation.setFromLocationType(StockMutation.Location.valueOf(tr.getFromLocationType().name()));
-            mutation.setFromLocationId(tr.getFromLocationId());
-            mutation.setToLocationType(StockMutation.Location.valueOf(tr.getToLocationType().name()));
-            mutation.setToLocationId(tr.getToLocationId());
-            
-            mutation.setReferenceType(StockMutation.ReferenceType.TRANSFER_REQUEST);
-            mutation.setReferenceId(tr.getId());
-            mutation.setNotes("Otomatis dari Penerimaan TR No: " + tr.getId());
-            mutation.setCreatedAt(LocalDateTime.now());
-            mutation.setCreatedBy(currentUser);
-
-            mutations.add(mutation);
-        }
-
         transferRequestItemRepository.saveAll(tr.getItems());
         stockMutationRepository.saveAll(mutations); 
         

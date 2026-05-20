@@ -1,7 +1,6 @@
 package com.dak.spravel.controller.inventory;
 
 import java.util.List;
-
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,14 +13,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
-import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.service.inventory.WarehousesService;
 import com.dak.spravel.util.ResponseBuilder;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
