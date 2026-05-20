@@ -87,6 +87,15 @@ public class StockOpnameController {
         );
     }
 
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('stock_opname.update')")
+    public ResponseEntity<ResData<StockOpname>> approve(@PathVariable Long id) {
+        log.info("[POST] /api/v1/stock-opnames/{}/approve", id);
+        return ResponseBuilder.ok(
+                stockOpnameService.updateStatus(id, "approved")
+        );
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('stock_opname.delete')")
     public ResponseEntity<Void> destroy(@PathVariable Long id) {

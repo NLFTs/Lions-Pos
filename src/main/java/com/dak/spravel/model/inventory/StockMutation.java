@@ -71,7 +71,7 @@ public class StockMutation {
     private ReferenceType referenceType;
 
     public enum ReferenceType {
-        ORDER, TRANSFER_REQUEST, STOCK_OPNAME
+        ORDER, TRANSFER_REQUEST, STOCK_OPNAME, PURCHASE_RECEIPT
     }
 
     // Polymorphic FK — points to orders.id, transfer_requests.id, or stock_opname.id

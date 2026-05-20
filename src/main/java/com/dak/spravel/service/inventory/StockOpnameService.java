@@ -47,25 +47,17 @@ public class StockOpnameService {
             throw new RuntimeException("User tidak terautentikasi");
         }
 
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-
-        if (isAdmin(user)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Stock Opname.");
-        }
-
-        return user;
     }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getName().equalsIgnoreCase("ADMIN_PARTNER") ||
-                        role.getName().equalsIgnoreCase("EMPLOYEE"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
 
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getName().equalsIgnoreCase("SUPER_ADMIN"));
-
-        if (!isAuthorized || !isStaff) {
+        if (!isAuthorized) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
@@ -162,10 +154,11 @@ public class StockOpnameService {
 
     public List<StockOpnameResponse> findAllOpName() {
         User currentUser = getAuthenticatedUser();
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+        // Hanya superadmin/admin yang boleh mengakses endpoint admin
+        if (!isAdmin(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Super Admin yang diperbolehkan.");
         }
-        List<StockOpname> allStockOpnames = stockOpnameRepository.findAll();
+        List<StockOpname> allStockOpnames = stockOpnameRepository.findByDeletedAtIsNull();
         return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
@@ -173,22 +166,31 @@ public class StockOpnameService {
         User currentUser = getAuthenticatedUser();
 
         if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+            if (currentUser.getPartner() == null) {
+                throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+            }
+            List<StockOpname> opnames = stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+            return opnames.stream().map(this::mapToResponse).collect(Collectors.toList());
         }
 
-        List<StockOpname> allStockOpnames = stockOpnameRepository.findAll();
+        // super_admin / admin: lihat semua
+        List<StockOpname> allStockOpnames = stockOpnameRepository.findByDeletedAtIsNull();
         return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
     public Page<StockOpnameResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak: Admin Partner Dan Employee Tidak Di Perbolehkan Melihat Semua StockOpname");
+            if (currentUser.getPartner() == null) {
+                throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+            }
+            Page<StockOpname> opnames = stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageRequest);
+            return opnames.map(this::mapToResponse);
         }
 
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<StockOpname> opnames = stockOpnameRepository.findAll(pageRequest);
+        Page<StockOpname> opnames = stockOpnameRepository.findByDeletedAtIsNull(pageRequest);
         return opnames.map(this::mapToResponse);
     }
 
@@ -233,15 +235,24 @@ public class StockOpnameService {
                     throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
                 }
 
+                // Ambil qty_system dari stock_balances aktual, bukan dari request
+                long qtySystem = stockBalanceRepository
+                        .findByProductIdAndLocationTypeAndLocationId(
+                                product.getId(),
+                                request.getLocationType().toUpperCase(),
+                                request.getLocationId())
+                        .map(sb -> sb.getQty() != null ? sb.getQty() : 0L)
+                        .orElse(0L);
+
                 StockOpnameItem item = new StockOpnameItem();
                 item.setStockOpname(saved);
                 item.setProduct(product);
-                item.setQtySystem(itemDTO.getQtySystem() != null ? itemDTO.getQtySystem() : 0L);
+                item.setQtySystem(qtySystem);
 
                 long qtyPhysical = itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : 0L;
                 item.setQtyPhysical(qtyPhysical);
                 
-                long qtyDifference = qtyPhysical - itemDTO.getQtySystem();
+                long qtyDifference = qtyPhysical - qtySystem;
                 item.setQtyDifference(qtyDifference);
 
                 item.setNotes(itemDTO.getNotes());
@@ -257,10 +268,11 @@ public class StockOpnameService {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         StockOpname stockOpname = getValidatedOpname(id, currentUser);
 
-        StockOpname.Status newStatus = StockOpname.Status.valueOf(status.toUpperCase());
+        String statusUpper = status.toUpperCase();
+        StockOpname.Status newStatus = StockOpname.Status.valueOf(statusUpper);
         stockOpname.setStatus(newStatus);
 
-        if (newStatus == StockOpname.Status.RIEVIEWED || status.equalsIgnoreCase("RIEVIEWED")) {
+        if (newStatus == StockOpname.Status.REVIEWED) {
             stockOpname.setReviewedAt(LocalDateTime.now());
             stockOpname.setReviewedBy(currentUser);
         }

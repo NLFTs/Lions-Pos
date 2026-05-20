@@ -36,16 +36,16 @@ public class PurchaseOrderItems {
     // orderItem.setProductName(product.getName()); // snapshot disini
     // orderItem.setUnitCost(product.getCost());  // snapshot disini
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal qtyOrdered = BigDecimal.ZERO;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal qtyReceived = BigDecimal.ZERO;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal unitCost = BigDecimal.ZERO;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal subtotal = BigDecimal.ZERO;
 
     // Disimpan di Service, tidak dihitung otomatis disini, untuk menghindari masalah jika harga produk berubah setelah order dibuat
