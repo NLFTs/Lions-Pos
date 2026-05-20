@@ -8,8 +8,12 @@ import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.repository.inventory.BranchesRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +22,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +38,8 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final PermissionCacheService permissionCacheService;
+    private final BranchesRepository branchesRepository;
+    private final PartnerRepository partnerRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -137,6 +145,7 @@ public class UserService {
     }
 
     // CREATE
+    @Transactional
     public UserResponse create(CreateUserRequest request) {
         User currentUser = getAuthenticatedUser();
 
@@ -153,24 +162,64 @@ public class UserService {
         }
         user.setPassword(passwordEncoder.encode(request.getPassword()));
 
-        // Admin partner hanya bisa create user untuk partnernya sendiri
+        // ==========================================
+        // SKENARIO 1: JIKA YANG LOGIN ADMIN PARTNER
+        // ==========================================
         if (isAdminPartner(currentUser)) {
             if (currentUser.getPartner() == null) {
                 throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
             }
-            user.setPartner(currentUser.getPartner());
+            // 🔒 Otomatis kunci ke partner si admin itu sendiri
+            Partners currentPartner = currentUser.getPartner();
+            user.setPartner(currentPartner);
 
-            // Admin partner hanya bisa assign role employee-partners
+            // 🔒 Otomatis kunci role ke employee-partners
             Set<Role> roles = new HashSet<>();
             Role employeeRole = roleRepository.findBySlug("employee-partners")
                     .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
             roles.add(employeeRole);
             user.setRoles(roles);
-        } else if (isAdmin(currentUser)) {
-            // Super admin bisa assign role apapun
-            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                user.setRoles(resolveRoles(request.getRoleIds()));
+
+            // 🔒 Validasi Branch: Jika dia nge-assign branch, branch itu WAJIB milik partnernya sendiri
+            if (request.getBranchId() != null) {
+                Branches branch = branchesRepository.findById(request.getBranchId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Branch tidak ditemukan"));
+                
+                if (branch.getPartners() == null || !branch.getPartners().getId().equals(currentPartner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda tidak bisa memasukkan user ke Cabang milik Partner lain!");
+                }
+                user.setBranch(branch);
             }
+
+        // ==========================================
+        // SKENARIO 2: JIKA YANG LOGIN SUPER ADMIN
+        // ==========================================
+        } else if (isAdmin(currentUser)) {
+            // 🛠️ Super Admin WAJIB menentukan target Partnernya
+            if (request.getPartnerId() == null) {
+                throw new IllegalArgumentException("Super Admin wajib mengisi partnerId untuk user baru.");
+            }
+            Partners targetPartner = partnerRepository.findById(request.getPartnerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Partner tidak ditemukan"));
+            user.setPartner(targetPartner);
+
+            // 🛠️ Super Admin WAJIB menentukan Role-nya apa
+            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
+                throw new IllegalArgumentException("Super Admin wajib mengisi minimal satu roleId.");
+            }
+            user.setRoles(resolveRoles(request.getRoleIds()));
+
+            // 🛠️ Super Admin set branch (opsional, tapi divalidasi harus sinkron dengan partner yang dipilih)
+            if (request.getBranchId() != null) {
+                Branches branch = branchesRepository.findById(request.getBranchId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Branch tidak ditemukan"));
+                
+                if (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId())) {
+                    throw new RuntimeException("Error: Cabang yang dipilih tidak sinkron dengan Partner yang dituju.");
+                }
+                user.setBranch(branch);
+            }
+
         } else {
             throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk membuat user.");
         }
