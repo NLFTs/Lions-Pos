@@ -175,30 +175,63 @@ public class PaymentsService {
 
         else if (request.getMethod().equalsIgnoreCase("transfer")) {
 
-            if (request.getBankName() == null || request.getReferenceNo() == null) {
-                throw new RuntimeException("Bank & reference wajib diisi");
+        if (request.getBankName() == null || request.getReferenceNo() == null) {
+            throw new RuntimeException("Bank & reference wajib diisi");
+        }
+
+        payments.setBankName(request.getBankName());
+        payments.setReferenceNo(request.getReferenceNo());
+        payments.setProofUrl(request.getProofUrl());
+
+        // Jika Method Transfer Tidak Perlu Mengisi CashTrended Dan ChangeDue
+        payments.setCashTendered(BigDecimal.ZERO);
+        payments.setChangeDue(BigDecimal.ZERO);
+
+        payments.setStatus(Payments.Status.PENDING);
+
+        orders.setStatus(Orders.PaymentStatus.PAID);
+        }
+            else {
+                throw new RuntimeException("Method tidak valid");
             }
 
-            payments.setBankName(request.getBankName());
-            payments.setReferenceNo(request.getReferenceNo());
-            payments.setProofUrl(request.getProofUrl());
-            payments.setStatus(Payments.Status.PENDING);
+            ordersRepository.save(orders);
 
-            orders.setStatus(Orders.PaymentStatus.PAID);
+            return paymentsRepository.save(payments);
         }
-
-        else {
-            throw new RuntimeException("Method tidak valid");
-        }
-
-        ordersRepository.save(orders);
-
-        return paymentsRepository.save(payments);
-    }
 
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Payments payments = getValidatedPayment(id, currentUser);
         paymentsRepository.delete(payments);
+    }
+
+    // Konfirmasi Payment
+    @Transactional
+    public Payments verifyPayment(Long id) {
+        User currentUser = getAuthenticatedUser();
+        boolean isAdminPartner = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners"));
+        if (!isAdminPartner) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner (owner/manager) yang bisa mengkonfirmasi pembayaran transfer.");
+        }
+
+        Payments payment = getValidatedPayment(id, currentUser);
+
+        if (payment.getMethod() != Payments.Method.TRANSFER) {
+            throw new RuntimeException("Hanya pembayaran TRANSFER yang perlu dikonfirmasi.");
+        }
+        if (payment.getStatus() == Payments.Status.VERIFIED) {
+            throw new RuntimeException("Pembayaran sudah dikonfirmasi sebelumnya.");
+        }
+        if (payment.getStatus() == Payments.Status.FAILED) {
+            throw new RuntimeException("Pembayaran sudah ditandai FAILED, tidak bisa dikonfirmasi.");
+        }
+
+        payment.setStatus(Payments.Status.VERIFIED);
+        payment.setUpdatedAt(LocalDateTime.now());
+        payment.setUpdatedBy(currentUser);
+
+        return paymentsRepository.save(payment);
     }
 }
