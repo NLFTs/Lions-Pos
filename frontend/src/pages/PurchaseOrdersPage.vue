@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -36,6 +37,17 @@ import {
 
 const { can } = usePermission()
 const { toast } = useToast()
+const authStore = useAuthStore()
+
+const isEmployee = computed(() => {
+  const userRoles = authStore.user?.roles || []
+  return userRoles.some(r => {
+    const slug = typeof r === 'string' ? r : (r.slug || r.name || '')
+    return slug.toLowerCase() === 'employee-partners'
+  })
+})
+
+const canReceive = computed(() => authStore.isAdmin || isEmployee.value)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const pos = ref([])
@@ -411,7 +423,7 @@ onMounted(async () => {
                   </Button>
                   
                   <Button 
-                    v-if="po.status?.toLowerCase() === 'ordered'"
+                    v-if="po.status?.toLowerCase() === 'ordered' && canReceive"
                     size="sm"
                     class="h-7 w-28 text-[11px] flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
                     :disabled="updatingStatus"
@@ -489,7 +501,7 @@ onMounted(async () => {
                         </Button>
                         
                         <Button 
-                          v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update')"
+                          v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive"
                           size="sm"
                           class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm shrink-0"
                           :disabled="updatingStatus"
@@ -788,7 +800,7 @@ onMounted(async () => {
                   Kirim PO
                 </Button>
                 <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && can('purchase_order.update')"
+                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive"
                   class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                   :disabled="updatingStatus"
                   @click="updatePOStatus(selectedPO.id, 'received')"

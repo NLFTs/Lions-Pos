@@ -75,9 +75,28 @@ case "$1" in
     "$MVNW" clean -q
     echo "Done."
     ;;
-  full:dev)
-    echo " Mari Memasak Tuan 😈😈"
-    echo "   Press Ctrl+C to stop both."
+    full:dev)
+    clear
+    echo "Mari Memasak Tuan 😈😈"
+    echo -e "\e[31m"
+    cat << "EOF"
+
+        .d$b.
+       i$$A$$L  .d$b
+     .$$F` `$$L.$$A$$.
+    j$$'    `4$$:` `$$.
+   j$$'     .4$:    `$$.
+  j$$`     .$$:      `4$L
+ :$$:____.d$$:  _____.:$$:
+ `4$$$$$$$$P` .i$$$$$$$$P`
+
+EOF
+    echo -e "\e[0m"  
+
+    echo " Memulai Spravel Fullstack Dev Server..."
+    echo "Press Ctrl+C to stop both."
+    echo ""
+
     trap 'kill 0' EXIT
     (cd "$FRONTEND" && $PNPM run dev) &
     "$MVNW" spring-boot:run -Dexec.skip=true &

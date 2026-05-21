@@ -23,6 +23,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.dak.spravel.model.inventory.StockBalance;
+import com.dak.spravel.model.inventory.StockMutation;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
+import com.dak.spravel.repository.inventory.StockMutationRepository;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -40,6 +44,9 @@ public class PurchaseReceiptService {
     private final PurchaseOrderItemsRepository purchaseOrderItemsRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    // === STOCK INTEGRATION ===
+    private final StockBalanceRepository stockBalanceRepository;
+    private final StockMutationRepository stockMutationRepository;
 
     // =========================
     // AUTH USER
@@ -179,18 +186,39 @@ public class PurchaseReceiptService {
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
 
+    // =============================================================
+    // KHUSUS PENGELOLA CABANG (EMPLOYEE PARTNER) UNTUK TERIMA BARANG
+    // =============================================================
+    private User getAuthenticatedEmployeeOnly() {
+        User user = getAuthenticatedUser();
+        boolean isEmployee = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee-partners"));
+        if (!isEmployee) {
+            throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang (Employee) yang diizinkan untuk menerima barang.");
+        }
+        return user;
+    }
+
     // =========================
-    // CREATE
+    // CREATE — dengan update stok otomatis
     // =========================
     @Transactional
     public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedEmployeeOnly();
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
         }
 
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
+
+        // Validasi: PO harus dalam status ORDERED atau PARTIAL untuk bisa diterima
+        if (po.getStatus() == PurchaseOrder.Status.DRAFT) {
+            throw new RuntimeException("Purchase Order masih dalam status DRAFT. Kirim PO ke supplier terlebih dahulu.");
+        }
+        if (po.getStatus() == PurchaseOrder.Status.CANCELLED) {
+            throw new RuntimeException("Purchase Order sudah dibatalkan. Tidak bisa menerima barang.");
+        }
 
         PurchaseReceipt receipt = new PurchaseReceipt();
         receipt.setPurchaseOrder(po);
@@ -235,6 +263,64 @@ public class PurchaseReceiptService {
             purchaseOrderItemsRepository.save(poItem);
 
             items.add(item);
+
+            // =============================================================
+            // UPDATE STOCK BALANCE — stok masuk ke lokasi tujuan PO
+            // =============================================================
+            long qtyReceivedLong = itemDTO.getQtyReceived().longValue();
+            if (qtyReceivedLong > 0) {
+                // Normalisasi ke UPPERCASE agar konsisten dengan query stock_balances
+                String locationType = po.getLocationType() != null
+                        ? po.getLocationType().toUpperCase()
+                        : null;
+                Long locationId = po.getLocationId();
+
+                if (locationType == null || locationId == null) {
+                    throw new RuntimeException("Purchase Order tidak memiliki lokasi tujuan yang valid.");
+                }
+
+                // Cari StockBalance yang sudah ada, atau buat baru
+                StockBalance stockBalance = stockBalanceRepository
+                        .findByProductIdAndLocationTypeAndLocationId(
+                                product.getId(), locationType, locationId)
+                        .orElse(null);
+
+                if (stockBalance == null) {
+                    // Buat entri stok baru di lokasi tujuan
+                    stockBalance = new StockBalance();
+                    stockBalance.setProduct(product);
+                    stockBalance.setLocationType(locationType);
+                    stockBalance.setLocationId(locationId);
+                    stockBalance.setQty(0L);
+                    stockBalance.setCreatedBy(currentUser);
+                }
+
+                // Tambah qty
+                long currentQty = stockBalance.getQty() != null ? stockBalance.getQty() : 0L;
+                stockBalance.setQty(currentQty + qtyReceivedLong);
+                stockBalance.setUpdatedBy(currentUser);
+                stockBalance.setUpdatedAt(LocalDateTime.now());
+                stockBalanceRepository.save(stockBalance);
+
+                // =============================================================
+                // CATAT STOCK MUTATION — tipe PURCHASE_IN
+                // =============================================================
+                StockMutation mutation = new StockMutation();
+                mutation.setProduct(product);
+                mutation.setPartner(po.getPartner());
+                mutation.setType(StockMutation.Type.PURCHASE_IN);
+                mutation.setFromLocationType(null);
+                mutation.setFromLocationId(null);
+                mutation.setToLocationType(StockMutation.Location.valueOf(locationType));
+                mutation.setToLocationId(locationId);
+                mutation.setQty(qtyReceivedLong);
+                mutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+                mutation.setReferenceId(saved.getId());
+                mutation.setNotes("Penerimaan barang dari PO #" + po.getPoNumber()
+                        + " - Receipt #" + saved.getReceiptNumber());
+                mutation.setCreatedBy(currentUser);
+                stockMutationRepository.save(mutation);
+            }
         }
 
         purchaseReceiptItemRepository.saveAll(items);

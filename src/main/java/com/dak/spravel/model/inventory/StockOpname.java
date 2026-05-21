@@ -41,7 +41,7 @@ public class StockOpname  {
     public enum Status {
         DRAFT,
         COUNTING,
-        RIEVIEWED,
+        REVIEWED,
         APPROVED,
         ADJUSTED
     }

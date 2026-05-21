@@ -118,7 +118,7 @@ public class PurchaseOrder  {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
     @Column(name = "created_at", updatable = false)

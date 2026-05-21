@@ -29,10 +29,10 @@ public class PurchaseReceiptItem {
     @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
     private Product product;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal qtyReceived = BigDecimal.ZERO;
 
-    @Column(precision = 10, scale = 2)
+    @Column(precision = 15, scale = 2)
     private BigDecimal unitCost = BigDecimal.ZERO;
 
     // Snapshot unit cost dari purchase order item, untuk menghindari perubahan harga di masa depan

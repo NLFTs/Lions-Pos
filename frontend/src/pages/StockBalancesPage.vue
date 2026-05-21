@@ -200,7 +200,8 @@ async function saveAdjustment() {
 }
 
 function getLocationName(type, id) {
-  const loc = locations.value.find(l => l.type === type && l.id === id)
+  if (!type) return `Unknown (#${id})`
+  const loc = locations.value.find(l => l.type.toLowerCase() === type.toLowerCase() && l.id === id)
   return loc ? loc.name : `Unknown (${type} #${id})`
 }
 
