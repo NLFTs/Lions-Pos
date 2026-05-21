@@ -1,5 +1,18 @@
 package com.dak.spravel.service.procurement;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.procurement.PurchaseOrderItemDTO;
 import com.dak.spravel.dto.request.procurement.PurchaseOrderRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
@@ -14,19 +27,8 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
 import com.dak.spravel.repository.procurement.SupplierRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -56,7 +58,7 @@ public class PurchaseOrderService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
@@ -66,15 +68,23 @@ public class PurchaseOrderService {
     // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
+        // 🛠️ MODIFIKASI: Masukkan role "employee" murni agar diizinkan untuk melihat daftar PO
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
+    }
+
+    // 💡 HELPER BARU: Cek apakah user murni seorang Employee
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     // =========================
@@ -149,6 +159,11 @@ public class PurchaseOrderService {
     public PurchaseOrder create(PurchaseOrderRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
+        // 🔥 VALIDASI: Employee dilarang membuat Purchase Order baru
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk membuat Purchase Order.");
+        }
+
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
@@ -210,6 +225,12 @@ public class PurchaseOrderService {
     // =========================
     public PurchaseOrder updateStatus(Long id, String status) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        // 🔥 VALIDASI: Employee dilarang mengubah status Purchase Order
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk mengubah status Purchase Order.");
+        }
+
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setStatus(PurchaseOrder.Status.valueOf(status.toUpperCase()));
         return purchaseOrderRepository.save(po);
@@ -220,6 +241,12 @@ public class PurchaseOrderService {
     // =========================
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        // 🔥 VALIDASI: Employee dilarang menghapus Purchase Order
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus Purchase Order.");
+        }
+
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setDeletedAt(LocalDateTime.now());
         purchaseOrderRepository.save(po);

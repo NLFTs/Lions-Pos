@@ -68,6 +68,8 @@ public class JwtUtil {
         try {
             getClaims(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            throw e; 
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }

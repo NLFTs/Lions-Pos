@@ -31,52 +31,11 @@ public class StockBalance {
         private Product product;
 
         @Column(name = "location_type", nullable = true)
-        private String locationType;
+        private String locationType;    
 
         // FK to branches.id or warehouses.id depending on location_type
         @Column(name = "location_id", nullable = true)
         private Long locationId;
-
-// @Service
-// @RequiredArgsConstructor
-// public class StockService {
-
-//     private final StockBalanceRepository stockBalanceRepository;
-//     private final WarehouseRepository warehouseRepository;
-//     private final BranchRepository branchRepository;
-
-//     // Saat transaksi dari warehouse
-//         public StockBalance createFromWarehouse(String warehouseId, String productId, BigDecimal qty) {
-//                 Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
-//                 .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
-
-//                 StockBalance stock = new StockBalance();
-//                 stock.setProduct(productRepository.findByUid(productId).orElseThrow());
-//                 stock.setQty(qty);
-
-//                 // Otomatis set dari warehouse
-//                 stock.setLocationType(LocationType.WAREHOUSE);
-//                 stock.setLocationId(warehouse.getUid());
-
-//                 return stockBalanceRepository.save(stock);
-//         }
-
-//         // Saat transaksi dari branch
-//         public StockBalance createFromBranch(String branchId, String productId, BigDecimal qty) {
-//                 Branch branch = branchRepository.findByUid(branchId)
-//                 .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
-
-//                 StockBalance stock = new StockBalance();
-//                 stock.setProduct(productRepository.findByUid(productId).orElseThrow());
-//                 stock.setQty(qty);
-
-//                 // Otomatis set dari branch
-//                 stock.setLocationType(LocationType.BRANCH);
-//                 stock.setLocationId(branch.getUid());
-
-//                 return stockBalanceRepository.save(stock);
-//         }
-// }
 
         @Column(name = "qty", nullable = false)
         private Long qty;
