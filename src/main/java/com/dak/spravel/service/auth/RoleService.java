@@ -10,7 +10,6 @@ import com.dak.spravel.model.auth.Permission;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
-
 import org.springframework.stereotype.Service;
 import java.util.HashSet;
 import java.util.List;

@@ -1,7 +1,10 @@
 package com.dak.spravel.controller.inventory;
 
+import com.dak.spravel.dto.request.inventory.BranchStockInRequest;
+import com.dak.spravel.dto.request.inventory.WarehouseStockInRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
+import com.dak.spravel.dto.request.inventory.StockTransferRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
@@ -113,4 +116,31 @@ public class StockBalanceController {
                 request.getLocationType(), request.getLocationId());
         return ResponseBuilder.ok(stockBalanceService.initializeStock(request));
     }
-}
+
+    @PostMapping("/warehouse")
+    @PreAuthorize("hasAuthority('stock_balance.store')")
+    public ResponseEntity<ResData<StockBalanceResponse>> storeFromWarehouse(
+            @Valid @RequestBody WarehouseStockInRequest request) {
+        log.info("[POST] /api/v1/stock-balances/warehouse warehouseId={} productId={} qty={}",
+                request.getWarehouseId(), request.getProductId(), request.getQty());
+        return ResponseBuilder.ok(stockBalanceService.createFromWarehouse(request));
+    }
+
+    @PostMapping("/branch")
+    @PreAuthorize("hasAuthority('stock_balance.store')")
+    public ResponseEntity<ResData<StockBalanceResponse>> storeFromBranch(
+            @Valid @RequestBody BranchStockInRequest request) {
+        log.info("[POST] /api/v1/stock-balances/branch branchId={} productId={} qty={}",
+                request.getBranchId(), request.getProductId(), request.getQty());
+        return ResponseBuilder.ok(stockBalanceService.createFromBranch(request));
+    }
+
+    @PostMapping("/transfer")
+    @PreAuthorize("hasAuthority('stock_balance.transfer')")
+    public ResponseEntity<ResData<StockBalanceResponse>> transfer(
+            @Valid @RequestBody StockTransferRequest request) {
+        log.info("[POST] /api/v1/stock-balances/transfer fromLocationType={} fromLocationId={} toLocationType={} toLocationId={} qty={}",
+                request.getFromLocationType(), request.getFromLocationId(), request.getToLocationType(), request.getToLocationId(), request.getQty());
+        return ResponseBuilder.ok(stockBalanceService.transferStock(request));
+    }
+}       

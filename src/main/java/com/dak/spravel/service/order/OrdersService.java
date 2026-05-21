@@ -18,14 +18,14 @@ import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
-import com.dak.spravel.repository.order.PaymentsRepository;
 import com.dak.spravel.service.inventory.StockBalanceService;
 import com.dak.spravel.service.inventory.StockMutationService;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +35,6 @@ import java.util.List;
 public class OrdersService {
     private final OrdersRepository ordersRepository;
     private final OrderItemsRepository orderItemsRepository;
-    private final PaymentsRepository paymentsRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
