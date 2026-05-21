@@ -1,14 +1,7 @@
 package com.dak.spravel.service.inventory;
 
-import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
-import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.catalog.Product;
-import com.dak.spravel.model.inventory.StockMutation;
-import com.dak.spravel.repository.auth.UserRepository;
-import com.dak.spravel.repository.catalog.ProductRepository;
-import com.dak.spravel.repository.inventory.StockMutationRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,8 +9,18 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
+
+import com.dak.spravel.dto.response.inventoryresponse.StockMutationResponse;
+import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.StockMutation;
+import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.repository.inventory.StockMutationRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -44,12 +47,28 @@ public class StockMutationService {
         return user;
     }
 
+    // 🛠️ HELPER TAMBAHAN: Validasi agar Admin Partner dan Employee murni bisa lolos barengan
+    private User getAuthenticatedAdminPartnerOrEmployee() {
+        User user = getAuthenticatedUser();
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+        
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
+    }
+
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
     }
 
-    // 🔥 MAP TO RESPONSE (Sudah fix Type Mismatch Enum & Aman dari NullPointer)
+    // 🔥 MAP TO RESPONSE
     public StockMutationResponse mapToResponse(StockMutation stockMutation) {
         if (stockMutation == null) return null;
 
@@ -59,15 +78,14 @@ public class StockMutationService {
         response.setNotes(stockMutation.getNotes());
         response.setReferenceId(stockMutation.getReferenceId());
         
-        // Amankan convert Enum ke String memakai .name()
         if (stockMutation.getType() != null) response.setType(stockMutation.getType().name());
         if (stockMutation.getReferenceType() != null) response.setReferenceType(stockMutation.getReferenceType().name());
         
-        // fromLocationType berbentuk String di Entity
         response.setFromLocationId(stockMutation.getFromLocationId());
-        response.setFromLocationType(stockMutation.getFromLocationType().name());
+        if (stockMutation.getFromLocationType() != null) {
+            response.setFromLocationType(stockMutation.getFromLocationType().name());
+        }
         
-        // toLocationType berbentuk Enum Location di Entity, convert ke String DTO
         response.setToLocationId(stockMutation.getToLocationId());
         if (stockMutation.getToLocationType() != null) {
             response.setToLocationType(stockMutation.getToLocationType().name());
@@ -84,15 +102,15 @@ public class StockMutationService {
                 .toList();
     }
 
-    // GET ALL BY PARTNER (Sudah diconvert ke DTO Response biar gak error di Controller)
+    // 🔄 GET ALL BY PARTNER (Bisa diakses Employee, otomatis terfilter milik Partner-nya)
     public List<StockMutationResponse> findAll() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         return stockMutationRepository.findByPartner(currentUser.getPartner()).stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // GET ALL PAGINATED
+    // 🔄 GET ALL PAGINATED
     public Page<StockMutationResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
@@ -101,32 +119,35 @@ public class StockMutationService {
             return stockMutationRepository.findAll(pageRequest).map(this::mapToResponse);
         }
 
-        if (currentUser.getPartner() == null) {
+        // Jalur operasional Admin Partner & Employee
+        User activeUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (activeUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
 
-        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), pageRequest)
+        return stockMutationRepository.findByPartnerId(activeUser.getPartner().getId(), pageRequest)
                 .map(this::mapToResponse);
     }
 
-    // GET BY ID
+    // 🔄 GET BY ID
     public StockMutationResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         StockMutation mutation = stockMutationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
 
         if (!isAdmin(currentUser)) {
-            if (currentUser.getPartner() == null ||
-                !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            User activeUser = getAuthenticatedAdminPartnerOrEmployee();
+            if (activeUser.getPartner() == null ||
+                !mutation.getPartner().getId().equals(activeUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
             }
         }
         return mapToResponse(mutation);
     }
 
-    // GET BY PRODUCT (Sudah dikonversi ke DTO Response)
+    // 🔄 GET BY PRODUCT
     public List<StockMutationResponse> findByProductId(Long productId) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
@@ -141,9 +162,9 @@ public class StockMutationService {
                 .toList();
     }
 
-    // GET BY PARTNER ID (Sudah dikonversi ke DTO Response)
+    // 🔄 GET BY PARTNER ID
     public List<StockMutationResponse> findByPartnerId(Long partnerId) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         if (currentUser.getPartner() == null ||
                 !currentUser.getPartner().getId().equals(partnerId)) {
@@ -155,7 +176,7 @@ public class StockMutationService {
                 .toList();
     }
 
-    // 🔥 RECORD MUTATION (Sudah fix kebal dari case-sensitive crash & aman tipe data)
+    // ⚙️ RECORD MUTATION (Biarkan berjalan internal, tidak diblokir untuk employee karena dipicu oleh system flow)
     @Transactional
     public void recordMutation(Product product, Partners partner, String type, 
                               String fromType, Long fromId, 
@@ -166,20 +187,17 @@ public class StockMutationService {
         mutation.setProduct(product);
         mutation.setPartner(partner);
         
-        // .toUpperCase() mengamankan dari typo input huruf kecil pemicu crash
         mutation.setType(StockMutation.Type.valueOf(type.toUpperCase()));
         
-        // fromLocationType di entity berupa String mentah
         mutation.setFromLocationType(fromType != null ? StockMutation.Location.valueOf(fromType.toUpperCase()) : null);
         mutation.setFromLocationId(fromId);
         
-        // toLocationType di entity berupa Enum StockMutation.Location, wajib diconvert khusus
         if (toType != null) {
             mutation.setToLocationType(StockMutation.Location.valueOf(toType.toUpperCase()));
         }
         mutation.setToLocationId(toId);
         
-        mutation.setQty(refId);
+        mutation.setQty(qty); // 🛠️ FIX: Sebelumya terisi refId, diganti jadi parameter qty yang benar
         mutation.setReferenceType(StockMutation.ReferenceType.valueOf(refType.toUpperCase()));
         mutation.setReferenceId(refId);
         mutation.setNotes(notes);
