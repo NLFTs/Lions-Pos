@@ -79,7 +79,7 @@ public class TransferRequestService {
                                  role.getSlug().equalsIgnoreCase("employee-partners"));
     }
 
-    // 💡 HELPER BARU: Cek apakah user adalah Employee murni
+    // Cek apakah user adalah Employee murni
     private boolean isEmployee(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
@@ -89,7 +89,7 @@ public class TransferRequestService {
         TransferRequest transferRequest = transferRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
 
-        if (currentUser.getPartner() == null ||
+        if (currentUser.getPartner() == null || transferRequest.getPartner() == null ||
                 !transferRequest.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
         }
@@ -114,12 +114,16 @@ public class TransferRequestService {
     public TransferRequestResponse mapToResponse(TransferRequest transferRequest) {
         if (transferRequest == null) return null;
 
-        // Partner DTO Mapping
+        // Partner DTO Mapping dengan Pengaman Lazy-Load
         PartnerSimpleDto partnerDto = null;
         if (transferRequest.getPartner() != null) {
             partnerDto = new PartnerSimpleDto();
             partnerDto.setId(transferRequest.getPartner().getId());
             partnerDto.setName(transferRequest.getPartner().getName());
+        } else if (transferRequest.getPartnerId() != null) {
+            partnerDto = new PartnerSimpleDto();
+            partnerDto.setId(transferRequest.getPartnerId());
+            partnerDto.setName("Partner ID " + transferRequest.getPartnerId());
         }
 
         // Items Detail Mapping
@@ -220,8 +224,11 @@ public class TransferRequestService {
 
         if (!isAdmin(currentUser)) {
             User activeUser = getAuthenticatedAdminPartnerOrEmployee();
-            if (activeUser.getPartner() == null ||
-                !transferRequest.getPartner().getId().equals(activeUser.getPartner().getId())) {
+            
+            // Pengaman Null Check diganti menggunakan pembanding ID/Object Field langsung
+            Long requestPartnerId = transferRequest.getPartner() != null ? transferRequest.getPartner().getId() : transferRequest.getPartnerId();
+            if (activeUser.getPartner() == null || requestPartnerId == null ||
+                !requestPartnerId.equals(activeUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
             }
         }
@@ -289,12 +296,10 @@ public class TransferRequestService {
         TransferRequest tr = transferRequestRepository.findById(transferRequestId)
                 .orElseThrow(() -> new RuntimeException("Transfer Request tidak ditemukan"));
 
-        // Validasi Kepemilikan Data Partner
-        if (currentUser.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        if (currentUser.getPartner() == null || tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
         }
 
-        // 🛠️ Aturan Status: Hanya bisa diproses jika berstatus PENDING atau IN_TRANSIT
         if (tr.getStatus() != TransferRequest.Status.PENDING && tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
             throw new RuntimeException("Gagal: Transfer Request sudah diproses sebelumnya atau telah dibatalkan.");
         }
@@ -339,12 +344,14 @@ public class TransferRequestService {
 
         if (!isAdmin(currentUser)) {
             User activeUser = getAuthenticatedAdminPartnerOrEmployee();
-            if (activeUser.getPartner() == null ||
-                !tr.getPartner().getId().equals(activeUser.getPartner().getId())) {
+            
+            Long requestPartnerId = tr.getPartner() != null ? tr.getPartner().getId() : tr.getPartnerId();
+            if (activeUser.getPartner() == null || requestPartnerId == null ||
+                !requestPartnerId.equals(activeUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
             }
 
-            // 🔥 VALIDASI UTAMA EMPLOYEE: Hanya boleh update ke IN_TRANSIT atau RECEIVED
+            // VALIDASI UTAMA EMPLOYEE
             if (isEmployee(activeUser)) {
                 String statusUpper = newStatus.toUpperCase();
                 if (!statusUpper.equals("IN_TRANSIT") && !statusUpper.equals("RECEIVED")) {
@@ -360,13 +367,11 @@ public class TransferRequestService {
             throw new RuntimeException("Status tidak valid: " + newStatus);
         }
 
-        // Jika diset ke APPROVED (Hanya Admin Partner / Super Admin yang bisa lewat sini karena validasi di atas)
         if ("approved".equalsIgnoreCase(newStatus)) {
             tr.setApprovedAt(LocalDateTime.now());
             tr.setApprovedByUser(currentUser);
         }
         
-        // Jika diset ke RECEIVED lewat method updateStatus biasa
         if ("received".equalsIgnoreCase(newStatus)) {
             tr.setReceivedAt(LocalDateTime.now());
             tr.setReceivedByUser(currentUser);
