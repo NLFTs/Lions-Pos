@@ -1,21 +1,11 @@
 package com.dak.spravel.service.procurement;
 
-import com.dak.spravel.dto.request.procurement.PurchaseReceiptItemDTO;
-import com.dak.spravel.dto.request.procurement.PurchaseReceiptRequestDTO;
-import com.dak.spravel.handler.ResourceNotFoundException;
-import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.catalog.Product;
-import com.dak.spravel.model.procurement.PurchaseOrder;
-import com.dak.spravel.model.procurement.PurchaseOrderItems;
-import com.dak.spravel.model.procurement.PurchaseReceipt;
-import com.dak.spravel.model.procurement.PurchaseReceiptItem;
-import com.dak.spravel.repository.auth.UserRepository;
-import com.dak.spravel.repository.catalog.ProductRepository;
-import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
-import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
-import com.dak.spravel.repository.procurement.PurchaseReceiptItemRepository;
-import com.dak.spravel.repository.procurement.PurchaseReceiptRepository;
-import lombok.RequiredArgsConstructor;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -23,16 +13,28 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.dak.spravel.dto.request.procurement.PurchaseReceiptItemDTO;
+import com.dak.spravel.dto.request.procurement.PurchaseReceiptRequestDTO;
+import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.inventory.StockMutation;
+import com.dak.spravel.model.procurement.PurchaseOrder;
+import com.dak.spravel.model.procurement.PurchaseOrderItems;
+import com.dak.spravel.model.procurement.PurchaseReceipt;
+import com.dak.spravel.model.procurement.PurchaseReceiptItem;
+import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.inventory.StockMutationRepository;
+import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
+import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
+import com.dak.spravel.repository.procurement.PurchaseReceiptItemRepository;
+import com.dak.spravel.repository.procurement.PurchaseReceiptRepository;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +46,7 @@ public class PurchaseReceiptService {
     private final PurchaseOrderItemsRepository purchaseOrderItemsRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    
     // === STOCK INTEGRATION ===
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMutationRepository stockMutationRepository;
@@ -66,7 +69,7 @@ public class PurchaseReceiptService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
@@ -76,13 +79,36 @@ public class PurchaseReceiptService {
     // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
+        // 🛠️ MODIFIKASI: Masukkan role "employee" murni agar diizinkan melihat riwayat penerimaan barang
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        }
+        return user;
+    }
+
+    // 💡 HELPER: Cek apakah user murni seorang Employee
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+    }
+
+    // =============================================================
+    // KHUSUS PENGELOLA CABANG (EMPLOYEE) UNTUK TERIMA BARANG
+    // =============================================================
+    private User getAuthenticatedEmployeeOnly() {
+        User user = getAuthenticatedUser();
+        // 🛠️ MODIFIKASI: Mendukung deteksi slug "employee" murni sesuai standar modul
+        boolean isEmployee = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee-partners") || 
+                        role.getSlug().equalsIgnoreCase("employee"));
+        if (!isEmployee) {
+            throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang (Employee) yang diizinkan untuk menerima barang.");
         }
         return user;
     }
@@ -186,19 +212,6 @@ public class PurchaseReceiptService {
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
 
-    // =============================================================
-    // KHUSUS PENGELOLA CABANG (EMPLOYEE PARTNER) UNTUK TERIMA BARANG
-    // =============================================================
-    private User getAuthenticatedEmployeeOnly() {
-        User user = getAuthenticatedUser();
-        boolean isEmployee = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee-partners"));
-        if (!isEmployee) {
-            throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang (Employee) yang diizinkan untuk menerima barang.");
-        }
-        return user;
-    }
-
     // =========================
     // CREATE — dengan update stok otomatis
     // =========================
@@ -211,6 +224,12 @@ public class PurchaseReceiptService {
         }
 
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
+
+        // 🛠️ STRATEGI VALIDASI UTAMA MODUL E: 
+        // Pastikan Employee hanya bisa terima barang di lokasi cabang/gudang miliknya sendiri jika akunnya memiliki mapping branchId
+        if (currentUser.getBranch() != null && !po.getLocationId().equals(currentUser.getBranch().getId())) {
+            throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang di lokasi cabang/warehouse yang ditugaskan kepada Anda.");
+        }
 
         // Validasi: PO harus dalam status ORDERED atau PARTIAL untuk bisa diterima
         if (po.getStatus() == PurchaseOrder.Status.DRAFT) {
@@ -269,7 +288,6 @@ public class PurchaseReceiptService {
             // =============================================================
             long qtyReceivedLong = itemDTO.getQtyReceived().longValue();
             if (qtyReceivedLong > 0) {
-                // Normalisasi ke UPPERCASE agar konsisten dengan query stock_balances
                 String locationType = po.getLocationType() != null
                         ? po.getLocationType().toUpperCase()
                         : null;
@@ -279,14 +297,12 @@ public class PurchaseReceiptService {
                     throw new RuntimeException("Purchase Order tidak memiliki lokasi tujuan yang valid.");
                 }
 
-                // Cari StockBalance yang sudah ada, atau buat baru
                 StockBalance stockBalance = stockBalanceRepository
                         .findByProductIdAndLocationTypeAndLocationId(
                                 product.getId(), locationType, locationId)
                         .orElse(null);
 
                 if (stockBalance == null) {
-                    // Buat entri stok baru di lokasi tujuan
                     stockBalance = new StockBalance();
                     stockBalance.setProduct(product);
                     stockBalance.setLocationType(locationType);
@@ -295,7 +311,6 @@ public class PurchaseReceiptService {
                     stockBalance.setCreatedBy(currentUser);
                 }
 
-                // Tambah qty
                 long currentQty = stockBalance.getQty() != null ? stockBalance.getQty() : 0L;
                 stockBalance.setQty(currentQty + qtyReceivedLong);
                 stockBalance.setUpdatedBy(currentUser);

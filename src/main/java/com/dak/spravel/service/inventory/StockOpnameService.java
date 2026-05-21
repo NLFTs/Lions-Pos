@@ -1,5 +1,18 @@
 package com.dak.spravel.service.inventory;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.inventory.StockOpnameItemDTO;
 import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
@@ -10,26 +23,16 @@ import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.inventory.StockOpname;
 import com.dak.spravel.model.inventory.StockOpnameItem;
-import com.dak.spravel.model.inventory.StockBalance; // Import Model StockBalance
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.inventory.StockOpnameItemRepository;
 import com.dak.spravel.repository.inventory.StockOpnameRepository;
-import com.dak.spravel.repository.inventory.StockBalanceRepository; // Import Repository StockBalance
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,23 +42,24 @@ public class StockOpnameService {
     private final StockOpnameItemRepository stockOpnameItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final StockBalanceRepository stockBalanceRepository; // Ditambahkan untuk sinkronisasi stok
+    private final StockBalanceRepository stockBalanceRepository;
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
+        // 🛠️ SINKRONISASI: Dukung slug role "employee" murni
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
 
         if (!isAuthorized) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
@@ -70,7 +74,15 @@ public class StockOpnameService {
 
     private boolean isAdminPartnerAndEmployee(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee-partners") || role.getSlug().equals("admin-partners"));
+                .anyMatch(role -> role.getSlug().equals("employee-partners") || 
+                        role.getSlug().equals("admin-partners") ||
+                        role.getSlug().equals("employee"));
+    }
+
+    // 💡 HELPER BARU: Deteksi apakah user adalah Employee murni
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     private StockOpname getValidatedOpname(Long id, User currentUser) {
@@ -154,7 +166,6 @@ public class StockOpnameService {
 
     public List<StockOpnameResponse> findAllOpName() {
         User currentUser = getAuthenticatedUser();
-        // Hanya superadmin/admin yang boleh mengakses endpoint admin
         if (!isAdmin(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Hanya Super Admin yang diperbolehkan.");
         }
@@ -162,6 +173,7 @@ public class StockOpnameService {
         return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
+    // RIWAYAT OPNAME (Bisa dibaca oleh Employee)
     public List<StockOpnameResponse> findAll() {
         User currentUser = getAuthenticatedUser();
 
@@ -173,7 +185,6 @@ public class StockOpnameService {
             return opnames.stream().map(this::mapToResponse).collect(Collectors.toList());
         }
 
-        // super_admin / admin: lihat semua
         List<StockOpname> allStockOpnames = stockOpnameRepository.findByDeletedAtIsNull();
         return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
     }
@@ -207,9 +218,18 @@ public class StockOpnameService {
         return items.stream().map(this::mapItemToResponse).collect(Collectors.toList());
     }
 
+    // =============================================================
+    // CREATE SESI OPNAME — ❌ BLOKIR JIKA EMPLOYEE
+    // =============================================================
     @Transactional
     public StockOpnameResponse create(StockOpnameRequestDTO request) {
         User currentUser = getAuthenticatedUser();
+
+        // 🔥 VALIDASI: Employee dilarang membuat sesi opname baru
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan membuat sesi opname.");
+        }
+
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
@@ -235,7 +255,6 @@ public class StockOpnameService {
                     throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
                 }
 
-                // Ambil qty_system dari stock_balances aktual, bukan dari request
                 long qtySystem = stockBalanceRepository
                         .findByProductIdAndLocationTypeAndLocationId(
                                 product.getId(),
@@ -263,9 +282,56 @@ public class StockOpnameService {
         return mapToResponse(saved);
     }
 
+    // =============================================================
+    // INPUT HITUNGAN FISIK DI LAPANGAN —  DIIZINKAN UNTUK EMPLOYEE
+    // =============================================================
+    @Transactional
+    public StockOpnameResponse inputQtyPhysical(Long opnameId, List<StockOpnameItemDTO> itemsInput) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        StockOpname opname = getValidatedOpname(opnameId, currentUser);
+
+        // Validasi: Hanya bisa input jika status sesi opname masih DRAFT
+        if (opname.getStatus() != StockOpname.Status.DRAFT) {
+            throw new RuntimeException("Akses Ditolak: Tidak bisa mengisi hitungan fisik pada sesi opname yang sudah diproses.");
+        }
+
+        for (StockOpnameItemDTO itemDTO : itemsInput) {
+            StockOpnameItem item = stockOpnameItemRepository.findByStockOpnameId(opnameId)
+                    .stream()
+                    .filter(i -> i.getProduct().getId().equals(itemDTO.getProductId()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan dalam daftar sesi opname ini"));
+
+            long qtyPhysical = itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : 0L;
+            item.setQtyPhysical(qtyPhysical);
+            
+            // Hitung selisih otomatis
+            long qtySystem = item.getQtySystem() != null ? item.getQtySystem() : 0L;
+            item.setQtyDifference(qtyPhysical - qtySystem);
+            item.setCountedBy(currentUser);
+            item.setCountedAt(LocalDateTime.now());
+            if (itemDTO.getNotes() != null) {
+                item.setNotes(itemDTO.getNotes());
+            }
+
+            stockOpnameItemRepository.save(item);
+        }
+
+        return mapToResponse(opname);
+    }
+
+    // =============================================================
+    // MANAGEMENT / UPDATE STATUS (APPROVE/REVIEW) — ❌ BLOKIR JIKA EMPLOYEE
+    // =============================================================
     @Transactional
     public StockOpname updateStatus(Long id, String status) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        // 🔥 VALIDASI: Employee tidak boleh menyetujui (Approve) atau mengelola eksekusi opname
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak memiliki hak untuk memproses status manajemen Opname.");
+        }
+
         StockOpname stockOpname = getValidatedOpname(id, currentUser);
 
         String statusUpper = status.toUpperCase();
@@ -329,8 +395,17 @@ public class StockOpnameService {
         return stockOpnameRepository.save(stockOpname);
     }
 
+    // =============================================================
+    // DELETE SESI OPNAME — ❌ BLOKIR JIKA EMPLOYEE
+    // =============================================================
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
+
+        // 🔥 VALIDASI: Employee dilarang menghapus sesi opname
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus data opname.");
+        }
+
         StockOpname opname = getValidatedOpname(id, currentUser);
         opname.setDeletedAt(LocalDateTime.now());
         stockOpnameRepository.save(opname);

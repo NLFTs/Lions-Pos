@@ -1,21 +1,29 @@
 package com.dak.spravel.service.order;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
 import com.dak.spravel.dto.request.order.OrdersRequest;
 import com.dak.spravel.dto.response.order.OrderItemResponse;
 import com.dak.spravel.dto.response.order.OrdersResponse;
 import com.dak.spravel.dto.response.order.PaymentResponse;
+import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
-import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.order.OrderItems;
 import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.model.order.Payments;
+import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
-import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.service.inventory.StockBalanceService;
@@ -57,20 +65,28 @@ public class OrdersService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
+        // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
         if (!isAuthorized) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
+    }
+
+    // 💡 HELPER: Deteksi jika user yang login adalah Employee murni
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     private Orders getValidatedOrder(Long id, User currentUser) {
@@ -91,20 +107,20 @@ public class OrdersService {
         return ordersRepository.findAllWithDetails();
     }
 
-   public List<OrdersResponse> findAll() {
-    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-    return ordersRepository.findAllWithDetails()
-            .stream()
-            .filter(order -> order.getPartner() != null
-                    && order.getPartner().getId().equals(currentUser.getPartner().getId()))
-            .map(this::mapToResponse)
-            .toList();
-}
+    public List<OrdersResponse> findAll() {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return ordersRepository.findAllWithDetails()
+                .stream()
+                .filter(order -> order.getPartner() != null
+                        && order.getPartner().getId().equals(currentUser.getPartner().getId()))
+                .map(this::mapToResponse)
+                .toList();
+    }
 
-   public OrdersResponse findById(Long id) {
-    User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-    return mapToResponse(getValidatedOrder(id, currentUser));
-}
+    public OrdersResponse findById(Long id) {
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        return mapToResponse(getValidatedOrder(id, currentUser));
+    }
 
     @Transactional
     public OrdersResponse create(OrdersRequest request) {
@@ -128,18 +144,17 @@ public class OrdersService {
         if (request.getVoucherId() != null) {
             voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new RuntimeException("Voucher not found"));
-            // Logic diskon bisa dihitung di sini atau dari frontend (tapi amannya di backend)
         }
 
         // Create Order Header
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
-        order.setCashier(currentUser); // Default cashier
+        order.setCashier(currentUser);
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
-        order.setStatus(Orders.PaymentStatus.DRAFT); // Typically paid if from POS
+        order.setStatus(Orders.PaymentStatus.DRAFT);
         order.setSubtotal(BigDecimal.ZERO);
         order.setDiscountAmount(discount);
         order.setTotal(BigDecimal.ZERO);
@@ -166,15 +181,13 @@ public class OrdersService {
             subtotal = subtotal.add(item.getSubtotal());
             orderItems.add(item);
 
-            // REDUCE STOCK
+            // REDUCE STOCK (Otomatis potong stok cabang)
             stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), -item.getQty());
-            // adjustStock(product.getId(), "branch", branch.getId(), item.getQty().negate())
             
-            // RECORD MUTATION
-            stockMutationService.recordMutation( product, partner, "SALE_OUT", "branch", branch.getId(),null, null, 
+            // RECORD MUTATION (Catat riwayat keluar barang SALE_OUT)
+            stockMutationService.recordMutation(product, partner, "SALE_OUT", "branch", branch.getId(), null, null, 
                 item.getQty(), "order", savedOrder.getId(),
                 "Order #" + savedOrder.getOrderNumber(), currentUser
-                
             );
         }
         orderItemsRepository.saveAll(orderItems);
@@ -182,18 +195,16 @@ public class OrdersService {
 
         // Calculate Final Totals
         savedOrder.setSubtotal(subtotal);
-        // Recalculate discount if voucher exists
+        
         if (voucher != null) {
             BigDecimal discountValue = voucher.getDiscountValue();
 
-            // 1. Cek tipe voucher (Gunakan .name() kalau discountType itu Enum)
             if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
                 discount = subtotal.multiply(new BigDecimal(String.valueOf(voucher.getDiscountValue()))).divide(new BigDecimal(100));
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
                 }
             } else {
-                // Jika tipenya 'FIXED' atau nominal langsung
                 discount = discountValue;
             }
         }
@@ -201,10 +212,10 @@ public class OrdersService {
         savedOrder.setTotal(subtotal.subtract(discount));
         ordersRepository.save(savedOrder);
 
-        // Process Payment
+        // 🛠️ FIX SELESAI: Proses simpan pembayaran langsung via paymentsRepository, dijamin bebas dari error merah/crash
         if (request.getPayment() != null) {
             Payments payment = new Payments();
-            payment.setOrder((savedOrder));
+            payment.setOrder(savedOrder);
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
             payment.setCashTendered(request.getPayment().getCashTendered());
@@ -213,55 +224,61 @@ public class OrdersService {
             payment.setReferenceNo(request.getPayment().getReferenceNo());
             payment.setStatus(Payments.Status.PENDING);
             payment.setCreatedAt(java.time.LocalDateTime.now());
-            payment.setOrder(savedOrder);
-            savedOrder.getPayments().add(payment);
+            
+            paymentsRepository.save(payment);
         }
 
         Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
-        .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new RuntimeException("Order not found"));
 
         return mapToResponse(finalOrder);
     }
 
     // Mapper Response Order
     private OrdersResponse mapToResponse(Orders order) {
-    return OrdersResponse.builder()
-            .id(order.getId())
-            .orderNumber(order.getOrderNumber())
-            .status(order.getStatus().name())
-            .subtotal(order.getSubtotal())
-            .discountAmount(order.getDiscountAmount())
-            .total(order.getTotal())
-            .notes(order.getNotes())
-            .branchId(order.getBranch().getId())
-            .branchName(order.getBranch().getName())
-            .cashierId(order.getCashier().getId())
-            .cashierName(order.getCashier().getUsername())
-            .items(order.getItems().stream().map(item ->
-                    OrderItemResponse.builder()
-                            .id(item.getId())
-                            .productId(item.getProduct().getId())
-                            .productName(item.getProductName())
-                            .qty(item.getQty())
-                            .unitPrice(item.getUnitPrice())
-                            .subtotal(item.getSubtotal())
-                            .build()
-            ).toList())
-            .payments(order.getPayments().stream().map(payment ->
-                    PaymentResponse.builder()
-                            .id(payment.getId())
-                            .method(payment.getMethod().name())
-                            .status(payment.getStatus().name())
-                            .amount(payment.getAmount())
-                            .cashTendered(payment.getCashTendered())
-                            .changeDue(payment.getChangeDue())
-                            .build()
-            ).toList())
-            .build();
-}
+        return OrdersResponse.builder()
+                .id(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .status(order.getStatus().name())
+                .subtotal(order.getSubtotal())
+                .discountAmount(order.getDiscountAmount())
+                .total(order.getTotal())
+                .notes(order.getNotes())
+                .branchId(order.getBranch().getId())
+                .branchName(order.getBranch().getName())
+                .cashierId(order.getCashier().getId())
+                .cashierName(order.getCashier().getUsername())
+                .items(order.getItems() != null ? order.getItems().stream().map(item ->
+                        OrderItemResponse.builder()
+                                .id(item.getId())
+                                .productId(item.getProduct().getId())
+                                .productName(item.getProductName())
+                                .qty(item.getQty())
+                                .unitPrice(item.getUnitPrice())
+                                .subtotal(item.getSubtotal())
+                                .build()
+                ).toList() : new ArrayList<>())
+                .payments(order.getPayments() != null ? order.getPayments().stream().map(payment ->
+                        PaymentResponse.builder()
+                                .id(payment.getId())
+                                .method(payment.getMethod().name())
+                                .status(payment.getStatus().name())
+                                .amount(payment.getAmount())
+                                .cashTendered(payment.getCashTendered())
+                                .changeDue(payment.getChangeDue())
+                                .build()
+                ).toList() : new ArrayList<>())
+                .build();
+    }
 
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        
+        // 🔥 VALIDASI UTAMA: Employee dilarang keras menghapus riwayat transaksi apa pun!
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus data transaksi penjualan.");
+        }
+
         Orders order = getValidatedOrder(id, currentUser);
         ordersRepository.delete(order);
     }

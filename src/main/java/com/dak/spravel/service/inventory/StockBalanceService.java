@@ -77,15 +77,23 @@ public class StockBalanceService {
     // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
+        // 🛠️ MODIFIKASI: Tambahkan role "employee" murni agar diizinkan lolos melihat data stok
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
                 .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
+    }
+
+    // 💡 HELPER BARU: Deteksi apakah user adalah Employee murni
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     // =========================
@@ -343,8 +351,13 @@ public class StockBalanceService {
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
+        
+        // 🔥 VALIDASI: Employee Dilarang Create Stock Awal Manual
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan menginisiasi stock.");
+        }
 
+        Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner manapun.");
         }
@@ -392,6 +405,11 @@ public class StockBalanceService {
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        // 🔥 VALIDASI: Employee Dilarang Initialize Batch Stock
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan melakukan inisiasi batch stock.");
+        }
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
