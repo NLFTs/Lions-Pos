@@ -1,8 +1,8 @@
 package com.dak.spravel.controller.inventory;
 
 import com.dak.spravel.dto.request.partner.BranchRequest;
-import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.service.inventory.BranchesService;
 import com.dak.spravel.util.ResponseBuilder;
 import jakarta.validation.Valid;

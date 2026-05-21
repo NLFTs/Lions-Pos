@@ -131,6 +131,7 @@ public class PermissionSeeder {
         {"stock_balance.store",  "Create Stock Balance",      "stock_balance"},
         {"stock_balance.show",   "View Stock Balance Detail", "stock_balance"},
         {"stock_balance.update", "Update Stock Balance",      "stock_balance"},
+        {"stock_balance.transfer", "Transfer Stock Balance",      "stock_balance"},
 
         {"stock_mutation.index",  "View All Stock Mutations",   "stock_mutation"},
         {"stock_mutation.show",   "View Stock Mutation Detail", "stock_mutation"},

@@ -325,6 +325,7 @@ public class ProductService {
                 deleteFileDisk(photo.getUrl());
             }
         }
+
         productRepository.delete(product);
     }
 
