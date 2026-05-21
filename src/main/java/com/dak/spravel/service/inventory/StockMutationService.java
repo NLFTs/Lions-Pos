@@ -36,17 +36,24 @@ public class StockMutationService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedSuperAdmin(){
+    private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses Ditolak: Anda Bukan Super Admin"); 
+        if (!isSuperAdmin) throw new RuntimeException("Akses Ditolak: Anda Bukan Super Admin");
         return user;
     }
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    }
+
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
     }
 
     // 🔥 MAP TO RESPONSE (Sudah fix Type Mismatch Enum & Aman dari NullPointer)
@@ -58,15 +65,20 @@ public class StockMutationService {
         response.setQty(stockMutation.getQty());
         response.setNotes(stockMutation.getNotes());
         response.setReferenceId(stockMutation.getReferenceId());
-        
+
         // Amankan convert Enum ke String memakai .name()
         if (stockMutation.getType() != null) response.setType(stockMutation.getType().name());
-        if (stockMutation.getReferenceType() != null) response.setReferenceType(stockMutation.getReferenceType().name());
-        
+        if (stockMutation.getReferenceType() != null)
+            response.setReferenceType(stockMutation.getReferenceType().name());
+
         // fromLocationType berbentuk String di Entity
         response.setFromLocationId(stockMutation.getFromLocationId());
-        response.setFromLocationType(stockMutation.getFromLocationType().name());
-        
+
+        if (stockMutation.getFromLocationType() != null) {
+            response.setFromLocationType(
+                    stockMutation.getFromLocationType().name());
+        }
+
         // toLocationType berbentuk Enum Location di Entity, convert ke String DTO
         response.setToLocationId(stockMutation.getToLocationId());
         if (stockMutation.getToLocationType() != null) {
@@ -87,7 +99,44 @@ public class StockMutationService {
     // GET ALL BY PARTNER (Sudah diconvert ke DTO Response biar gak error di Controller)
     public List<StockMutationResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        return stockMutationRepository.findByPartner(currentUser.getPartner()).stream()
+
+        List<StockMutation> mutations =
+                stockMutationRepository.findByPartner(currentUser.getPartner());
+
+        // SUPER ADMIN / ADMIN
+        if (isAdmin(currentUser)) {
+            return mutations.stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        // EMPLOYEE
+        if (isEmployee(currentUser)) {
+
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Employee tidak memiliki branch.");
+            }
+
+            Long branchId = currentUser.getBranch().getId();
+
+            mutations = mutations.stream()
+                    .filter(m ->
+                            ("BRANCH".equalsIgnoreCase(
+                                    m.getToLocationType() != null
+                                            ? m.getToLocationType().name()
+                                            : null)
+                                    && branchId.equals(m.getToLocationId()))
+                                    ||
+                                    ("BRANCH".equalsIgnoreCase(
+                                            m.getFromLocationType() != null
+                                                    ? m.getFromLocationType().name()
+                                                    : null)
+                                            && branchId.equals(m.getFromLocationId()))
+                    )
+                    .toList();
+        }
+
+        return mutations.stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -116,9 +165,39 @@ public class StockMutationService {
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
 
         if (!isAdmin(currentUser)) {
+
             if (currentUser.getPartner() == null ||
-                !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
+                    !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Stock mutation bukan milik partner Anda.");
+            }
+
+            // VALIDASI KHUSUS EMPLOYEE
+            if (isEmployee(currentUser)) {
+
+                if (currentUser.getBranch() == null) {
+                    throw new RuntimeException("Employee tidak memiliki branch.");
+                }
+
+                Long branchId = currentUser.getBranch().getId();
+
+                boolean hasAccess =
+                        ("BRANCH".equalsIgnoreCase(
+                                mutation.getToLocationType() != null
+                                        ? mutation.getToLocationType().name()
+                                        : null)
+                                && branchId.equals(mutation.getToLocationId()))
+                                ||
+                                ("BRANCH".equalsIgnoreCase(
+                                        mutation.getFromLocationType() != null
+                                                ? mutation.getFromLocationType().name()
+                                                : null)
+                                        && branchId.equals(mutation.getFromLocationId()));
+
+                if (!hasAccess) {
+                    throw new RuntimeException(
+                            "Akses Ditolak: Mutasi ini bukan branch Anda.");
+                }
             }
         }
         return mapToResponse(mutation);
@@ -179,7 +258,7 @@ public class StockMutationService {
         }
         mutation.setToLocationId(toId);
         
-        mutation.setQty(refId);
+        mutation.setQty(qty);
         mutation.setReferenceType(StockMutation.ReferenceType.valueOf(refType.toUpperCase()));
         mutation.setReferenceId(refId);
         mutation.setNotes(notes);

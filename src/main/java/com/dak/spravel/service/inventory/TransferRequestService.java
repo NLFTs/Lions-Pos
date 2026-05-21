@@ -79,6 +79,27 @@ public class TransferRequestService {
                         role.getSlug().equalsIgnoreCase("employee-partners"));
     }
 
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners"));
+    }
+
+    private boolean isBranchAccessible(
+            TransferRequest.Location locationType,
+            Long locationId,
+            User user
+    ) {
+
+        if (user.getBranch() == null) {
+            return false;
+        }
+
+        return locationType == TransferRequest.Location.BRANCH
+                && user.getBranch().getId().equals(locationId);
+    }
+
     private TransferRequest getValidatedTransferRequest(Long id, User currentUser) {
         TransferRequest transferRequest = transferRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
@@ -92,14 +113,18 @@ public class TransferRequestService {
     }
 
     // Khusus Untuk Super Admin
-    public List<TransferRequestResponse> findAllTransferRequest(){
+    public List<TransferRequestResponse> findAllTransferRequest() {
+
         User currentUser = getAuthenticatedUser();
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Di Tolak: Admin Partners Dan Employee Tidak Di Perbolehkan Melihat Semua Transfer Request");
+        if (!isAdmin(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Hanya Admin yang boleh melihat semua Transfer Request."
+            );
         }
-        List<TransferRequest> allTransferRequests = transferRequestRepository.findAll();
-        return allTransferRequests.stream()
+
+        return transferRequestRepository.findAll()
+                .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -182,11 +207,43 @@ public class TransferRequestService {
 
     // GET ALL (Filter per Mitra)
     public List<TransferRequest> findAll() {
+
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
-        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+        List<TransferRequest> transferRequests = transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(
+                                currentUser.getPartner().getId()
+                        );
+
+        // FILTER KHUSUS EMPLOYEE
+        if (isEmployee(currentUser)) {
+
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Employee tidak memiliki branch.");
+            }
+
+            Long branchId = currentUser.getBranch().getId();
+
+            transferRequests = transferRequests.stream()
+                    .filter(tr ->
+                            ("BRANCH".equalsIgnoreCase(
+                                    tr.getFromLocationType() != null
+                                            ? tr.getFromLocationType().name()
+                                            : null)
+                                    && branchId.equals(tr.getFromLocationId()))
+                                    ||
+                                    ("BRANCH".equalsIgnoreCase(
+                                            tr.getToLocationType() != null
+                                                    ? tr.getToLocationType().name()
+                                                    : null)
+                                            && branchId.equals(tr.getToLocationId()))
+                    )
+                    .toList();
+        }
+
+        return transferRequests;
     }
 
     // GET ALL PAGINATED
@@ -202,8 +259,41 @@ public class TransferRequestService {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
 
-        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageRequest)
-                .map(this::mapToResponse);
+        Page<TransferRequestResponse> result =
+                transferRequestRepository
+                        .findByPartnerIdAndDeletedAtIsNull(
+                                currentUser.getPartner().getId(),
+                                pageRequest
+                        )
+                        .map(this::mapToResponse);
+
+        if (isEmployee(currentUser)) {
+
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Employee tidak memiliki branch.");
+            }
+
+            Long branchId = currentUser.getBranch().getId();
+
+            List<TransferRequestResponse> filtered =
+                    result.getContent().stream()
+                            .filter(tr ->
+                                    ("BRANCH".equalsIgnoreCase(tr.getFromLocationType())
+                                            && branchId.equals(tr.getFromLocationId()))
+                                            ||
+                                            ("BRANCH".equalsIgnoreCase(tr.getToLocationType())
+                                                    && branchId.equals(tr.getToLocationId()))
+                            )
+                            .toList();
+
+            return new org.springframework.data.domain.PageImpl<>(
+                    filtered,
+                    pageRequest,
+                    filtered.size()
+            );
+        }
+
+        return result;
     }
 
     // GET BY ID
@@ -219,64 +309,203 @@ public class TransferRequestService {
                 throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
             }
         }
+        if (isEmployee(currentUser)) {
+
+            boolean hasAccess =
+                    isBranchAccessible(
+                            transferRequest.getFromLocationType(),
+                            transferRequest.getFromLocationId(),
+                            currentUser
+                    )
+                            ||
+                            isBranchAccessible(
+                                    transferRequest.getToLocationType(),
+                                    transferRequest.getToLocationId(),
+                                    currentUser
+                            );
+
+            if (!hasAccess) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Transfer request bukan branch Anda."
+                );
+            }
+        }
         return mapToResponse(transferRequest);
     }
 
     // GET BY PARTNER ID
     public List<TransferRequest> findByPartnerId(Long partnerId) {
+
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         if (currentUser.getPartner() == null ||
                 !currentUser.getPartner().getId().equals(partnerId)) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
+            throw new RuntimeException(
+                    "Akses Ditolak: Anda tidak bisa mengakses data partner lain."
+            );
         }
 
-        return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(partnerId);
+        List<TransferRequest> transferRequests =
+                transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(partnerId);
+
+        // FILTER EMPLOYEE
+        if (isEmployee(currentUser)) {
+
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Employee tidak memiliki branch.");
+            }
+
+            Long branchId = currentUser.getBranch().getId();
+
+            transferRequests = transferRequests.stream()
+                    .filter(tr ->
+                            (
+                                    tr.getFromLocationType() == TransferRequest.Location.BRANCH
+                                            && branchId.equals(tr.getFromLocationId())
+                            )
+                                    ||
+                                    (
+                                            tr.getToLocationType() == TransferRequest.Location.BRANCH
+                                                    && branchId.equals(tr.getToLocationId())
+                                    )
+                    )
+                    .toList();
+        }
+
+        return transferRequests;
     }
 
     // CREATE (Otomatis Deteksi Gudang / Cabang)
     @Transactional
     public TransferRequestResponse create(TransferRequestDTO request) {
+
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
         Partners partner = currentUser.getPartner();
 
         TransferRequest transferRequest = new TransferRequest();
+
         transferRequest.setPartner(partner);
 
         // 1. Deteksi Otomatis Lokasi Asal (From) via Database
         Long fromId = request.getFromLocationId();
+
         if (warehousesRepository.existsById(fromId)) {
-            transferRequest.setFromLocationType(TransferRequest.Location.WAREHOUSE);
+
+            transferRequest.setFromLocationType(
+                    TransferRequest.Location.WAREHOUSE
+            );
+
             transferRequest.setFromLocationId(fromId);
+
         } else if (branchesRepository.existsById(fromId)) {
-            transferRequest.setFromLocationType(TransferRequest.Location.BRANCH);
+
+            transferRequest.setFromLocationType(
+                    TransferRequest.Location.BRANCH
+            );
+
             transferRequest.setFromLocationId(fromId);
+
         } else {
-            throw new RuntimeException("Gagal: ID lokasi asal (" + fromId + ") tidak ditemukan di Gudang maupun Cabang!");
+
+            throw new RuntimeException(
+                    "Gagal: ID lokasi asal (" + fromId + ") tidak ditemukan di Gudang maupun Cabang!"
+            );
         }
 
         // 2. Deteksi Otomatis Lokasi Tujuan (To) via Database
         Long toId = request.getToLocationId();
+
         if (warehousesRepository.existsById(toId)) {
-            transferRequest.setToLocationType(TransferRequest.Location.WAREHOUSE);
+
+            transferRequest.setToLocationType(
+                    TransferRequest.Location.WAREHOUSE
+            );
+
             transferRequest.setToLocationId(toId);
+
         } else if (branchesRepository.existsById(toId)) {
-            transferRequest.setToLocationType(TransferRequest.Location.BRANCH);
+
+            transferRequest.setToLocationType(
+                    TransferRequest.Location.BRANCH
+            );
+
             transferRequest.setToLocationId(toId);
+
         } else {
-            throw new RuntimeException("Gagal: ID lokasi tujuan (" + toId + ") tidak ditemukan di Gudang maupun Cabang!");
+
+            throw new RuntimeException(
+                    "Gagal: ID lokasi tujuan (" + toId + ") tidak ditemukan di Gudang maupun Cabang!"
+            );
+        }
+
+        // VALIDASI KHUSUS EMPLOYEE
+        if (isEmployee(currentUser)) {
+
+            if (currentUser.getBranch() == null) {
+
+                throw new RuntimeException(
+                        "Employee tidak memiliki branch."
+                );
+            }
+
+            Long branchId = currentUser.getBranch().getId();
+
+            boolean hasAccess =
+
+                    (
+                            transferRequest.getFromLocationType()
+                                    == TransferRequest.Location.BRANCH
+
+                                    &&
+
+                                    branchId.equals(
+                                            transferRequest.getFromLocationId()
+                                    )
+                    )
+
+                            ||
+
+                            (
+                                    transferRequest.getToLocationType()
+                                            == TransferRequest.Location.BRANCH
+
+                                            &&
+
+                                            branchId.equals(
+                                                    transferRequest.getToLocationId()
+                                            )
+                            );
+
+            if (!hasAccess) {
+
+                throw new RuntimeException(
+                        "Akses Ditolak: Employee hanya boleh membuat transfer untuk branch miliknya."
+                );
+            }
         }
 
         transferRequest.setNotes(request.getNotes());
-        transferRequest.setStatus(TransferRequest.Status.PENDING);
-        transferRequest.setRequestedAt(LocalDateTime.now());
-        transferRequest.setCreatedAt(LocalDateTime.now());
+
+        transferRequest.setStatus(
+                TransferRequest.Status.PENDING
+        );
+
+        transferRequest.setRequestedAt(
+                LocalDateTime.now()
+        );
+
+        transferRequest.setCreatedAt(
+                LocalDateTime.now()
+        );
+
         transferRequest.setCreatedBy(currentUser);
 
-        TransferRequest savedTR = transferRequestRepository.save(transferRequest);
+        TransferRequest savedTR =
+                transferRequestRepository.save(transferRequest);
+
         return mapToResponse(savedTR);
     }
-
     // RECEIVE TRANSFER (Konfirmasi Penerimaan Stok & Pencatatan Mutasi otomatis)
     @Transactional
     public TransferRequestResponse receiveTransfer(Long transferRequestId, List<TransferRequestItemDTO> receivedItemsPayload) {
@@ -284,6 +513,28 @@ public class TransferRequestService {
 
         TransferRequest tr = transferRequestRepository.findById(transferRequestId)
                 .orElseThrow(() -> new RuntimeException("Transfer Request tidak ditemukan"));
+
+        if (isEmployee(currentUser)) {
+
+            boolean hasAccess =
+                    isBranchAccessible(
+                            tr.getFromLocationType(),
+                            tr.getFromLocationId(),
+                            currentUser
+                    )
+                            ||
+                            isBranchAccessible(
+                                    tr.getToLocationType(),
+                                    tr.getToLocationId(),
+                                    currentUser
+                            );
+
+            if (!hasAccess) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Transfer request bukan branch Anda."
+                );
+            }
+        }
 
         if (tr.getStatus() != TransferRequest.Status.PENDING && tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
             throw new RuntimeException("Gagal: Transfer Request sudah diproses sebelumnya atau telah dibatalkan.");
@@ -338,6 +589,24 @@ public class TransferRequestService {
             }
         }
 
+        if (isEmployee(currentUser)) {
+
+            boolean hasAccess = isBranchAccessible(tr.getFromLocationType(),
+                            tr.getFromLocationId(), currentUser
+                    )
+                            ||
+                            isBranchAccessible(
+                                    tr.getToLocationType(),
+                                    tr.getToLocationId(),
+                                    currentUser
+                            );
+
+            if (!hasAccess) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Transfer request bukan branch Anda."
+                );
+            }
+        }
         try {
             TransferRequest.Status status = TransferRequest.Status.valueOf(newStatus.toUpperCase());
             tr.setStatus(status);

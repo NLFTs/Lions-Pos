@@ -108,6 +108,12 @@ public class UserService {
                     .stream().map(this::toResponse).toList();
         }
 
+        if (isEmployeeOnly(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat melihat daftar user."
+            );
+        }
+
         throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
     }
 
@@ -127,9 +133,15 @@ public class UserService {
             return userRepository.findByPartnerId(currentUser.getPartner().getId(), pageable)
                     .map(this::toResponse);
         }
+        if (isEmployeeOnly(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat melihat daftar user."
+            );
+        }
 
         throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
     }
+
 
     // GET BY ID
     public UserResponse findById(Long id) {
@@ -151,6 +163,18 @@ public class UserService {
             return toResponse(user);
         }
 
+        // Employee hanya boleh lihat profile sendiri
+        if (isEmployeeOnly(currentUser)) {
+
+            if (!currentUser.getId().equals(id)) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Employee hanya bisa melihat profile sendiri."
+                );
+            }
+
+            return toResponse(currentUser);
+        }
+
         throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
     }
 
@@ -158,6 +182,12 @@ public class UserService {
     @Transactional
     public UserResponse create(CreateUserRequest request) {
         User currentUser = getAuthenticatedUser();
+
+        if (isEmployeeOnly(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat membuat user."
+            );
+        }
 
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username '" + request.getUsername() + "' already exists");
@@ -239,10 +269,27 @@ public class UserService {
 
     // UPDATE
     public UserResponse update(Long id, UpdateUserRequest request) {
+
         User currentUser = getAuthenticatedUser();
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
+        // EMPLOYEE hanya boleh edit dirinya sendiri
+        if (isEmployeeOnly(currentUser)) {
+
+            if (!currentUser.getId().equals(id)) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Employee hanya bisa mengedit profile sendiri."
+                );
+            }
+
+            // Employee tidak boleh ubah role
+            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Employee tidak dapat mengubah role."
+                );
+            }
+        }
         // Admin partner hanya bisa update user partnernya sendiri
         if (isAdminPartner(currentUser)) {
             if (user.getPartner() == null ||
@@ -307,6 +354,12 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
+        if (isEmployeeOnly(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menghapus user."
+            );
+        }
+
         // Admin partner hanya bisa delete user partnernya sendiri
         if (isAdminPartner(currentUser)) {
             if (user.getPartner() == null ||
@@ -335,6 +388,16 @@ public class UserService {
     public void changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+        User currentUser = getAuthenticatedUser();
+
+        if (isEmployeeOnly(currentUser)
+                && !currentUser.getId().equals(userId)) {
+
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee hanya bisa mengubah password sendiri."
+            );
+        }
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Current password is incorrect");
