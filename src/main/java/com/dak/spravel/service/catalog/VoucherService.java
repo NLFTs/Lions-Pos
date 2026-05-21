@@ -37,16 +37,28 @@ public class VoucherService {
         User user = userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
 
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+           boolean isAdmin = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
 
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
+            if (isAdmin) {
+                throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
+            }
+
+            // ✅ TAMBAH — Employee dilarang kelola voucher
+            boolean isEmployee = user.getRoles().stream()
+                    .anyMatch(role ->
+                            role.getSlug().equalsIgnoreCase("employee") ||
+                                    role.getSlug().equalsIgnoreCase("employee-partners")
+                    );
+
+            if (isEmployee) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Employee tidak dapat mengelola Voucher."
+                );
+            }
+
+            return user;
         }
-
-        return user;
-    }
-
     // Helper: Validasi Kepemilikan Voucher
     private Voucher getValidatedVoucher(Long id, User currentUser) {
         Voucher voucher = voucherRepository.findById(id)
