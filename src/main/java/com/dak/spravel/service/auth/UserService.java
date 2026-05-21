@@ -71,13 +71,23 @@ public class UserService {
     }
 
     private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin"));
+        return user.getRoles().stream().anyMatch(role ->
+                role.getSlug().equals("admin") ||
+                        role.getSlug().equals("super_admin")
+        );
     }
 
     private boolean isAdminPartner(User user) {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("admin-partners"));
+    }
+
+    private boolean isEmployeeOnly(User user) {
+        return user.getRoles().stream()
+                .allMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners")
+                );
     }
 
     // --- LOGIC UTAMA ---
@@ -239,6 +249,19 @@ public class UserService {
                     !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
             }
+            // ✅ TAMBAH — hanya boleh edit Employee
+            if (!isEmployeeOnly(user)) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Admin Partner hanya dapat mengubah data akun Employee."
+                );
+            }
+
+            // ✅ TAMBAH — dilarang ganti role
+            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Admin Partner tidak dapat mengubah role user."
+                );
+            }
         } else if (!isAdmin(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk mengubah user.");
         }
@@ -290,9 +313,16 @@ public class UserService {
                     !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
             }
+            // ✅ TAMBAH — hanya boleh hapus Employee
+            if (!isEmployeeOnly(user)) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Admin Partner hanya dapat menghapus akun Employee."
+                );
+            }
         } else if (!isAdmin(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk menghapus user.");
         }
+
 
         permissionCacheService.evict(user.getUsername());
         if (user.getAvatar() != null) {

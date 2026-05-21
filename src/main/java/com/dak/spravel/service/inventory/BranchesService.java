@@ -57,7 +57,10 @@ public class BranchesService {
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin"));
+                .anyMatch(role ->
+                        role.getSlug().equals("admin") ||
+                                role.getSlug().equals("super_admin")
+                );
     }
 
     private User getAuthenticatedSuperAdmin() {
@@ -89,6 +92,19 @@ public class BranchesService {
         }
 
         return user;
+    }
+
+    private boolean isAdminPartner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners"));
+    }
+
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners")
+                );
     }
 
     private Branches getValidatedBranch(Long id, User currentUser) {
@@ -167,13 +183,18 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse create(BranchRequest request) {
-
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         Partners partner = currentUser.getPartner();
 
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner manapun.");
+        }
+
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menambah Cabang baru."
+            );
         }
 
         Branches branch = new Branches();
@@ -231,8 +252,13 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse update(Long id, BranchRequest request) {
-
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat mengubah data Cabang."
+            );
+        }
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -247,8 +273,13 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse softDelete(Long id) {
-
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menghapus Cabang."
+            );
+        }
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -262,8 +293,14 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse restoreBranch(Long id) {
-
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat memulihkan Cabang."
+            );
+        }
+
 
         Branches branch = getValidatedBranch(id, currentUser);
 
@@ -279,6 +316,12 @@ public class BranchesService {
     public void delete(Long id) {
 
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menghapus permanen Cabang."
+            );
+        }
 
         Branches branch = getValidatedBranch(id, currentUser);
 

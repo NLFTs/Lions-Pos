@@ -71,7 +71,19 @@ public class WarehousesService {
 
     private boolean isAdmin(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin"));
+                .anyMatch(role ->
+                        role.getSlug().equals("admin") ||
+                                role.getSlug().equals("super_admin")
+                );
+    }
+
+    // TAMBAH di bawahnya
+    private boolean isEmployee(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners")
+                );
     }
 
     public WarehouseResponse mapToResponse(Warehouses warehouses) {
@@ -144,8 +156,15 @@ public class WarehousesService {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         Partners partners = currentUser.getPartner();
 
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner yang diizinkan.");
+        // Blokir Employee
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menambah Warehouse baru."
+            );
+        }
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
 
         if (currentUser.getPartner() == null) {
@@ -188,9 +207,16 @@ public class WarehousesService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat menghapus Warehouse."
+            );
+        }
+
         Warehouses warehouse = warehousesRepository.findById(id)
                 .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
                 .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse tidak ditemukan"));
+
 
         warehouse.setDeletedAt(LocalDateTime.now());
         warehouse.setDeletedBy(currentUser);
@@ -200,6 +226,12 @@ public class WarehousesService {
     @Transactional
     public WarehouseResponse update(Long id, WarehousesRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException(
+                    "Akses Ditolak: Employee tidak dapat mengubah data Warehouse."
+            );
+        }
+
         Warehouses warehouse = warehousesRepository.findById(id)
                 .filter(w -> w.getPartners().getId().equals(currentUser.getPartner().getId()))
                 .orElseThrow(() -> new RuntimeException("Akses Ditolak: Warehouse tidak ditemukan atau bukan milik partner Anda"));
