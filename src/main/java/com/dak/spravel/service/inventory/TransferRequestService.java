@@ -19,10 +19,10 @@ import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
 import com.dak.spravel.repository.auth.UserRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.inventory.StockMutationRepository;
 import com.dak.spravel.repository.inventory.TransferRequestItemRepository;
@@ -41,6 +41,7 @@ public class TransferRequestService {
     private final WarehousesRepository warehousesRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -247,14 +248,22 @@ public class TransferRequestService {
         return transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(partnerId);
     }
 
-    // CREATE (Otomatis Deteksi Gudang / Cabang)
+    // CREATE (Modifikasi mutakhir: Menembak langsung ke field partnerId Long & menyimpan detail items)
     @Transactional
     public TransferRequestResponse create(TransferRequestDTO request) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
-
         TransferRequest transferRequest = new TransferRequest();
-        transferRequest.setPartner(partner);
+
+        // Mengatasi konflik insertable = false dengan mengisi field primitif Long-nya secara langsung
+        if (request.getPartnerId() != null) {
+            transferRequest.setPartnerId(request.getPartnerId());
+        } else if (currentUser.getPartner() != null) {
+            transferRequest.setPartnerId(currentUser.getPartner().getId());
+        }
+
+        if (transferRequest.getPartnerId() == null) {
+            throw new RuntimeException("Gagal: partner_id wajib diisi di JSON atau terikat pada User login.");
+        }
         
         Long fromId = request.getFromLocationId();
         if (warehousesRepository.existsById(fromId)) {
@@ -284,11 +293,43 @@ public class TransferRequestService {
         transferRequest.setCreatedAt(LocalDateTime.now());
         transferRequest.setCreatedBy(currentUser);
 
+        // Save Parent utama dulu untuk generate ID Transfer Request
         TransferRequest savedTR = transferRequestRepository.save(transferRequest);
+
+        // =============================================================
+        // 🔥 PERBAIKAN LOGIKA: AMBIL PRODUK ASLI DARI DATABASE 🔥
+        // =============================================================
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            List<TransferRequestItem> itemsToSave = request.getItems().stream().map(itemDto -> {
+                TransferRequestItem itemEntity = new TransferRequestItem();
+                
+                // 1. Ikat ke parent-nya yang baru saja di-save
+                itemEntity.setTransferRequest(savedTR); 
+                
+                // 2. Ambil produk asli dari database via repository
+                com.dak.spravel.model.catalog.Product product = productRepository.findById(itemDto.getProductId())
+                        .orElseThrow(() -> new RuntimeException("Gagal: Produk dengan ID " + itemDto.getProductId() + " tidak ditemukan!"));
+                
+                // 3. Masukkan produk asli ke dalam entitas item
+                itemEntity.setProduct(product);
+                
+                // 4. Map quantity menggunakan tipe data Long sesuai konfigurasi entity kamu
+                itemEntity.setQtyRequested(itemDto.getQtyRequested() != null ? itemDto.getQtyRequested().longValue() : 0L);
+                itemEntity.setQtyReceived(0L); 
+                
+                return itemEntity;
+            }).collect(Collectors.toList());
+
+            // Kirim list items ke database detail
+            transferRequestItemRepository.saveAll(itemsToSave);
+        }
+        // =============================================================
+
+        // Return hasil akhir via otak mapping utama (otomatis me-load items yang barusan disimpan)
         return mapToResponse(savedTR);
     }
 
-    // RECEIVE TRANSFER (Konfirmasi Penerimaan Stok & Pencatatan Mutasi otomatis)
+    // RECEIVE TRANSFER (Konfirmasi Penerimaan Stok)
     @Transactional
     public TransferRequestResponse receiveTransfer(Long transferRequestId, List<TransferRequestItemDTO> receivedItemsPayload) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
