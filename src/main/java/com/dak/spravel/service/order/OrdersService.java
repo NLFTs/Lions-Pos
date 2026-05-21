@@ -225,18 +225,17 @@ public class OrdersService {
 
             payment.setCashTendered(cashTendered);
             payment.setChangeDue(cashTendered.subtract(savedOrder.getTotal()));
-
             payment.setStatus(Payments.Status.VERIFIED);
+            savedOrder.setStatus(Orders.PaymentStatus.PAID); // ← order jadi PAID
 
         } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
 
             payment.setCashTendered(BigDecimal.ZERO);
             payment.setChangeDue(BigDecimal.ZERO);
-
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
-
             payment.setStatus(Payments.Status.PENDING);
+            savedOrder.setStatus(Orders.PaymentStatus.PAID); // ← order jadi PAID (menunggu verifikasi transfer)
 
         } else {
             throw new RuntimeException("Method tidak valid");
@@ -245,6 +244,7 @@ public class OrdersService {
             payment.setOrder(savedOrder);
             paymentsRepository.save(payment);
             savedOrder.getPayments().add(payment);
+            ordersRepository.save(savedOrder); // ← simpan perubahan status PAID
         }
 
         Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
@@ -280,11 +280,17 @@ public class OrdersService {
             .payments(order.getPayments().stream().map(payment ->
                     PaymentResponse.builder()
                             .id(payment.getId())
+                            .orderId(order.getId())
+                            .orderNumber(order.getOrderNumber())
                             .method(payment.getMethod().name())
                             .status(payment.getStatus().name())
                             .amount(payment.getAmount())
                             .cashTendered(payment.getCashTendered())
                             .changeDue(payment.getChangeDue())
+                            .bankName(payment.getBankName())
+                            .referenceNo(payment.getReferenceNo())
+                            .proofUrl(payment.getProofUrl())
+                            .createdAt(payment.getCreatedAt())
                             .build()
             ).toList())
             .build();
@@ -338,7 +344,7 @@ public class OrdersService {
             );
         }
 
-        // Soft-delete Dan Juga Mengubah Status Menjadi Canceled Miftah Ganteng
+        // Mengubah Status Menjadi Canceled
         order.setStatus(Orders.PaymentStatus.CANCELED);
         order.setUpdatedAt(LocalDateTime.now());
         order.setUpdatedBy(currentUser);

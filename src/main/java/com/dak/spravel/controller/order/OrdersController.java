@@ -34,7 +34,7 @@ package com.dak.spravel.controller.order;
 
         // PARTNER / EMPLOYEE ONLY
         @GetMapping
-        // @PreAuthorize("hasAuthority('order.index')")
+        @PreAuthorize("hasAuthority('order.index')")
         public ResponseEntity<ResData<List<OrdersResponse>>> findAll() {
             log.info("[GET] /api/v1/orders");
             return ResponseBuilder.ok(ordersService.findAll());
@@ -48,7 +48,7 @@ package com.dak.spravel.controller.order;
         }
 
         @PostMapping
-        // @PreAuthorize("hasAuthority('order.store')")
+        @PreAuthorize("hasAuthority('order.store')")
         public ResponseEntity<ResData<OrdersResponse>> create(@RequestBody OrdersRequest request) {
             log.info("[POST] /api/v1/orders - Request: {}", request);
             return ResponseBuilder.ok(ordersService.create(request));
@@ -64,7 +64,7 @@ package com.dak.spravel.controller.order;
 
         // Return Order
         @PostMapping("/{id}/return")
-        // @PreAuthorize("hasAuthority('order.update')")
+        @PreAuthorize("hasAuthority('order.update')")
         public ResponseEntity<ResData<ReturnResponse>> returnOrder(
                 @PathVariable Long id,
                 @RequestBody ReturnRequest request) {
