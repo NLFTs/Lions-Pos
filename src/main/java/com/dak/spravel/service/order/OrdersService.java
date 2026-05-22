@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import com.dak.spravel.repository.order.PaymentsRepository;
 import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class OrdersService {
@@ -69,26 +70,34 @@ public class OrdersService {
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+
+        // Super admin tidak boleh akses endpoint partner/employee
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
+                        || role.getSlug().equalsIgnoreCase("super_admin"));
+
+        if (isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
         }
+
+        // User harus terasosiasi dengan partner
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
         return user;
     }
 
-    // 💡 HELPER: Deteksi jika user yang login adalah Employee murni
+    // HELPER: cek apakah user adalah employee (bukan admin-partners)
     private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+        boolean isAdminPartner = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners"));
+        return !isAdminPartner; // semua non-admin-partners dianggap employee
     }
 
     private Orders getValidatedOrder(Long id, User currentUser) {
-        Orders order = ordersRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+        Orders order = ordersRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
         if (currentUser.getPartner() == null
                 || order.getPartner() == null
@@ -96,20 +105,43 @@ public class OrdersService {
             throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
         }
 
+        // Employee hanya bisa akses order di cabangnya sendiri
+        if (isEmployee(currentUser) && currentUser.getBranch() != null) {
+            if (order.getBranch() == null
+                    || !order.getBranch().getId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Order bukan milik cabang Anda.");
+            }
+        }
+
         return order;
     }
 
+    // Super Admin — semua order lintas partner
     public List<Orders> findAllOrders() {
         getAuthenticatedSuperAdmin();
         return ordersRepository.findAllWithDetails();
     }
 
+    // Admin-partners → semua order di partner
+    // Employee-partners → hanya order di cabangnya sendiri
     public List<OrdersResponse> findAll() {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+
         return ordersRepository.findAllWithDetails()
                 .stream()
-                .filter(order -> order.getPartner() != null
-                        && order.getPartner().getId().equals(currentUser.getPartner().getId()))
+                .filter(order -> {
+                    // Harus milik partner yang sama
+                    if (order.getPartner() == null
+                            || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                        return false;
+                    }
+                    // Employee: filter hanya cabang sendiri
+                    if (isEmployee(currentUser) && currentUser.getBranch() != null) {
+                        return order.getBranch() != null
+                                && order.getBranch().getId().equals(currentUser.getBranch().getId());
+                    }
+                    return true; // admin-partners: semua cabang
+                })
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -209,7 +241,6 @@ public class OrdersService {
         savedOrder.setTotal(subtotal.subtract(discount));
         ordersRepository.save(savedOrder);
 
-        // 🛠️ FIX SELESAI: Proses simpan pembayaran langsung via paymentsRepository, dijamin bebas dari error merah/crash
         if (request.getPayment() != null) {
             Payments payment = new Payments();
             payment.setOrder(savedOrder);
@@ -239,7 +270,8 @@ public class OrdersService {
             payment.setBankName(request.getPayment().getBankName());
             payment.setReferenceNo(request.getPayment().getReferenceNo());
             payment.setStatus(Payments.Status.PENDING);
-            savedOrder.setStatus(Orders.PaymentStatus.PAID); // ← order jadi PAID (menunggu verifikasi transfer)
+            // Transfer: order tetap DRAFT sampai payment di-verify oleh owner/manager
+            savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
 
         } else {
             throw new RuntimeException("Method tidak valid");
@@ -303,7 +335,6 @@ public class OrdersService {
     public void delete(Long id) {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
         
-        // 🔥 VALIDASI UTAMA: Employee dilarang keras menghapus riwayat transaksi apa pun!
         if (isEmployee(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus data transaksi penjualan.");
         }

@@ -88,7 +88,7 @@ const MENU_GROUPS = [
     label: 'Transaksi',
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: null },
-      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
+      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: null },
     ],
   },
   {
