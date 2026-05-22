@@ -6,6 +6,7 @@ import com.dak.spravel.model.auth.User;
 import com.dak.spravel.repository.auth.TokenRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.util.JwtUtil;
+import com.dak.spravel.service.auth.PermissionCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private PermissionCacheService permissionCacheService;
 
     private User mockUser;
 

@@ -5,23 +5,9 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import { 
-  Search, 
-  ShoppingCart, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  CreditCard, 
-  ShoppingBag, 
-  ArrowLeft, 
-  Banknote, 
-  ArrowRightLeft, 
-  X, 
-  Ticket, 
-  Check, 
-  Scan,
-  Loader2,
-  Building2,
-  ChevronDown
+  Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
+  Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
+  Loader2, Building2, Printer, ReceiptText
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import api from '@/lib/api'
@@ -36,6 +22,8 @@ const branches = ref([])
 const selectedBranchId = ref(null)
 const loading = ref(false)
 const processingCheckout = ref(false)
+const lastOrder = ref(null)
+const showReceipt = ref(false)
 
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
@@ -46,22 +34,18 @@ const cart = ref([])
 async function fetchData() {
   loading.value = true
   try {
-    const [resP, resC, resV, resB] = await Promise.all([
+    const [resP, resC, resB] = await Promise.all([
       api.get('/api/v1/products'),
       api.get('/api/v1/categories'),
-      api.get('/api/v1/vouchers'),
       api.get('/api/v1/branches')
     ])
-    
+
     // Product data normalization: ResData<Page>
     const pData = resP.data.data
-    products.value = (Array.isArray(pData) ? pData : (pData?.content || [])).filter(p => p.isActive)
-    
+    products.value = (Array.isArray(pData) ? pData : (pData?.content || [])).filter(p => p.is_active !== false)
+
     categories.value = resC.data?.data || []
-    
-    // Vouchers: plain List<VoucherResponse> without ResData
-    vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
-    
+
     // Branches: ResData<List>
     const bData = resB.data?.data || []
     branches.value = Array.isArray(bData) ? bData : (bData.content || [])
@@ -72,6 +56,14 @@ async function fetchData() {
     toast.error('Gagal memuat data POS')
   } finally {
     loading.value = false
+  }
+
+  // Voucher dimuat terpisah — admin tidak bisa akses, tapi kasir tetap bisa jalan
+  try {
+    const resV = await api.get('/api/v1/vouchers')
+    vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
+  } catch {
+    vouchers.value = [] // admin tidak bisa akses voucher, abaikan
   }
 }
 
@@ -121,7 +113,7 @@ function formatCurrency(value) {
 }
 
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
-const subtotal   = computed(() => cart.value.reduce((s, i) => s + (i.price || i.basePrice || 0) * i.qty, 0))
+const subtotal = computed(() => cart.value.reduce((s, i) => s + (i.base_price || i.basePrice || i.price || 0) * i.qty, 0))
 
 // ─── Voucher Logic ───────────────────────────────────────────────────────────
 const voucherCode = ref('')
@@ -175,6 +167,19 @@ function openPayment() {
   referenceNo.value = '' 
 }
 
+function closePayment() {
+  showPayment.value = false
+}
+
+function closeReceipt() {
+  showReceipt.value = false
+  lastOrder.value = null
+}
+
+function printReceipt() {
+  window.print()
+}
+
 async function checkout() {
   if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
     toast.error('Uang yang diberikan kurang!')
@@ -195,7 +200,7 @@ async function checkout() {
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
-        unitPrice: item.price || item.basePrice
+        unitPrice: item.base_price || item.basePrice || item.price
       })),
       payment: {
         method: payMethod.value.toUpperCase(),
@@ -207,15 +212,23 @@ async function checkout() {
       }
     }
 
-    await api.post('/api/v1/orders', payload)
-    
-    toast.success(`Transaksi Berhasil! Total: ${formatCurrency(total.value)}`)
+    const response = await api.post('/api/v1/orders', payload)
+
+    // Simpan data order untuk struk
+    lastOrder.value = response.data?.data || {
+      orderNumber: payload.orderNumber,
+      total: total.value,
+      payments: [{ method: payload.payment.method, cashTendered: payload.payment.cashTendered, changeDue: payload.payment.changeDue }]
+    }
+
     cart.value = []
     appliedVoucher.value = null
     voucherCode.value = ''
     showPayment.value = false
+    showReceipt.value = true
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal memproses transaksi.')
+    console.error('[Checkout Error]', err.response?.data || err.message)
+    toast.error(err.response?.data?.message || err.response?.data?.data?.message || 'Gagal memproses transaksi.')
   } finally {
     processingCheckout.value = false
   }
@@ -318,7 +331,7 @@ function avatarStyle(name = '') {
                   <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ p.sku || 'N/A' }}</span>
                 </div>
                 <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ p.name }}</h4>
-                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.price || p.basePrice) }}</div>
+                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.base_price || p.basePrice || p.price) }}</div>
               </div>
             </div>
           </div>
@@ -347,7 +360,7 @@ function avatarStyle(name = '') {
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0 pt-0.5">
                     <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.price || item.basePrice) }}</p>
+                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
                   </div>
                   <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
                     <Trash2 class="h-[14px] w-[14px]" />
@@ -359,7 +372,7 @@ function avatarStyle(name = '') {
                     <span class="w-8 text-center text-[13px] font-black">{{ item.qty }}</span>
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
                   </div>
-                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency((item.price || item.basePrice) * item.qty) }}</span>
+                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency((item.base_price || item.basePrice || item.price) * item.qty) }}</span>
                 </div>
               </div>
             </TransitionGroup>
@@ -482,6 +495,53 @@ function avatarStyle(name = '') {
               <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout" :disabled="processingCheckout">
                 <Loader2 v-if="processingCheckout" class="h-4 w-4 mr-2 animate-spin" />
                 <Check v-else class="h-[18px] w-[18px] mr-2" /> Konfirmasi Pembayaran
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+    <!-- Receipt Modal -->
+    <Teleport to="body">
+      <Transition name="fade"><div v-if="showReceipt" class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" @click="closeReceipt" /></Transition>
+      <Transition name="scale">
+        <div v-if="showReceipt && lastOrder" class="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
+            <div class="flex flex-col items-center px-6 pt-8 pb-5 border-b border-dashed border-zinc-200 dark:border-zinc-700">
+              <div class="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
+                <Check class="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h3 class="text-lg font-black text-zinc-900 dark:text-white">Transaksi Berhasil!</h3>
+              <p class="text-xs text-zinc-500 font-mono mt-1">{{ lastOrder.orderNumber }}</p>
+            </div>
+            <div class="px-6 py-5 flex flex-col gap-3">
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-zinc-500 font-medium">Total Dibayar</span>
+                <span class="font-black text-lg text-zinc-900 dark:text-white">{{ formatCurrency(lastOrder.total) }}</span>
+              </div>
+              <template v-if="lastOrder.payments?.[0]?.method === 'CASH'">
+                <div class="flex justify-between items-center text-sm">
+                  <span class="text-zinc-500 font-medium">Uang Diterima</span>
+                  <span class="font-bold">{{ formatCurrency(lastOrder.payments[0].cashTendered) }}</span>
+                </div>
+                <div class="flex justify-between items-center text-sm p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40">
+                  <span class="text-emerald-700 dark:text-emerald-400 font-bold">Kembalian</span>
+                  <span class="font-black text-emerald-700 dark:text-emerald-400">{{ formatCurrency(lastOrder.payments[0].changeDue) }}</span>
+                </div>
+              </template>
+              <template v-if="lastOrder.payments?.[0]?.method === 'TRANSFER'">
+                <div class="flex justify-between items-center text-sm p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40">
+                  <span class="text-blue-700 dark:text-blue-400 font-bold">Metode</span>
+                  <span class="font-black text-blue-700 dark:text-blue-400">Transfer Bank — Menunggu Konfirmasi</span>
+                </div>
+              </template>
+            </div>
+            <div class="px-6 pb-6 flex flex-col gap-2.5">
+              <button @click="printReceipt" class="w-full h-11 font-bold rounded-[14px] border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
+                <Printer class="h-4 w-4" /> Cetak Struk
+              </button>
+              <Button class="w-full h-11 font-bold rounded-[14px] gap-2" @click="closeReceipt">
+                <ReceiptText class="h-4 w-4" /> Transaksi Baru
               </Button>
             </div>
           </div>
