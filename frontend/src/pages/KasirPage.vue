@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -19,6 +19,7 @@ const products = ref([])
 const categories = ref([])
 const vouchers = ref([])
 const branches = ref([])
+const stockBalances = ref({}) // { productId: qty }
 const selectedBranchId = ref(null)
 const loading = ref(false)
 const processingCheckout = ref(false)
@@ -51,6 +52,7 @@ async function fetchData() {
     branches.value = Array.isArray(bData) ? bData : (bData.content || [])
     if (branches.value.length > 0) {
       selectedBranchId.value = branches.value[0].id
+      await fetchStockBalances(branches.value[0].id)
     }
   } catch (err) {
     toast.error('Gagal memuat data POS')
@@ -68,6 +70,29 @@ async function fetchData() {
 }
 
 onMounted(fetchData)
+
+// Reload stok saat branch berubah
+watch(selectedBranchId, (newId) => {
+  if (newId) fetchStockBalances(newId)
+})
+
+async function fetchStockBalances(branchId) {
+  try {
+    const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
+    const list = res.data?.data || []
+    const map = {}
+    list.forEach(sb => {
+      if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
+    })
+    stockBalances.value = map
+  } catch {
+    stockBalances.value = {}
+  }
+}
+
+function getStock(productId) {
+  return stockBalances.value[productId] ?? null
+}
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const uniqueCategories = computed(() => {
@@ -180,6 +205,34 @@ function printReceipt() {
   window.print()
 }
 
+function copyOrderSummary() {
+  if (!lastOrder.value) return
+  const o = lastOrder.value
+  const pay = o.payments?.[0]
+  const items = (o.items || []).map(i => `  - ${i.productName || 'Produk'} x${i.qty} = ${formatCurrency(i.subtotal)}`).join('\n')
+  const text = [
+    `📋 Catatan Transaksi`,
+    `No. Order : ${o.orderNumber}`,
+    `Cabang    : ${o.branchName || '-'}`,
+    `Kasir     : ${o.cashierName || '-'}`,
+    ``,
+    `Item:`,
+    items || '  -',
+    ``,
+    `Subtotal  : ${formatCurrency(o.subtotal)}`,
+    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,
+    `Total     : ${formatCurrency(o.total)}`,
+    `Metode    : ${pay?.method === 'CASH' ? 'Tunai' : 'Transfer Bank'}`,
+    pay?.method === 'CASH' ? `Kembalian : ${formatCurrency(pay.changeDue)}` : `Status    : Menunggu Konfirmasi`,
+  ].filter(Boolean).join('\n')
+
+  navigator.clipboard.writeText(text).then(() => {
+    toast.success('Catatan berhasil disalin!')
+  }).catch(() => {
+    toast.error('Gagal menyalin catatan.')
+  })
+}
+
 async function checkout() {
   if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
     toast.error('Uang yang diberikan kurang!')
@@ -226,6 +279,8 @@ async function checkout() {
     voucherCode.value = ''
     showPayment.value = false
     showReceipt.value = true
+    // Refresh stok setelah transaksi
+    if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
     toast.error(err.response?.data?.message || err.response?.data?.data?.message || 'Gagal memproses transaksi.')
@@ -331,7 +386,16 @@ function avatarStyle(name = '') {
                   <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ p.sku || 'N/A' }}</span>
                 </div>
                 <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ p.name }}</h4>
-                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.base_price || p.basePrice || p.price) }}</div>
+                <div class="mt-auto pt-1 flex items-end justify-between">
+                  <span class="text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.base_price || p.basePrice || p.price) }}</span>
+                  <span :class="['text-[10px] font-bold px-1.5 py-0.5 rounded-md',
+                    getStock(p.id) === null ? 'text-zinc-400' :
+                    getStock(p.id) <= 0 ? 'bg-red-50 text-red-500 dark:bg-red-900/20' :
+                    getStock(p.id) <= 5 ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20' :
+                    'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20']">
+                    {{ getStock(p.id) === null ? '' : getStock(p.id) <= 0 ? 'Habis' : `Stok: ${getStock(p.id)}` }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -506,8 +570,14 @@ function avatarStyle(name = '') {
       <Transition name="fade"><div v-if="showReceipt" class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" @click="closeReceipt" /></Transition>
       <Transition name="scale">
         <div v-if="showReceipt && lastOrder" class="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
-          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col relative">
             <div class="flex flex-col items-center px-6 pt-8 pb-5 border-b border-dashed border-zinc-200 dark:border-zinc-700">
+              <!-- Tombol X di pojok kanan -->
+              <div class="absolute top-4 right-4">
+                <button @click="closeReceipt" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors">
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
               <div class="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
                 <Check class="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
               </div>
@@ -540,8 +610,8 @@ function avatarStyle(name = '') {
               <button @click="printReceipt" class="w-full h-11 font-bold rounded-[14px] border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
-              <Button class="w-full h-11 font-bold rounded-[14px] gap-2" @click="closeReceipt">
-                <ReceiptText class="h-4 w-4" /> Transaksi Baru
+              <Button class="w-full h-11 font-bold rounded-[14px] gap-2" @click="copyOrderSummary">
+                <ReceiptText class="h-4 w-4" /> Salin Catatan Riwayat
               </Button>
             </div>
           </div>
