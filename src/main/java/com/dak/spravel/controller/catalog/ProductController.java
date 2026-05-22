@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public class ProductController {
 
     private final ProductService productService;
-
+    
     @PostMapping
     @PreAuthorize("hasAuthority('produk.store')")
     public ResponseEntity<ResData<ProductResponse>> create(@RequestBody ProductRequest request) {

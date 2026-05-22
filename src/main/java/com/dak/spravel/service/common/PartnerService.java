@@ -47,8 +47,9 @@ public class PartnerService {
     }
 
     private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("admin") ||
-                role.getSlug().equals("admin")
+        return user.getRoles().stream().anyMatch(role ->
+                role.getSlug().equals("admin") ||
+                        role.getSlug().equals("super_admin")
         );
     }
 
@@ -56,6 +57,18 @@ public class PartnerService {
         return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("employee-partners") ||
                 role.getSlug().equals("admin-partners")
         );
+    }
+    private boolean isAdminPartner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("admin-partners"));
+    }
+
+    private boolean isEmployeeOnly(User user) {
+        return user.getRoles().stream()
+                .allMatch(role ->
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                                role.getSlug().equalsIgnoreCase("employee-partners")
+                );
     }
 
     private Partners getValidatedPartner(Long id, User currentUser) {
@@ -107,14 +120,29 @@ public class PartnerService {
     public PartnerResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
+        if (isAdminPartner(currentUser)) {
+            if (currentUser.getPartner() == null) {
+                throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+            }
+            if (!currentUser.getPartner().getId().equals(id)) {
+                throw new RuntimeException(
+                        "Akses Ditolak: Admin Partner hanya dapat melihat data mitranya sendiri."
+                );
+            }
+            return mapToResponse(
+                    partnerRepository.findById(id)
+                            .orElseThrow(() -> new ResourceNotFoundException("Partners", id))
+            );
+        }
+
+        if (isEmployeeOnly(currentUser)) {
             throw new RuntimeException("Akses Ditolak: role ini tidak boleh akses Partner.");
         }
 
         Partners partner = getValidatedPartner(id, currentUser);
-
         return mapToResponse(partner);
     }
+
 
     @Transactional
     public PartnerResponse create(CreatePartnerRequest request) {

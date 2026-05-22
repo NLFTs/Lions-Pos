@@ -20,7 +20,7 @@ public class TransferRequestDTO {
 
     @NotNull(message = "From location ID tidak boleh kosong")
     @JsonProperty("from_location_id")
-    private Long fromLocationId; 
+    private Long fromLocationId;
 
     @NotBlank(message = "To location type tidak boleh kosong")
     @JsonProperty("to_location_type")
@@ -31,7 +31,7 @@ public class TransferRequestDTO {
     private Long toLocationId;
 
     private String notes; // opsional
-    
+
     @NotNull(message = "Items tidak boleh kosong")
     private List<TransferRequestItemDTO> items;
 }
