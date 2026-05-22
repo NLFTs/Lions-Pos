@@ -71,10 +71,11 @@ public class UserService {
     }
 
     private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role ->
-                role.getSlug().equals("admin") ||
-                        role.getSlug().equals("super_admin")
-        );
+        return user.getRoles().stream().anyMatch(role -> {
+            String slug = role.getSlug() == null ? "" : role.getSlug().toLowerCase();
+            return slug.equals("admin") || slug.equals("super_admin") ||
+                   slug.equals("super-admin") || slug.equals("superadmin");
+        });
     }
 
     private boolean isAdminPartner(User user) {
