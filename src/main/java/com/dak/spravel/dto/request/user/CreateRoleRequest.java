@@ -20,6 +20,6 @@ public class CreateRoleRequest {
     @Pattern(regexp = "^[a-z0-9_-]+$", message = "Slug may only contain lowercase letters, numbers, hyphens and underscores")
     @Size(min = 2, max = 50)
     private String slug;
-
+    
     private List<Long> permissionIds;
 }

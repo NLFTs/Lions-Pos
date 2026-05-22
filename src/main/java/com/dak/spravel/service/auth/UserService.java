@@ -215,7 +215,7 @@ public class UserService {
 
             // 🔒 Otomatis kunci role ke employee-partners
             Set<Role> roles = new HashSet<>();
-            Role employeeRole = roleRepository.findBySlug("employee-partners")
+            Role employeeRole = roleRepository.findBySlugAndPartnerId("employee-partners", currentPartner.getId())
                     .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
             roles.add(employeeRole);
             user.setRoles(roles);

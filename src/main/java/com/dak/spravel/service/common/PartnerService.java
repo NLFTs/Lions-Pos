@@ -176,7 +176,7 @@ public class PartnerService {
         Partners savedPartner = partnerRepository.save(partner);
 
         // Ambil role admin-partners
-        Role adminPartnerRole = roleRepository.findBySlug("admin-partners")
+        Role adminPartnerRole = roleRepository.findBySlugAndPartnerId("admin-partners", null)
                 .orElseThrow(() -> new RuntimeException("Role 'admin-partners' tidak ditemukan di database. Pastikan seeder sudah berjalan."));
 
         // Buat Admin User untuk partner ini
