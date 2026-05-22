@@ -50,41 +50,41 @@ public class OrdersService {
     // =========================
     // AUTH USER
     // =========================
-    private User getAuthenticatedUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
-            throw new RuntimeException("User tidak terautentikasi");
+        private User getAuthenticatedUser() {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+                throw new RuntimeException("User tidak terautentikasi");
+            }
+            return userRepository.findByUsername(auth.getName())
+                    .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
         }
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-    }
-
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+    
+        private User getAuthenticatedSuperAdmin() {
+            User user = getAuthenticatedUser();
+            boolean isSuperAdmin = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+            if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+            return user;
         }
-        return user;
-    }
-
-    // 💡 HELPER: Deteksi jika user yang login adalah Employee murni
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
-    }
+    
+        private User getAuthenticatedAdminPartnerOrEmployee() {
+            User user = getAuthenticatedUser();
+            // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
+            boolean isAuthorized = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                            role.getSlug().equalsIgnoreCase("employee-partners") ||
+                            role.getSlug().equalsIgnoreCase("employee"));
+            if (!isAuthorized) {
+                throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+            }
+            return user;
+        }
+    
+        // 💡 HELPER: Deteksi jika user yang login adalah Employee murni
+        private boolean isEmployee(User user) {
+            return user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+        }
 
     private Orders getValidatedOrder(Long id, User currentUser) {
         Orders order = ordersRepository.findById(id)
