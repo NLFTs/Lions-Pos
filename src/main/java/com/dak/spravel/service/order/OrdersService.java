@@ -51,49 +51,41 @@ public class OrdersService {
     // =========================
     // AUTH USER
     // =========================
-    private User getAuthenticatedUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
-            throw new RuntimeException("User tidak terautentikasi");
+        private User getAuthenticatedUser() {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+                throw new RuntimeException("User tidak terautentikasi");
+            }
+            return userRepository.findByUsername(auth.getName())
+                    .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
         }
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-    }
-
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-
-        // Super admin tidak boleh akses endpoint partner/employee
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
-                        || role.getSlug().equalsIgnoreCase("super_admin"));
-
-        if (isSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
+    
+        private User getAuthenticatedSuperAdmin() {
+            User user = getAuthenticatedUser();
+            boolean isSuperAdmin = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+            if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+            return user;
         }
-
-        // User harus terasosiasi dengan partner
-        if (user.getPartner() == null) {
-            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+    
+        private User getAuthenticatedAdminPartnerOrEmployee() {
+            User user = getAuthenticatedUser();
+            // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
+            boolean isAuthorized = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                            role.getSlug().equalsIgnoreCase("employee-partners") ||
+                            role.getSlug().equalsIgnoreCase("employee"));
+            if (!isAuthorized) {
+                throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+            }
+            return user;
         }
-
-        return user;
-    }
-
-    // HELPER: cek apakah user adalah employee (bukan admin-partners)
-    private boolean isEmployee(User user) {
-        boolean isAdminPartner = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners"));
-        return !isAdminPartner; // semua non-admin-partners dianggap employee
-    }
+    
+        // 💡 HELPER: Deteksi jika user yang login adalah Employee murni
+        private boolean isEmployee(User user) {
+            return user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+        }
 
     private Orders getValidatedOrder(Long id, User currentUser) {
         Orders order = ordersRepository.findByIdWithDetails(id)
@@ -128,22 +120,22 @@ public class OrdersService {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         return ordersRepository.findAllWithDetails()
-                .stream()
-                .filter(order -> {
-                    // Harus milik partner yang sama
-                    if (order.getPartner() == null
-                            || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                        return false;
-                    }
-                    // Employee: filter hanya cabang sendiri
-                    if (isEmployee(currentUser) && currentUser.getBranch() != null) {
-                        return order.getBranch() != null
-                                && order.getBranch().getId().equals(currentUser.getBranch().getId());
-                    }
-                    return true; // admin-partners: semua cabang
-                })
-                .map(this::mapToResponse)
-                .toList();
+            .stream()
+            .filter(order -> {
+                // Harus milik partner yang sama
+                if (order.getPartner() == null
+                        || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                    return false;
+                }
+                // Employee: filter hanya cabang sendiri
+                if (isEmployee(currentUser) && currentUser.getBranch() != null) {
+                    return order.getBranch() != null
+                            && order.getBranch().getId().equals(currentUser.getBranch().getId());
+                }
+                return true; // admin-partners: semua cabang
+            })
+            .map(this::mapToResponse)
+            .toList();
     }
 
     public OrdersResponse findById(Long id) {

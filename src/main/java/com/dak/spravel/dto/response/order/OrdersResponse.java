@@ -1,7 +1,6 @@
 package com.dak.spravel.dto.response.order;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 import lombok.AllArgsConstructor;

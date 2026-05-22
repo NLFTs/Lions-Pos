@@ -218,16 +218,7 @@ public class PermissionSeeder {
         });
         adminPartnersRole.setPermissions(new HashSet<>());
 
-        Role employeePartnersRole = roleRepository.findBySlugAndPartnerId("employee-partners", null).orElseGet(() -> {
-            Role r = new Role();
-            r.setSlug("employee-partners");
-            r.setName("Employee Partners");
-            return r;
-        });
-        employeePartnersRole.setPermissions(new HashSet<>());
-
         Set<Permission> adminPartnersPerms = new HashSet<>();
-        Set<Permission> employeePartnersPerms = new HashSet<>();
 
         for (Permission p : allPerms) {
             String moduleSlug = p.getModule().getSlug();
@@ -235,6 +226,7 @@ public class PermissionSeeder {
             // Modules allowed for Admin Partner
             if (moduleSlug.equals("user") || 
                 moduleSlug.equals("category") ||
+                moduleSlug.equals("role") ||
                 moduleSlug.equals("produk") ||
                 moduleSlug.equals("warehouse") ||
                 moduleSlug.equals("branch") ||
@@ -251,30 +243,10 @@ public class PermissionSeeder {
                 adminPartnersPerms.add(p);
             }
 
-            // Modules allowed for Employee
-            if (moduleSlug.equals("category") ||
-                moduleSlug.equals("produk") ||
-                moduleSlug.equals("warehouse") ||
-                moduleSlug.equals("branch") ||
-                moduleSlug.equals("product_photo") ||
-                moduleSlug.equals("stock_balance") ||
-                moduleSlug.equals("stock_mutation") ||
-                moduleSlug.equals("transfer_request") ||
-                moduleSlug.equals("stock_opname") ||
-                moduleSlug.equals("purchase_order") ||
-                moduleSlug.equals("supplier") ||
-                moduleSlug.equals("dashboard") ||
-                moduleSlug.equals("pos") ||
-                moduleSlug.equals("report")) {
-                employeePartnersPerms.add(p);
-            }
         }
         
         adminPartnersRole.setPermissions(adminPartnersPerms);
         roleRepository.save(adminPartnersRole);
-
-        employeePartnersRole.setPermissions(employeePartnersPerms);
-        roleRepository.save(employeePartnersRole);
 
         // 5. Assign "admin" role to super user "su"
         userRepository.findByUsername("su").ifPresent(su -> {
