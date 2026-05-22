@@ -295,6 +295,7 @@ public class OrdersService {
             .branchName(order.getBranch().getName())
             .cashierId(order.getCashier().getId())
             .cashierName(order.getCashier().getUsername())
+            .createdAt(order.getCreatedAt())
             .items(order.getItems().stream().map(item ->
                     OrderItemResponse.builder()
                             .id(item.getId())

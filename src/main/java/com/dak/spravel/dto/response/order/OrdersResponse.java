@@ -27,6 +27,8 @@ public class OrdersResponse {
     private Long cashierId;
     private String cashierName;
 
+    private LocalDateTime createdAt;
+
     private List<OrderItemResponse> items;
     private List<PaymentResponse> payments;
 }
