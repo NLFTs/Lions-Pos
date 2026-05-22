@@ -120,22 +120,22 @@ public class OrdersService {
         User currentUser = getAuthenticatedAdminPartnerOrEmployee();
 
         return ordersRepository.findAllWithDetails()
-                .stream()
-                .filter(order -> {
-                    // Harus milik partner yang sama
-                    if (order.getPartner() == null
-                            || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                        return false;
-                    }
-                    // Employee: filter hanya cabang sendiri
-                    if (isEmployee(currentUser) && currentUser.getBranch() != null) {
-                        return order.getBranch() != null
-                                && order.getBranch().getId().equals(currentUser.getBranch().getId());
-                    }
-                    return true; // admin-partners: semua cabang
-                })
-                .map(this::mapToResponse)
-                .toList();
+            .stream()
+            .filter(order -> {
+                // Harus milik partner yang sama
+                if (order.getPartner() == null
+                        || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                    return false;
+                }
+                // Employee: filter hanya cabang sendiri
+                if (isEmployee(currentUser) && currentUser.getBranch() != null) {
+                    return order.getBranch() != null
+                            && order.getBranch().getId().equals(currentUser.getBranch().getId());
+                }
+                return true; // admin-partners: semua cabang
+            })
+            .map(this::mapToResponse)
+            .toList();
     }
 
     public OrdersResponse findById(Long id) {
