@@ -185,6 +185,18 @@ function statusLabel(s, payments) {
   return s
 }
 
+function statusDotClass(s, payments) {
+  const st = String(s || '').toLowerCase()
+  if (st === 'cancelled' || st === 'canceled') return 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+  if (st === 'return') return 'bg-violet-500 shadow-[0_0_8px_#8b5cf6]'
+  if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
+    return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+  }
+  if (st === 'paid') return 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+  if (st === 'draft') return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+  return 'bg-zinc-400 shadow-[0_0_8px_#a1a1aa]'
+}
+
 function paymentStatusLabel(status, orderStatus) {
   // Jika order dibatalkan, payment juga dianggap batal
   const os = String(orderStatus || '').toUpperCase()
@@ -257,8 +269,10 @@ onMounted(fetchOrders)
               <div v-for="o in paginatedOrders" :key="o.id" class="p-4 flex flex-col gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer" @click="openDetail(o)">
                 <div class="flex items-center justify-between">
                   <span class="font-mono text-xs font-semibold text-zinc-700 dark:text-zinc-300">{{ o.orderNumber }}</span>
-                  <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
-                </div>
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <span :class="['w-1.5 h-1.5 rounded-full animate-pulse shrink-0', statusDotClass(o.status, o.payments)]"></span>
+                    <span>{{ statusLabel(o.status, o.payments) }}</span>
+                  </div>                </div>
                 <div class="flex justify-between items-end">
                   <div>
                     <p class="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">{{ o.branchName || o.branch?.name || '-' }}</p>
@@ -292,7 +306,10 @@ onMounted(fetchOrders)
                     <td class="py-3 text-xs text-red-500">{{ o.discountAmount > 0 ? '-' + formatCurrency(o.discountAmount) : '-' }}</td>
                     <td class="py-3 text-sm font-black">{{ formatCurrency(o.total) }}</td>
                     <td class="py-3 text-center">
-                      <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
+                      <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        <span :class="['w-2 h-2 rounded-full animate-pulse shrink-0', statusDotClass(o.status, o.payments)]"></span>
+                        <span>{{ statusLabel(o.status, o.payments) }}</span>
+                      </div>
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-900" @click="openDetail(o)"><Eye class="h-4 w-4" /></Button>
@@ -322,9 +339,10 @@ onMounted(fetchOrders)
           
           <div v-if="detailDrawer.order" class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             <div class="flex items-center justify-between">
-              <Badge :class="['text-[10px] uppercase tracking-widest px-3 py-1 font-bold', statusColor(detailDrawer.order.status, detailDrawer.order.payments)]" variant="outline">
-                {{ statusLabel(detailDrawer.order.status, detailDrawer.order.payments) }}
-              </Badge>
+              <div class="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                <span :class="['w-2.5 h-2.5 rounded-full animate-pulse shrink-0', statusDotClass(detailDrawer.order.status, detailDrawer.order.payments)]"></span>
+                <span>{{ statusLabel(detailDrawer.order.status, detailDrawer.order.payments) }}</span>
+              </div>
               <span class="text-xs text-muted-foreground">{{ formatDate(detailDrawer.order.createdAt) }}</span>
             </div>
 

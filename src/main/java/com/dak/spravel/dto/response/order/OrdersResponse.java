@@ -1,6 +1,7 @@
 package com.dak.spravel.dto.response.order;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -20,10 +21,8 @@ public class OrdersResponse {
     private BigDecimal discountAmount;
     private BigDecimal total;
     private String notes;
-
     private Long branchId;
     private String branchName;
-
     private Long cashierId;
     private String cashierName;
 

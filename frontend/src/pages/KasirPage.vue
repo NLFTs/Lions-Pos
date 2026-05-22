@@ -113,7 +113,17 @@ const filteredProducts = computed(() => {
 
 // ─── Cart Logic ──────────────────────────────────────────────────────────────
 function addToCart(product) {
+  const stock = getStock(product.id)
+  // Hitung total qty produk ini yang sudah ada di cart
   const existing = cart.value.find(item => item.id === product.id)
+  const currentQty = existing ? existing.qty : 0
+
+  // Validasi stok jika data stok tersedia
+  if (stock !== null && currentQty >= stock) {
+    toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
+
   if (existing) {
     existing.qty++
   } else {
@@ -126,7 +136,14 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-function increaseQty(item) { item.qty++ }
+function increaseQty(item) {
+  const stock = getStock(item.id)
+  if (stock !== null && item.qty >= stock) {
+    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
+  item.qty++
+}
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
@@ -241,6 +258,19 @@ async function checkout() {
   if (payMethod.value === 'transfer' && !referenceNo.value) { 
     toast.error('Nomor referensi wajib diisi!')
     return 
+  }
+
+  // Validasi stok sebelum checkout
+  for (const item of cart.value) {
+    const stock = getStock(item.id)
+    if (stock !== null && item.qty > stock) {
+      toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
+      return
+    }
+    if (stock !== null && stock <= 0) {
+      toast.error(`Stok ${item.name} sudah habis.`)
+      return
+    }
   }
 
   processingCheckout.value = true
@@ -368,9 +398,14 @@ function avatarStyle(name = '') {
           </div>
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
             <div v-for="p in filteredProducts" :key="p.id"
-              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden cursor-pointer transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
-              :class="{ 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }"
-              @click="addToCart(p)">
+              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
+              :class="[
+                getStock(p.id) !== null && getStock(p.id) <= 0
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer',
+                { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
+              ]"
+              @click="getStock(p.id) !== null && getStock(p.id) <= 0 ? null : addToCart(p)">
               
               <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
                 {{ getCartQty(p.id) }}
