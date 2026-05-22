@@ -93,12 +93,7 @@ public class BranchesService {
 
         return user;
     }
-
-    private boolean isAdminPartner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners"));
-    }
-
+    
     private boolean isEmployee(User user) {
         return user.getRoles().stream()
                 .anyMatch(role ->
@@ -223,7 +218,7 @@ public class BranchesService {
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
 
-            Role employeeRole = roleRepository.findBySlug("employee-partners")
+            Role employeeRole = roleRepository.findBySlugAndPartnerId("employee-partners", partner.getId())
                     .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
             Set<Role> roles = new HashSet<>();
             roles.add(employeeRole);
