@@ -71,10 +71,11 @@ public class UserService {
     }
 
     private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role ->
-                role.getSlug().equals("admin") ||
-                        role.getSlug().equals("super_admin")
-        );
+        return user.getRoles().stream().anyMatch(role -> {
+            String slug = role.getSlug() == null ? "" : role.getSlug().toLowerCase();
+            return slug.equals("admin") || slug.equals("super_admin") ||
+                   slug.equals("super-admin") || slug.equals("superadmin");
+        });
     }
 
     private boolean isAdminPartner(User user) {
@@ -215,7 +216,7 @@ public class UserService {
 
             // 🔒 Otomatis kunci role ke employee-partners
             Set<Role> roles = new HashSet<>();
-            Role employeeRole = roleRepository.findBySlug("employee-partners")
+            Role employeeRole = roleRepository.findBySlugAndPartnerId("employee-partners", currentPartner.getId())
                     .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
             roles.add(employeeRole);
             user.setRoles(roles);

@@ -16,10 +16,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
-
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
@@ -67,14 +65,6 @@ public class WarehousesService {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
-    }
-
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("admin") ||
-                                role.getSlug().equals("super_admin")
-                );
     }
 
     // TAMBAH di bawahnya

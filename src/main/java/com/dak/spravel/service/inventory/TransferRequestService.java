@@ -10,7 +10,6 @@ import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
 import com.dak.spravel.repository.auth.UserRepository;
-import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.inventory.TransferRequestItemRepository;
 import com.dak.spravel.repository.inventory.TransferRequestRepository;
@@ -37,7 +36,6 @@ public class TransferRequestService {
     private final WarehousesRepository warehousesRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
-    private final ProductRepository productRepository;
 
     private User getAuthenticatedUser() {
         Authentication auth =
@@ -83,13 +81,6 @@ public class TransferRequestService {
                     role.getSlug().equalsIgnoreCase("super_admin") ||
                     role.getSlug().equalsIgnoreCase("admin")
             );
-    }
-
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee") ||
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
     }
 
     private boolean isEmployee(User user) {

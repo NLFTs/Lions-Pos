@@ -45,20 +45,9 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Optional;
 
-/**
- * Seeder PT NLFTs — alur lengkap stok dari supplier sampai cabang.
- *
- * ALUR STOK:
- *   1. PO ke Gudang (50 unit/produk) → Receipt → StockBalance WAREHOUSE +50
- *   2. Transfer Gudang → Cabang (10 unit/produk) → StockBalance WAREHOUSE -10, BRANCH +10
- *   3. Stock Opname Cabang (APPROVED) → koreksi fisik → StockBalance BRANCH dikoreksi
- *
- * HASIL AKHIR STOK:
- *   Gudang  : Laptop=40, Komputer=40, Tablet=40
- *   Cabang  : Laptop=9,  Komputer=10, Tablet=11 (setelah opname)
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -142,7 +131,7 @@ public class PartnerSeeder {
         // ── 7. Kategori: Elektronik ───────────────────────────────────────────
         CategoryProduct kategoriElektronik = createCategoryIfNotExists("Elektronik", partner, adminPartner);
 
-        // ── 8. 3 Produk (dibuat oleh nairha) ─────────────────────────────────
+        // ── 8. 3 Produk ───────────────────────────────────────────────────────
         Product laptop   = createProductIfNotExists("Laptop",        "SKU-NLFTS-LPT-001", new BigDecimal("8500000"), kategoriElektronik, partner, adminPartner);
         Product komputer = createProductIfNotExists("Komputer",      "SKU-NLFTS-KMP-001", new BigDecimal("6500000"), kategoriElektronik, partner, adminPartner);
         Product tablet   = createProductIfNotExists("Tablet Huawei", "SKU-NLFTS-TBL-001", new BigDecimal("3200000"), kategoriElektronik, partner, adminPartner);
@@ -151,14 +140,15 @@ public class PartnerSeeder {
         // ── 9. Supplier ───────────────────────────────────────────────────────
         Supplier supplier = createSupplierIfNotExists(partner, adminPartner);
 
-        // ── 10. Purchase Order → 50 unit per produk ke Gudang ─────────────────
+        // ── 10. Purchase Order → Inisialisasi awal ────────────────────────────
         PurchaseOrder po = createPurchaseOrder(partner, supplier, gudang.getId(), generatePoNumber(), adminPartner);
         BigDecimal qty50 = new BigDecimal("50");
         PurchaseOrderItems poItemLaptop   = createPoItem(po, laptop,   qty50, new BigDecimal("7000000"));
         PurchaseOrderItems poItemKomputer = createPoItem(po, komputer, qty50, new BigDecimal("5500000"));
         PurchaseOrderItems poItemTablet   = createPoItem(po, tablet,   qty50, new BigDecimal("2800000"));
+        
+        // 💡 Bantai double save: hitung total dulu baru save status PO final
         po.setTotal(poItemLaptop.getSubtotal().add(poItemKomputer.getSubtotal()).add(poItemTablet.getSubtotal()));
-        purchaseOrderRepository.save(po);
         log.info("[PartnerSeeder] PO dibuat: {}", po.getPoNumber());
 
         // ── 11. Purchase Receipt → stok masuk ke Gudang ───────────────────────
@@ -210,16 +200,10 @@ public class PartnerSeeder {
         log.info("[PartnerSeeder] Stock Opname Cabang dibuat (APPROVED).");
 
         log.info("[PartnerSeeder] ✅ Seeding selesai!");
-        log.info("[PartnerSeeder]   Gudang  → Laptop=40, Komputer=40, Tablet=40");
-        log.info("[PartnerSeeder]   Cabang  → Laptop=9,  Komputer=10, Tablet=11 (setelah opname)");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Stock Opname
-    // ─────────────────────────────────────────────────────────────────────────
-
     private void seedStockOpname(Partners partner, Branches cabang, User employee,
-                                  User adminPartner, Product laptop, Product komputer, Product tablet) {
+                                 User adminPartner, Product laptop, Product komputer, Product tablet) {
         StockOpname opname = new StockOpname();
         opname.setPartner(partner);
         opname.setLocation("BRANCH");
@@ -235,29 +219,18 @@ public class PartnerSeeder {
         opname.setUpdatedBy(adminPartner);
         opname = stockOpnameRepository.save(opname);
 
-        // Laptop: sistem=10, fisik=9, selisih=-1 (rusak)
         createOpnameItem(opname, laptop,   10L, 9L,  employee, "1 unit rusak saat pengiriman");
-        // Komputer: sistem=10, fisik=10, selisih=0 (sesuai)
         createOpnameItem(opname, komputer, 10L, 10L, employee, "Sesuai ✓");
-        // Tablet: sistem=10, fisik=11, selisih=+1 (surplus)
         createOpnameItem(opname, tablet,   10L, 11L, employee, "Surplus — kemungkinan salah input transfer");
 
-        // Terapkan koreksi ke stock_balances
         adjustStockBalance(laptop, "BRANCH", cabang.getId(), -1L, adminPartner);
-        // komputer tidak berubah
         adjustStockBalance(tablet, "BRANCH", cabang.getId(), +1L, adminPartner);
 
-        // Catat mutation ADJUSTMENT untuk yang ada selisih
-        createMutation(laptop, partner, opname.getId(), 1L, null, null, "BRANCH", cabang.getId(),
-                StockMutation.Type.ADJUSTMENT, StockMutation.ReferenceType.STOCK_OPNAME,
-                adminPartner, "Koreksi opname: -1 Laptop (rusak)");
-        createMutation(tablet, partner, opname.getId(), 1L, null, null, "BRANCH", cabang.getId(),
-                StockMutation.Type.ADJUSTMENT, StockMutation.ReferenceType.STOCK_OPNAME,
-                adminPartner, "Koreksi opname: +1 Tablet (surplus)");
+        createMutation(laptop, partner, opname.getId(), 1L, null, null, "BRANCH", cabang.getId(), StockMutation.Type.ADJUSTMENT, StockMutation.ReferenceType.STOCK_OPNAME, adminPartner, "Koreksi opname: -1 Laptop (rusak)");
+        createMutation(tablet, partner, opname.getId(), 1L, null, null, "BRANCH", cabang.getId(), StockMutation.Type.ADJUSTMENT, StockMutation.ReferenceType.STOCK_OPNAME, adminPartner, "Koreksi opname: +1 Tablet (surplus)");
     }
 
-    private void createOpnameItem(StockOpname opname, Product product,
-                                   long qtySystem, long qtyPhysical, User countedBy, String notes) {
+    private void createOpnameItem(StockOpname opname, Product product, long qtySystem, long qtyPhysical, User countedBy, String notes) {
         StockOpnameItem item = new StockOpnameItem();
         item.setStockOpname(opname);
         item.setProduct(product);
@@ -270,8 +243,7 @@ public class PartnerSeeder {
         stockOpnameItemRepository.save(item);
     }
 
-    private void adjustStockBalance(Product product, String locationType, Long locationId,
-                                     long adjustment, User updatedBy) {
+    private void adjustStockBalance(Product product, String locationType, Long locationId, long adjustment, User updatedBy) {
         stockBalanceRepository
                 .findByProductIdAndLocationTypeAndLocationId(product.getId(), locationType, locationId)
                 .ifPresent(sb -> {
@@ -282,7 +254,7 @@ public class PartnerSeeder {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
+    // Helpers (Babat Bug Multi-Tenant & Null Pointer)
     // ─────────────────────────────────────────────────────────────────────────
 
     private User createUserIfNotExists(String username, String fullname, String email,
@@ -292,8 +264,13 @@ public class PartnerSeeder {
             log.info("[PartnerSeeder] User '{}' sudah ada, skip.", username);
             return existing.get();
         }
-        Role role = roleRepository.findBySlug(roleSlug)
-                .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' tidak ditemukan."));
+        
+        // 💡 Modifikasi Penting: Ambil role global atau custom role milik partner scope
+        Role role = roleRepository.existsBySlugAndPartnerId(roleSlug, partner.getId())
+                ? roleRepository.findAllByPartnerIdOrPartnerIsNull(partner.getId()).stream().filter(r -> r.getSlug().equals(roleSlug)).findFirst().get()
+                : roleRepository.findAll().stream().filter(r -> r.getSlug().equals(roleSlug) && r.getPartner() == null).findFirst()
+                .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' global tidak ditemukan."));
+
         User user = new User();
         user.setUsername(username);
         user.setFullname(fullname);
@@ -301,6 +278,11 @@ public class PartnerSeeder {
         user.setPassword(passwordEncoder.encode(rawPassword));
         user.setPartner(partner);
         user.setBranch(branch);
+        
+        // 💡 Cegah NullPointerException: Inisialisasi set hashset dulu sebelum di-add
+        if (user.getRoles() == null) {
+            user.setRoles(new HashSet<>());
+        }
         user.getRoles().add(role);
         return userRepository.save(user);
     }
@@ -319,8 +301,7 @@ public class PartnerSeeder {
         return categoryProductRepository.save(cat);
     }
 
-    private Product createProductIfNotExists(String name, String sku, BigDecimal basePrice,
-            CategoryProduct category, Partners partner, User createdBy) {
+    private Product createProductIfNotExists(String name, String sku, BigDecimal basePrice, CategoryProduct category, Partners partner, User createdBy) {
         if (productRepository.existsBySkuAndPartnerId(sku, partner.getId())) {
             return productRepository.findAllByPartner(partner).stream()
                     .filter(p -> p.getSku().equals(sku)).findFirst().orElseThrow();
@@ -353,8 +334,7 @@ public class PartnerSeeder {
         return supplierRepository.save(supplier);
     }
 
-    private PurchaseOrder createPurchaseOrder(Partners partner, Supplier supplier,
-            Long warehouseId, String poNumber, User createdBy) {
+    private PurchaseOrder createPurchaseOrder(Partners partner, Supplier supplier, Long warehouseId, String poNumber, User createdBy) {
         PurchaseOrder po = new PurchaseOrder();
         po.setPartner(partner);
         po.setSupplier(supplier);
@@ -370,8 +350,7 @@ public class PartnerSeeder {
         return purchaseOrderRepository.save(po);
     }
 
-    private PurchaseOrderItems createPoItem(PurchaseOrder po, Product product,
-            BigDecimal qty, BigDecimal unitCost) {
+    private PurchaseOrderItems createPoItem(PurchaseOrder po, Product product, BigDecimal qty, BigDecimal unitCost) {
         PurchaseOrderItems item = new PurchaseOrderItems();
         item.setPurchaseOrder(po);
         item.setProduct(product);
@@ -393,8 +372,7 @@ public class PartnerSeeder {
         return purchaseReceiptRepository.save(receipt);
     }
 
-    private void createReceiptItem(PurchaseReceipt receipt, PurchaseOrderItems poItem,
-            Product product, BigDecimal qtyReceived, BigDecimal unitCost) {
+    private void createReceiptItem(PurchaseReceipt receipt, PurchaseOrderItems poItem, Product product, BigDecimal qtyReceived, BigDecimal unitCost) {
         PurchaseReceiptItem item = new PurchaseReceiptItem();
         item.setPurchaseReceipt(receipt);
         item.setPurchaseOrderItem(poItem);
@@ -405,8 +383,7 @@ public class PartnerSeeder {
         purchaseReceiptItemRepository.save(item);
     }
 
-    private void addStockBalance(Product product, String locationType, Long locationId,
-            Long qty, User createdBy) {
+    private void addStockBalance(Product product, String locationType, Long locationId, Long qty, User createdBy) {
         Optional<StockBalance> existing = stockBalanceRepository
                 .findByProductIdAndLocationTypeAndLocationId(product.getId(), locationType, locationId);
         if (existing.isPresent()) {
@@ -425,11 +402,7 @@ public class PartnerSeeder {
         }
     }
 
-    private void createMutation(Product product, Partners partner, Long referenceId,
-            Long qty, String fromLocationType, Long fromLocationId,
-            String toLocationType, Long toLocationId,
-            StockMutation.Type type, StockMutation.ReferenceType referenceType,
-            User createdBy, String notes) {
+    private void createMutation(Product product, Partners partner, Long referenceId, Long qty, String fromLocationType, Long fromLocationId, String toLocationType, Long toLocationId, StockMutation.Type type, StockMutation.ReferenceType referenceType, User createdBy, String notes) {
         StockMutation mutation = new StockMutation();
         mutation.setProduct(product);
         mutation.setPartner(partner);

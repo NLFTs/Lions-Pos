@@ -5,39 +5,38 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
-
+import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-/**
- * Role entity representing a role in the system.
- * Roles group permissions and can be assigned to users.
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "roles", uniqueConstraints = @UniqueConstraint(columnNames = "slug"))
-public class Role   {
+@Table(name = "roles", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"partner_id", "slug"})
+})
+public class Role {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Unique identifier for the role, e.g., "admin", "editor". */
-    @Column(nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id")
+    private Partners partner;
+
+    // 💡 Hapus unique = true dari sini karena sudah dicover uniqueConstraints di atas
+    @Column(nullable = false)
     private String slug;
 
-    /** Human-readable name for the role, e.g., "Administrator". */
     @Column(nullable = false)
     private String name;
 
-    /** Description of the role. */
     @Column
     private String description;
 
-    /** Permissions associated with this role. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "role_permissions",
