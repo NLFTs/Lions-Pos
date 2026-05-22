@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import com.dak.spravel.model.auth.User;
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,7 +21,8 @@ public class Payments   {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     @JsonBackReference("orders-payments")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", referencedColumnName = "id", nullable = false)
