@@ -60,7 +60,6 @@ public class PermissionSeeder {
 
     // slug, name, moduleSlug
     private static final String[][] ALL_PERMISSIONS = {
-
         {"partner.index",      "View All Partners",          "partner"},
         {"partner.show",       "View Partner Detail",        "partner"},
         {"partner.store",      "Create Partner",             "partner"},
@@ -95,7 +94,6 @@ public class PermissionSeeder {
         {"permission.store",  "Create Permission",      "permission"},
         {"permission.update", "Update Permission",      "permission"},
         {"permission.delete", "Delete Permission",      "permission"},
-
 
         {"module.index",  "View All Modules",   "module"},
         {"module.show",   "View Module Detail", "module"},
@@ -200,8 +198,8 @@ public class PermissionSeeder {
         List<Permission> allPerms = permissionRepository.findAll();
         Set<Permission> allPermsSet = new HashSet<>(allPerms);
 
-        // 3. Create "admin" role with ALL permissions
-        Role adminRole = roleRepository.findBySlug("admin").orElseGet(() -> {
+        // 3. Create "admin" role with ALL permissions (Global / NULL)
+        Role adminRole = roleRepository.findBySlugAndPartnerId("admin", null).orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin");
             r.setName("Administrator");
@@ -211,22 +209,22 @@ public class PermissionSeeder {
         Role savedAdmin = roleRepository.save(adminRole);
         log.info("[SEEDER] Admin role '{}' now has {} permissions", savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
-        // 4. Update roles with specific module access
-        Role adminPartnersRole = roleRepository.findBySlug("admin-partners").orElseGet(() -> {
+        // 4. Update template roles with specific module access (Ganti ke findBySlugAndPartnerId dengan NULL)
+        Role adminPartnersRole = roleRepository.findBySlugAndPartnerId("admin-partners", null).orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin-partners");
             r.setName("Admin Partners");
             return r;
         });
-        adminPartnersRole.getPermissions().clear();
+        adminPartnersRole.setPermissions(new HashSet<>());
 
-        Role employeePartnersRole = roleRepository.findBySlug("employee-partners").orElseGet(() -> {
+        Role employeePartnersRole = roleRepository.findBySlugAndPartnerId("employee-partners", null).orElseGet(() -> {
             Role r = new Role();
             r.setSlug("employee-partners");
             r.setName("Employee Partners");
             return r;
         });
-        employeePartnersRole.getPermissions().clear();
+        employeePartnersRole.setPermissions(new HashSet<>());
 
         Set<Permission> adminPartnersPerms = new HashSet<>();
         Set<Permission> employeePartnersPerms = new HashSet<>();
@@ -278,9 +276,9 @@ public class PermissionSeeder {
         employeePartnersRole.setPermissions(employeePartnersPerms);
         roleRepository.save(employeePartnersRole);
 
-        // 5. Assign "admin" role to user "su"
+        // 5. Assign "admin" role to super user "su"
         userRepository.findByUsername("su").ifPresent(su -> {
-            Role managed = roleRepository.findBySlug("admin").orElseThrow();
+            Role managed = roleRepository.findBySlugAndPartnerId("admin", null).orElseThrow();
             if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {
                 su.getRoles().add(managed);
                 userRepository.save(su);

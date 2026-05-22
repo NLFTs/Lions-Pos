@@ -101,8 +101,8 @@ public class AuthController {
         tokenRepository.findAllByUsername(user.getUsername())
                 .forEach(t -> { t.setRevoked(true); tokenRepository.save(t); });
 
-        // Access token no longer carries permissions — they live in Caffeine cache
-        String accessToken = jwtUtil.generateAccessToken(user.getUsername());
+        // Access token carries permissions claim for frontend to decode on refresh
+        String accessToken = jwtUtil.generateAccessToken(user.getUsername(), auths.stream().toList());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
         Date expiryDate = new Date(System.currentTimeMillis() + refreshTokenExpirationMs);
 
@@ -144,7 +144,7 @@ public class AuthController {
         });
         permissionCacheService.putPermissions(freshUser.getUsername(), auths);
 
-        String newAccessToken = jwtUtil.generateAccessToken(tokenEntity.getUsername());
+        String newAccessToken = jwtUtil.generateAccessToken(tokenEntity.getUsername(), auths.stream().toList());
         tokenEntity.setAccessToken(newAccessToken);
         tokenRepository.save(tokenEntity);
 
