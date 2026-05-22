@@ -186,7 +186,7 @@ export const routes = [
     component: () => import('@/pages/OrdersPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'order.index',
+      permission: null,
       pageTitle: 'Riwayat Order',
       pageSubtitle: 'Lihat riwayat transaksi penjualan.',
     },

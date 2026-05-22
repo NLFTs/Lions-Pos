@@ -14,8 +14,8 @@ public interface OrdersRepository extends JpaRepository <Orders, Long> {
     Optional<Orders> findByPartnerIdAndOrderNumber(Long partnerId, String orderNumber);
 
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"items", "payments", "branch", "createdBy", "voucher"})
-    // Untuk Get Data 
-    @org.springframework.data.jpa.repository.Query("SELECT o FROM Orders o")
+    // Untuk Get Data — diurutkan dari yang terbaru
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Orders o ORDER BY o.createdAt DESC")
     java.util.List<Orders> findAllWithDetails();
     // Untuk POST Data
     @EntityGraph(attributePaths = {"items", "payments", "branch", "cashier", "voucher"})
