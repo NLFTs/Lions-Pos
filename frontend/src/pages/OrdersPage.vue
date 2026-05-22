@@ -22,6 +22,15 @@ const { confirm } = useConfirm()
 const auth = useAuthStore()
 const { isAdmin } = storeToRefs(auth)
 
+// Cek apakah user adalah admin-partners (owner/manager) — bisa konfirmasi transfer
+const isAdminPartner = computed(() => {
+  const roles = auth.user?.roles || []
+  return isAdmin.value || roles.some(r => {
+    const slug = typeof r === 'string' ? r : (r.slug || r.name || '')
+    return slug.toLowerCase() === 'admin-partners'
+  })
+})
+
 // ─── State ───────────────────────────────────────────────────────────────────
 const orders = ref([])
 const loading = ref(false)
@@ -55,14 +64,21 @@ async function fetchOrders() {
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredOrders = computed(() => {
-  let result = orders.value
+  let result = [...orders.value].sort((a, b) => {
+    // Terbaru di atas — sort by id descending (id selalu increment)
+    return (b.id || 0) - (a.id || 0)
+  })
   if (statusFilter.value !== 'all') {
-    result = result.filter(o => o.status?.toLowerCase() === statusFilter.value.toLowerCase())
+    result = result.filter(o => {
+      const hasPendingTransfer = o.payments?.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')
+      if (statusFilter.value === 'pending_transfer') return hasPendingTransfer
+      return o.status?.toLowerCase() === statusFilter.value.toLowerCase()
+    })
   }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(o => 
-      o.orderNumber.toLowerCase().includes(q) || 
+    result = result.filter(o =>
+      o.orderNumber.toLowerCase().includes(q) ||
       (o.createdBy?.username && o.createdBy.username.toLowerCase().includes(q)) ||
       (o.branch?.name && o.branch.name.toLowerCase().includes(q))
     )
@@ -141,19 +157,44 @@ function formatDate(dt) {
   if (!dt) return '-'
   return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
-function statusColor(s) {
+function statusColor(s, payments) {
+  // Jika ada payment transfer yang masih pending, tampilkan sebagai "menunggu"
+  if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
+    return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
+  }
   const st = String(s).toLowerCase()
-  if (st === 'paid') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
-  if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800/40'
-  if (st === 'return') return 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 border-purple-200 dark:border-purple-800/40'
-  return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
+  if (st === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50'
+  if (st === 'draft') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
+  if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50'
+  if (st === 'return') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50'
+  return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'
 }
-function statusLabel(s) {
+function statusLabel(s, payments) {
+  // Jika ada payment transfer yang masih pending
+  if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
+    return 'Menunggu Konfirmasi'
+  }
   const st = String(s).toLowerCase()
   if (st === 'paid') return 'Lunas'
-  if (st === 'cancelled' || st === 'canceled') return 'Batal'
+  if (st === 'draft') return 'Menunggu Pembayaran'
+  if (st === 'cancelled' || st === 'canceled') return 'Dibatalkan'
   if (st === 'return') return 'Retur'
-  return 'Draft'
+  return s
+}
+
+function paymentStatusColor(status) {
+  const st = String(status).toUpperCase()
+  if (st === 'VERIFIED') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400'
+  if (st === 'PENDING') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400'
+  if (st === 'FAILED') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
+  return 'bg-zinc-100 text-zinc-600 border-zinc-200'
+}
+function paymentStatusLabel(status) {
+  const st = String(status).toUpperCase()
+  if (st === 'VERIFIED') return 'Terverifikasi'
+  if (st === 'PENDING') return 'Menunggu Konfirmasi'
+  if (st === 'FAILED') return 'Gagal'
+  return status
 }
 
 const pendingTransferPayment = computed(() => {
@@ -207,7 +248,7 @@ onMounted(fetchOrders)
               <div v-for="o in paginatedOrders" :key="o.id" class="p-4 flex flex-col gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer" @click="openDetail(o)">
                 <div class="flex items-center justify-between">
                   <span class="font-mono text-xs font-semibold text-zinc-700 dark:text-zinc-300">{{ o.orderNumber }}</span>
-                  <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(o.status)]" variant="outline">{{ statusLabel(o.status) }}</Badge>
+                  <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
                 </div>
                 <div class="flex justify-between items-end">
                   <div>
@@ -242,7 +283,7 @@ onMounted(fetchOrders)
                     <td class="py-3 text-xs text-red-500">{{ o.discountAmount > 0 ? '-' + formatCurrency(o.discountAmount) : '-' }}</td>
                     <td class="py-3 text-sm font-black">{{ formatCurrency(o.total) }}</td>
                     <td class="py-3 text-center">
-                      <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(o.status)]" variant="outline">{{ statusLabel(o.status) }}</Badge>
+                      <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-900" @click="openDetail(o)"><Eye class="h-4 w-4" /></Button>
@@ -272,8 +313,8 @@ onMounted(fetchOrders)
           
           <div v-if="detailDrawer.order" class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             <div class="flex items-center justify-between">
-              <Badge :class="['text-[10px] uppercase tracking-widest px-3 py-1 font-bold', statusColor(detailDrawer.order.status)]" variant="outline">
-                {{ statusLabel(detailDrawer.order.status) }}
+              <Badge :class="['text-[10px] uppercase tracking-widest px-3 py-1 font-bold', statusColor(detailDrawer.order.status, detailDrawer.order.payments)]" variant="outline">
+                {{ statusLabel(detailDrawer.order.status, detailDrawer.order.payments) }}
               </Badge>
               <span class="text-xs text-muted-foreground">{{ formatDate(detailDrawer.order.createdAt) }}</span>
             </div>
@@ -325,13 +366,9 @@ onMounted(fetchOrders)
                     <p class="text-[11px] text-muted-foreground">{{ formatCurrency(pay.amount) }}</p>
                   </div>
                 </div>
-                <span :class="['text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border',
-                  pay.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                  pay.status === 'PENDING'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  'bg-zinc-50 text-zinc-600 border-zinc-200']">
-                  {{ pay.status }}
-                </span>
-              </div>
+                <Badge :class="['text-[9px] font-bold uppercase tracking-wider px-2 py-0.5', paymentStatusColor(pay.status)]" variant="outline">
+                  {{ paymentStatusLabel(pay.status) }}
+                </Badge>              </div>
             </div>
 
             <!-- Payment Info (If available via relationship) -->
@@ -348,16 +385,16 @@ onMounted(fetchOrders)
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
 
-              <!-- Konfirmasi Transfer -->
-              <button v-if="pendingTransferPayment"
+              <!-- Konfirmasi Transfer — hanya admin-partners (owner/manager) -->
+              <button v-if="pendingTransferPayment && isAdminPartner"
                 :disabled="actionLoading"
                 @click="verifyTransfer(pendingTransferPayment.id)"
                 class="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 text-sm font-bold transition-colors disabled:opacity-50">
                 <CheckCircle2 class="h-4 w-4" /> Konfirmasi Transfer
               </button>
 
-              <!-- Retur Barang -->
-              <button v-if="detailDrawer.order.status?.toUpperCase() === 'PAID'"
+              <!-- Retur Barang — hanya jika PAID dan tidak ada transfer pending -->
+              <button v-if="detailDrawer.order.status?.toUpperCase() === 'PAID' && !pendingTransferPayment"
                 :disabled="actionLoading"
                 @click="openReturnModal(detailDrawer.order)"
                 class="w-full h-10 rounded-xl border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50">

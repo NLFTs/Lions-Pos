@@ -228,6 +228,15 @@ public class PaymentsService {
         payment.setUpdatedAt(LocalDateTime.now());
         payment.setUpdatedBy(currentUser);
 
+        // Update order ke PAID setelah transfer dikonfirmasi
+        Orders order = payment.getOrder();
+        if (order != null) {
+            order.setStatus(Orders.PaymentStatus.PAID);
+            order.setUpdatedAt(LocalDateTime.now());
+            order.setUpdatedBy(currentUser);
+            ordersRepository.save(order);
+        }
+
         return mapToResponse(paymentsRepository.save(payment));
     }
 }
