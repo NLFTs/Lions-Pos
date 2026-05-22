@@ -5,7 +5,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -13,7 +12,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptItemDTO;
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
@@ -90,12 +88,6 @@ public class PurchaseReceiptService {
             throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
-    }
-
-    // 💡 HELPER: Cek apakah user murni seorang Employee
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
     }
 
     // =============================================================
