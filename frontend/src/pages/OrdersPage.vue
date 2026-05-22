@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -12,11 +13,12 @@ import Input from '@/components/ui/Input.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
-import { Loader2, X, Eye, ShoppingBag, Banknote, ArrowRightLeft } from 'lucide-vue-next'
+import { Loader2, X, Eye, ShoppingBag, Banknote, ArrowRightLeft, Printer, RotateCcw, Ban, CheckCircle2 } from 'lucide-vue-next'
 import api from '@/lib/api'
 
 const { can } = usePermission()
 const { toast } = useToast()
+const { confirm } = useConfirm()
 const auth = useAuthStore()
 const { isAdmin } = storeToRefs(auth)
 
@@ -28,6 +30,13 @@ const statusFilter = ref('all')
 const page = ref(1)
 const pageSize = ref(10)
 const detailDrawer = ref({ show: false, order: null })
+const actionLoading = ref(false)
+
+// Return modal
+const showReturnModal = ref(false)
+const returnItems = ref([])
+const returnReason = ref('')
+const submittingReturn = ref(false)
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 async function fetchOrders() {
@@ -69,6 +78,60 @@ const paginatedOrders = computed(() => {
 function openDetail(order) { detailDrawer.value = { show: true, order } }
 function closeDetail() { detailDrawer.value.show = false }
 
+async function cancelOrder(order) {
+  const ok = await confirm({ title: 'Batalkan Order?', description: `Order ${order.orderNumber} akan dibatalkan dan stok dikembalikan.` })
+  if (!ok) return
+  actionLoading.value = true
+  try {
+    await api.patch(`/api/v1/orders/${order.id}/cancel`)
+    toast.success('Order berhasil dibatalkan.')
+    await fetchOrders()
+    closeDetail()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal membatalkan order.')
+  } finally { actionLoading.value = false }
+}
+
+async function verifyTransfer(paymentId) {
+  actionLoading.value = true
+  try {
+    await api.patch(`/api/v1/payments/${paymentId}/verify`)
+    toast.success('Transfer berhasil dikonfirmasi.')
+    await fetchOrders()
+    closeDetail()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal mengkonfirmasi transfer.')
+  } finally { actionLoading.value = false }
+}
+
+function openReturnModal(order) {
+  returnItems.value = (order.items || []).map(i => ({ ...i, returnQty: 0 }))
+  returnReason.value = ''
+  showReturnModal.value = true
+}
+function closeReturnModal() { showReturnModal.value = false }
+
+async function submitReturn() {
+  const toReturn = returnItems.value.filter(i => i.returnQty > 0)
+  if (!toReturn.length) { toast.error('Pilih minimal satu item untuk diretur.'); return }
+  submittingReturn.value = true
+  try {
+    await api.post(`/api/v1/orders/${detailDrawer.value.order.id}/return`, {
+      items: toReturn.map(i => ({ orderItemId: i.id, qtyReturn: i.returnQty, reason: returnReason.value || null }))
+    })
+    toast.success('Retur berhasil diproses.')
+    closeReturnModal()
+    await fetchOrders()
+    closeDetail()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal memproses retur.')
+  } finally { submittingReturn.value = false }
+}
+
+function printReceipt(order) {
+  window.print()
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatCurrency(v) {
   if (v == null) return '-'
@@ -82,14 +145,24 @@ function statusColor(s) {
   const st = String(s).toLowerCase()
   if (st === 'paid') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
   if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border-red-200 dark:border-red-800/40'
+  if (st === 'return') return 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 border-purple-200 dark:border-purple-800/40'
   return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
 }
 function statusLabel(s) {
   const st = String(s).toLowerCase()
   if (st === 'paid') return 'Lunas'
   if (st === 'cancelled' || st === 'canceled') return 'Batal'
+  if (st === 'return') return 'Retur'
   return 'Draft'
 }
+
+const pendingTransferPayment = computed(() => {
+  const order = detailDrawer.value.order
+  if (!order?.payments?.length) return null
+  return order.payments.find(p =>
+    p.method?.toUpperCase() === 'TRANSFER' && p.status?.toUpperCase() === 'PENDING'
+  ) || null
+})
 
 onMounted(fetchOrders)
 </script>
@@ -112,6 +185,7 @@ onMounted(fetchOrders)
             <option value="paid">Lunas</option>
             <option value="draft">Draft</option>
             <option value="canceled">Batal</option>
+            <option value="return">Retur</option>
           </select>
         </div>
       </div>
@@ -236,10 +310,119 @@ onMounted(fetchOrders)
               <div class="flex justify-between text-lg font-black border-t border-zinc-200 dark:border-zinc-700 pt-2"><span>Total</span><span class="text-primary">{{ formatCurrency(detailDrawer.order.total) }}</span></div>
             </div>
 
+            <!-- Payment Info -->
+            <div v-if="detailDrawer.order.payments?.length" class="space-y-2">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Pembayaran</h4>
+              <div v-for="(pay, idx) in detailDrawer.order.payments" :key="idx"
+                class="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                    <Banknote v-if="pay.method?.toUpperCase() === 'CASH'" class="h-4 w-4 text-zinc-500" />
+                    <ArrowRightLeft v-else class="h-4 w-4 text-zinc-500" />
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold">{{ pay.method === 'CASH' ? 'Tunai' : 'Transfer' }}</p>
+                    <p class="text-[11px] text-muted-foreground">{{ formatCurrency(pay.amount) }}</p>
+                  </div>
+                </div>
+                <span :class="['text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border',
+                  pay.status === 'VERIFIED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  pay.status === 'PENDING'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-zinc-50 text-zinc-600 border-zinc-200']">
+                  {{ pay.status }}
+                </span>
+              </div>
+            </div>
+
             <!-- Payment Info (If available via relationship) -->
             <div v-if="detailDrawer.order.notes" class="bg-primary/5 p-3 rounded-lg border border-primary/10">
               <p class="text-[10px] font-bold text-primary uppercase tracking-wider mb-1">Tipe Pesanan / Catatan</p>
               <p class="text-xs font-medium">{{ detailDrawer.order.notes }}</p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col gap-2 pt-1">
+              <!-- Cetak Struk -->
+              <button @click="printReceipt(detailDrawer.order)"
+                class="w-full h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 text-sm font-bold hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                <Printer class="h-4 w-4" /> Cetak Struk
+              </button>
+
+              <!-- Konfirmasi Transfer -->
+              <button v-if="pendingTransferPayment"
+                :disabled="actionLoading"
+                @click="verifyTransfer(pendingTransferPayment.id)"
+                class="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 text-sm font-bold transition-colors disabled:opacity-50">
+                <CheckCircle2 class="h-4 w-4" /> Konfirmasi Transfer
+              </button>
+
+              <!-- Retur Barang -->
+              <button v-if="detailDrawer.order.status?.toUpperCase() === 'PAID'"
+                :disabled="actionLoading"
+                @click="openReturnModal(detailDrawer.order)"
+                class="w-full h-10 rounded-xl border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50">
+                <RotateCcw class="h-4 w-4" /> Retur Barang
+              </button>
+
+              <!-- Batalkan Order -->
+              <button v-if="['DRAFT','PAID'].includes(detailDrawer.order.status?.toUpperCase())"
+                :disabled="actionLoading"
+                @click="cancelOrder(detailDrawer.order)"
+                class="w-full h-10 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                <Ban class="h-4 w-4" /> Batalkan Order
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+    <!-- Return Modal -->
+    <Teleport to="body">
+      <Transition name="fade"><div v-if="showReturnModal" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="closeReturnModal" /></Transition>
+      <Transition name="scale">
+        <div v-if="showReturnModal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <div>
+                <h3 class="font-black text-[15px]">Form Retur Barang</h3>
+                <p class="text-xs text-muted-foreground mt-0.5">Pilih item dan jumlah yang akan diretur</p>
+              </div>
+              <button @click="closeReturnModal" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500">
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div class="space-y-2">
+                <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Item Pesanan</p>
+                <div v-for="(item, idx) in returnItems" :key="idx"
+                  class="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold truncate">{{ item.productName || 'Produk' }}</p>
+                    <p class="text-[11px] text-muted-foreground">Qty order: {{ item.qty }}</p>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-[11px] font-bold text-zinc-500">Retur:</span>
+                    <input v-model.number="item.returnQty" type="number" min="0" :max="item.qty"
+                      class="w-16 h-8 text-center text-sm font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Alasan (opsional)</p>
+                <textarea v-model="returnReason" rows="3" placeholder="Contoh: Barang rusak, salah produk..."
+                  class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" />
+              </div>
+            </div>
+            <div class="px-6 py-4 border-t shrink-0 flex gap-2.5">
+              <button @click="closeReturnModal" class="flex-1 h-11 rounded-[14px] border border-zinc-200 dark:border-zinc-700 font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                Batal
+              </button>
+              <button @click="submitReturn" :disabled="submittingReturn"
+                class="flex-1 h-11 rounded-[14px] bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                <Loader2 v-if="submittingReturn" class="h-4 w-4 animate-spin" />
+                <RotateCcw v-else class="h-4 w-4" />
+                Proses Retur
+              </button>
             </div>
           </div>
         </div>
@@ -253,4 +436,6 @@ onMounted(fetchOrders)
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 .slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
+.scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
 </style>

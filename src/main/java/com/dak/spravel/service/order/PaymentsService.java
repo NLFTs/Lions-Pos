@@ -54,15 +54,19 @@ public class PaymentsService {
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
+                        || role.getSlug().equalsIgnoreCase("super_admin"));
+
+        if (isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
         }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
         return user;
     }
 

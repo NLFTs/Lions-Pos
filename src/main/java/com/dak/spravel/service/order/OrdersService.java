@@ -76,14 +76,21 @@ public class OrdersService {
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // 🛠️ MEMASTIKAN: Role "employee" murni lolos validasi untuk fitur POS/Kasir
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+
+        // Super admin tidak boleh akses endpoint partner/employee
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
+                        || role.getSlug().equalsIgnoreCase("super_admin"));
+
+        if (isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
         }
+
+        // User harus terasosiasi dengan partner
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
         return user;
     }
 
