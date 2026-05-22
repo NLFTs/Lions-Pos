@@ -91,7 +91,7 @@ public class SecurityConfig {
                 .addFilterBefore(
                         new JwtAuthFilter(jwtUtil, permissionCacheService, java.util.Arrays.asList(jwtExcludedPaths)),
                         UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(userContextFilter, JwtAuthFilter.class) 
+                .addFilterAfter(userContextFilter, JwtAuthFilter.class) 
                 .build();
     }
 

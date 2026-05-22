@@ -50,28 +50,26 @@ public class HttpLogFilter implements Filter {
         log.info("⚪ Process Started, 🌐 {} {}", req.getMethod(), req.getRequestURI());
         log.info("[s] Controller");
 
+        ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(req);
+        ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(res);
         try {
-            ContentCachingRequestWrapper requestWrapper = new ContentCachingRequestWrapper(req);
-            ContentCachingResponseWrapper responseWrapper = new ContentCachingResponseWrapper(res);
             chain.doFilter(requestWrapper, responseWrapper);
-
-            Date responseAt = new Date();
-
-            LogHttp logInfo = createLogRecord(req, requestWrapper, responseWrapper, requestAt, responseAt);
-            logHttpRepository.save(logInfo);
-            responseWrapper.copyBodyToResponse();
-
+        } finally {
             long endProcess = System.currentTimeMillis();
             long interval = endProcess - startProcess;
-            log.info("[e] Controller");
-            log.info("🟢 Process Completed, 🕛 the process took {} ms", interval);
-        } catch (Exception e) {
-            long endProcess = System.currentTimeMillis();
-            long interval = endProcess - startProcess;
-            log.error("[e] eController");
-            log.error("🔴 Process Completed, 🕛 the process took {} ms", interval);
-            if (!response.isCommitted()) {
-                chain.doFilter(request, response);
+            try {
+                Date responseAt = new Date();
+                LogHttp logInfo = createLogRecord(req, requestWrapper, responseWrapper, requestAt, responseAt);
+                logHttpRepository.save(logInfo);
+                log.info("[e] Controller");
+                log.info("🟢 Process Completed, 🕛 the process took {} ms", interval);
+            } catch (Exception logEx) {
+                log.error("🔴 HttpLogFilter: Failed to save log, 🕛 {} ms — {}", interval, logEx.getMessage());
+            } finally {
+                // Always copy buffered response body back to the original response
+                if (!res.isCommitted()) {
+                    responseWrapper.copyBodyToResponse();
+                }
             }
         }
     }
