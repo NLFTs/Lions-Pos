@@ -59,7 +59,9 @@ public class StockOpnameService {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
+                        role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
 
         if (!isAuthorized) {
             throw new RuntimeException("Akses Ditolak: Hanya Owner atau Employee yang diizinkan.");

@@ -212,9 +212,10 @@ public class PaymentsService {
     public PaymentResponse verifyPayment(Long id) {
         User currentUser = getAuthenticatedUser();
         
-        // BUG FIX #5: Role slug yang benar adalah "owner" (bukan "admin-partners")
+        // BUG FIX #5: Terima slug lama (admin-partners) dan baru (owner)
         boolean isOwner = currentUser.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
+                        || role.getSlug().equalsIgnoreCase("admin-partners")
                         || role.getSlug().equalsIgnoreCase("super_admin")
                         || role.getSlug().equalsIgnoreCase("admin"));
         if (!isOwner) {

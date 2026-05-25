@@ -79,10 +79,12 @@ public class OrdersService {
                 throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
             }
 
-            // Slug yang valid sesuai seeder: "owner" dan "employee"
+            // Slug yang valid: "owner" / "admin-partners" (lama) dan "employee" / "employee-partners" (lama)
             boolean isOwnerOrEmployee = user.getRoles().stream()
                     .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
-                            || role.getSlug().equalsIgnoreCase("employee"));
+                            || role.getSlug().equalsIgnoreCase("admin-partners")
+                            || role.getSlug().equalsIgnoreCase("employee")
+                            || role.getSlug().equalsIgnoreCase("employee-partners"));
 
             if (!isOwnerOrEmployee || user.getPartner() == null) {
                 throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
@@ -94,7 +96,8 @@ public class OrdersService {
         // HELPER: cek apakah user adalah employee (bukan owner)
         private boolean isEmployee(User user) {
             return user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee")
+                            || role.getSlug().equalsIgnoreCase("employee-partners"));
         }
 
     private Orders getValidatedOrder(Long id, User currentUser) {

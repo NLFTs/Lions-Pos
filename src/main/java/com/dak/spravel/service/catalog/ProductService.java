@@ -75,10 +75,12 @@ public class ProductService {
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // Cek apakah dia punya role operasional
+        // Cek apakah dia punya role operasional (slug lama atau baru)
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
-                                role.getSlug().equalsIgnoreCase("employee-partners"));
+                                role.getSlug().equalsIgnoreCase("employee-partners") ||
+                                role.getSlug().equalsIgnoreCase("owner") ||
+                                role.getSlug().equalsIgnoreCase("employee"));
         
         // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
         boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));

@@ -62,8 +62,9 @@ const filteredMutations = computed(() => {
     const q = searchQuery.value.toLowerCase()
     r = r.filter(m => 
       (m.product?.name && m.product.name.toLowerCase().includes(q)) ||
-      (m.mutationType && m.mutationType.toLowerCase().includes(q)) ||
-      (m.referenceNumber && m.referenceNumber.toLowerCase().includes(q))
+      (m.type && m.type.toLowerCase().includes(q)) ||
+      (m.reference_type && m.reference_type.toLowerCase().includes(q)) ||
+      (m.notes && m.notes.toLowerCase().includes(q))
     )
   }
   return r
@@ -85,15 +86,43 @@ function formatDate(dt) {
   }) : '-'
 }
 
+// Tentukan apakah mutasi ini masuk (+) atau keluar (-) berdasarkan type
+function isIncoming(m) {
+  const t = (m.type || '').toUpperCase()
+  return t === 'PURCHASE_IN' || t === 'RETURN' || 
+         (t === 'TRANSFER' && m.to_location_type != null) ||
+         (t === 'ADJUSTMENT' && (m.qty || 0) > 0)
+}
+
+// Lokasi yang relevan untuk ditampilkan
+function getLocationDisplay(m) {
+  const t = (m.type || '').toUpperCase()
+  if (t === 'SALE_OUT') return { type: m.from_location_type, id: m.from_location_id }
+  if (t === 'PURCHASE_IN' || t === 'RETURN') return { type: m.to_location_type, id: m.to_location_id }
+  if (t === 'TRANSFER') return { from: m.from_location_type, to: m.to_location_type }
+  return { type: m.to_location_type || m.from_location_type, id: m.to_location_id || m.from_location_id }
+}
+
+function typeLabel(t) {
+  const m = {
+    SALE_OUT: 'Penjualan',
+    PURCHASE_IN: 'Pembelian',
+    TRANSFER: 'Transfer',
+    ADJUSTMENT: 'Koreksi',
+    RETURN: 'Retur'
+  }
+  return m[(t || '').toUpperCase()] || t
+}
+
 function typeColor(t) {
   const m = {
-    SALE: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50',
-    PURCHASE_RECEIPT: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
-    TRANSFER_IN: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50',
-    TRANSFER_OUT: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50',
-    ADJUSTMENT: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'
+    SALE_OUT: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50',
+    PURCHASE_IN: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
+    TRANSFER: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/50',
+    ADJUSTMENT: 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400',
+    RETURN: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50'
   }
-  return m[t] || 'bg-zinc-100 text-zinc-700 border-zinc-200'
+  return m[(t || '').toUpperCase()] || 'bg-zinc-100 text-zinc-700 border-zinc-200'
 }
 
 onMounted(fetchData)
@@ -136,32 +165,39 @@ onMounted(fetchData)
                 <div class="flex justify-between items-start">
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-                      <ArrowUpRight v-if="m.qtyChange > 0" class="h-4 w-4 text-emerald-500" />
+                      <ArrowUpRight v-if="isIncoming(m)" class="h-4 w-4 text-emerald-500" />
                       <ArrowDownLeft v-else class="h-4 w-4 text-red-500" />
                     </div>
                     <div>
                       <p class="text-xs font-bold text-zinc-900 dark:text-white leading-none mb-1">{{ m.product?.name || '-' }}</p>
-                      <p class="text-[10px] font-mono text-muted-foreground">{{ m.referenceNumber || 'NO-REF' }}</p>
+                      <p class="text-[10px] font-mono text-muted-foreground">{{ m.reference_type || 'NO-REF' }} #{{ m.reference_id || '-' }}</p>
                     </div>
                   </div>
-                  <Badge :class="['text-[9px] uppercase tracking-widest font-bold', typeColor(m.mutationType)]" variant="outline">
-                    {{ m.mutationType }}
+                  <Badge :class="['text-[9px] uppercase tracking-widest font-bold', typeColor(m.type)]" variant="outline">
+                    {{ typeLabel(m.type) }}
                   </Badge>
                 </div>
                 <div class="flex justify-between items-center bg-zinc-50 dark:bg-zinc-900/50 p-2 rounded-lg border border-zinc-100 dark:border-zinc-800">
                   <div class="flex flex-col">
                     <span class="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">Lokasi</span>
-                    <span class="text-[10px] font-bold">{{ m.locationName || '-' }}</span>
+                    <span class="text-[10px] font-bold">
+                      <template v-if="m.type === 'TRANSFER'">
+                        {{ (m.from_location_type || '').toUpperCase() }} → {{ (m.to_location_type || '').toUpperCase() }}
+                      </template>
+                      <template v-else>
+                        {{ (m.to_location_type || m.from_location_type || '-').toUpperCase() }}
+                      </template>
+                    </span>
                   </div>
                   <div class="text-right">
-                    <span class="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">Perubahan</span>
-                    <p :class="['text-sm font-black', m.qtyChange > 0 ? 'text-emerald-600' : 'text-red-600']">
-                      {{ m.qtyChange > 0 ? '+' : '' }}{{ m.qtyChange }}
+                    <span class="text-[9px] text-muted-foreground uppercase font-black tracking-tighter">Qty</span>
+                    <p :class="['text-sm font-black', isIncoming(m) ? 'text-emerald-600' : 'text-red-600']">
+                      {{ isIncoming(m) ? '+' : '-' }}{{ m.qty }}
                     </p>
                   </div>
                 </div>
                 <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <Calendar class="h-3 w-3" /> {{ formatDate(m.createdAt) }}
+                  <Calendar class="h-3 w-3" /> {{ formatDate(m.created_at) }}
                 </div>
               </div>
             </div>
@@ -173,10 +209,9 @@ onMounted(fetchData)
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
                     <th class="pl-5 py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Waktu</th>
                     <th class="py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Produk</th>
-                    <th class="py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Lokasi</th>
-                    <th class="py-4 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Tipe Mutasi</th>
+                    <th class="py-4 text-left text-xs font-bold uppercase tracking-widest text-zinc-400">Dari → Ke</th>
+                    <th class="py-4 text-center text-xs font-bold uppercase tracking-widest text-zinc-400">Tipe</th>
                     <th class="py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Qty</th>
-                    <th class="py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Saldo Akhir</th>
                     <th class="pr-5 py-4 text-right text-xs font-bold uppercase tracking-widest text-zinc-400">Referensi</th>
                   </tr>
                 </thead>
@@ -185,7 +220,7 @@ onMounted(fetchData)
                     <td class="pl-5 py-4 whitespace-nowrap">
                       <div class="flex items-center gap-2">
                         <Calendar class="h-3.5 w-3.5 text-zinc-400" />
-                        <span class="text-xs font-medium">{{ formatDate(m.createdAt) }}</span>
+                        <span class="text-xs font-medium">{{ formatDate(m.created_at) }}</span>
                       </div>
                     </td>
                     <td class="py-4">
@@ -200,31 +235,32 @@ onMounted(fetchData)
                       </div>
                     </td>
                     <td class="py-4">
-                      <div class="flex items-center gap-2">
-                        <Warehouse v-if="m.locationType === 'warehouse'" class="h-3.5 w-3.5 text-zinc-400" />
-                        <Building2 v-else class="h-3.5 w-3.5 text-zinc-400" />
-                        <span class="text-xs font-medium">{{ m.locationName || '-' }}</span>
+                      <div class="flex items-center gap-1.5 text-xs">
+                        <template v-if="m.from_location_type">
+                          <component :is="m.from_location_type === 'WAREHOUSE' ? Warehouse : Building2" class="h-3.5 w-3.5 text-zinc-400" />
+                          <span class="text-muted-foreground">{{ m.from_location_type }}</span>
+                          <span class="text-zinc-300">→</span>
+                        </template>
+                        <component :is="(m.to_location_type || '').toUpperCase() === 'WAREHOUSE' ? Warehouse : Building2" class="h-3.5 w-3.5 text-primary" />
+                        <span class="font-medium">{{ m.to_location_type || '-' }}</span>
                       </div>
                     </td>
                     <td class="py-4 text-center">
-                      <Badge :class="['text-[9px] uppercase tracking-widest font-black px-2 py-0.5', typeColor(m.mutationType)]" variant="outline">
-                        {{ m.mutationType }}
+                      <Badge :class="['text-[9px] uppercase tracking-widest font-black px-2 py-0.5', typeColor(m.type)]" variant="outline">
+                        {{ typeLabel(m.type) }}
                       </Badge>
                     </td>
                     <td class="py-4 text-right">
                       <div class="flex items-center justify-end gap-1.5">
-                        <ArrowUpRight v-if="m.qtyChange > 0" class="h-3 w-3 text-emerald-500" />
+                        <ArrowUpRight v-if="isIncoming(m)" class="h-3 w-3 text-emerald-500" />
                         <ArrowDownLeft v-else class="h-3 w-3 text-red-500" />
-                        <span :class="['text-sm font-black', m.qtyChange > 0 ? 'text-emerald-600' : 'text-red-600']">
-                          {{ m.qtyChange > 0 ? '+' : '' }}{{ m.qtyChange }}
+                        <span :class="['text-sm font-black', isIncoming(m) ? 'text-emerald-600' : 'text-red-600']">
+                          {{ isIncoming(m) ? '+' : '-' }}{{ m.qty }}
                         </span>
                       </div>
                     </td>
-                    <td class="py-4 text-right font-bold text-zinc-900 dark:text-zinc-100">
-                      {{ m.stockAfter || '-' }}
-                    </td>
                     <td class="pr-5 py-4 text-right font-mono text-[10px] text-muted-foreground group-hover:text-primary transition-colors">
-                      {{ m.referenceNumber || '-' }}
+                      {{ m.reference_type ? `${m.reference_type} #${m.reference_id || ''}` : '-' }}
                     </td>
                   </tr>
                 </tbody>

@@ -104,9 +104,11 @@ async function fetchData() {
     const dataO = Array.isArray(res.data) ? res.data : (res.data?.data || [])
     opnames.value = dataO.map(o => ({
       ...o,
-      locationType: o.locationType || o.location_type,
-      locationId: o.locationId || o.location_id,
-      locationName: o.locationName || o.location_name,
+      // Backend returns 'location' (not locationType), normalize for template
+      locationType: o.location || o.locationType || o.location_type,
+      locationId: o.location_id || o.locationId,
+      // Resolve location name from loaded locations, or fallback
+      locationName: o.locationName || o.location_name || `${o.location || ''} #${o.location_id || o.locationId || ''}`,
     }))
   } catch (err) {
     toast.error('Gagal memuat data stock opname.')
@@ -220,7 +222,8 @@ async function saveOpname() {
 
 async function approveOpname(o) {
   try {
-    await api.post(`/api/v1/stock-opnames/${o.id}/approve`)
+    // Alur: APPROVED → ADJUSTED (yang benar-benar apply koreksi stok)
+    await api.patch(`/api/v1/stock-opnames/${o.id}/status`, { status: 'ADJUSTED' })
     toast.success('Opname berhasil disetujui dan stok disesuaikan!')
     fetchData()
     showDrawer.value = false
@@ -550,7 +553,7 @@ onMounted(fetchData)
 
             <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
               <div class="flex gap-2">
-                <Button v-if="selectedOpname.status === 'reviewed' && can('stock-opname.update')" class="flex-1 bg-primary" @click="approveOpname(selectedOpname)">
+                <Button v-if="selectedOpname.status === 'approved' && can('stock_opname.update')" class="flex-1 bg-primary" @click="approveOpname(selectedOpname)">
                   <Check class="h-4 w-4 mr-2" /> Setujui & Rekonsiliasi
                 </Button>
                 <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
