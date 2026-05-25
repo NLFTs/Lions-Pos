@@ -1,5 +1,17 @@
 package com.dak.spravel.service.order;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.order.PaymentsRequest;
 import com.dak.spravel.dto.response.order.PaymentResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
@@ -20,9 +32,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -56,7 +66,8 @@ public class PaymentsService {
         return user;
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    // 🛠️ MODIFIKASI: Hanya mengizinkan Owner Partner (Sebab Employee Dihapus)
+    private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
 
         boolean isSuperAdmin = user.getRoles().stream()
@@ -67,11 +78,22 @@ public class PaymentsService {
             throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
         }
 
+        // Kunci murni ke role owner
+        if (!isOwner(user)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengakses menu pembayaran.");
+        }
+
         if (user.getPartner() == null) {
             throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
         }
 
         return user;
+    }
+
+    // 🛠️ HELPER MURNI CEK ROLE OWNER
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
     }
 
     private Payments getValidatedPayment(Long id, User currentUser) {
@@ -120,7 +142,7 @@ public class PaymentsService {
     }
 
     public List<PaymentResponse> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
@@ -133,7 +155,7 @@ public class PaymentsService {
     }
 
     public Page<PaymentResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
@@ -147,10 +169,12 @@ public class PaymentsService {
                 });
     }
 
-
+    // ==========================================
+    // PROCESS PAYMENT
+    // ==========================================
     @Transactional
     public PaymentResponse pay(PaymentsRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
 
         Orders orders = ordersRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -202,12 +226,24 @@ public class PaymentsService {
         return mapToResponse(paymentsRepository.save(payments));
     }
 
+    // ==========================================
+    // DELETE ( KUNCI: Hanya Owner)
+    // ==========================================
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        
+        // 📍 VALIDASI UTAMA: Harus Owner
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola data ini.");
+        }
+
         Payments payments = getValidatedPayment(id, currentUser);
         paymentsRepository.delete(payments);
     }
 
+    // ==========================================
+    // VERIFY TRANSFER (🔒 KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public PaymentResponse verifyPayment(Long id) {
         User currentUser = getAuthenticatedUser();
