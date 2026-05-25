@@ -484,10 +484,10 @@ onMounted(fetchPartners)
             <div>
               <h3 class="font-semibold text-base flex items-center gap-2">
                 <Building2 class="h-4 w-4 text-muted-foreground" />
-                {{ modalMode === 'create' ? 'Tambah Partner Baru' : 'Edit Partner' }}
+                {{ modalMode === 'create' ? 'Tambah Partner Mitra' : 'Edit Partner' }}
               </h3>
               <p class="text-xs text-muted-foreground mt-0.5">
-                {{ modalMode === 'create' ? 'Buat partner beserta akun admin yang mengelolanya.' : 'Ubah detail partner.' }}
+                {{ modalMode === 'create' ? 'Buat Mitra beserta akun admin yang mengelolanya.' : 'Ubah detail partner.' }}
               </p>
             </div>
             <Button variant="ghost" size="icon" @click="closeDrawer">
@@ -502,16 +502,16 @@ onMounted(fetchPartners)
             <!-- ══ CREATE MODE ══ -->
             <template v-if="modalMode === 'create'">
 
-              <!-- Section: Info Partner -->
+              <!-- Section: Info Mitra -->
               <div class="space-y-1 pb-1">
                 <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 class="h-3.5 w-3.5" /> Informasi Partner
+                  <Building2 class="h-3.5 w-3.5" /> Informasi Mitra
                 </p>
                 <div class="h-px bg-border" />
               </div>
 
               <div class="space-y-1.5">
-                <Label for="c-name">Nama Partner <span class="text-destructive">*</span></Label>
+                <Label for="c-name">Nama Mitra <span class="text-destructive">*</span></Label>
                 <Input id="c-name" v-model="createForm.name" placeholder="Contoh: Toko Maju Jaya" />
               </div>
 
@@ -536,7 +536,7 @@ onMounted(fetchPartners)
               <!-- Section: Admin User -->
               <div class="space-y-1 pb-1 pt-2">
                 <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <UserPlus class="h-3.5 w-3.5" /> Akun Admin Partner
+                  <UserPlus class="h-3.5 w-3.5" /> Akun Admin Mitra
                 </p>
                 <div class="h-px bg-border" />
               </div>
@@ -544,7 +544,7 @@ onMounted(fetchPartners)
               <div class="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-3">
                 <p class="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
                   <Shield class="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  Akun ini akan menjadi <strong>Admin</strong> yang mengelola partner dan dapat login ke sistem.
+                  Akun ini akan menjadi <strong>Admin</strong> yang mengelola mitra dan dapat login ke sistem.
                 </p>
               </div>
 
