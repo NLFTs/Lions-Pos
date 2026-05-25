@@ -686,7 +686,7 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- ─── PAGE CONTENT ────────────────────────────────────────────────── -->
-      <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-zinc-950 scroll-smooth overscroll-contain">
+        <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-zinc-950 scroll-smooth overscroll-contain">
         <!-- Page content wrapper -->
         <div class="p-5">
           <slot />
