@@ -1,5 +1,13 @@
 package com.dak.spravel.service.order;
 
+import java.math.BigDecimal;
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.order.OrderItemsRequest;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
@@ -9,13 +17,8 @@ import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -50,17 +53,20 @@ public class OrderItemsService {
     }
 
     // =========================
-    // KHUSUS ADMIN PARTNER / EMPLOYEE
+    // HELPER: CEK ROLE OWNER
     // =========================
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
+    }
+
+    // =========================
+    // 🛠️ MODIFIKASI: AMBIL USER OWNER PARTNER MURNI
+    // =========================
+    private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        if (!isOwner(user)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengelola item pesanan.");
         }
         return user;
     }
@@ -93,10 +99,10 @@ public class OrderItemsService {
     }
 
     // =========================
-    // KHUSUS PARTNER / EMPLOYEE
+    // KHUSUS PARTNER (Murni Owner)
     // =========================
     public List<OrderItems> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
 
         return orderItemsRepository.findAll()
                 .stream()
@@ -112,7 +118,7 @@ public class OrderItemsService {
     // FIND BY ID
     // =========================
     public OrderItems findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         return getValidatedOrderItem(id, currentUser);
     }
 
@@ -120,7 +126,7 @@ public class OrderItemsService {
     // FIND BY PRODUCT NAME
     // =========================
     public OrderItems findByProductName(String productName) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
 
         OrderItems item = orderItemsRepository.findByProductName(productName)
                 .orElseThrow(() -> new RuntimeException("Order item not found"));
@@ -138,10 +144,11 @@ public class OrderItemsService {
     }
 
     // =========================
-    // CREATE
+    // CREATE ( Kunci Owner karena Employee Hapus)
     // =========================
+    @Transactional
     public OrderItems create(OrderItemsRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
@@ -171,10 +178,17 @@ public class OrderItemsService {
     }
 
     // =========================
-    // DELETE
+    // DELETE ( Kunci Owner)
     // =========================
+    @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
+        
+        // 📍 VALIDASI UTAMA: Tolak jika bukan owner
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola data ini.");
+        }
+        
         OrderItems item = getValidatedOrderItem(id, currentUser);
         orderItemsRepository.delete(item);
     }

@@ -1,5 +1,12 @@
 package com.dak.spravel.service.catalog;
 
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.catalog.ProductPhotoRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
@@ -9,16 +16,8 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductPhotoRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @lombok.extern.slf4j.Slf4j
 @Service
@@ -58,25 +57,33 @@ public class ProductPhotoService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    //  HELPER UTAMA HARI INI: Cek murni role Owner
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
+    }
+
+    // 🛠️ MODIFIKASI: Hanya mengizinkan Owner Partner murni
+    private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
         
-        // Ambil semua slug role
-        Set<String> roles = user.getRoles().stream()
-                .map(role -> role.getSlug().toLowerCase())
-                .collect(Collectors.toSet());
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
+                        || role.getSlug().equalsIgnoreCase("super_admin"));
 
-        // BLOCK: Super Admin tidak boleh masuk sini
-        if (roles.contains("super_admin") || roles.contains("admin")) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Foto Produk.");
+        if (isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak diperbolehkan masuk menu partner.");
         }
 
-        // ALLOW: Harus Admin Partner atau Employee
-        if (roles.contains("admin-partners") || roles.contains("employee-partners")) {
-            return user;
+        if (!isOwner(user)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengelola data master produk.");
         }
 
-        throw new RuntimeException("Akses Ditolak: Role tidak memiliki izin.");
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
+        return user;
     }
 
     private ProductPhoto getValidatedPhoto(Long id, Partners partner) {
@@ -91,11 +98,10 @@ public class ProductPhotoService {
 
     // --- MAIN METHODS ---
 
+    // Owner → melihat foto produk miliknya sendiri
     public List<ProductPhoto> findByProductId(Long productId) {
-        // Ambil user sekaligus cek role
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         
-        // Pastikan produknya emang punya partner si user
         Product product = productRepository.findByIdAndPartner(productId, currentUser.getPartner());
         if (product == null) {
             throw new ResourceNotFoundException("Product", productId);
@@ -103,9 +109,20 @@ public class ProductPhotoService {
         return productPhotoRepository.findByProductId(productId);
     }
 
+    // ==========================================
+    // CREATE ( KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public ProductPhoto create(ProductPhotoRequestDTO request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan menambahkan foto produk.");
+        }
+        
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan partner.");
+        }
         
         Product product = productRepository.findByIdAndPartner(request.getProductId(), currentUser.getPartner());
         if (product == null) {
@@ -121,10 +138,21 @@ public class ProductPhotoService {
         return productPhotoRepository.save(photo);
     }
 
+    // ==========================================
+    // UPDATE (🔒 KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public ProductPhoto update(Long id, ProductPhotoRequestDTO request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        // Langsung pake partner dari user hasil auth
+        User currentUser = getAuthenticatedUser();
+        
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengubah foto produk.");
+        }
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan partner.");
+        }
+
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
 
         if (request.getUrl() != null) {
@@ -139,9 +167,21 @@ public class ProductPhotoService {
         return productPhotoRepository.save(photo);
     }
 
+    // ==========================================
+    // DELETE ( KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan menghapus foto produk.");
+        }
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan partner.");
+        }
+
         ProductPhoto photo = getValidatedPhoto(id, currentUser.getPartner());
         if (photo.getUrl() != null) {
             deleteFileDisk(photo.getUrl());
