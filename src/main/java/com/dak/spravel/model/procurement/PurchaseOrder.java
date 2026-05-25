@@ -39,68 +39,14 @@ public class PurchaseOrder  {
     @Column(nullable = false, updatable = false)
     private String poNumber;
 
-    // Disimpan di service, karena harus generate nomor unik dengan format tertentu
-    // private String generatePoNumber() {
-        // String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        // String prefix = "PO-" + date + "-";
-        
-        // long count = purchaseOrderRepository.countByPoNumberStartingWith(prefix);
-        // String sequence = String.format("%04d", count + 1);
-        
-        // return prefix + sequence;
-        // // Hasil: PO-20260429-0001, PO-20260429-0002, dst
-    // }
-
     @Column(nullable = true)
     private String locationType;
 
     @Column(nullable = true)
     private Long locationId;
-    // @Service
-    // @RequiredArgsConstructor
-    // public class PurchaseOrderService {
-
-    //     private final PurchaseOrderRepository purchaseOrderRepository;
-    //     private final WarehouseRepository warehouseRepository;
-    //     private final BranchRepository branchRepository;
-    //     private final ProductRepository productRepository;
-
-    //     // Saat transaksi dari warehouse
-    //     public PurchaseOrder createFromWarehouse(String warehouseId,  productId, BigDecimal qty) {
-    //         Warehouse warehouse = warehouseRepository.findByUid(warehouseId)
-    //             .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan"));
-
-    //         PurchaseOrder po = new PurchaseOrder();
-    //         po.setPoNumber(generatePoNumber());
-    //         po.setLocationType(LocationType.WAREHOUSE);
-    //         po.setLocationId(warehouse.getUid());
-
-    //         return purchaseOrderRepository.save(po);
-    //     }
-
-    //     // Saat transaksi dari branch
-    //     public PurchaseOrder createFromBranch(String branchId,  productId, BigDecimal qty) {
-    //         Branch branch = branchRepository.findByUid(branchId)
-    //             .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
-
-    //         PurchaseOrder po = new PurchaseOrder();
-    //         po.setPoNumber(generatePoNumber());
-    //         po.setLocationType(LocationType.BRANCH);
-    //         po.setLocationId(branch.getUid());
-
-    //         return purchaseOrderRepository.save(po);
-    //     }
-
-    //     private String generatePoNumber() {
-    //         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    //         String prefix = "PO-" + date + "-";
-    //         long count = purchaseOrderRepository.countByPoNumberStartingWith(prefix);
-    //         return prefix + String.format("%04d", count + 1);
-    //     }
-    // }
-// }
                     
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private Status status = Status.DRAFT;
 
     public enum Status {

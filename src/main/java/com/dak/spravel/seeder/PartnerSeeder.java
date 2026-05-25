@@ -90,7 +90,7 @@ public class PartnerSeeder {
         partner.setIsActive(true);
         partner = partnerRepository.save(partner);
 
-        // ── 2. Admin Partner: nairha ──────────────────────────────────────────
+        // ── 2. Owner Partner: nairha ──────────────────────────────────────────
         User adminPartner = createUserIfNotExists(
                 "nairha", "Nairha Admin NLFTs", "nairha@nlfts.co.id",
                 "Bismillah00", partner, null, "owner");
@@ -124,9 +124,6 @@ public class PartnerSeeder {
         }
 
         // ── 5b. Kasir / Employee ──────────────────────────────────────────────
-        createUserIfNotExists(
-                "kasir.nlfts", "Kasir Cabang Badung", "kasir@nlfts.co.id",
-                "Bismillah00", partner, cabang, "employee");
 
         // ── 6. Kategori: Elektronik ───────────────────────────────────────────
         CategoryProduct kategoriElektronik = createCategoryIfNotExists("Elektronik", partner, adminPartner);

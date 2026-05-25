@@ -95,6 +95,11 @@ public class ProductService {
         return user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equals("admin"));
     }
+
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
+    }
     
 
     private Product getValidatedProduct(Long id, Partners partner) {
@@ -130,6 +135,10 @@ public class ProductService {
 
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        }
+
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola Produk.");
         }
 
         CategoryProduct category = null;

@@ -68,7 +68,8 @@ public class RoleService {
         Role role = new Role();
         role.setName(request.getName());
         role.setSlug(request.getSlug());
-        role.setPartner(partner); 
+        role.setPartner(partner);
+        role.setType(Role.Type.EXTERNAL);        
         role.setCreatedBy(currentUser);
         role.setCreatedAt(LocalDateTime.now());
 
@@ -179,10 +180,10 @@ public class RoleService {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || 
-                                  role.getSlug().equalsIgnoreCase("super_admin") || 
-                                  role.getSlug().equalsIgnoreCase("admin-partners"));
+                                  role.getSlug().equalsIgnoreCase("super_admin") ||
+                                  role.getSlug().equalsIgnoreCase("owner"));
         if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Super Admin atau Admin Partner yang diizinkan mengelola role.");
+            throw new RuntimeException("Akses Ditolak: Hanya Super Admin atau Owner yang diizinkan mengelola role.");
         }
         return user;
     }
