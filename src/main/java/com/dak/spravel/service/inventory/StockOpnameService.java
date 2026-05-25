@@ -31,6 +31,7 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.inventory.StockOpnameItemRepository;
 import com.dak.spravel.repository.inventory.StockOpnameRepository;
+import com.dak.spravel.service.inventory.StockMutationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -43,6 +44,7 @@ public class StockOpnameService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final StockBalanceRepository stockBalanceRepository;
+    private final StockMutationService stockMutationService;
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -55,14 +57,14 @@ public class StockOpnameService {
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // 🛠️ SINKRONISASI: Dukung slug role "employee" murni
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
+                        role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
 
         if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Employee yang diizinkan.");
         }
         return user;
     }
@@ -74,9 +76,8 @@ public class StockOpnameService {
 
     private boolean isAdminPartnerAndEmployee(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee-partners") || 
-                        role.getSlug().equals("admin-partners") ||
-                        role.getSlug().equals("employee"));
+                .anyMatch(role -> role.getSlug().equals("employee") || 
+                        role.getSlug().equals("owner"));
     }
 
     // 💡 HELPER BARU: Deteksi apakah user adalah Employee murni
@@ -321,7 +322,7 @@ public class StockOpnameService {
     }
 
     // =============================================================
-    // MANAGEMENT / UPDATE STATUS (APPROVE/REVIEW) — ❌ BLOKIR JIKA EMPLOYEE
+    // MANAGEMENT / UPDATE STATUS (APPROVE/REVIEW/ADJUSTED) — ❌ BLOKIR JIKA EMPLOYEE
     // =============================================================
     @Transactional
     public StockOpname updateStatus(Long id, String status) {
@@ -336,6 +337,13 @@ public class StockOpnameService {
 
         String statusUpper = status.toUpperCase();
         StockOpname.Status newStatus = StockOpname.Status.valueOf(statusUpper);
+
+        // Validasi transisi status yang diizinkan
+        if (newStatus == StockOpname.Status.ADJUSTED && stockOpname.getStatus() != StockOpname.Status.APPROVED) {
+            throw new RuntimeException("Gagal: Opname harus berstatus APPROVED sebelum bisa di-ADJUSTED.");
+        }
+
+        // Set status baru
         stockOpname.setStatus(newStatus);
 
         if (newStatus == StockOpname.Status.REVIEWED) {
@@ -343,16 +351,18 @@ public class StockOpnameService {
             stockOpname.setReviewedBy(currentUser);
         }
         else if (newStatus == StockOpname.Status.APPROVED) {
+            // BUG FIX #2a: APPROVED hanya mencatat siapa yang approve & kapan.
+            // Tidak ada perubahan stok di sini — itu dilakukan saat ADJUSTED.
             stockOpname.setApprovedAt(LocalDateTime.now());
             stockOpname.setApprovedBy(currentUser);
 
+            // Hitung ulang qty_difference untuk memastikan data akurat
             List<StockOpnameItem> stockOpnameItems = stockOpnameItemRepository
                     .findByStockOpnameId(stockOpname.getId());
 
             for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
-                Long qtySystem = stockOpnameItem.getQtySystem() != null ? stockOpnameItem.getQtySystem().longValue() : 0L;
-                Long qtyPhysical = stockOpnameItem.getQtyPhysical() != null ? stockOpnameItem.getQtyPhysical().longValue() : 0L;
-
+                Long qtySystem = stockOpnameItem.getQtySystem() != null ? stockOpnameItem.getQtySystem() : 0L;
+                Long qtyPhysical = stockOpnameItem.getQtyPhysical() != null ? stockOpnameItem.getQtyPhysical() : 0L;
                 Long qtyDifference = qtyPhysical - qtySystem;
                 stockOpnameItem.setQtyDifference(qtyDifference);
 
@@ -363,10 +373,23 @@ public class StockOpnameService {
                 } else {
                     stockOpnameItem.setNotes("STOK SESUAI");
                 }
-
                 stockOpnameItemRepository.save(stockOpnameItem);
+            }
+        }
+        else if (newStatus == StockOpname.Status.ADJUSTED) {
+            // BUG FIX #2b: ADJUSTED adalah status yang benar-benar menerapkan koreksi stok
+            List<StockOpnameItem> stockOpnameItems = stockOpnameItemRepository
+                    .findByStockOpnameId(stockOpname.getId());
+
+            for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
+                Long qtyDifference = stockOpnameItem.getQtyDifference() != null
+                        ? stockOpnameItem.getQtyDifference() : 0L;
+
+                // Hanya proses item yang ada selisih
+                if (qtyDifference == 0) continue;
 
                 if (stockOpnameItem.getProduct() != null) {
+                    // Update stock balance dengan menambahkan selisih (bukan set ke qtyPhysical)
                     StockBalance stockBalance = stockBalanceRepository
                             .findByProductIdAndLocationTypeAndLocationId(
                                     stockOpnameItem.getProduct().getId(),
@@ -381,10 +404,24 @@ public class StockOpnameService {
                         stockBalance.setCreatedBy(currentUser);
                     }
 
-                    stockBalance.setQty(qtyPhysical);
+                    long currentQty = stockBalance.getQty() != null ? stockBalance.getQty() : 0L;
+                    stockBalance.setQty(currentQty + qtyDifference);
                     stockBalance.setUpdatedBy(currentUser);
-
                     stockBalanceRepository.save(stockBalance);
+
+                    // Catat StockMutation type=ADJUSTMENT
+                    stockMutationService.recordMutation(
+                            stockOpnameItem.getProduct(),
+                            stockOpname.getPartner(),
+                            "ADJUSTMENT",
+                            stockOpname.getLocation(), stockOpname.getLocationId(),
+                            stockOpname.getLocation(), stockOpname.getLocationId(),
+                            Math.abs(qtyDifference),
+                            "stock_opname", stockOpname.getId(),
+                            "Opname #" + stockOpname.getId() + " adjustment: "
+                                    + (qtyDifference > 0 ? "+" : "") + qtyDifference,
+                            currentUser
+                    );
                 }
             }
         }

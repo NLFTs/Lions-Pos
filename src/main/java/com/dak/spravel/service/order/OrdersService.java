@@ -57,25 +57,45 @@ public class OrdersService {
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-    }
+    
+        private User getAuthenticatedSuperAdmin() {
+            User user = getAuthenticatedUser();
+            boolean isSuperAdmin = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+            if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+            return user;
+        }
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
+        private User getAuthenticatedAdminPartnerOrEmployee() {
+            User user = getAuthenticatedUser();
 
-    // Ambil User Partner (Harus punya role "owner")
-    private User getAuthenticatedPartnerUser() {
-        User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner"));
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan.");
+            // Super admin tidak boleh akses endpoint partner/employee
+            boolean isSuperAdmin = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
+                            || role.getSlug().equalsIgnoreCase("super_admin"));
+            if (isSuperAdmin) {
+                throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
+            }
+
+            // Slug yang valid: "owner" / "admin-partners" (lama) dan "employee" / "employee-partners" (lama)
+            boolean isOwnerOrEmployee = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
+                            || role.getSlug().equalsIgnoreCase("admin-partners")
+                            || role.getSlug().equalsIgnoreCase("employee")
+                            || role.getSlug().equalsIgnoreCase("employee-partners"));
+
+            if (!isOwnerOrEmployee || user.getPartner() == null) {
+                throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+            }
+
+            return user;
+        }
+
+        // HELPER: cek apakah user adalah employee (bukan owner)
+        private boolean isEmployee(User user) {
+            return user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee")
+                            || role.getSlug().equalsIgnoreCase("employee-partners"));
         }
         return user;
     }
@@ -189,14 +209,8 @@ public class OrdersService {
             subtotal = subtotal.add(item.getSubtotal());
             orderItems.add(item);
 
-            // REDUCE STOCK
-            stockBalanceService.adjustStock(product.getId(), "BRANCH", branch.getId(), -item.getQty());
-            
-            // RECORD MUTATION
-            stockMutationService.recordMutation(product, partner, "SALE_OUT", "branch", branch.getId(), null, null, 
-                item.getQty(), "order", savedOrder.getId(),
-                "Order #" + savedOrder.getOrderNumber(), currentUser
-            );
+            // BUG FIX #3: Jangan potong stok di sini (saat DRAFT).
+            // Stok dipotong saat PAID — cash langsung di bawah, transfer saat verifyPayment().
         }
         orderItemsRepository.saveAll(orderItems);
         savedOrder.setItems(orderItems);
@@ -242,14 +256,27 @@ public class OrdersService {
                 payment.setStatus(Payments.Status.VERIFIED);
                 savedOrder.setStatus(Orders.PaymentStatus.PAID);
 
-            } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
+            // BUG FIX #3: Potong stok hanya saat CASH PAID (bukan saat DRAFT)
+            for (OrderItems item : orderItems) {
+                stockBalanceService.adjustStock(
+                        item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
+                stockMutationService.recordMutation(
+                        item.getProduct(), partner, "SALE_OUT",
+                        "branch", branch.getId(), null, null,
+                        item.getQty(), "order", savedOrder.getId(),
+                        "Order #" + savedOrder.getOrderNumber(), currentUser);
+            }
 
-                payment.setCashTendered(BigDecimal.ZERO);
-                payment.setChangeDue(BigDecimal.ZERO);
-                payment.setBankName(request.getPayment().getBankName());
-                payment.setReferenceNo(request.getPayment().getReferenceNo());
-                payment.setStatus(Payments.Status.PENDING);
-                savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
+        } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
+
+            payment.setCashTendered(BigDecimal.ZERO);
+            payment.setChangeDue(BigDecimal.ZERO);
+            payment.setBankName(request.getPayment().getBankName());
+            payment.setReferenceNo(request.getPayment().getReferenceNo());
+            payment.setStatus(Payments.Status.PENDING);
+            // Transfer: order tetap DRAFT sampai payment di-verify oleh owner/manager
+            // Stok akan dipotong saat verifyPayment() dipanggil
+            savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
 
             } else {
                 throw new RuntimeException("Method tidak valid");
@@ -352,25 +379,31 @@ public class OrdersService {
             throw new RuntimeException("Order dengan status RETURN tidak bisa dibatalkan.");
         }
 
-        for (OrderItems item : order.getItems()) {
-            stockBalanceService.adjustStock(
-                    item.getProduct().getId(),
-                    "BRANCH",
-                    order.getBranch().getId(),
-                    item.getQty()
-            );
-            stockMutationService.recordMutation(
-                    item.getProduct(),
-                    order.getPartner(),
-                    "ADJUSTMENT",
-                    "branch", order.getBranch().getId(),
-                    null, null,
-                    item.getQty(),
-                    "order", order.getId(),
-                    "Pembatalan Order #" + order.getOrderNumber(),
-                    currentUser
-            );
+        // BUG FIX #4: Hanya kembalikan stok jika order sudah PAID.
+        // Order DRAFT belum pernah memotong stok, jadi tidak perlu dikembalikan.
+        if (order.getStatus() == Orders.PaymentStatus.PAID) {
+            for (OrderItems item : order.getItems()) {
+                stockBalanceService.adjustStock(
+                        item.getProduct().getId(),
+                        "BRANCH",
+                        order.getBranch().getId(),
+                        item.getQty()
+                );
+                // Catat sebagai SALE_OUT reversal (return dari cancel order paid)
+                stockMutationService.recordMutation(
+                        item.getProduct(),
+                        order.getPartner(),
+                        "RETURN",
+                        null, null,
+                        "branch", order.getBranch().getId(),
+                        item.getQty(),
+                        "order", order.getId(),
+                        "Pembatalan Order #" + order.getOrderNumber(),
+                        currentUser
+                );
+            }
         }
+        // Jika DRAFT: tidak ada stok yang perlu dikembalikan, tidak ada mutation
 
         order.setStatus(Orders.PaymentStatus.CANCELED);
         order.setUpdatedAt(LocalDateTime.now());

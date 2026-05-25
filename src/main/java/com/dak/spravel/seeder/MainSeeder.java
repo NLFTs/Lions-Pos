@@ -21,13 +21,15 @@ public class MainSeeder {
     private final UserSeeder userSeeder;
     private final PermissionSeeder permissionSeeder;
     private final PartnerSeeder partnerSeeder;
+    private final RoleMigrationSeeder roleMigrationSeeder;
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedAfterMigrations() {
         try {
-            userSeeder.run();         // 1. buat super admin user
-            permissionSeeder.run();   // 2. buat roles & permissions, assign ke su
-            partnerSeeder.run();      // 3. buat PT NLFTs + semua data terkait
+            userSeeder.run();           // 1. buat super admin user
+            permissionSeeder.run();     // 2. buat roles & permissions (owner, employee, admin-partners)
+            roleMigrationSeeder.run();  // 3. migrasi user lama: admin-partners→owner, employee-partners→employee
+            partnerSeeder.run();        // 4. buat PT NLFTs + semua data terkait
         } catch (Exception e) {
             throw new RuntimeException("Error seeding data", e);
         }

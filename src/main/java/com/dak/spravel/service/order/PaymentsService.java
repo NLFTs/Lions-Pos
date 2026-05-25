@@ -21,6 +21,16 @@ import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.repository.order.PaymentsRepository;
+import com.dak.spravel.service.inventory.StockBalanceService;
+import com.dak.spravel.service.inventory.StockMutationService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,6 +41,8 @@ public class PaymentsService {
     private final PaymentsRepository paymentsRepository;
     private final OrdersRepository ordersRepository;
     private final UserRepository userRepository;
+    private final StockBalanceService stockBalanceService;
+    private final StockMutationService stockMutationService;
 
     // ─── Auth Helpers ────────────────────────────────────────────────────────
 
@@ -202,7 +214,9 @@ public class PaymentsService {
             payments.setCashTendered(BigDecimal.ZERO);
             payments.setChangeDue(BigDecimal.ZERO);
             payments.setStatus(Payments.Status.PENDING);
-            orders.setStatus(Orders.PaymentStatus.PAID);
+            // Transfer: order tetap DRAFT sampai payment di-verify oleh owner
+            // Stok akan dipotong saat verifyPayment() dipanggil
+            orders.setStatus(Orders.PaymentStatus.DRAFT);
 
         } else {
             throw new RuntimeException("Method tidak valid");
@@ -234,9 +248,14 @@ public class PaymentsService {
     public PaymentResponse verifyPayment(Long id) {
         User currentUser = getAuthenticatedUser();
         
-        // 📍 VALIDASI UTAMA: Mengganti admin-partners ke owner murni
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang bisa mengkonfirmasi pembayaran transfer.");
+        // BUG FIX #5: Terima slug lama (admin-partners) dan baru (owner)
+        boolean isOwner = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
+                        || role.getSlug().equalsIgnoreCase("admin-partners")
+                        || role.getSlug().equalsIgnoreCase("super_admin")
+                        || role.getSlug().equalsIgnoreCase("admin"));
+        if (!isOwner) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Admin yang bisa mengkonfirmasi pembayaran transfer.");
         }
 
         Payments payment = getValidatedPayment(id, currentUser);
@@ -261,6 +280,30 @@ public class PaymentsService {
             order.setStatus(Orders.PaymentStatus.PAID);
             order.setUpdatedAt(LocalDateTime.now());
             order.setUpdatedBy(currentUser);
+
+            // BUG FIX #3 (lanjutan): Potong stok saat transfer payment diverifikasi
+            if (order.getBranch() != null && order.getPartner() != null) {
+                for (com.dak.spravel.model.order.OrderItems item : order.getItems()) {
+                    stockBalanceService.adjustStock(
+                            item.getProduct().getId(),
+                            "BRANCH",
+                            order.getBranch().getId(),
+                            -item.getQty()
+                    );
+                    stockMutationService.recordMutation(
+                            item.getProduct(),
+                            order.getPartner(),
+                            "SALE_OUT",
+                            "branch", order.getBranch().getId(),
+                            null, null,
+                            item.getQty(),
+                            "order", order.getId(),
+                            "Order #" + order.getOrderNumber() + " (transfer verified)",
+                            currentUser
+                    );
+                }
+            }
+
             ordersRepository.save(order);
         }
 

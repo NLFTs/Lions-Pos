@@ -56,6 +56,7 @@ public class PermissionSeeder {
         {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"purchase_order", "Purchase Order", "Manage purchase orders"},
         {"supplier", "Supplier", "Manage suppliers"},
+        {"voucher", "Voucher", "Manage vouchers and discounts"},
     };
 
     // slug, name, moduleSlug
@@ -165,6 +166,12 @@ public class PermissionSeeder {
         {"supplier.update", "Update Supplier",      "supplier"},
         {"supplier.delete", "Delete Supplier",      "supplier"},
         {"supplier.admin",  "Admin Access to Suppliers", "supplier"},
+
+        {"voucher.index",  "View All Vouchers",   "voucher"},
+        {"voucher.show",   "View Voucher Detail", "voucher"},
+        {"voucher.store",  "Create Voucher",      "voucher"},
+        {"voucher.update", "Update Voucher",      "voucher"},
+        {"voucher.delete", "Delete Voucher",      "voucher"},
     };
 
     @Transactional
@@ -209,21 +216,19 @@ public class PermissionSeeder {
         Role savedAdmin = roleRepository.save(adminRole);
         log.info("[SEEDER] Admin role '{}' now has {} permissions", savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
-        // 4. Update template roles with specific module access (Ganti ke findBySlugAndPartnerId dengan NULL)
-        Role adminPartnersRole = roleRepository.findBySlugAndPartnerId("admin-partners", null).orElseGet(() -> {
+        // 4. Update template roles with specific module access
+        // Role "owner" — pemilik mitra, akses penuh ke semua modul mitranya
+        Role ownerRole = roleRepository.findBySlugAndPartnerId("owner", null).orElseGet(() -> {
             Role r = new Role();
-            r.setSlug("admin-partners");
-            r.setName("Admin Partners");
+            r.setSlug("owner");
+            r.setName("Owner / Pemilik Mitra");
             return r;
         });
-        adminPartnersRole.setPermissions(new HashSet<>());
+        ownerRole.setPermissions(new HashSet<>());
 
-        Set<Permission> adminPartnersPerms = new HashSet<>();
-
+        Set<Permission> ownerPerms = new HashSet<>();
         for (Permission p : allPerms) {
             String moduleSlug = p.getModule().getSlug();
-            
-            // Modules allowed for Admin Partner
             if (moduleSlug.equals("user") || 
                 moduleSlug.equals("category") ||
                 moduleSlug.equals("role") ||
@@ -237,15 +242,61 @@ public class PermissionSeeder {
                 moduleSlug.equals("stock_opname") ||
                 moduleSlug.equals("purchase_order") ||
                 moduleSlug.equals("supplier") ||
+                moduleSlug.equals("voucher") ||
                 moduleSlug.equals("dashboard") ||
                 moduleSlug.equals("pos") ||
                 moduleSlug.equals("report")) {
-                adminPartnersPerms.add(p);
+                ownerPerms.add(p);
             }
-
         }
-        
-        adminPartnersRole.setPermissions(adminPartnersPerms);
+        ownerRole.setPermissions(ownerPerms);
+        roleRepository.save(ownerRole);
+        log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
+
+        // Role "employee" — kasir/karyawan, akses terbatas
+        Role employeeRole = roleRepository.findBySlugAndPartnerId("employee", null).orElseGet(() -> {
+            Role r = new Role();
+            r.setSlug("employee");
+            r.setName("Karyawan / Kasir");
+            return r;
+        });
+
+        Set<Permission> employeePerms = new HashSet<>();
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            String permSlug = p.getSlug();
+            // Employee: bisa lihat produk, stok, buat order, buat transfer request, input opname
+            if (moduleSlug.equals("dashboard") ||
+                moduleSlug.equals("pos") ||
+                permSlug.equals("produk.index") || permSlug.equals("produk.show") ||
+                permSlug.equals("category.index") || permSlug.equals("category.show") ||
+                permSlug.equals("branch.index") || permSlug.equals("branch.show") ||
+                permSlug.equals("warehouse.index") || permSlug.equals("warehouse.show") ||
+                permSlug.equals("stock_balance.index") || permSlug.equals("stock_balance.show") ||
+                permSlug.equals("stock_mutation.index") || permSlug.equals("stock_mutation.show") ||
+                permSlug.equals("transfer_request.index") || permSlug.equals("transfer_request.show") ||
+                permSlug.equals("transfer_request.store") || permSlug.equals("transfer_request.update") ||
+                permSlug.equals("stock_opname.index") || permSlug.equals("stock_opname.show") ||
+                permSlug.equals("stock_opname.store") || permSlug.equals("stock_opname.update") ||
+                permSlug.equals("purchase_order.index") || permSlug.equals("purchase_order.show") ||
+                permSlug.equals("purchase_order.update") ||
+                permSlug.equals("supplier.index") || permSlug.equals("supplier.show") ||
+                permSlug.equals("voucher.index") || permSlug.equals("voucher.show")) {
+                employeePerms.add(p);
+            }
+        }
+        employeeRole.setPermissions(employeePerms);
+        roleRepository.save(employeeRole);
+        log.info("[SEEDER] Employee role seeded with {} permissions", employeePerms.size());
+
+        // Backward compat: keep admin-partners as alias pointing to same perms
+        Role adminPartnersRole = roleRepository.findBySlugAndPartnerId("admin-partners", null).orElseGet(() -> {
+            Role r = new Role();
+            r.setSlug("admin-partners");
+            r.setName("Admin Partners (legacy)");
+            return r;
+        });
+        adminPartnersRole.setPermissions(ownerPerms);
         roleRepository.save(adminPartnersRole);
 
         // 5. Assign "admin" role to super user "su"
