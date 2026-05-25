@@ -7,8 +7,6 @@ import com.dak.spravel.repository.auth.ModuleRepository;
 import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
-
-import org.checkerframework.checker.units.qual.m;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

@@ -37,6 +37,13 @@ public class TransferRequestController {
         return ResponseBuilder.ok(transferRequestService.findById(id));
     }
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('transfer_request.index')")
+    public ResponseEntity<ResData<List<TransferRequestResponse>>> findAdmin() {
+        log.info("[GET] /api/v1/transfer-requests/admin - Fetching admin list");
+        return ResponseBuilder.ok(transferRequestService.findAllAdmin());
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('transfer_request.store')")
     public ResponseEntity<ResData<TransferRequestResponse>> store(@Valid @RequestBody TransferRequestDTO request) {
