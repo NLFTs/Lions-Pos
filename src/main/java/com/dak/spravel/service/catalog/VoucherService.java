@@ -1,5 +1,13 @@
 package com.dak.spravel.service.catalog;
 
+import java.security.SecureRandom;
+import java.util.List;
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.product.VoucherRequest;
 import com.dak.spravel.dto.response.catalogresponse.VoucherResponse;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
@@ -11,14 +19,8 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.util.AuditHelper;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -27,38 +29,45 @@ public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
 
-    // Helper: Ambil User & Block Admin
+    // ─── AUTH HELPERS ────────────────────────────────────────────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
 
-           boolean isAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    // 🛠️ HELPER UTAMA: Cek murni role Owner
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
+    }
 
-            if (isAdmin) {
-                throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
-            }
+    // 🛠️ MODIFIKASI: Ambil User Owner Partner Murni (Menghapus filter lama employee)
+    private User getAuthenticatedOwnerUser() {
+        User user = getAuthenticatedUser();
 
-            // ✅ TAMBAH — Employee dilarang kelola voucher
-            boolean isEmployee = user.getRoles().stream()
-                    .anyMatch(role ->
-                            role.getSlug().equalsIgnoreCase("employee") ||
-                                    role.getSlug().equalsIgnoreCase("employee-partners")
-                    );
+        boolean isAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
 
-            if (isEmployee) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee tidak dapat mengelola Voucher."
-                );
-            }
-
-            return user;
+        if (isAdmin) {
+            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
         }
+
+        if (!isOwner(user)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengelola data master voucher.");
+        }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
+        return user;
+    }
+
     // Helper: Validasi Kepemilikan Voucher
     private Voucher getValidatedVoucher(Long id, User currentUser) {
         Voucher voucher = voucherRepository.findById(id)
@@ -72,15 +81,13 @@ public class VoucherService {
         return voucher;
     }
 
-    // CREATE
+    // ==========================================
+    // CREATE ( KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public VoucherResponse create(VoucherRequest request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedOwnerUser();
         Partners partner = currentUser.getPartner();
-
-        if (partner == null) {
-            throw new RuntimeException("User tidak memiliki Partner.");
-        }
 
         if (request.getCode() != null && voucherRepository.existsByCode(request.getCode().trim())) {
             throw new RuntimeException("Voucher code already exists");
@@ -95,10 +102,12 @@ public class VoucherService {
         return mapToResponse(voucherRepository.save(voucher));
     }
 
-    // UPDATE
+    // ==========================================
+    // UPDATE ( KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public VoucherResponse update(Long id, VoucherRequest request) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedOwnerUser();
         Voucher voucher = getValidatedVoucher(id, currentUser);
 
         validateRequest(request);
@@ -116,21 +125,28 @@ public class VoucherService {
 
     // GET BY ID
     public VoucherResponse getById(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedOwnerUser();
         return mapToResponse(getValidatedVoucher(id, currentUser));
     }
 
     // GET ALL
     public List<VoucherResponse> getAll() {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedOwnerUser();
         return voucherRepository.findAllByPartner(currentUser.getPartner())
                 .stream().map(this::mapToResponse).toList();
     }
 
-    // DELETE
+    // ==========================================
+    // DELETE ( KUNCI: Hanya Owner)
+    // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
+        
+        if (!isOwner(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan menghapus voucher.");
+        }
+
         Voucher voucher = getValidatedVoucher(id, currentUser);
         AuditHelper.setDeleted(voucher);
         voucherRepository.delete(voucher);

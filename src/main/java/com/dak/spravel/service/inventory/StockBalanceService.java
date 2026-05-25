@@ -107,6 +107,15 @@ public class StockBalanceService {
             throw new RuntimeException("Akses Ditolak: Stock balance bukan milik partner Anda.");
         }
 
+        // Tambahan proteksi detail: Employee dilarang mengintip ID stock milik lokasi lain
+        if (isEmployee(currentUser)) {
+            if (!"BRANCH".equalsIgnoreCase(stock.getLocationType()) || 
+                currentUser.getBranch() == null || 
+                !stock.getLocationId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak memiliki akses ke lokasi data stok ini.");
+            }
+        }
+
         return stock;
     }
 
@@ -204,16 +213,39 @@ public class StockBalanceService {
                 .toList();
     }
 
-    // KHUSUS OWNER
-
+    // =========================
+    // FIND ALL — PARTNER / EMPLOYEE (Saring Ketat Modul D)
+    // =========================
     public List<StockBalanceResponse> findAll() {
-        User currentUser = getAuthenticatedOwner();
-        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId())
-                .stream()
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        
+        List<StockBalance> allStocks = stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+
+        // 🔒 LOCK VALIDASI: Employee murni cuma boleh lihat Branch asalnya sendiri, gudang & cabang lain disembunyikan
+        if (isEmployee(currentUser)) {
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Akses Ditolak: Akun Employee Anda belum ditempatkan di Cabang (Branch) manapun.");
+            }
+            
+            Long employeeBranchId = currentUser.getBranch().getId();
+
+            return allStocks.stream()
+                    .filter(stock -> "BRANCH".equalsIgnoreCase(stock.getLocationType()) 
+                            && stock.getLocationId() != null 
+                            && stock.getLocationId().equals(employeeBranchId))
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+        
+        // Admin Partner bebas melihat seluruh ekosistem lokasinya
+        return allStocks.stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
+    // =========================
+    // PAGINATION — PARTNER / EMPLOYEE
+    // =========================
     public Page<StockBalanceResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedOwner();
 
@@ -222,6 +254,17 @@ public class StockBalanceService {
         }
 
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
+        
+        // 🔒 LOCK VALIDASI: Berlaku filter terikat lokasi yang sama di pagination
+        if (isEmployee(currentUser)) {
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Akses Ditolak: Akun Employee Anda belum ditempatkan di Cabang (Branch) manapun.");
+            }
+            return stockBalanceRepository
+                    .findByLocationTypeAndLocationId("BRANCH", currentUser.getBranch().getId(), pageRequest)
+                    .map(this::mapToResponse);
+        }
+
         return stockBalanceRepository
                 .findByProductPartnerId(currentUser.getPartner().getId(), pageRequest)
                 .map(this::mapToResponse);
@@ -232,6 +275,14 @@ public class StockBalanceService {
         Long partnerId = currentUser.getPartner().getId();
 
         List<StockBalance> allBalances = stockBalanceRepository.findByProductPartnerId(partnerId);
+
+        // 🔒 LOCK VALIDASI: Jika Employee, potong data summary agar tidak mengintip breakdown lokasi lain
+        if (isEmployee(currentUser)) {
+            Long branchId = currentUser.getBranch() != null ? currentUser.getBranch().getId() : 0L;
+            allBalances = allBalances.stream()
+                    .filter(sb -> "BRANCH".equalsIgnoreCase(sb.getLocationType()) && sb.getLocationId().equals(branchId))
+                    .toList();
+        }
 
         Map<Product, List<StockBalance>> groupedByProduct = allBalances.stream()
                 .collect(Collectors.groupingBy(StockBalance::getProduct));
@@ -272,6 +323,13 @@ public class StockBalanceService {
     public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
         User currentUser = getAuthenticatedOwner();
 
+        // 🔒 LOCK VALIDASI: Employee dilarang menembak ID lokasi milik orang lain
+        if (isEmployee(currentUser)) {
+            if (!"BRANCH".equalsIgnoreCase(locationType) || !locationId.equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan melihat lokasi branch sendiri.");
+            }
+        }
+
         return stockBalanceRepository
                 .findByLocationTypeAndLocationId(locationType.toUpperCase(), locationId)
                 .stream()
@@ -284,6 +342,11 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findByBranch(Long branchId) {
         User currentUser = getAuthenticatedOwner();
+
+        // 🔒 LOCK VALIDASI
+        if (isEmployee(currentUser) && !branchId.equals(currentUser.getBranch().getId())) {
+            throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan melihat data branch sendiri.");
+        }
 
         Branches branch = branchesRepository.findById(branchId)
                 .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan"));
@@ -301,9 +364,15 @@ public class StockBalanceService {
     public List<StockBalanceResponse> findByWarehouse(Long warehouseId) {
         User currentUser = getAuthenticatedOwner();
 
+        // 🔒 LOCK VALIDASI: Employee murni dilarang keras menembak API Warehouse langsung
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Otoritas Employee tidak diizinkan mengakses data Warehouse.");
+        }
+
         Warehouses warehouse = warehousesRepository.findById(warehouseId)
                 .orElseThrow(() -> new RuntimeException("Warehouse tidak ditemukan dengan ID: " + warehouseId));
-        if (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
+        if (warehouse.getPartners() == null
+                || !warehouse.getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
         }
 
@@ -314,12 +383,16 @@ public class StockBalanceService {
                 .toList();
     }
 
+    // =========================
+    // CREATE — stock awal manual (1 produk 1 lokasi)
+    // =========================
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
-        User currentUser = getAuthenticatedOwner();
-
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola Stock Balance.");
+        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        
+        // 🔥 VALIDASI MODUL D: Employee Dilarang Create/Inisiasi Stock Awal Manual
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan menginisiasi stock.");
         }
 
         Partners partner = currentUser.getPartner();
@@ -361,12 +434,16 @@ public class StockBalanceService {
         return mapToResponse(saved);
     }
 
+    // =========================
+    // INISIASI STOCK AWAL BATCH
+    // =========================
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedOwner();
 
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola Stock Balance.");
+        // 🔥 VALIDASI MODUL D: Employee Dilarang Initialize Batch Stock
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan melakukan inisiasi batch stock.");
         }
 
         Partners partner = currentUser.getPartner();
@@ -446,10 +523,11 @@ public class StockBalanceService {
 
     @Transactional
     public StockBalanceResponse createFromWarehouse(WarehouseStockInRequest request) {
-        User currentUser = getAuthenticatedOwner();
-
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola Stock Balance.");
+        User currentUser = getAuthenticatedUser();
+        
+        // Employee dilarang input barang masuk ke Warehouse
+        if (isEmployee(currentUser)) {
+            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan memproses stok masuk gudang pusat.");
         }
 
         Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
@@ -480,7 +558,7 @@ public class StockBalanceService {
 
         StockMutation stockMutation = new StockMutation();
         stockMutation.setProduct(stockBalance.getProduct());
-        stockMutation.setQty(request.getQty());
+        stockMutation.setQty(request.getQty()); // Fix: gunakan request qty aslinya
         stockMutation.setPartner(stockBalance.getProduct().getPartner());
         stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
         stockMutation.setType(StockMutation.Type.PURCHASE_IN);
@@ -495,8 +573,15 @@ public class StockBalanceService {
     }
 
     @Transactional
-    public StockBalanceResponse createFromBranch(BranchStockInRequest request) {
-        User currentUser = getAuthenticatedOwner();
+    public StockBalanceResponse createFromBranch(BranchStockInRequest request) {       
+        User currentUser = getAuthenticatedUser();
+        
+        // 🔒 LOCK VALIDASI MODUL E: Employee bisa menerima barang tapi HANYA di branch miliknya sendiri
+        if (isEmployee(currentUser)) {
+            if (currentUser.getBranch() == null || !request.getBranchId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya bisa menerima barang di branch Anda sendiri.");
+            }
+        }
 
         Branches branch = branchesRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new RuntimeException("Branch tidak ditemukan dengan ID: " + request.getBranchId()));
@@ -525,8 +610,8 @@ public class StockBalanceService {
 
         StockMutation stockMutation = new StockMutation();
         stockMutation.setProduct(stockBalance.getProduct());
-        stockMutation.setQty(request.getQty());
-        stockMutation.setPartner(stockBalance.getProduct().getPartner());
+        stockMutation.setQty(request.getQty()); // Fix: gunakan request qty aslinya
+        stockMutation.setPartner(stockBalance.getProduct().getPartner());        
         stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
         stockMutation.setType(StockMutation.Type.PURCHASE_IN);
         stockMutation.setToLocationType(StockMutation.Location.valueOf(stockBalance.getLocationType()));
@@ -543,28 +628,38 @@ public class StockBalanceService {
     public StockBalanceResponse transferStock(StockTransferRequest request) {
         Long productId = request.getProductId();
         Long qty = request.getQty();
-
-        if (request.getFromLocationType().equals(request.getToLocationType()) &&
-                request.getFromLocationId().equals(request.getToLocationId())) {
+    
+        if (request.getFromLocationType().equals(request.getToLocationType()) && request.getFromLocationId().equals(request.getToLocationId())) {
             throw new RuntimeException("Lokasi asal dan tujuan tidak boleh sama persis!");
         }
-
-        User currentUser = getAuthenticatedOwner();
-
+    
+        User currentUser = getAuthenticatedUser();
+        
+        // 🔒 LOCK VALIDASI MODUL D: Transfer Request oleh Employee dikunci harus melibatkan lokasi tujuannya
+        if (isEmployee(currentUser)) {
+            if (!"BRANCH".equalsIgnoreCase(request.getToLocationType()) || 
+                currentUser.getBranch() == null || 
+                !request.getToLocationId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Employee hanya bisa melakukan transfer request menuju ke branch miliknya sendiri.");
+            }
+        }
+    
+        // STEP 1: POTONG STOK DI LOKASI ASAL (FROM)
         StockBalance sourceStock = stockBalanceRepository
                 .findByProductIdAndLocationTypeAndLocationId(productId, request.getFromLocationType(), request.getFromLocationId())
                 .orElseThrow(() -> new RuntimeException("Stok tidak ditemukan di lokasi asal."));
-
+    
         long currentSourceQty = sourceStock.getQty() != null ? sourceStock.getQty() : 0L;
         if (currentSourceQty < qty) {
             throw new RuntimeException("Stok di lokasi asal tidak mencukupi!");
         }
-
+    
         sourceStock.setQty(currentSourceQty - qty);
         sourceStock.setUpdatedBy(currentUser);
         sourceStock.setUpdatedAt(LocalDateTime.now());
         stockBalanceRepository.save(sourceStock);
-
+    
+        // STEP 2: TAMBAH STOK DI LOKASI TUJUAN (TO)
         StockBalance destStock = stockBalanceRepository
                 .findByProductIdAndLocationTypeAndLocationId(productId, request.getToLocationType(), request.getToLocationId())
                 .orElse(new StockBalance());
@@ -586,13 +681,14 @@ public class StockBalanceService {
         destStock.setUpdatedAt(LocalDateTime.now());
 
         StockBalance savedDestStock = stockBalanceRepository.save(destStock);
-
+    
+        // STEP 3: CATAT MUTASI STOK (TRANSFER)
         StockMutation stockMutation = new StockMutation();
         stockMutation.setProduct(savedDestStock.getProduct());
         stockMutation.setPartner(savedDestStock.getProduct().getPartner());
         stockMutation.setReferenceType(StockMutation.ReferenceType.TRANSFER_REQUEST);
         stockMutation.setType(StockMutation.Type.TRANSFER);
-        stockMutation.setQty(qty);
+        stockMutation.setQty(qty); 
         stockMutation.setFromLocationType(StockMutation.Location.valueOf(sourceStock.getLocationType().toUpperCase()));
         stockMutation.setFromLocationId(sourceStock.getLocationId());
         stockMutation.setToLocationType(StockMutation.Location.valueOf(savedDestStock.getLocationType().toUpperCase()));
