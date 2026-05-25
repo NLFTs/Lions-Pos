@@ -10,7 +10,9 @@ import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -18,6 +20,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,188 +31,242 @@ public class CategoryProductService {
     private final CategoryProductRepository categoryProductRepository;
     private final UserRepository userRepository;
 
-    // --- STANDARDIZED AUTH HELPERS ---
+    // =========================
+    // AUTH HELPERS
+    // =========================
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
+
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+
+        boolean isAdmin = user.getRoles().stream()
+                .anyMatch(r -> r.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAdmin) {
+            throw new RuntimeException("Akses Ditolak: Super Admin saja");
+        }
+
+        return user;
+    }
+
+    private User getAuthenticatedOwner() {
+        User user = getAuthenticatedUser();
+
+        boolean isOwner = user.getRoles().stream()
+                .anyMatch(r -> r.getSlug().equalsIgnoreCase("owner"));
+
+        if (!isOwner) {
+            throw new RuntimeException("Akses Ditolak: hanya Owner yang diizinkan");
+        }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner");
+        }
+
         return user;
     }
 
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // Cek apakah dia punya role operasional (slug lama atau baru)
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
-                                role.getSlug().equalsIgnoreCase("employee-partners") ||
-                                role.getSlug().equalsIgnoreCase("owner") ||
-                                role.getSlug().equalsIgnoreCase("employee"));
-        
-        // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
 
-        if (!isAuthorized || !isStaff) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        boolean allowed = user.getRoles().stream()
+                .anyMatch(r ->
+                        r.getSlug().equalsIgnoreCase("admin-partners") ||
+                                r.getSlug().equalsIgnoreCase("employee-partners") ||
+                                r.getSlug().equalsIgnoreCase("owner") ||
+                                r.getSlug().equalsIgnoreCase("employee")
+                );
+
+        if (!allowed) {
+            throw new RuntimeException("Akses Ditolak: Role tidak diizinkan");
         }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("User tidak terasosiasi dengan Partner");
+        }
+
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin"));
-    }
 
-    private CategoryProduct getValidatedCategory(Long id, User currentUser) {
+    private CategoryProduct getValidatedCategory(Long id, User user) {
         CategoryProduct category = categoryProductRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
 
-        if (currentUser.getPartner() == null ||
-                !category.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Kategori ini milik partner lain.");
+        if (category.getPartner() == null ||
+                !category.getPartner().getId().equals(user.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Category bukan milik partner Anda");
         }
+
         return category;
     }
 
-    // --- METHODS ---
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(r -> r.getSlug().equalsIgnoreCase("owner"));
+    }
+
+    private CategoryProductResponse mapToResponse(CategoryProduct c) {
+        if (c == null) return null;
+
+        CategoryProductResponse response = new CategoryProductResponse();
+        response.setId(c.getId());
+        response.setName(c.getName());
+        response.setDescription(c.getDescription());
+        response.setSortOrder(c.getSortOrder());
+
+        if (c.getPartner() != null) {
+            PartnerSimpleDto p = new PartnerSimpleDto();
+            p.setId(c.getPartner().getId());
+            p.setName(c.getPartner().getName());
+            response.setPartnerId(p);
+        }
+
+        if (c.getParent() != null) {
+            CategoryProductResponse.ParentDto parent = new CategoryProductResponse.ParentDto();
+            parent.setId(c.getParent().getId());
+            parent.setName(c.getParent().getName());
+            response.setParent(parent);
+        }
+
+        response.setCreatedBy(mapUserToDto(c.getCreatedBy()));
+        response.setUpdatedBy(mapUserToDto(c.getUpdatedBy()));
+        response.setDeletedBy(mapUserToDto(c.getDeletedBy()));
+
+        return response;
+    }
+
+    private UserSimpleDto mapUserToDto(User user) {
+        if (user == null) return null;
+
+        UserSimpleDto dto = new UserSimpleDto();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        return dto;
+    }
+
     public List<CategoryProductResponse> findAllCategoryProduct() {
         getAuthenticatedSuperAdmin();
-        return categoryProductRepository.findAll().stream()
+
+        return categoryProductRepository.findAll()
+                .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public Page<CategoryProductResponse> findAllCategoryProduct(int page, int size) {
         getAuthenticatedSuperAdmin();
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
-        return categoryProductRepository.findAll(pageRequest).map(this::mapToResponse);
+
+        return categoryProductRepository.findAll(
+                PageRequest.of(page, size, Sort.by("name").ascending())
+        ).map(this::mapToResponse);
     }
 
-    public List<CategoryProductResponse> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Sort sort = Sort.by("sortOrder").ascending();
+    // =========================
+    // PARTNER / EMPLOYEE
+    // =========================
 
-        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), sort)
+    public List<CategoryProductResponse> findAll() {
+        User user = getAuthenticatedAdminPartnerOrEmployee();
+
+        return categoryProductRepository
+                .findAllByPartner(user.getPartner(), Sort.by("sortOrder").ascending())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public Page<CategoryProductResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User user = getAuthenticatedAdminPartnerOrEmployee();
 
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
-
-        return categoryProductRepository.findAllByPartner(currentUser.getPartner(), pageRequest)
+        return categoryProductRepository
+                .findAllByPartner(
+                        user.getPartner(),
+                        PageRequest.of(page, size, Sort.by("name").ascending())
+                )
                 .map(this::mapToResponse);
     }
 
+    // =========================
+    // CREATE
+    // =========================
+
     @Transactional
     public CategoryProductResponse create(CategoryProductCreate request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
+        User user = getAuthenticatedOwner();
 
-        if (partner == null) throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        Partners partner = user.getPartner();
 
-        CategoryProduct parent = (request.getParentId() != null) ? getValidatedCategory(request.getParentId(), currentUser) : null;
+        CategoryProduct parent = null;
 
-        if (categoryProductRepository.existsByNameAndPartnerId(request.getName(), partner.getId())) {
-            throw new IllegalArgumentException("Kategori '" + request.getName() + "' sudah ada.");
+        if (request.getParentId() != null) {
+            parent = getValidatedCategory(request.getParentId(), user);
         }
 
-        CategoryProduct category = new CategoryProduct();
-        category.setPartner(partner);
-        category.setParent(parent);
-        category.setName(request.getName());
-        category.setDescription(request.getDescription());
-        category.setSortOrder(request.getSortOrder());
-        category.setCreatedBy(currentUser);
-        category.setCreatedAt(LocalDateTime.now());
+        if (categoryProductRepository.existsByNameAndPartnerId(
+                request.getName(),
+                partner.getId()
+        )) {
+            throw new RuntimeException("Category sudah ada");
+        }
 
-        return mapToResponse(categoryProductRepository.save(category));
+        CategoryProduct c = new CategoryProduct();
+        c.setPartner(partner);
+        c.setParent(parent);
+        c.setName(request.getName());
+        c.setDescription(request.getDescription());
+        c.setSortOrder(request.getSortOrder());
+        c.setCreatedAt(LocalDateTime.now());
+        c.setCreatedBy(user);
+
+        return mapToResponse(categoryProductRepository.save(c));
     }
+
+    // =========================
+    // UPDATE
+    // =========================
 
     @Transactional
     public CategoryProductResponse update(Long id, CategoryProductCreate request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User user = getAuthenticatedOwner();
 
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
-        }
+        CategoryProduct c = getValidatedCategory(id, user);
 
-        // Cari kategori yang mau diupdate + validasi kepemilikan partner
-        CategoryProduct category = getValidatedCategory(id, currentUser);
-
-        // Jika mau ganti Parent, validasi lagi parent barunya milik partner yang sama atau nggak
         if (request.getParentId() != null) {
-            category.setParent(getValidatedCategory(request.getParentId(), currentUser));
+            c.setParent(getValidatedCategory(request.getParentId(), user));
         } else {
-            category.setParent(null);
+            c.setParent(null);
         }
 
-        category.setName(request.getName());
-        category.setDescription(request.getDescription());
-        category.setSortOrder(request.getSortOrder());
-        category.setUpdatedBy(currentUser);
-        category.setUpdatedAt(LocalDateTime.now());
+        c.setName(request.getName());
+        c.setDescription(request.getDescription());
+        c.setSortOrder(request.getSortOrder());
+        c.setUpdatedAt(LocalDateTime.now());
+        c.setUpdatedBy(user);
 
-        return mapToResponse(categoryProductRepository.save(category));
+        return mapToResponse(categoryProductRepository.save(c));
     }
+
+    // =========================
+    // DELETE
+    // =========================
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User user = getAuthenticatedOwner();
 
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Category Product.");
-        }
+        CategoryProduct c = getValidatedCategory(id, user);
 
-        CategoryProduct category = getValidatedCategory(id, currentUser);
-        categoryProductRepository.delete(category);
-    }
-
-    public CategoryProductResponse mapToResponse(CategoryProduct categoryProduct) {
-        if (categoryProduct == null) return null;
-
-        CategoryProductResponse response = new CategoryProductResponse();
-        response.setId(categoryProduct.getId());
-        response.setName(categoryProduct.getName());
-        response.setDescription(categoryProduct.getDescription());
-        response.setSortOrder(categoryProduct.getSortOrder());
-
-        if (categoryProduct.getPartner() != null) {
-            PartnerSimpleDto ptDto = new PartnerSimpleDto();
-            ptDto.setId(categoryProduct.getPartner().getId());
-            ptDto.setName(categoryProduct.getPartner().getName());
-            response.setPartnerId(ptDto);
-        }
-
-        if (categoryProduct.getParent() != null) {
-            CategoryProductResponse.ParentDto pDto = new CategoryProductResponse.ParentDto();
-            pDto.setId(categoryProduct.getParent().getId());
-            pDto.setName(categoryProduct.getParent().getName());
-            response.setParent(pDto);
-        }
-        response.setCreatedBy(mapUserToDto(categoryProduct.getCreatedBy()));
-        response.setUpdatedBy(mapUserToDto(categoryProduct.getUpdatedBy()));
-        response.setDeletedBy(mapUserToDto(categoryProduct.getDeletedBy()));
-
-        return response;
-    }
-    private UserSimpleDto mapUserToDto(User user) {
-        if (user == null) return null;
-        UserSimpleDto dto = new UserSimpleDto();
-        dto.setId(user. getId());
-        dto.setUsername(user.getUsername());
-        return dto;
+        categoryProductRepository.delete(c);
     }
 }
