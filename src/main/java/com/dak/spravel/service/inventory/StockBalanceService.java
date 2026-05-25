@@ -187,7 +187,7 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index"); // 💡 Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index"); // 💡 Cukup cek permission slug
 
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll().stream().map(this::mapToResponse).toList();
@@ -198,7 +198,7 @@ public class StockBalanceService {
 
     public Page<StockBalanceResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index"); // 💡 Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index"); // 💡 Cukup cek permission slug
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         if (currentUser.getPartner() == null) {
@@ -210,7 +210,7 @@ public class StockBalanceService {
 
     public List<StockLocationSummaryResponse> findStockSummary() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index");
+        checkPermission(currentUser, "stock_balance.index");
 
         List<StockBalance> allBalances;
         if (currentUser.getPartner() == null) {
@@ -253,13 +253,13 @@ public class StockBalanceService {
 
     public StockBalanceResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.show");
+        checkPermission(currentUser, "stock_balance.show");
         return mapToResponse(getValidatedStockBalance(id, currentUser));
     }
 
     public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index");
+        checkPermission(currentUser, "stock_balance.index");
 
         List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(locationType.toUpperCase(), locationId);
         if (currentUser.getPartner() == null) {
@@ -275,7 +275,7 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findByBranch(Long branchId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index");
+        checkPermission(currentUser, "stock_balance.index");
         validateLocation("BRANCH", branchId, currentUser.getPartner());
 
         return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", branchId).stream()
@@ -284,7 +284,7 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findByWarehouse(Long warehouseId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.index");
+        checkPermission(currentUser, "stock_balance.index");
         validateLocation("WAREHOUSE", warehouseId, currentUser.getPartner());
 
         return stockBalanceRepository.findByLocationTypeAndLocationId("WAREHOUSE", warehouseId).stream()
@@ -296,7 +296,7 @@ public class StockBalanceService {
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.store"); // 💡 Siapapun boleh create asal punya permission ini!
+        checkPermission(currentUser, "stock_balance.store"); // 💡 Siapapun boleh create asal punya permission ini!
 
         Partners partner = currentUser.getPartner();
         Product product = productRepository.findById(request.getProduct())
@@ -333,7 +333,7 @@ public class StockBalanceService {
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock.store"); // 💡 Hilang sudah barier kaku employee!
+        checkPermission(currentUser, "stock_balance.store"); // 💡 Hilang sudah barier kaku employee!
 
         Partners partner = currentUser.getPartner();
         validateLocation(request.getLocationType(), request.getLocationId(), partner);
@@ -403,6 +403,7 @@ public class StockBalanceService {
     public StockBalanceResponse createFromWarehouse(WarehouseStockInRequest request) {
         Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId()).orElseThrow();
         Product product = productRepository.findById(request.getProductId()).orElseThrow();
+        checkPermission(getAuthenticatedUser(), "stock_balance.store");
 
         User currentUser = getAuthenticatedUser();
         StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
@@ -442,6 +443,7 @@ public class StockBalanceService {
     public StockBalanceResponse createFromBranch(BranchStockInRequest request) {       
         Branches branch = branchesRepository.findById(request.getBranchId()).orElseThrow();
         Product product = productRepository.findById(request.getProductId()).orElseThrow();
+        checkPermission(getAuthenticatedUser(), "stock_balance.store");
 
         User currentUser = getAuthenticatedUser();
         StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
@@ -481,6 +483,7 @@ public class StockBalanceService {
     public StockBalanceResponse transferStock(StockTransferRequest request) {
         Long productId = request.getProductId();
         Long qty = request.getQty();
+        checkPermission(getAuthenticatedUser(), "stock_balance.transfer");
     
         if (request.getFromLocationType().equalsIgnoreCase(request.getToLocationType()) && 
                 request.getFromLocationId().equals(request.getToLocationId())) {

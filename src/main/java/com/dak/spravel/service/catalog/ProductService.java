@@ -124,7 +124,7 @@ public class ProductService {
     @Transactional
     public ProductResponse create(ProductRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        checkPermission(currentUser, "produk.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
         
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -185,7 +185,7 @@ public class ProductService {
 
     public Page<ProductResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.index"); // 💡 Sikat pake permission index
+        checkPermission(currentUser, "produk.index"); // 💡 Sikat pake permission index
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         if (currentUser.getPartner() == null) {
@@ -198,7 +198,7 @@ public class ProductService {
 
     public ProductResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.show");
+        checkPermission(currentUser, "produk.show");
 
         Product product = getValidatedProduct(id, currentUser);
         return mapToResponse(product);
@@ -207,7 +207,7 @@ public class ProductService {
     @Transactional
     public ProductResponse patchProduct(Long id, ProductRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update"); // 💡 Diperbarui ke permission update
+        checkPermission(currentUser, "produk.update"); // 💡 Diperbarui ke permission update
 
         Product product = getValidatedProduct(id, currentUser);
         Partners partner = product.getPartner(); 
@@ -276,7 +276,7 @@ public class ProductService {
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.delete"); // 💡 Diubah murni ke permission delete
+        checkPermission(currentUser, "produk.delete"); // 💡 Diubah murni ke permission delete
 
         Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(false);
@@ -289,7 +289,7 @@ public class ProductService {
     @Transactional
     public ProductResponse restoreProduct(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update");
+        checkPermission(currentUser, "produk.update");
 
         Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(true);
@@ -302,7 +302,7 @@ public class ProductService {
     @Transactional
     public ProductResponse setTrueTrackStock(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update");
+        checkPermission(currentUser, "produk.update");
 
         Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(true);
@@ -315,7 +315,7 @@ public class ProductService {
     @Transactional
     public ProductResponse setFalseTrackStock(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update");
+        checkPermission(currentUser, "produk.update");
 
         Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(false);
@@ -328,7 +328,7 @@ public class ProductService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.delete");
+        checkPermission(currentUser, "produk.delete");
 
         Product product = getValidatedProduct(id, currentUser);
         List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
