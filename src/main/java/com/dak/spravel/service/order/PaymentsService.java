@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,15 +25,6 @@ import com.dak.spravel.repository.order.PaymentsRepository;
 import com.dak.spravel.service.inventory.StockBalanceService;
 import com.dak.spravel.service.inventory.StockMutationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +36,7 @@ public class PaymentsService {
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
 
-    // ─── Auth Helpers ────────────────────────────────────────────────────────
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -55,67 +47,58 @@ public class PaymentsService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin")
-                        || role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) {
-            throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        }
-        return user;
-    }
-
-    // 🛠️ MODIFIKASI: Hanya mengizinkan Owner Partner (Sebab Employee Dihapus)
-    private User getAuthenticatedOwnerUser() {
-        User user = getAuthenticatedUser();
-
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
-                        || role.getSlug().equalsIgnoreCase("super_admin"));
-
-        if (isSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
-        }
-
-        // Kunci murni ke role owner
-        if (!isOwner(user)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengakses menu pembayaran.");
-        }
-
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
-            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+            return;
         }
 
-        return user;
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    // 🛠️ HELPER MURNI CEK ROLE OWNER
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("owner"));
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
     }
+
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Payments getValidatedPayment(Long id, User currentUser) {
         Payments payment = paymentsRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", id));
+        
+        // 👑 Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan partner.");
+            return payment;
         }
+
         if (payment.getOrder() == null) {
-            throw new RuntimeException("Payment tidak memiliki order.");
+            throw new RuntimeException("Data Payment tidak memiliki asosiasi Order.");
         }
+
         boolean valid = payment.getOrder().getPartner() != null &&
                 payment.getOrder().getPartner().getId().equals(currentUser.getPartner().getId());
+        
         if (!valid) {
-            throw new RuntimeException("Akses Ditolak: Payment milik partner lain.");
+            throw new RuntimeException("Akses Ditolak: Data Payment ini milik partner lain.");
         }
         return payment;
     }
 
-    // Mapper Payments
+    // ─── 🔄 MAPPER SECTION ────────────────────────────────────────────────────
 
     private PaymentResponse mapToResponse(Payments p) {
+        if (p == null) return null;
+        
         return PaymentResponse.builder()
                 .id(p.getId())
                 .orderId(p.getOrder() != null ? p.getOrder().getId() : null)
@@ -132,20 +115,30 @@ public class PaymentsService {
                 .build();
     }
 
-    //  Read 
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
 
     public List<PaymentResponse> findAllPayments() {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
+        
         return paymentsRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
+
     public List<PaymentResponse> findAll() {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "payment.index"); // 💡 Saring via permission index
+
+        // 👑 Handling Super Admin: Lihat data global
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan partner.");
+            return paymentsRepository.findAll().stream().map(this::mapToResponse).toList();
         }
+
         return paymentsRepository.findAll().stream()
                 .filter(p -> p.getOrder() != null
                         && p.getOrder().getPartner() != null
@@ -155,12 +148,17 @@ public class PaymentsService {
     }
 
     public Page<PaymentResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "payment.index");
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        
+        // 👑 Handling Super Admin Global
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan partner.");
+            return paymentsRepository.findAll(pageable).map(this::mapToResponse);
         }
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return paymentsRepository.findAll(pageRequest)
+
+        return paymentsRepository.findAll(pageable)
                 .map(p -> {
                     if (p.getOrder() == null) return null;
                     boolean allowed = p.getOrder().getPartner() != null
@@ -170,19 +168,20 @@ public class PaymentsService {
     }
 
     // ==========================================
-    // PROCESS PAYMENT
+    // PROCESS PAYMENT (🔒 Berbasis Permission)
     // ==========================================
     @Transactional
     public PaymentResponse pay(PaymentsRequest request) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "payment.store"); // 💡 Berhak memicu pembuatan transaksi invoice baru
 
         Orders orders = ordersRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orders", request.getOrderId()));
 
-        if (currentUser.getPartner() == null
-                || orders.getPartner() == null
-                || !orders.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Order milik partner lain.");
+        if (currentUser.getPartner() != null) {
+            if (orders.getPartner() == null || !orders.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Order milik partner lain.");
+            }
         }
 
         Payments payments = new Payments();
@@ -194,10 +193,10 @@ public class PaymentsService {
         if (request.getMethod().equalsIgnoreCase("cash")) {
             BigDecimal cashTendered = request.getCashTendered();
             if (cashTendered == null) {
-                throw new RuntimeException("Cash wajib diisi");
+                throw new RuntimeException("Jumlah uang tunai (Cash Tendered) wajib diisi.");
             }
             if (cashTendered.compareTo(orders.getTotal()) < 0) {
-                throw new RuntimeException("Cash tidak cukup");
+                throw new RuntimeException("Gagal: Jumlah uang tunai tidak mencukupi.");
             }
             payments.setCashTendered(cashTendered);
             payments.setChangeDue(cashTendered.subtract(orders.getTotal()));
@@ -206,7 +205,7 @@ public class PaymentsService {
 
         } else if (request.getMethod().equalsIgnoreCase("transfer")) {
             if (request.getBankName() == null || request.getReferenceNo() == null) {
-                throw new RuntimeException("Bank & reference wajib diisi");
+                throw new RuntimeException("Nama Bank & Nomor Referensi wajib dilampirkan.");
             }
             payments.setBankName(request.getBankName());
             payments.setReferenceNo(request.getReferenceNo());
@@ -214,12 +213,12 @@ public class PaymentsService {
             payments.setCashTendered(BigDecimal.ZERO);
             payments.setChangeDue(BigDecimal.ZERO);
             payments.setStatus(Payments.Status.PENDING);
-            // Transfer: order tetap DRAFT sampai payment di-verify oleh owner
-            // Stok akan dipotong saat verifyPayment() dipanggil
+            
+            // Dokumen order terkunci DRAFT hingga admin memverifikasi keabsahan dana di mutasi rekening bank
             orders.setStatus(Orders.PaymentStatus.DRAFT);
 
         } else {
-            throw new RuntimeException("Method tidak valid");
+            throw new RuntimeException("Metode pembayaran tidak valid.");
         }
 
         ordersRepository.save(orders);
@@ -227,61 +226,49 @@ public class PaymentsService {
     }
 
     // ==========================================
-    // DELETE ( KUNCI: Hanya Owner)
+    // DELETE (🔒 Berbasis Permission)
     // ==========================================
+    @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        
-        // 📍 VALIDASI UTAMA: Harus Owner
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola data ini.");
-        }
+        checkPermission(currentUser, "payment.delete");
 
         Payments payments = getValidatedPayment(id, currentUser);
         paymentsRepository.delete(payments);
     }
 
     // ==========================================
-    // VERIFY TRANSFER (🔒 KUNCI: Hanya Owner)
+    // VERIFY TRANSFER (🔒 Berbasis Permission)
     // ==========================================
     @Transactional
     public PaymentResponse verifyPayment(Long id) {
         User currentUser = getAuthenticatedUser();
-        
-        // BUG FIX #5: Terima slug lama (admin-partners) dan baru (owner)
-        boolean isOwner = currentUser.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
-                        || role.getSlug().equalsIgnoreCase("admin-partners")
-                        || role.getSlug().equalsIgnoreCase("super_admin")
-                        || role.getSlug().equalsIgnoreCase("admin"));
-        if (!isOwner) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Admin yang bisa mengkonfirmasi pembayaran transfer.");
-        }
+        checkPermission(currentUser, "payment.update"); // 💡 Konfirmasi mutasi dana masuk diatur via permission update
 
         Payments payment = getValidatedPayment(id, currentUser);
 
         if (payment.getMethod() != Payments.Method.TRANSFER) {
-            throw new RuntimeException("Hanya pembayaran TRANSFER yang perlu dikonfirmasi.");
+            throw new RuntimeException("Gagal: Hanya pembayaran dengan metode TRANSFER yang membutuhkan konfirmasi manual.");
         }
         if (payment.getStatus() == Payments.Status.VERIFIED) {
-            throw new RuntimeException("Pembayaran sudah dikonfirmasi sebelumnya.");
+            throw new RuntimeException("Pemberitahuan: Pembayaran ini sudah dikonfirmasi sebelumnya.");
         }
         if (payment.getStatus() == Payments.Status.FAILED) {
-            throw new RuntimeException("Pembayaran sudah ditandai FAILED, tidak bisa dikonfirmasi.");
+            throw new RuntimeException("Gagal: Pembayaran sudah ditandai FAILED, tidak bisa diubah kembali.");
         }
 
         payment.setStatus(Payments.Status.VERIFIED);
         payment.setUpdatedAt(LocalDateTime.now());
         payment.setUpdatedBy(currentUser);
 
-        // Update order ke PAID setelah transfer dikonfirmasi
+        // Update status invoice order induk menjadi PAID setelah valid
         Orders order = payment.getOrder();
         if (order != null) {
             order.setStatus(Orders.PaymentStatus.PAID);
             order.setUpdatedAt(LocalDateTime.now());
             order.setUpdatedBy(currentUser);
 
-            // BUG FIX #3 (lanjutan): Potong stok saat transfer payment diverifikasi
+            // 🔥 POTONG STOK SEARA REAL-TIME SAAT SETELAH APPROVAL TRANSFER TERVERIFIKASI
             if (order.getBranch() != null && order.getPartner() != null) {
                 for (com.dak.spravel.model.order.OrderItems item : order.getItems()) {
                     stockBalanceService.adjustStock(
@@ -290,15 +277,17 @@ public class PaymentsService {
                             order.getBranch().getId(),
                             -item.getQty()
                     );
+                    
+                    // Catat ke dalam baris histori mutasi inventori Spravel
                     stockMutationService.recordMutation(
                             item.getProduct(),
                             order.getPartner(),
                             "SALE_OUT",
-                            "branch", order.getBranch().getId(),
+                            "BRANCH", order.getBranch().getId(),
                             null, null,
                             item.getQty(),
-                            "order", order.getId(),
-                            "Order #" + order.getOrderNumber() + " (transfer verified)",
+                            "ORDER", order.getId(),
+                            "Order #" + order.getOrderNumber() + " (Transfer Payment Verified By " + currentUser.getUsername() + ")",
                             currentUser
                     );
                 }

@@ -3,6 +3,7 @@ package com.dak.spravel.service.order;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 import org.springframework.security.core.Authentication;
@@ -16,6 +17,7 @@ import com.dak.spravel.dto.response.order.OrderItemResponse;
 import com.dak.spravel.dto.response.order.OrdersResponse;
 import com.dak.spravel.dto.response.order.PaymentResponse;
 import com.dak.spravel.dto.response.order.ReturnResponse;
+import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.catalog.Voucher;
@@ -49,132 +51,140 @@ public class OrdersService {
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
 
-    // =========================
-    // AUTH USER
-    // =========================
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-    
-        private User getAuthenticatedSuperAdmin() {
-            User user = getAuthenticatedUser();
-            boolean isSuperAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-            if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-            return user;
-        }
-
-        private User getAuthenticatedAdminPartnerOrEmployee() {
-            User user = getAuthenticatedUser();
-
-            // Super admin tidak boleh akses endpoint partner/employee
-            boolean isSuperAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
-                            || role.getSlug().equalsIgnoreCase("super_admin"));
-            if (isSuperAdmin) {
-                throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
-            }
-
-            // Slug yang valid: "owner" / "admin-partners" (lama) dan "employee" / "employee-partners" (lama)
-            boolean isOwnerOrEmployee = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
-                            || role.getSlug().equalsIgnoreCase("admin-partners")
-                            || role.getSlug().equalsIgnoreCase("employee")
-                            || role.getSlug().equalsIgnoreCase("employee-partners"));
-
-            if (!isOwnerOrEmployee || user.getPartner() == null) {
-                throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
-            }
-
-            return user;
-        }
-
-        // HELPER: cek apakah user adalah employee (bukan owner)
-        private boolean isEmployee(User user) {
-            return user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee")
-                            || role.getSlug().equalsIgnoreCase("employee-partners"));
-        }
-        return user;
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // Helper cek role Owner murni
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("owner"));
+    // 🔥 KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
+        }
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
+    }
+
+    // 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
     private Orders getValidatedOrder(Long id, User currentUser) {
         Orders order = ordersRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan ID: " + id));
 
-        if (currentUser.getPartner() == null
-                || order.getPartner() == null
-                || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        if (currentUser.getPartner() == null) {
+            return order;
+        }
+
+        if (order.getPartner() == null || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
         }
 
         return order;
     }
 
-    // Super Admin — semua order lintas partner
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN — Melihat seluruh order lintas perusahaan di Spravel
     public List<Orders> findAllOrders() {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
         return ordersRepository.findAllWithDetails();
     }
 
-    // Owner → melihat semua order di partnernya sendiri
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
     public List<OrdersResponse> findAll() {
-        User currentUser = getAuthenticatedPartnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.index"); // 💡 Ambil hak akses index
 
-        return ordersRepository.findAllWithDetails()
-            .stream()
-            .filter(order -> order.getPartner() != null 
-                    && order.getPartner().getId().equals(currentUser.getPartner().getId()))
-            .map(this::mapToResponse)
-            .toList();
+        // 👑 Handling Super Admin: Lihat data global
+        if (currentUser.getPartner() == null) {
+            return ordersRepository.findAllWithDetails().stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        // 🏢 Handling Tenant & Branch Isolation Guard
+        return ordersRepository.findAllWithDetails().stream()
+                .filter(order -> order.getPartner() != null && order.getPartner().getId().equals(currentUser.getPartner().getId()))
+                .filter(order -> {
+                    // Jika user dikunci di cabang tertentu, dia cuma boleh liat transaksi di cabangnya sendiri
+                    if (currentUser.getBranch() != null) {
+                        return order.getBranch() != null && order.getBranch().getId().equals(currentUser.getBranch().getId());
+                    }
+                    return true;
+                })
+                .map(this::mapToResponse)
+                .toList();
     }
 
     public OrdersResponse findById(Long id) {
-        User currentUser = getAuthenticatedPartnerUser();
-        return mapToResponse(getValidatedOrder(id, currentUser));
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.show");
+
+        Orders order = getValidatedOrder(id, currentUser);
+
+        // Branch Isolation Check
+        if (currentUser.getBranch() != null && (order.getBranch() == null || !order.getBranch().getId().equals(currentUser.getBranch().getId()))) {
+            throw new RuntimeException("Akses Ditolak: Transaksi ini berada di luar cabang penugasan Anda.");
+        }
+
+        return mapToResponse(order);
     }
 
-    // =========================
-    // CREATE / CHECKOUT KASIR
-    // =========================
+    // ==========================================
+    // CREATE / CHECKOUT KASIR (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public OrdersResponse create(OrdersRequest request) {
-        User currentUser = getAuthenticatedPartnerUser();
-
-        // Validasi Owner (Sesuai task: jika create order juga harus owner)
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan membuat transaksi.");
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.store"); // 💡 Siapapun boleh checkout asal punya permission kasir/sales
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat transaksi langsung.");
         }
 
         Branches branch = branchesRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new RuntimeException("Branch not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
 
-        if (!branch.getPartners().getId().equals(partner.getId())) {
-            throw new RuntimeException("Akses Ditolak: Branch bukan milik partner Anda.");
+        if (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId())) {
+            throw new RuntimeException("Akses Ditolak: Cabang/Branch tujuan bukan milik partner Anda.");
         }
 
-        // Voucher handling
+        // Branch Isolation Guard: Mencegah kasir cabang A nembak transaksi pake branch cabang B
+        if (currentUser.getBranch() != null && !currentUser.getBranch().getId().equals(branch.getId())) {
+            throw new RuntimeException("Akses Ditolak: Anda hanya diperbolehkan membuat transaksi di cabang penugasan Anda sendiri.");
+        }
+
+        // Voucher handling Context
         Voucher voucher = null;
         BigDecimal discount = BigDecimal.ZERO;
         if (request.getVoucherId() != null) {
             voucher = voucherRepository.findById(request.getVoucherId())
-                    .orElseThrow(() -> new RuntimeException("Voucher not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Voucher", request.getVoucherId()));
         }
 
-        // Create Order Header
+        // Create Order Header Record
         Orders order = new Orders();
         order.setPartner(partner);
         order.setBranch(branch);
@@ -187,16 +197,17 @@ public class OrdersService {
         order.setDiscountAmount(discount);
         order.setTotal(BigDecimal.ZERO);
         order.setCreatedBy(currentUser);
+        order.setCreatedAt(LocalDateTime.now());
         
         Orders savedOrder = ordersRepository.save(order);
 
-        // Process Items
+        // Process Sub Items Transaction
         BigDecimal subtotal = BigDecimal.ZERO;
         List<OrderItems> orderItems = new ArrayList<>();
 
         for (OrdersRequest.OrderItemRequest itemReq : request.getItems()) {
             Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", itemReq.getProductId()));
             
             OrderItems item = new OrderItems();
             item.setOrder(savedOrder);
@@ -208,14 +219,11 @@ public class OrdersService {
             
             subtotal = subtotal.add(item.getSubtotal());
             orderItems.add(item);
-
-            // BUG FIX #3: Jangan potong stok di sini (saat DRAFT).
-            // Stok dipotong saat PAID — cash langsung di bawah, transfer saat verifyPayment().
         }
         orderItemsRepository.saveAll(orderItems);
         savedOrder.setItems(orderItems);
 
-        // Calculate Final Totals
+        // Calculate Final Grand Totals
         savedOrder.setSubtotal(subtotal);
         
         if (voucher != null) {
@@ -234,21 +242,22 @@ public class OrdersService {
         savedOrder.setTotal(subtotal.subtract(discount));
         ordersRepository.save(savedOrder);
 
+        // Payment Processing Engine Gateway
         if (request.getPayment() != null) {
             Payments payment = new Payments();
             payment.setOrder(savedOrder);
             payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
             payment.setAmount(savedOrder.getTotal());
-            if (request.getPayment().getMethod().equalsIgnoreCase("CASH")) {
 
+            if (request.getPayment().getMethod().equalsIgnoreCase("CASH")) {
                 BigDecimal cashTendered = request.getPayment().getCashTendered();
 
                 if (cashTendered == null) {
-                    throw new RuntimeException("Cash wajib diisi");
+                    throw new RuntimeException("Jumlah uang tunai (Cash Tendered) wajib diisi.");
                 }
 
                 if (cashTendered.compareTo(savedOrder.getTotal()) < 0) {
-                    throw new RuntimeException("Cash tidak cukup");
+                    throw new RuntimeException("Gagal: Jumlah uang tunai yang dibayarkan tidak mencukupi.");
                 }
 
                 payment.setCashTendered(cashTendered);
@@ -256,120 +265,73 @@ public class OrdersService {
                 payment.setStatus(Payments.Status.VERIFIED);
                 savedOrder.setStatus(Orders.PaymentStatus.PAID);
 
-            // BUG FIX #3: Potong stok hanya saat CASH PAID (bukan saat DRAFT)
-            for (OrderItems item : orderItems) {
-                stockBalanceService.adjustStock(
-                        item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
-                stockMutationService.recordMutation(
-                        item.getProduct(), partner, "SALE_OUT",
-                        "branch", branch.getId(), null, null,
-                        item.getQty(), "order", savedOrder.getId(),
-                        "Order #" + savedOrder.getOrderNumber(), currentUser);
-            }
+                // 🔥 POTONG STOK REAL-TIME HANYA JIKA METODE TUNAI LUNAS (CASH PAID)
+                for (OrderItems item : orderItems) {
+                    stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
+                    stockMutationService.recordMutation(
+                            item.getProduct(), partner, "SALE_OUT",
+                            "BRANCH", branch.getId(), null, null,
+                            item.getQty(), "ORDER", savedOrder.getId(),
+                            "Penjualan Kasir Order #" + savedOrder.getOrderNumber(), currentUser);
+                }
 
-        } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
-
-            payment.setCashTendered(BigDecimal.ZERO);
-            payment.setChangeDue(BigDecimal.ZERO);
-            payment.setBankName(request.getPayment().getBankName());
-            payment.setReferenceNo(request.getPayment().getReferenceNo());
-            payment.setStatus(Payments.Status.PENDING);
-            // Transfer: order tetap DRAFT sampai payment di-verify oleh owner/manager
-            // Stok akan dipotong saat verifyPayment() dipanggil
-            savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
+            } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
+                payment.setCashTendered(BigDecimal.ZERO);
+                payment.setChangeDue(BigDecimal.ZERO);
+                payment.setBankName(request.getPayment().getBankName());
+                payment.setReferenceNo(request.getPayment().getReferenceNo());
+                payment.setStatus(Payments.Status.PENDING);
+                
+                // Invoice transfer tetap DRAFT sampai divalidasi manual di back-office. Stok berkurang pas verifikasi.
+                savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
 
             } else {
-                throw new RuntimeException("Method tidak valid");
+                throw new RuntimeException("Metode pembayaran tidak valid.");
             }
-            payment.setCreatedAt(java.time.LocalDateTime.now());
+
+            payment.setCreatedAt(LocalDateTime.now());
             payment.setOrder(savedOrder);
             paymentsRepository.save(payment);
+            
+            if (savedOrder.getPayments() == null) {
+                savedOrder.setPayments(new HashSet<>());
+            }
             savedOrder.getPayments().add(payment);
             ordersRepository.save(savedOrder);
         }
 
         Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orders", savedOrder.getId()));
 
         return mapToResponse(finalOrder);
     }
 
-    // Mapper Response Order
-    private OrdersResponse mapToResponse(Orders order) {
-        return OrdersResponse.builder()
-                .id(order.getId())
-                .orderNumber(order.getOrderNumber())
-                .status(order.getStatus().name())
-                .subtotal(order.getSubtotal())
-                .discountAmount(order.getDiscountAmount())
-                .total(order.getTotal())
-                .notes(order.getNotes())
-                .branchId(order.getBranch().getId())
-                .branchName(order.getBranch().getName())
-                .cashierId(order.getCashier().getId())
-                .cashierName(order.getCashier().getUsername())
-                .createdAt(order.getCreatedAt())
-                .items(order.getItems().stream().map(item ->
-                        OrderItemResponse.builder()
-                                .id(item.getId())
-                                .productId(item.getProduct().getId())
-                                .productName(item.getProductName())
-                                .qty(item.getQty())
-                                .unitPrice(item.getUnitPrice())
-                                .subtotal(item.getSubtotal())
-                                .build()
-                ).toList())
-                .payments(order.getPayments().stream().map(payment ->
-                        PaymentResponse.builder()
-                                .id(payment.getId())
-                                .orderId(order.getId())
-                                .orderNumber(order.getOrderNumber())
-                                .method(payment.getMethod().name())
-                                .status(payment.getStatus().name())
-                                .amount(payment.getAmount())
-                                .cashTendered(payment.getCashTendered())
-                                .changeDue(payment.getChangeDue())
-                                .bankName(payment.getBankName())
-                                .referenceNo(payment.getReferenceNo())
-                                .proofUrl(payment.getProofUrl())
-                                .createdAt(payment.getCreatedAt())
-                                .build()
-                ).toList())
-                .build();
-    }
-
-    // =========================
-    // DELETE
-    // =========================
+    // ==========================================
+    // DELETE (🔒 Berbasis Permission)
+    // ==========================================
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola atau menghapus data transaksi.");
-        }
+        checkPermission(currentUser, "order.delete");
 
         Orders order = getValidatedOrder(id, currentUser);
         ordersRepository.delete(order);
     }
 
-    // =========================
-    // CANCEL ORDER
-    // =========================
+    // ==========================================
+    // CANCEL ORDER (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public OrdersResponse cancelOrder(Long id) {
         User currentUser = getAuthenticatedUser();
-        
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan membatalkan transaksi penjualan.");
-        }
+        checkPermission(currentUser, "order.update"); // Pembatalan dihitung hak kelola update data keuangan
 
         Orders order = ordersRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orders", id));
 
-        if (currentUser.getPartner() == null
-                || order.getPartner() == null
-                || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
+        if (currentUser.getPartner() != null) {
+            if (order.getPartner() == null || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
+            }
         }
 
         if (order.getStatus() == Orders.PaymentStatus.CANCELED) {
@@ -379,31 +341,20 @@ public class OrdersService {
             throw new RuntimeException("Order dengan status RETURN tidak bisa dibatalkan.");
         }
 
-        // BUG FIX #4: Hanya kembalikan stok jika order sudah PAID.
-        // Order DRAFT belum pernah memotong stok, jadi tidak perlu dikembalikan.
+        // 🔥 LOGIC REVERSAL STOK: Hanya pulangkan kuantitas barang jika status pesanan adalah PAID
         if (order.getStatus() == Orders.PaymentStatus.PAID) {
             for (OrderItems item : order.getItems()) {
-                stockBalanceService.adjustStock(
-                        item.getProduct().getId(),
-                        "BRANCH",
-                        order.getBranch().getId(),
-                        item.getQty()
-                );
-                // Catat sebagai SALE_OUT reversal (return dari cancel order paid)
+                stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", order.getBranch().getId(), item.getQty());
+                
+                // Masukkan rekaman mutasi balik stok (Cancellation Reversal)
                 stockMutationService.recordMutation(
-                        item.getProduct(),
-                        order.getPartner(),
-                        "RETURN",
-                        null, null,
-                        "branch", order.getBranch().getId(),
-                        item.getQty(),
-                        "order", order.getId(),
-                        "Pembatalan Order #" + order.getOrderNumber(),
-                        currentUser
+                        item.getProduct(), order.getPartner(), "RETURN",
+                        null, null, "BRANCH", order.getBranch().getId(),
+                        item.getQty(), "ORDER", order.getId(),
+                        "Pembatalan Transaksi Penjualan Order #" + order.getOrderNumber(), currentUser
                 );
             }
         }
-        // Jika DRAFT: tidak ada stok yang perlu dikembalikan, tidak ada mutation
 
         order.setStatus(Orders.PaymentStatus.CANCELED);
         order.setUpdatedAt(LocalDateTime.now());
@@ -413,24 +364,21 @@ public class OrdersService {
         return mapToResponse(order);
     }
 
-    // =========================
-    // RETURN ORDER / RETUR
-    // =========================
+    // ==========================================
+    // RETURN ORDER / RETUR (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public ReturnResponse returnOrder(Long id, ReturnRequest request) {
         User currentUser = getAuthenticatedUser();
-        
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan memproses retur barang penjualan.");
-        }
+        checkPermission(currentUser, "order.update");
 
         Orders order = ordersRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orders", id));
 
-        if (currentUser.getPartner() == null
-                || order.getPartner() == null
-                || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
+        if (currentUser.getPartner() != null) {
+            if (order.getPartner() == null || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
+            }
         }
 
         if (order.getStatus() != Orders.PaymentStatus.PAID) {
@@ -448,33 +396,28 @@ public class OrdersService {
             OrderItems orderItem = order.getItems().stream()
                     .filter(i -> i.getId().equals(itemReq.getOrderItemId()))
                     .findFirst()
-                    .orElseThrow(() -> new RuntimeException(
-                            "Order item tidak ditemukan: id=" + itemReq.getOrderItemId()));
+                    .orElseThrow(() -> new RuntimeException("Order item tidak ditemukan: id=" + itemReq.getOrderItemId()));
 
             if (itemReq.getQtyReturn() <= 0) {
                 throw new RuntimeException("Qty retur harus lebih dari 0.");
             }
             if (itemReq.getQtyReturn() > orderItem.getQty()) {
-                throw new RuntimeException(
-                        "Qty retur (" + itemReq.getQtyReturn() + ") melebihi qty order ("
-                                + orderItem.getQty() + ") untuk produk: " + orderItem.getProductName());
+                throw new RuntimeException("Qty retur (" + itemReq.getQtyReturn() + ") melebihi qty order ("
+                        + orderItem.getQty() + ") untuk produk: " + orderItem.getProductName());
             }
 
-            stockBalanceService.adjustStock(
-                    orderItem.getProduct().getId(),
-                    "BRANCH",
-                    order.getBranch().getId(),
-                    itemReq.getQtyReturn()
-                );
-                stockMutationService.recordMutation(
-                orderItem.getProduct(),
-                order.getPartner(),"RETURN","branch", order.getBranch().getId(),null, null,
-                        itemReq.getQtyReturn(),"order", order.getId(),"Retur Order #" + order.getOrderNumber()+(itemReq.getReason()
-                        != null ? " - " + itemReq.getReason() : ""), currentUser
-                );
+            // Kembalikan barang retur konsumen ke dalam inventory balance cabang
+            stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", order.getBranch().getId(), itemReq.getQtyReturn());
+            
+            stockMutationService.recordMutation(
+                    orderItem.getProduct(), order.getPartner(), "RETURN", 
+                    null, null, "BRANCH", order.getBranch().getId(),
+                    itemReq.getQtyReturn(), "ORDER", order.getId(),
+                    "Retur Barang Penjualan Order #" + order.getOrderNumber() + (itemReq.getReason() != null ? " - Reason: " + itemReq.getReason() : ""), 
+                    currentUser
+            );
 
-            BigDecimal refundAmount = orderItem.getUnitPrice()
-                    .multiply(BigDecimal.valueOf(itemReq.getQtyReturn()));
+            BigDecimal refundAmount = orderItem.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQtyReturn()));
             totalRefund = totalRefund.add(refundAmount);
 
             returnedItems.add(ReturnResponse.ReturnItemResponse.builder()
@@ -503,16 +446,61 @@ public class OrdersService {
     }
 
     public OrdersResponse getReceipt(Long id) {
-        User currentUser = getAuthenticatedPartnerUser();
-        Orders order = ordersRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
-
-        if (currentUser.getPartner() == null
-                || order.getPartner() == null
-                || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
-        }
-
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.show");
+        
+        Orders order = getValidatedOrder(id, currentUser);
         return mapToResponse(order);
+    }
+
+    // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
+
+    private OrdersResponse mapToResponse(Orders order) {
+        if (order == null) return null;
+
+        List<OrderItemResponse> itemResponses = order.getItems() != null ? order.getItems().stream().map(item ->
+                OrderItemResponse.builder()
+                        .id(item.getId())
+                        .productId(item.getProduct().getId())
+                        .productName(item.getProductName())
+                        .qty(item.getQty())
+                        .unitPrice(item.getUnitPrice())
+                        .subtotal(item.getSubtotal())
+                        .build()
+        ).toList() : new ArrayList<>();
+
+        List<PaymentResponse> paymentResponses = order.getPayments() != null ? order.getPayments().stream().map(payment ->
+                PaymentResponse.builder()
+                        .id(payment.getId())
+                        .orderId(order.getId())
+                        .orderNumber(order.getOrderNumber())
+                        .method(payment.getMethod() != null ? payment.getMethod().name() : null)
+                        .status(payment.getStatus() != null ? payment.getStatus().name() : null)
+                        .amount(payment.getAmount())
+                        .cashTendered(payment.getCashTendered())
+                        .changeDue(payment.getChangeDue())
+                        .bankName(payment.getBankName())
+                        .referenceNo(payment.getReferenceNo())
+                        .proofUrl(payment.getProofUrl())
+                        .createdAt(payment.getCreatedAt())
+                        .build()
+        ).toList() : new ArrayList<>();
+
+        return OrdersResponse.builder()
+                .id(order.getId())
+                .orderNumber(order.getOrderNumber())
+                .status(order.getStatus() != null ? order.getStatus().name() : null)
+                .subtotal(order.getSubtotal())
+                .discountAmount(order.getDiscountAmount())
+                .total(order.getTotal())
+                .notes(order.getNotes())
+                .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
+                .branchName(order.getBranch() != null ? order.getBranch().getName() : null)
+                .cashierId(order.getCashier() != null ? order.getCashier().getId() : null)
+                .cashierName(order.getCashier() != null ? order.getCashier().getUsername() : null)
+                .createdAt(order.getCreatedAt())
+                .items(itemResponses)
+                .payments(paymentResponses)
+                .build();
     }
 }

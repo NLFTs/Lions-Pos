@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +39,8 @@ public class ProductService {
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
+    // ─── 💾 FILE SYSTEM UTILS ──────────────────────────────────────────────────
+
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
         try {
@@ -53,9 +56,8 @@ public class ProductService {
         }
     }
 
-    // --- HELPER: AUTH & VALIDATION ---
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
-    // --- STANDARDIZED AUTH HELPERS ---
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -65,96 +67,80 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        // Cek apakah dia punya role operasional (slug lama atau baru)
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") || 
-                                role.getSlug().equalsIgnoreCase("employee-partners") ||
-                                role.getSlug().equalsIgnoreCase("owner") ||
-                                role.getSlug().equalsIgnoreCase("employee"));
-        
-        // Blokir jika dia SUPER_ADMIN atau tidak punya role yang sesuai
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-
-        if (!isAuthorized || !isStaff) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa hardcode kasta nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
-        return user;
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin"));
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
     }
 
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("owner"));
-    }
-    
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
-    private Product getValidatedProduct(Long id, Partners partner) {
-        // Cari produk berdasarkan ID dan Partner (cegah intip tetangga)
-        Product product = productRepository.findByIdAndPartner(id, partner);
+    private Product getValidatedProduct(Long id, User currentUser) {
+        // 👑 Super Admin bypass checking partner id (bisa cari di seluruh produk global)
+        if (currentUser.getPartner() == null) {
+            return productRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        }
+
+        // 🏢 Partner biasa dikunci strict agar tidak bisa mengintip silang produk kompetitor
+        Product product = productRepository.findByIdAndPartner(id, currentUser.getPartner());
         if (product == null) {
             throw new ResourceNotFoundException("Product", id);
         }
         return product;
     }
 
+    // ─── 🚀 MAIN CORE METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
-    // Find Page untuk Super Admine
-    public Page<ProductResponse> findAllProduct(int Page , int size) {
-        getAuthenticatedSuperAdmin();
+    // KHUSUS SUPER ADMIN GLOBAL
 
-        PageRequest pageRequest = PageRequest.of(Page, size, Sort.by("name").ascending());
+    public Page<ProductResponse> findAllProduct(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
-        return productRepository.findAll(pageRequest)
-                .map(this::mapToResponse);
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
+        return productRepository.findAll(pageRequest).map(this::mapToResponse);
     }
 
-    // --- MAIN METHODS ---
-    // Khusus untuk Admin partner 
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
+
     @Transactional
     public ProductResponse create(ProductRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        
         Partners partner = currentUser.getPartner();
-
-        if (isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Produk.");
-        }
-
         if (partner == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
-        }
-
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola Produk.");
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat produk langsung tanpa scope partner.");
         }
 
         CategoryProduct category = null;
         if (request.getCategoryId() != null) {
             // Pastiin kategori yang dipilih juga milik partner yang sama
             category = categoryRepository.findById(request.getCategoryId())
-                    .filter(c -> c.getPartner().getId().equals(partner.getId()))
-                    .orElseThrow(() -> new RuntimeException("Category not found or not belongs to your partner"));
+                    .filter(c -> c.getPartner() != null && c.getPartner().getId().equals(partner.getId()))
+                    .orElseThrow(() -> new RuntimeException("Category tidak ditemukan atau bukan milik perusahaan Anda."));
         }
 
         Product product = new Product();
         product.setPartner(partner);
-
-        if (category != null) {
-            // throw new RuntimeErrorException();
-        }
         product.setCategory(category);
 
         if (request.getName() == null || request.getName().trim().isEmpty()) {
@@ -166,14 +152,14 @@ public class ProductService {
         if (request.getTrackStock() != null) product.setTrackStock(request.getTrackStock());
         if (request.getIsActive() != null) product.setIsActive(request.getIsActive());
 
-        // Logic SKU
+        // Logic Otomatisasi SKU Tenant
         String finalSku = request.getSku();
         if (finalSku == null || finalSku.trim().isEmpty()) {
             finalSku = generateUniqueSku(product.getName(), partner);
         } else {
             finalSku = finalSku.trim().toUpperCase();
             if (productRepository.existsBySkuAndPartner(finalSku, partner)) {
-                throw new RuntimeException("SKU " + finalSku + " sudah terdaftar di toko Anda!");
+                throw new RuntimeException("SKU '" + finalSku + "' sudah terdaftar di toko Anda!");
             }
         }
         product.setSku(finalSku);
@@ -182,6 +168,7 @@ public class ProductService {
 
         Product savedProduct = productRepository.save(product);
 
+        // Upload foto utama secara simultan jika dilampirkan dalam request
         if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
             com.dak.spravel.model.catalog.ProductPhoto photo = new com.dak.spravel.model.catalog.ProductPhoto();
             photo.setProduct(savedProduct);
@@ -197,33 +184,37 @@ public class ProductService {
     }
 
     public Page<ProductResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.index"); // 💡 Sikat pake permission index
 
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        if (currentUser.getPartner() == null) {
+            return productRepository.findAll(pageable).map(this::mapToResponse);
+        }
 
-        return productRepository.findAllByPartner(partner, pageRequest)
+        return productRepository.findAllByPartner(currentUser.getPartner(), pageable)
                 .map(this::mapToResponse);
     }
 
     public ProductResponse findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
-        Product product = getValidatedProduct(id, partner);
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.show");
+
+        Product product = getValidatedProduct(id, currentUser);
         return mapToResponse(product);
     }
 
     @Transactional
     public ProductResponse patchProduct(Long id, ProductRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Partners partner = currentUser.getPartner();
-        Product product = getValidatedProduct(id, partner);
-        
-        System.out.println("DEBUG: Patching product " + id + " - isActive: " + request.getIsActive());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.update"); // 💡 Diperbarui ke permission update
 
-        if (request.getCategoryId() != null) {
+        Product product = getValidatedProduct(id, currentUser);
+        Partners partner = product.getPartner(); 
+
+        if (request.getCategoryId() != null && partner != null) {
             CategoryProduct category = categoryRepository.findById(request.getCategoryId())
-                    .filter(c -> c.getPartner().getId().equals(partner.getId()))
+                    .filter(c -> c.getPartner() != null && c.getPartner().getId().equals(partner.getId()))
                     .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
             product.setCategory(category);
         }
@@ -233,7 +224,7 @@ public class ProductService {
         if (request.getIsActive() != null) product.setIsActive(request.getIsActive());
         if (request.getTrackStock() != null) product.setTrackStock(request.getTrackStock());
 
-        if (request.getSku() != null && !product.getSku().equals(request.getSku().trim().toUpperCase())) {
+        if (request.getSku() != null && partner != null && !product.getSku().equals(request.getSku().trim().toUpperCase())) {
             String newSku = request.getSku().trim().toUpperCase();
             if (productRepository.existsBySkuAndPartner(newSku, partner)) {
                 throw new RuntimeException("SKU " + newSku + " sudah terpakai!");
@@ -241,6 +232,7 @@ public class ProductService {
             product.setSku(newSku);
         }
 
+        // Core Synchronizer Sinkronisasi Image File pada disk
         if (request.getImageUrl() != null) {
             List<com.dak.spravel.model.catalog.ProductPhoto> existingPhotos = productPhotoRepository.findByProductId(product.getId());
             com.dak.spravel.model.catalog.ProductPhoto primaryPhoto = existingPhotos.stream()
@@ -283,8 +275,10 @@ public class ProductService {
 
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Product product = getValidatedProduct(id, currentUser.getPartner());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.delete"); // 💡 Diubah murni ke permission delete
+
+        Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(false);
 
         product.setUpdatedBy(currentUser);
@@ -294,20 +288,23 @@ public class ProductService {
 
     @Transactional
     public ProductResponse restoreProduct(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Product product = getValidatedProduct(id, currentUser.getPartner());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.update");
+
+        Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(true);
 
         product.setUpdatedBy(currentUser);
         AuditHelper.setUpdated(product);
         return mapToResponse(productRepository.save(product));
-
     }
 
     @Transactional
     public ProductResponse setTrueTrackStock(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Product product = getValidatedProduct(id, currentUser.getPartner());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.update");
+
+        Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(true);
 
         product.setUpdatedBy(currentUser);
@@ -317,8 +314,10 @@ public class ProductService {
 
     @Transactional
     public ProductResponse setFalseTrackStock(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Product product = getValidatedProduct(id, currentUser.getPartner());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.update");
+
+        Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(false);
 
         product.setUpdatedBy(currentUser);
@@ -328,8 +327,10 @@ public class ProductService {
 
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        Product product = getValidatedProduct(id, currentUser.getPartner());
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "product.delete");
+
+        Product product = getValidatedProduct(id, currentUser);
         List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
         for (com.dak.spravel.model.catalog.ProductPhoto photo : photos) {
             if (photo.getUrl() != null) {
@@ -340,7 +341,7 @@ public class ProductService {
         productRepository.delete(product);
     }
 
-    // --- PRIVATE UTILS ---
+    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
     private String generateUniqueSku(String name, Partners partner) {
         String newSku;
@@ -357,8 +358,7 @@ public class ProductService {
     }
 
     private ProductResponse mapToResponse(Product product) {
-        if (product == null)
-            return null;
+        if (product == null) return null;
 
         ProductResponse resp = new ProductResponse();
         resp.setId(product.getId());
@@ -403,8 +403,7 @@ public class ProductService {
     }
 
     private UserSimpleDto mapUserToDto(User user) {
-        if (user == null)
-            return null;
+        if (user == null) return null;
         UserSimpleDto dto = new UserSimpleDto();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());

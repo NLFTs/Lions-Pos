@@ -41,6 +41,7 @@ public class PermissionSeeder {
         {"branch_warehouse", "Branch Warehouse", "Manage branch warehouses"},
         {"stock_balance",      "Stock Balance",      "Manage stock balances"},
         {"stock_mutation", "Stock Mutation", "Manage stock mutations"},
+        {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"category", "Category", "Manage product categories"},
         {"produk",    "Product",    "Manage blog products"},
         {"product_photo", "Product Photo", "Manage blog product photo"},
@@ -55,6 +56,7 @@ public class PermissionSeeder {
         {"transfer_request", "Transfer Request", "Manage stock transfers"},
         {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"purchase_order", "Purchase Order", "Manage purchase orders"},
+        {"purchase_receipt", "Purchase Receipt", "Manage purchase receipts"},
         {"supplier", "Supplier", "Manage suppliers"},
         {"voucher", "Voucher", "Manage vouchers and discounts"},
     };
@@ -135,6 +137,12 @@ public class PermissionSeeder {
         {"stock_mutation.index",  "View All Stock Mutations",   "stock_mutation"},
         {"stock_mutation.show",   "View Stock Mutation Detail", "stock_mutation"},
 
+        {"stock_opname.index",  "View All Stock Opnames",   "stock_opname"},
+        {"stock_opname.store",  "Create Stock Opname",      "stock_opname"},
+        {"stock_opname.show",   "View Stock Opname Detail", "stock_opname"},
+        {"stock_opname.update", "Update Stock Opname",      "stock_opname"},
+        {"stock_opname.delete", "Delete Stock Opname",      "stock_opname"},
+
         {"log.index",  "View All Logs",  "log"},
         {"log.show",   "View Log Detail", "log"},
 
@@ -159,6 +167,13 @@ public class PermissionSeeder {
         {"purchase_order.store", "Create Purchase Order", "purchase_order"},
         {"purchase_order.update", "Update Purchase Order", "purchase_order"},
         {"purchase_order.delete", "Delete Purchase Order", "purchase_order"},
+
+        {"purchase_receipt.index", "View All Purchase Receipts", "purchase_receipt"},
+        {"purchase_receipt.show",  "View Purchase Receipt Detail", "purchase_receipt"},
+        {"purchase_receipt.store", "Create Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.update", "Update Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.delete", "Delete Purchase Receipt", "purchase_receipt"},
+        
 
         {"supplier.index",  "View All Suppliers",   "supplier"},
         {"supplier.show",   "View Supplier Detail", "supplier"},

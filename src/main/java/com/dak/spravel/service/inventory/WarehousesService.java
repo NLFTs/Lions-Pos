@@ -6,7 +6,6 @@ import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
@@ -19,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,75 +37,59 @@ public class WarehousesService {
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
 
-    // =========================
-    // AUTH HELPERS
-    // =========================
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedOwner() {
-        User user = getAuthenticatedUser();
-
-        boolean isOwner = user.getRoles().stream()
-                .anyMatch(r -> r.getSlug().equalsIgnoreCase("owner"));
-
-        if (!isOwner) {
-            throw new RuntimeException("Akses Ditolak: hanya Owner yang diizinkan");
-        }
-
+    // 🔥 KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner");
+            return;
         }
 
-        return user;
-    }
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
 
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(r -> r.getSlug().equalsIgnoreCase("admin"));
-
-        if (!isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Super Admin saja");
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
         }
-
-        return user;
     }
 
-    // =========================
-    // VALIDATION HELPERS
-    // =========================
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
+    }
 
-    private Warehouses getValidatedWarehouse(Long id, User user) {
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
+    private Warehouses getValidatedWarehouse(Long id, User currentUser) {
         Warehouses w = warehousesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse", id));
 
-        if (w.getPartners() == null ||
-                !w.getPartners().getId().equals(user.getPartner().getId())) {
+        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        if (currentUser.getPartner() == null) {
+            return w;
+        }
+
+        if (w.getPartners() == null || !w.getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda");
         }
 
         return w;
     }
 
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(r -> r.getSlug().equalsIgnoreCase("owner"));
-    }
-
-    // =========================
-    // MAPPER
-    // =========================
+    // ─── 🔄 MAPPER SECTION ────────────────────────────────────────────────────
 
     private WarehouseResponse mapToResponse(Warehouses w) {
         if (w == null) return null;
@@ -142,12 +126,13 @@ public class WarehousesService {
         return res;
     }
 
-    // =========================
-    // SUPER ADMIN
-    // =========================
+    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
 
     public List<WarehouseResponse> findAllAdmin() {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
         return warehousesRepository.findAll(Sort.by("id").descending())
                 .stream()
@@ -156,69 +141,75 @@ public class WarehousesService {
     }
 
     public Page<WarehouseResponse> findPageAdmin(int page, int size) {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
         return warehousesRepository.findAll(
                 PageRequest.of(page, size, Sort.by("id").descending())
         ).map(this::mapToResponse);
     }
 
-    // =========================
-    // OWNER / PARTNER
-    // =========================
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
 
     public List<WarehouseResponse> findAllByPartner() {
-        User user = getAuthenticatedOwner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.index"); // 💡 Cek via permission index
+
+        if (currentUser.getPartner() == null) {
+            return warehousesRepository.findAll().stream().map(this::mapToResponse).toList();
+        }
 
         return warehousesRepository
-                .findByPartnersIdAndDeletedAtIsNull(user.getPartner().getId())
+                .findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId())
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
     public Page<WarehouseResponse> findPageByPartner(int page, int size) {
-        User user = getAuthenticatedOwner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.index");
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        if (currentUser.getPartner() == null) {
+            return warehousesRepository.findAll(pageable).map(this::mapToResponse);
+        }
 
         return warehousesRepository
-                .findByPartnersIdAndDeletedAtIsNull(
-                        user.getPartner().getId(),
-                        PageRequest.of(page, size, Sort.by("id").descending())
-                )
+                .findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageable)
                 .map(this::mapToResponse);
     }
 
-    // =========================
-    // CREATE
-    // =========================
+    // ─── CREATE WAREHOUSE ─────────────────────────────────────────────────────
 
     @Transactional
     public WarehouseResponse create(WarehousesRequestDTO request) {
-        User user = getAuthenticatedOwner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.store"); // 💡 Siapapun boleh buat asal diberi izin Owner
 
-        if (!isOwner(user)) {
-            throw new RuntimeException("Hanya Owner yang boleh membuat Warehouse");
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak diperbolehkan membuat gudang tanpa scope partner.");
         }
 
         if (warehousesRepository.existsByNameAndPartnersIdAndDeletedAtIsNull(
                 request.getName(),
-                user.getPartner().getId()
+                currentUser.getPartner().getId()
         )) {
-            throw new RuntimeException("Warehouse sudah terdaftar");
+            throw new RuntimeException("Warehouse dengan nama '" + request.getName() + "' sudah terdaftar.");
         }
 
         Warehouses w = new Warehouses();
         w.setName(request.getName());
         w.setAddress(request.getAddress());
-        w.setPartners(user.getPartner());
+        w.setPartners(currentUser.getPartner());
         w.setIsActive(true);
         w.setCreatedAt(LocalDateTime.now());
-        w.setCreatedBy(user);
+        w.setCreatedBy(currentUser);
 
         Warehouses saved = warehousesRepository.save(w);
 
-        // INIT STOCK BALANCE
-        List<Product> products = productRepository.findAllByPartner(user.getPartner());
+        // ⚙️ INITIALIZE STOCK BALANCE AVAL (+0 Qty untuk setiap produk tenant)
+        List<Product> products = productRepository.findAllByPartner(currentUser.getPartner());
 
         for (Product p : products) {
             StockBalance sb = new StockBalance();
@@ -227,8 +218,8 @@ public class WarehousesService {
             sb.setLocationId(saved.getId());
             sb.setQty(0L);
             sb.setCreatedAt(LocalDateTime.now());
-            sb.setCreatedBy(user);
-            sb.setUpdatedBy(user);
+            sb.setCreatedBy(currentUser);
+            sb.setUpdatedBy(currentUser);
 
             stockBalanceRepository.save(sb);
         }
@@ -236,17 +227,14 @@ public class WarehousesService {
         return mapToResponse(saved);
     }
 
-
+    // ─── UPDATE WAREHOUSE ─────────────────────────────────────────────────────
 
     @Transactional
     public WarehouseResponse update(Long id, WarehousesRequestDTO request) {
-        User user = getAuthenticatedOwner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.update");
 
-        if (!isOwner(user)) {
-            throw new RuntimeException("Hanya Owner yang boleh update Warehouse");
-        }
-
-        Warehouses w = getValidatedWarehouse(id, user);
+        Warehouses w = getValidatedWarehouse(id, currentUser);
 
         if (request.getName() != null && !request.getName().isBlank()) {
             w.setName(request.getName());
@@ -257,24 +245,22 @@ public class WarehousesService {
         }
 
         w.setUpdatedAt(LocalDateTime.now());
-        w.setUpdatedBy(user);
+        w.setUpdatedBy(currentUser);
 
         return mapToResponse(warehousesRepository.save(w));
     }
 
+    // ─── DELETE WAREHOUSE ─────────────────────────────────────────────────────
 
     @Transactional
     public void delete(Long id) {
-        User user = getAuthenticatedOwner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.delete");
 
-        if (!isOwner(user)) {
-            throw new RuntimeException("Hanya Owner yang boleh menghapus Warehouse");
-        }
-
-        Warehouses w = getValidatedWarehouse(id, user);
+        Warehouses w = getValidatedWarehouse(id, currentUser);
 
         w.setDeletedAt(LocalDateTime.now());
-        w.setDeletedBy(user);
+        w.setDeletedBy(currentUser);
 
         warehousesRepository.save(w);
     }

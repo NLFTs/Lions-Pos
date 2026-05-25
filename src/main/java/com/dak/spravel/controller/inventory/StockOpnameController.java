@@ -36,14 +36,17 @@ public class StockOpnameController {
     @PreAuthorize("hasAuthority('stock_opname.index')")
     public ResponseEntity<ResData<List<StockOpnameResponse>>> getAllForAdmin() {
         log.info("[GET] /api/v1/stock-opnames/admin - Superadmin access fetching all partner data");
-        return ResponseBuilder.ok(stockOpnameService.findAllOpName());
+        // Update di sini panggil findAll()
+        return ResponseBuilder.ok(stockOpnameService.findAll()); 
     }
 
-    @GetMapping
+    @GetMapping("/admin/page")
     @PreAuthorize("hasAuthority('stock_opname.index')")
-    public ResponseEntity<ResData<List<StockOpnameResponse>>> index() {
-        log.info("[GET] /api/v1/stock-opnames");
-        return ResponseBuilder.ok(stockOpnameService.findAll());
+    public ResponseEntity<ResData<Page<StockOpnameResponse>>> paginatedAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/stock-opnames/admin/page page={} size={}", page, size);
+        return ResponseBuilder.ok(stockOpnameService.findPageAdmin(page, size));
     }
 
     @GetMapping("/page")

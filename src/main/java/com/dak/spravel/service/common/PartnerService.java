@@ -14,6 +14,7 @@ import com.dak.spravel.repository.common.PartnerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,63 +36,47 @@ public class PartnerService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role ->
-                role.getSlug().equals("admin") ||
-                        role.getSlug().equals("super_admin")
-        );
-    }
-
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream().anyMatch(role -> role.getSlug().equals("employee-partners") ||
-                role.getSlug().equals("admin-partners")
-        );
-    }
-    private boolean isAdminPartner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin-partners"));
-    }
-
-    private boolean isEmployeeOnly(User user) {
-        return user.getRoles().stream()
-                .allMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners")
-                );
-    }
-
-    private Partners getValidatedPartner(Long id, User currentUser) {
-
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: hanya admin yang boleh akses Partner.");
+    // 🔥 KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Super Admin murni (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
 
-        return partnerRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
+    // ⛔ HAK AKSES DEWA: Proteksi ketat untuk fitur khusus Super Admin Master
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini hanya dapat dikelola oleh Super Admin Global.");
+        }
+    }
+
+    // ─── 🚀 MAIN CORE METHODS ───────────────────────────────────────────────────
 
     public List<PartnerResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh akses Partner Master.");
-        }
-
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: hanya admin yang boleh lihat semua Partner.");
-        }
+        // Hanya Super Admin Global yang boleh melihat list seluruh perusahaan di sistem
+        checkSuperAdminOnly(currentUser);
 
         return partnerRepository.findAll(Sort.by("name").ascending())
                 .stream()
@@ -100,91 +85,65 @@ public class PartnerService {
     }
 
     public Page<PartnerResponse> findAll(int page, int size) {
-
         User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh akses data paginated.");
-        }
-
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: hanya admin yang boleh akses data ini.");
-        }
-
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
-
-        return partnerRepository.findAll(pageRequest)
-                .map(this::mapToResponse);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        return partnerRepository.findAll(pageable).map(this::mapToResponse);
     }
 
     public PartnerResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "partner.show");
 
-        if (isAdminPartner(currentUser)) {
-            if (currentUser.getPartner() == null) {
-                throw new RuntimeException("User tidak terasosiasi dengan Partner.");
-            }
-            if (!currentUser.getPartner().getId().equals(id)) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Admin Partner hanya dapat melihat data mitranya sendiri."
-                );
-            }
-            return mapToResponse(
-                    partnerRepository.findById(id)
-                            .orElseThrow(() -> new ResourceNotFoundException("Partners", id))
-            );
+        // 🛡️ Multi-Tenant Guard: Partner biasa cuma boleh ngintip data perusahaannya sendiri!
+        if (currentUser.getPartner() != null && !currentUser.getPartner().getId().equals(id)) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin melihat data partner lain.");
         }
 
-        if (isEmployeeOnly(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh akses Partner.");
-        }
-
-        Partners partner = getValidatedPartner(id, currentUser);
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
         return mapToResponse(partner);
     }
-
 
     @Transactional
     public PartnerResponse create(CreatePartnerRequest request) {
         User currentUser = getAuthenticatedUser();
+        // Cuma Super Admin Global yang bisa melahirkan tenant/partner baru di Spravel
+        checkSuperAdminOnly(currentUser);
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh create Partner.");
-        }
-
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: hanya admin yang boleh create Partner.");
-        }
-
-        // Validasi admin user request wajib ada
         if (request.getAdmin() == null) {
-            throw new IllegalArgumentException("Data admin wajib diisi.");
+            throw new IllegalArgumentException("Data admin utama partner wajib diisi.");
         }
 
-        // Validasi duplikasi username
         if (userRepository.findByUsername(request.getAdmin().getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username '" + request.getAdmin().getUsername() + "' sudah digunakan.");
         }
 
-        // Simpan Partner
+        // 1. Simpan entitas Partner Baru
         Partners partner = new Partners();
         partner.setName(request.getName());
         partner.setPlan(request.getPlan());
         partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
         partner.setCreatedAt(LocalDateTime.now());
         partner.setCreatedBy(currentUser);
+        partner.setIsActive(true);
         Partners savedPartner = partnerRepository.save(partner);
 
-        // Ambil role admin-partners
-        Role adminPartnerRole = roleRepository.findBySlugAndPartnerId("admin-partners", null)
-                .orElseThrow(() -> new RuntimeException("Role 'admin-partners' tidak ditemukan di database. Pastikan seeder sudah berjalan."));
+        // 2. Ambil role global template 'admin-partners' (Buat dicopy ke user admin partner baru)
+        Role adminPartnerRole = roleRepository.findAll().stream()
+                .filter(r -> r.getSlug().equalsIgnoreCase("admin-partners") && r.getPartner() == null)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Role template 'admin-partners' global tidak ditemukan di database."));
 
-        // Buat Admin User untuk partner ini
+        // 3. Daftarkan akun User Admin Utama milik Partner tersebut
         User adminUser = new User();
         adminUser.setUsername(request.getAdmin().getUsername());
         adminUser.setEmail(request.getAdmin().getEmail());
+        adminUser.setFullname("Admin " + savedPartner.getName());
         adminUser.setPassword(passwordEncoder.encode(request.getAdmin().getPassword()));
         adminUser.setPartner(savedPartner);
+        
         Set<Role> roles = new HashSet<>();
         roles.add(adminPartnerRole);
         adminUser.setRoles(roles);
@@ -196,12 +155,15 @@ public class PartnerService {
     @Transactional
     public PartnerResponse update(Long id, UpdatePartnerRequest request) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "partner.update");
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh update Partner.");
+        // 🛡️ Multi-Tenant Guard: Mencegah Owner mengedit profil perusahaan milik kompetitor/partner lain
+        if (currentUser.getPartner() != null && !currentUser.getPartner().getId().equals(id)) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin mengubah data partner lain.");
         }
 
-        Partners partner = getValidatedPartner(id, currentUser);
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
 
         if (request.getName() != null) {
             partner.setName(request.getName());
@@ -209,10 +171,18 @@ public class PartnerService {
         }
 
         if (request.getPlan() != null) {
+            // Penggantian plan PRO/BASIC hanya hak milik Super Admin Global
+            if (currentUser.getPartner() != null && !partner.getPlan().equals(request.getPlan())) {
+                throw new RuntimeException("Akses Ditolak: Perubahan Paket Langganan hanya bisa diproses oleh Super Admin Global.");
+            }
             partner.setPlan(request.getPlan());
         }
 
         if (request.getIsActive() != null) {
+            // Pembekuan/Aktivasi tenant hanya hak milik Super Admin Global
+            if (currentUser.getPartner() != null) {
+                throw new RuntimeException("Akses Ditolak: Status aktifasi tenant hanya bisa diubah oleh Super Admin Global.");
+            }
             partner.setIsActive(request.getIsActive());
         }
 
@@ -225,15 +195,14 @@ public class PartnerService {
     @Transactional
     public PartnerResponse softDelete(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser); // Pembekuan total lewat softdelete wajib Super Admin
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh delete Partner.");
-        }
-
-        Partners partner = getValidatedPartner(id, currentUser);
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
 
         partner.setIsActive(false);
         partner.setDeletedBy(currentUser);
+        partner.setDeletedAt(LocalDateTime.now());
 
         return mapToResponse(partnerRepository.save(partner));
     }
@@ -241,15 +210,14 @@ public class PartnerService {
     @Transactional
     public PartnerResponse restore(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh restore Partner.");
-        }
-
-        Partners partner = getValidatedPartner(id, currentUser);
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
 
         partner.setIsActive(true);
         partner.setUpdatedBy(currentUser);
+        partner.setDeletedAt(null);
 
         return mapToResponse(partnerRepository.save(partner));
     }
@@ -257,15 +225,15 @@ public class PartnerService {
     @Transactional
     public void hardDelete(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: role ini tidak boleh hard delete Partner.");
-        }
-
-        Partners partner = getValidatedPartner(id, currentUser);
+        Partners partner = partnerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Partners", id));
 
         partnerRepository.delete(partner);
     }
+
+    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
     public PartnerResponse mapToResponse(Partners partner) {
         if (partner == null) return null;
