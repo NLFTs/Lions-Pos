@@ -63,32 +63,30 @@ public class OrdersService {
         private User getAuthenticatedSuperAdmin() {
             User user = getAuthenticatedUser();
             boolean isSuperAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin")
+                            || role.getSlug().equalsIgnoreCase("admin"));
             if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
             return user;
         }
 
-        private User getAuthenticatedAdminPartnerOrEmployee() {
+        private User getAuthenticatedAOwnerOrEmployee() {
             User user = getAuthenticatedUser();
 
-            // Super admin tidak boleh akses endpoint partner/employee
-            boolean isSuperAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin")
-                            || role.getSlug().equalsIgnoreCase("super_admin"));
-            if (isSuperAdmin) {
+            boolean isSuperAdminOnly = user.getRoles().stream()
+                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("super_admin")
+                            || role.getSlug().equalsIgnoreCase("admin"))
+                    && user.getPartner() == null;
+
+            if (isSuperAdminOnly) {
                 throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengakses endpoint ini. Gunakan akun partner.");
             }
 
-            // Slug yang valid: "owner" / "admin-partners" (lama) dan "employee" / "employee-partners" (lama)
-            boolean isOwnerOrEmployee = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner")
-                            || role.getSlug().equalsIgnoreCase("admin-partners")
-                            || role.getSlug().equalsIgnoreCase("employee")
-                            || role.getSlug().equalsIgnoreCase("employee-partners"));
-
-            if (!isOwnerOrEmployee || user.getPartner() == null) {
+            // User harus punya partner
+            if (user.getPartner() == null) {
                 throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
             }
+
+            
 
             return user;
         }
@@ -130,7 +128,7 @@ public class OrdersService {
     // Admin-partners → semua order di partner
     // Employee-partners → hanya order di cabangnya sendiri
     public List<OrdersResponse> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
 
         return ordersRepository.findAllWithDetails()
             .stream()
@@ -152,13 +150,13 @@ public class OrdersService {
     }
 
     public OrdersResponse findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
         return mapToResponse(getValidatedOrder(id, currentUser));
     }
 
     @Transactional
     public OrdersResponse create(OrdersRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -345,7 +343,7 @@ public class OrdersService {
 }
 
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
         
         if (isEmployee(currentUser)) {
             throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus data transaksi penjualan.");
@@ -358,7 +356,7 @@ public class OrdersService {
     // Cancel Order
     @Transactional
     public OrdersResponse cancelOrder(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
         Orders order = ordersRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
@@ -414,7 +412,7 @@ public class OrdersService {
     // Return Order
        @Transactional
     public ReturnResponse returnOrder(Long id, ReturnRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
         Orders order = ordersRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 
@@ -497,7 +495,7 @@ public class OrdersService {
 
     // Struk
         public OrdersResponse getReceipt(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedAOwnerOrEmployee();
         Orders order = ordersRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan"));
 

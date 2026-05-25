@@ -56,7 +56,7 @@ public class PaymentsService {
         return user;
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    private User getAuthenticatedOwnerEmployee() {
         User user = getAuthenticatedUser();
 
         boolean isSuperAdmin = user.getRoles().stream()
@@ -120,7 +120,7 @@ public class PaymentsService {
     }
 
     public List<PaymentResponse> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerEmployee();
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
@@ -133,7 +133,7 @@ public class PaymentsService {
     }
 
     public Page<PaymentResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerEmployee();
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner.");
         }
@@ -150,7 +150,7 @@ public class PaymentsService {
 
     @Transactional
     public PaymentResponse pay(PaymentsRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerEmployee();
 
         Orders orders = ordersRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new RuntimeException("Order not found"));
@@ -203,7 +203,7 @@ public class PaymentsService {
     }
 
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerEmployee();
         Payments payments = getValidatedPayment(id, currentUser);
         paymentsRepository.delete(payments);
     }

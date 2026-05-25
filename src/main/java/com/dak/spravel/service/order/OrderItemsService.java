@@ -52,10 +52,10 @@ public class OrderItemsService {
     // =========================
     // KHUSUS ADMIN PARTNER / EMPLOYEE
     // =========================
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    private User getAuthenticatedOwnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
                         role.getSlug().equalsIgnoreCase("employee-partners") ||
                         role.getSlug().equalsIgnoreCase("owner") ||
                         role.getSlug().equalsIgnoreCase("employee"));
@@ -98,7 +98,7 @@ public class OrderItemsService {
     // KHUSUS PARTNER / EMPLOYEE
     // =========================
     public List<OrderItems> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerOrEmployee();
 
         return orderItemsRepository.findAll()
                 .stream()
@@ -114,7 +114,7 @@ public class OrderItemsService {
     // FIND BY ID
     // =========================
     public OrderItems findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerOrEmployee();
         return getValidatedOrderItem(id, currentUser);
     }
 
@@ -122,7 +122,7 @@ public class OrderItemsService {
     // FIND BY PRODUCT NAME
     // =========================
     public OrderItems findByProductName(String productName) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerOrEmployee();
 
         OrderItems item = orderItemsRepository.findByProductName(productName)
                 .orElseThrow(() -> new RuntimeException("Order item not found"));
@@ -143,7 +143,7 @@ public class OrderItemsService {
     // CREATE
     // =========================
     public OrderItems create(OrderItemsRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerOrEmployee();
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
@@ -176,7 +176,7 @@ public class OrderItemsService {
     // DELETE
     // =========================
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerOrEmployee();
         OrderItems item = getValidatedOrderItem(id, currentUser);
         orderItemsRepository.delete(item);
     }
