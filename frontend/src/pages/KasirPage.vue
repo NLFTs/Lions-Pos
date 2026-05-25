@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -19,6 +19,7 @@ const products = ref([])
 const categories = ref([])
 const vouchers = ref([])
 const branches = ref([])
+const stockBalances = ref({}) // { productId: qty }
 const selectedBranchId = ref(null)
 const loading = ref(false)
 const processingCheckout = ref(false)
@@ -35,43 +36,73 @@ async function fetchData() {
   loading.value = true
   try {
     const [resP, resC, resB] = await Promise.all([
-      api.get('/api/v1/products'),
+      api.get('/api/v1/products?page=0&size=500'),  // muat semua produk untuk kasir
       api.get('/api/v1/categories'),
       api.get('/api/v1/branches')
     ])
 
-    // Product data normalization: ResData<Page>
-    const pData = resP.data.data
-    products.value = (Array.isArray(pData) ? pData : (pData?.content || [])).filter(p => p.is_active !== false)
+    // Product: ResData<Page> — ambil content dari page
+    const pData = resP.data?.data
+    const pArr = pData?.content ? pData.content : (Array.isArray(pData) ? pData : [])
+    products.value = pArr.filter(p => p.is_active !== false)
 
-    categories.value = resC.data?.data || []
+    // Categories: ResData<List>
+    const cData = resC.data?.data
+    categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
     // Branches: ResData<List>
-    const bData = resB.data?.data || []
-    branches.value = Array.isArray(bData) ? bData : (bData.content || [])
+    const bData = resB.data?.data
+    branches.value = Array.isArray(bData) ? bData : (bData?.content || [])
     if (branches.value.length > 0) {
       selectedBranchId.value = branches.value[0].id
+      await fetchStockBalances(branches.value[0].id)
     }
   } catch (err) {
+    console.error('[POS] fetchData error:', err.response?.data || err.message)
     toast.error('Gagal memuat data POS')
   } finally {
     loading.value = false
   }
 
-  // Voucher dimuat terpisah — admin tidak bisa akses, tapi kasir tetap bisa jalan
+  // Voucher dimuat terpisah — tidak semua role bisa akses, tapi kasir tetap bisa jalan
   try {
     const resV = await api.get('/api/v1/vouchers')
     vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
   } catch {
-    vouchers.value = [] // admin tidak bisa akses voucher, abaikan
+    vouchers.value = []
   }
 }
 
 onMounted(fetchData)
 
+// Reload stok saat branch berubah
+watch(selectedBranchId, (newId) => {
+  if (newId) fetchStockBalances(newId)
+})
+
+async function fetchStockBalances(branchId) {
+  try {
+    const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
+    const list = res.data?.data || []
+    const map = {}
+    list.forEach(sb => {
+      if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
+    })
+    stockBalances.value = map
+  } catch {
+    stockBalances.value = {}
+  }
+}
+
+function getStock(productId) {
+  return stockBalances.value[productId] ?? null
+}
+
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const uniqueCategories = computed(() => {
-  return ['Semua', ...categories.value.map(c => c.name).sort()]
+  // CategoryProductResponse: field 'name' ada langsung
+  const names = categories.value.map(c => c.name).filter(Boolean).sort()
+  return ['Semua', ...new Set(names)]
 })
 
 const filteredProducts = computed(() => {
@@ -81,14 +112,28 @@ const filteredProducts = computed(() => {
     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
   }
   if (activeCategory.value !== 'Semua') {
-    result = result.filter(p => (p.categoryName || p.category?.name || 'Lainnya') === activeCategory.value)
+    // ProductResponse: category_id.name (snake_case dari @JsonProperty)
+    result = result.filter(p => {
+      const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
+      return catName === activeCategory.value
+    })
   }
   return result
 })
 
 // ─── Cart Logic ──────────────────────────────────────────────────────────────
 function addToCart(product) {
+  const stock = getStock(product.id)
+  // Hitung total qty produk ini yang sudah ada di cart
   const existing = cart.value.find(item => item.id === product.id)
+  const currentQty = existing ? existing.qty : 0
+
+  // Validasi stok jika data stok tersedia
+  if (stock !== null && currentQty >= stock) {
+    toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
+
   if (existing) {
     existing.qty++
   } else {
@@ -101,7 +146,14 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-function increaseQty(item) { item.qty++ }
+function increaseQty(item) {
+  const stock = getStock(item.id)
+  if (stock !== null && item.qty >= stock) {
+    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
+  item.qty++
+}
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
@@ -180,6 +232,34 @@ function printReceipt() {
   window.print()
 }
 
+function copyOrderSummary() {
+  if (!lastOrder.value) return
+  const o = lastOrder.value
+  const pay = o.payments?.[0]
+  const items = (o.items || []).map(i => `  - ${i.productName || 'Produk'} x${i.qty} = ${formatCurrency(i.subtotal)}`).join('\n')
+  const text = [
+    `📋 Catatan Transaksi`,
+    `No. Order : ${o.orderNumber}`,
+    `Cabang    : ${o.branchName || '-'}`,
+    `Kasir     : ${o.cashierName || '-'}`,
+    ``,
+    `Item:`,
+    items || '  -',
+    ``,
+    `Subtotal  : ${formatCurrency(o.subtotal)}`,
+    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,
+    `Total     : ${formatCurrency(o.total)}`,
+    `Metode    : ${pay?.method === 'CASH' ? 'Tunai' : 'Transfer Bank'}`,
+    pay?.method === 'CASH' ? `Kembalian : ${formatCurrency(pay.changeDue)}` : `Status    : Menunggu Konfirmasi`,
+  ].filter(Boolean).join('\n')
+
+  navigator.clipboard.writeText(text).then(() => {
+    toast.success('Catatan berhasil disalin!')
+  }).catch(() => {
+    toast.error('Gagal menyalin catatan.')
+  })
+}
+
 async function checkout() {
   if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
     toast.error('Uang yang diberikan kurang!')
@@ -188,6 +268,19 @@ async function checkout() {
   if (payMethod.value === 'transfer' && !referenceNo.value) { 
     toast.error('Nomor referensi wajib diisi!')
     return 
+  }
+
+  // Validasi stok sebelum checkout
+  for (const item of cart.value) {
+    const stock = getStock(item.id)
+    if (stock !== null && item.qty > stock) {
+      toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
+      return
+    }
+    if (stock !== null && stock <= 0) {
+      toast.error(`Stok ${item.name} sudah habis.`)
+      return
+    }
   }
 
   processingCheckout.value = true
@@ -226,6 +319,8 @@ async function checkout() {
     voucherCode.value = ''
     showPayment.value = false
     showReceipt.value = true
+    // Refresh stok setelah transaksi
+    if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
     toast.error(err.response?.data?.message || err.response?.data?.data?.message || 'Gagal memproses transaksi.')
@@ -313,9 +408,14 @@ function avatarStyle(name = '') {
           </div>
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
             <div v-for="p in filteredProducts" :key="p.id"
-              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden cursor-pointer transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
-              :class="{ 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }"
-              @click="addToCart(p)">
+              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
+              :class="[
+                getStock(p.id) !== null && getStock(p.id) <= 0
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'cursor-pointer',
+                { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
+              ]"
+              @click="getStock(p.id) !== null && getStock(p.id) <= 0 ? null : addToCart(p)">
               
               <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
                 {{ getCartQty(p.id) }}
@@ -331,7 +431,16 @@ function avatarStyle(name = '') {
                   <span class="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{{ p.sku || 'N/A' }}</span>
                 </div>
                 <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ p.name }}</h4>
-                <div class="mt-auto pt-1 text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.base_price || p.basePrice || p.price) }}</div>
+                <div class="mt-auto pt-1 flex items-end justify-between">
+                  <span class="text-[15px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(p.base_price || p.basePrice || p.price) }}</span>
+                  <span :class="['text-[10px] font-bold px-1.5 py-0.5 rounded-md',
+                    getStock(p.id) === null ? 'text-zinc-400' :
+                    getStock(p.id) <= 0 ? 'bg-red-50 text-red-500 dark:bg-red-900/20' :
+                    getStock(p.id) <= 5 ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20' :
+                    'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20']">
+                    {{ getStock(p.id) === null ? '' : getStock(p.id) <= 0 ? 'Habis' : `Stok: ${getStock(p.id)}` }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -506,8 +615,14 @@ function avatarStyle(name = '') {
       <Transition name="fade"><div v-if="showReceipt" class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" @click="closeReceipt" /></Transition>
       <Transition name="scale">
         <div v-if="showReceipt && lastOrder" class="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
-          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col relative">
             <div class="flex flex-col items-center px-6 pt-8 pb-5 border-b border-dashed border-zinc-200 dark:border-zinc-700">
+              <!-- Tombol X di pojok kanan -->
+              <div class="absolute top-4 right-4">
+                <button @click="closeReceipt" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors">
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
               <div class="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
                 <Check class="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
               </div>
@@ -540,8 +655,8 @@ function avatarStyle(name = '') {
               <button @click="printReceipt" class="w-full h-11 font-bold rounded-[14px] border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
-              <Button class="w-full h-11 font-bold rounded-[14px] gap-2" @click="closeReceipt">
-                <ReceiptText class="h-4 w-4" /> Transaksi Baru
+              <Button class="w-full h-11 font-bold rounded-[14px] gap-2" @click="copyOrderSummary">
+                <ReceiptText class="h-4 w-4" /> Salin Catatan Riwayat
               </Button>
             </div>
           </div>

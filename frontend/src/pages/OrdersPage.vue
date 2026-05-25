@@ -22,12 +22,12 @@ const { confirm } = useConfirm()
 const auth = useAuthStore()
 const { isAdmin } = storeToRefs(auth)
 
-// Cek apakah user adalah admin-partners (owner/manager) — bisa konfirmasi transfer
-const isAdminPartner = computed(() => {
+        // Cek apakah user adalah owner (bisa konfirmasi transfer)
+const isOwner = computed(() => {
   const roles = auth.user?.roles || []
   return isAdmin.value || roles.some(r => {
     const slug = typeof r === 'string' ? r : (r.slug || r.name || '')
-    return slug.toLowerCase() === 'admin-partners'
+    return slug.toLowerCase() === 'owner'
   })
 })
 
@@ -80,7 +80,8 @@ const filteredOrders = computed(() => {
     result = result.filter(o =>
       o.orderNumber.toLowerCase().includes(q) ||
       (o.createdBy?.username && o.createdBy.username.toLowerCase().includes(q)) ||
-      (o.branch?.name && o.branch.name.toLowerCase().includes(q))
+      (o.cashierName && o.cashierName.toLowerCase().includes(q)) ||
+      ((o.branchName || o.branch?.name || '').toLowerCase().includes(q))
     )
   }
   return result
@@ -158,43 +159,63 @@ function formatDate(dt) {
   return new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 function statusColor(s, payments) {
-  // Jika ada payment transfer yang masih pending, tampilkan sebagai "menunggu"
+  const st = String(s).toLowerCase()
+  // Canceled selalu merah, tidak peduli payment
+  if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50'
+  if (st === 'return') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50'
+  // Jika ada payment transfer yang masih pending
   if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
     return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
   }
-  const st = String(s).toLowerCase()
   if (st === 'paid') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50'
   if (st === 'draft') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
-  if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50'
-  if (st === 'return') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50'
   return 'bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400'
 }
 function statusLabel(s, payments) {
+  const st = String(s).toLowerCase()
+  // Canceled selalu "Dibatalkan", tidak peduli payment
+  if (st === 'cancelled' || st === 'canceled') return 'Dibatalkan'
+  if (st === 'return') return 'Retur'
   // Jika ada payment transfer yang masih pending
   if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
     return 'Menunggu Konfirmasi'
   }
-  const st = String(s).toLowerCase()
   if (st === 'paid') return 'Lunas'
   if (st === 'draft') return 'Menunggu Pembayaran'
-  if (st === 'cancelled' || st === 'canceled') return 'Dibatalkan'
-  if (st === 'return') return 'Retur'
   return s
 }
 
-function paymentStatusColor(status) {
-  const st = String(status).toUpperCase()
-  if (st === 'VERIFIED') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400'
-  if (st === 'PENDING') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400'
-  if (st === 'FAILED') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
-  return 'bg-zinc-100 text-zinc-600 border-zinc-200'
+function statusDotClass(s, payments) {
+  const st = String(s || '').toLowerCase()
+  if (st === 'cancelled' || st === 'canceled') return 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+  if (st === 'return') return 'bg-violet-500 shadow-[0_0_8px_#8b5cf6]'
+  if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
+    return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+  }
+  if (st === 'paid') return 'bg-emerald-500 shadow-[0_0_8px_#10b981]'
+  if (st === 'draft') return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
+  return 'bg-zinc-400 shadow-[0_0_8px_#a1a1aa]'
 }
-function paymentStatusLabel(status) {
+
+function paymentStatusLabel(status, orderStatus) {
+  // Jika order dibatalkan, payment juga dianggap batal
+  const os = String(orderStatus || '').toUpperCase()
+  if (os === 'CANCELED' || os === 'CANCELLED') return 'Dibatalkan'
   const st = String(status).toUpperCase()
   if (st === 'VERIFIED') return 'Terverifikasi'
   if (st === 'PENDING') return 'Menunggu Konfirmasi'
   if (st === 'FAILED') return 'Gagal'
   return status
+}
+
+function paymentStatusColor(status, orderStatus) {
+  const os = String(orderStatus || '').toUpperCase()
+  if (os === 'CANCELED' || os === 'CANCELLED') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
+  const st = String(status).toUpperCase()
+  if (st === 'VERIFIED') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400'
+  if (st === 'PENDING') return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400'
+  if (st === 'FAILED') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
+  return 'bg-zinc-100 text-zinc-600 border-zinc-200'
 }
 
 const pendingTransferPayment = computed(() => {
@@ -248,11 +269,13 @@ onMounted(fetchOrders)
               <div v-for="o in paginatedOrders" :key="o.id" class="p-4 flex flex-col gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer" @click="openDetail(o)">
                 <div class="flex items-center justify-between">
                   <span class="font-mono text-xs font-semibold text-zinc-700 dark:text-zinc-300">{{ o.orderNumber }}</span>
-                  <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
-                </div>
+                  <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <span :class="['w-1.5 h-1.5 rounded-full animate-pulse shrink-0', statusDotClass(o.status, o.payments)]"></span>
+                    <span>{{ statusLabel(o.status, o.payments) }}</span>
+                  </div>                </div>
                 <div class="flex justify-between items-end">
                   <div>
-                    <p class="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">{{ o.branch?.name || '-' }}</p>
+                    <p class="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">{{ o.branchName || o.branch?.name || '-' }}</p>
                     <p class="text-sm font-bold">{{ formatCurrency(o.total) }}</p>
                   </div>
                   <span class="text-[10px] text-muted-foreground">{{ formatDate(o.createdAt) }}</span>
@@ -278,12 +301,15 @@ onMounted(fetchOrders)
                   <tr v-for="o in paginatedOrders" :key="o.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
                     <td class="pl-5 py-3 font-mono text-xs font-bold text-primary">{{ o.orderNumber }}</td>
                     <td class="py-3 text-xs text-muted-foreground">{{ formatDate(o.createdAt) }}</td>
-                    <td class="py-3 text-xs font-medium">{{ o.branch?.name || '-' }}</td>
+                    <td class="py-3 text-xs font-medium">{{ o.branchName || o.branch?.name || '-' }}</td>
                     <td class="py-3 text-xs">{{ formatCurrency(o.subtotal) }}</td>
                     <td class="py-3 text-xs text-red-500">{{ o.discountAmount > 0 ? '-' + formatCurrency(o.discountAmount) : '-' }}</td>
                     <td class="py-3 text-sm font-black">{{ formatCurrency(o.total) }}</td>
                     <td class="py-3 text-center">
-                      <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(o.status, o.payments)]" variant="outline">{{ statusLabel(o.status, o.payments) }}</Badge>
+                      <div class="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        <span :class="['w-2 h-2 rounded-full animate-pulse shrink-0', statusDotClass(o.status, o.payments)]"></span>
+                        <span>{{ statusLabel(o.status, o.payments) }}</span>
+                      </div>
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-900" @click="openDetail(o)"><Eye class="h-4 w-4" /></Button>
@@ -313,20 +339,21 @@ onMounted(fetchOrders)
           
           <div v-if="detailDrawer.order" class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             <div class="flex items-center justify-between">
-              <Badge :class="['text-[10px] uppercase tracking-widest px-3 py-1 font-bold', statusColor(detailDrawer.order.status, detailDrawer.order.payments)]" variant="outline">
-                {{ statusLabel(detailDrawer.order.status, detailDrawer.order.payments) }}
-              </Badge>
+              <div class="inline-flex items-center gap-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                <span :class="['w-2.5 h-2.5 rounded-full animate-pulse shrink-0', statusDotClass(detailDrawer.order.status, detailDrawer.order.payments)]"></span>
+                <span>{{ statusLabel(detailDrawer.order.status, detailDrawer.order.payments) }}</span>
+              </div>
               <span class="text-xs text-muted-foreground">{{ formatDate(detailDrawer.order.createdAt) }}</span>
             </div>
 
             <div class="grid grid-cols-2 gap-4">
               <div class="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
                 <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Kasir / User</p>
-                <p class="text-sm font-semibold">{{ detailDrawer.order.createdBy?.username || '-' }}</p>
+                <p class="text-sm font-semibold">{{ detailDrawer.order.cashierName || detailDrawer.order.createdBy?.username || '-' }}</p>
               </div>
               <div class="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
                 <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Lokasi Cabang</p>
-                <p class="text-sm font-semibold">{{ detailDrawer.order.branch?.name || '-' }}</p>
+                <p class="text-sm font-semibold">{{ detailDrawer.order.branchName || detailDrawer.order.branch?.name || '-' }}</p>
               </div>
             </div>
 
@@ -336,7 +363,7 @@ onMounted(fetchOrders)
               <div class="space-y-2">
                 <div v-for="(item, idx) in detailDrawer.order.items" :key="idx" class="flex justify-between items-center p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
                   <div>
-                    <p class="text-sm font-bold">{{ item.product?.name || 'Produk' }}</p>
+                    <p class="text-sm font-bold">{{ item.productName || item.product?.name || 'Produk' }}</p>
                     <p class="text-[11px] text-muted-foreground">{{ item.qty }} x {{ formatCurrency(item.unitPrice) }}</p>
                   </div>
                   <span class="text-sm font-black">{{ formatCurrency(item.subtotal) }}</span>
@@ -366,8 +393,8 @@ onMounted(fetchOrders)
                     <p class="text-[11px] text-muted-foreground">{{ formatCurrency(pay.amount) }}</p>
                   </div>
                 </div>
-                <Badge :class="['text-[9px] font-bold uppercase tracking-wider px-2 py-0.5', paymentStatusColor(pay.status)]" variant="outline">
-                  {{ paymentStatusLabel(pay.status) }}
+                <Badge :class="['text-[9px] font-bold uppercase tracking-wider px-2 py-0.5', paymentStatusColor(pay.status, detailDrawer.order.status)]" variant="outline">
+                  {{ paymentStatusLabel(pay.status, detailDrawer.order.status) }}
                 </Badge>              </div>
             </div>
 
@@ -385,8 +412,8 @@ onMounted(fetchOrders)
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
 
-              <!-- Konfirmasi Transfer — hanya admin-partners (owner/manager) -->
-              <button v-if="pendingTransferPayment && isAdminPartner"
+              <!-- Konfirmasi Transfer — hanya owner -->
+              <button v-if="pendingTransferPayment && isOwner"
                 :disabled="actionLoading"
                 @click="verifyTransfer(pendingTransferPayment.id)"
                 class="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 text-sm font-bold transition-colors disabled:opacity-50">

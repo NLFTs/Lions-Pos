@@ -67,7 +67,7 @@ export const routes = [
     component: () => import('@/pages/StockMutationsPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: 'stock-mutation.index',
+      permission: 'stock_mutation.index',
       pageTitle: 'Mutasi Stok',
       pageSubtitle: 'Pantau riwayat pergerakan stok barang.',
     },

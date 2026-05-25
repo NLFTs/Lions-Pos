@@ -553,7 +553,7 @@ onMounted(fetchData)
             <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
               <div class="flex gap-2">
                 <Button 
-                  v-if="selectedTR.status === 'pending' && can('transfer-request.update')"
+                  v-if="selectedTR.status === 'pending' && can('transfer_request.update')"
                   class="flex-1 bg-primary"
                   :disabled="updatingStatus"
                   @click="updateTRStatus(selectedTR.id, 'approved')"
@@ -563,7 +563,7 @@ onMounted(fetchData)
                   Setujui Transfer
                 </Button>
                 <Button 
-                  v-if="selectedTR.status === 'approved' && can('transfer-request.update')"
+                  v-if="selectedTR.status === 'approved' && can('transfer_request.update')"
                   class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                   :disabled="updatingStatus"
                   @click="updateTRStatus(selectedTR.id, 'received')"
