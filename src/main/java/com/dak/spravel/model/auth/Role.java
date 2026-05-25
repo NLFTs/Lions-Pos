@@ -37,6 +37,14 @@ public class Role {
     @Column
     private String description;
 
+    @Column
+    @Enumerated(EnumType.STRING)
+    private Type type;
+
+    public enum Type {
+        INTERNAL, EXTERNAL
+    }
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "role_permissions",

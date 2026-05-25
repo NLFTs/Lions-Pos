@@ -78,9 +78,11 @@ public class UserService {
         });
     }
 
-    private boolean isAdminPartner(User user) {
+    private boolean isOwner(User user) {
         return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin-partners"));
+                .anyMatch(role -> role.getSlug().equals("owner") ||
+                        role.getSlug().equals("admin-partners")
+                );
     }
 
     private boolean isEmployeeOnly(User user) {
@@ -104,7 +106,7 @@ public class UserService {
         }
 
         // Admin partner hanya lihat user partnernya sendiri
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
+        if (isOwner(currentUser) && currentUser.getPartner() != null) {
             return userRepository.findByPartnerId(currentUser.getPartner().getId())
                     .stream().map(this::toResponse).toList();
         }
@@ -130,7 +132,7 @@ public class UserService {
             return userRepository.findAll(pageable).map(this::toResponse);
         }
 
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
+        if (isOwner(currentUser) && currentUser.getPartner() != null) {
             return userRepository.findByPartnerId(currentUser.getPartner().getId(), pageable)
                     .map(this::toResponse);
         }
@@ -156,7 +158,7 @@ public class UserService {
         }
 
         // Admin partner hanya bisa lihat user partnernya sendiri
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
+        if (isOwner(currentUser) && currentUser.getPartner() != null) {
             if (user.getPartner() == null ||
                     !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
@@ -206,7 +208,7 @@ public class UserService {
         // ==========================================
         // SKENARIO 1: JIKA YANG LOGIN ADMIN PARTNER
         // ==========================================
-        if (isAdminPartner(currentUser)) {
+        if (isOwner(currentUser)) {
             if (currentUser.getPartner() == null) {
                 throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
             }
@@ -292,7 +294,7 @@ public class UserService {
             }
         }
         // Admin partner hanya bisa update user partnernya sendiri
-        if (isAdminPartner(currentUser)) {
+        if (isAdmin(currentUser)) {
             if (user.getPartner() == null ||
                     !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
@@ -362,7 +364,7 @@ public class UserService {
         }
 
         // Admin partner hanya bisa delete user partnernya sendiri
-        if (isAdminPartner(currentUser)) {
+        if (isOwner(currentUser)) {
             if (user.getPartner() == null ||
                     !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");

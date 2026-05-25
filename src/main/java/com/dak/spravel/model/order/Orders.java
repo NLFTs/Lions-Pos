@@ -47,27 +47,6 @@ public class Orders  {
     @Column(nullable = false)
     private String orderNumber;
 
-    // // Repository untuk status order bisa dibuat terpisah, tapi untuk sementara kita buat enum saja
-    // long countByOrderNumberStartingWith(String prefix);
-
-    // Services untuk generate order number bisa dibuat di service, tapi untuk sementara kita buat method di entity saja
-    // private String generateOrderNumber() {
-    // String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-    // String prefix = "ORD-" + date + "-";
-    
-    // long count = orderRepository.countByOrderNumberStartingWith(prefix);
-    // String sequence = String.format("%04d", count + 1);
-    
-    // return prefix + sequence;
-    // // Hasil: ORD-20260429-0001
-    // }
-
-    // public Order createOrder(OrderRequest request) {
-    //     Order order = new Order();
-    //     order.setOrderNumber(generateOrderNumber());
-    //     // set field lainnya...
-    //     return orderRepository.save(order);
-    // }
     @Enumerated (EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status;
