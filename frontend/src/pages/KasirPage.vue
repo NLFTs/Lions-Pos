@@ -36,36 +36,40 @@ async function fetchData() {
   loading.value = true
   try {
     const [resP, resC, resB] = await Promise.all([
-      api.get('/api/v1/products'),
+      api.get('/api/v1/products?page=0&size=500'),  // muat semua produk untuk kasir
       api.get('/api/v1/categories'),
       api.get('/api/v1/branches')
     ])
 
-    // Product data normalization: ResData<Page>
-    const pData = resP.data.data
-    products.value = (Array.isArray(pData) ? pData : (pData?.content || [])).filter(p => p.is_active !== false)
+    // Product: ResData<Page> — ambil content dari page
+    const pData = resP.data?.data
+    const pArr = pData?.content ? pData.content : (Array.isArray(pData) ? pData : [])
+    products.value = pArr.filter(p => p.is_active !== false)
 
-    categories.value = resC.data?.data || []
+    // Categories: ResData<List>
+    const cData = resC.data?.data
+    categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
     // Branches: ResData<List>
-    const bData = resB.data?.data || []
-    branches.value = Array.isArray(bData) ? bData : (bData.content || [])
+    const bData = resB.data?.data
+    branches.value = Array.isArray(bData) ? bData : (bData?.content || [])
     if (branches.value.length > 0) {
       selectedBranchId.value = branches.value[0].id
       await fetchStockBalances(branches.value[0].id)
     }
   } catch (err) {
+    console.error('[POS] fetchData error:', err.response?.data || err.message)
     toast.error('Gagal memuat data POS')
   } finally {
     loading.value = false
   }
 
-  // Voucher dimuat terpisah — admin tidak bisa akses, tapi kasir tetap bisa jalan
+  // Voucher dimuat terpisah — tidak semua role bisa akses, tapi kasir tetap bisa jalan
   try {
     const resV = await api.get('/api/v1/vouchers')
     vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
   } catch {
-    vouchers.value = [] // admin tidak bisa akses voucher, abaikan
+    vouchers.value = []
   }
 }
 
@@ -96,7 +100,9 @@ function getStock(productId) {
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const uniqueCategories = computed(() => {
-  return ['Semua', ...categories.value.map(c => c.name).sort()]
+  // CategoryProductResponse: field 'name' ada langsung
+  const names = categories.value.map(c => c.name).filter(Boolean).sort()
+  return ['Semua', ...new Set(names)]
 })
 
 const filteredProducts = computed(() => {
@@ -106,7 +112,11 @@ const filteredProducts = computed(() => {
     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
   }
   if (activeCategory.value !== 'Semua') {
-    result = result.filter(p => (p.categoryName || p.category?.name || 'Lainnya') === activeCategory.value)
+    // ProductResponse: category_id.name (snake_case dari @JsonProperty)
+    result = result.filter(p => {
+      const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
+      return catName === activeCategory.value
+    })
   }
   return result
 })

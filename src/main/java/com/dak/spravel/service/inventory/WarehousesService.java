@@ -58,7 +58,9 @@ public class WarehousesService {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
                 .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("owner") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
                 .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
@@ -67,7 +69,6 @@ public class WarehousesService {
         return user;
     }
 
-    // TAMBAH di bawahnya
     private boolean isEmployee(User user) {
         return user.getRoles().stream()
                 .anyMatch(role ->

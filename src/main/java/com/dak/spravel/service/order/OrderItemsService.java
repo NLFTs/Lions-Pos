@@ -65,8 +65,15 @@ public class OrderItemsService {
     // =========================
     private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
-        if (!isOwner(user)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengelola item pesanan.");
+        boolean isAuthorized = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                        role.getSlug().equalsIgnoreCase("owner") ||
+                        role.getSlug().equalsIgnoreCase("employee"));
+        boolean isNotSuperAdmin = user.getRoles().stream()
+                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isAuthorized || !isNotSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
         }
         return user;
     }

@@ -30,6 +30,8 @@ public class StockMutationService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
+    // --- STANDARDIZED AUTH HELPERS ---
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -42,40 +44,27 @@ public class StockMutationService {
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses Ditolak: Anda Bukan Super Admin");
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
         return user;
     }
 
-    // 🛠️ HELPER TAMBAHAN: Validasi agar Admin Partner dan Employee murni bisa lolos barengan
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    private User getAuthenticatedOwner() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner"));
+
+        boolean isStaff = !user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
+
+        if (!isAuthorized || !isStaff) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan.");
         }
         return user;
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-    }
+    // --- MAP TO RESPONSE ---
 
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners"));
-    }
-
-    // 🔥 MAP TO RESPONSE (Sudah fix Type Mismatch Enum & Aman dari NullPointer)
     public StockMutationResponse mapToResponse(StockMutation stockMutation) {
         if (stockMutation == null) return null;
 
@@ -85,20 +74,15 @@ public class StockMutationService {
         response.setNotes(stockMutation.getNotes());
         response.setReferenceId(stockMutation.getReferenceId());
 
-        // Amankan convert Enum ke String memakai .name()
         if (stockMutation.getType() != null) response.setType(stockMutation.getType().name());
         if (stockMutation.getReferenceType() != null)
             response.setReferenceType(stockMutation.getReferenceType().name());
 
-        // fromLocationType berbentuk String di Entity
         response.setFromLocationId(stockMutation.getFromLocationId());
-
         if (stockMutation.getFromLocationType() != null) {
-            response.setFromLocationType(
-                    stockMutation.getFromLocationType().name());
+            response.setFromLocationType(stockMutation.getFromLocationType().name());
         }
 
-        // toLocationType berbentuk Enum Location di Entity, convert ke String DTO
         response.setToLocationId(stockMutation.getToLocationId());
         if (stockMutation.getToLocationType() != null) {
             response.setToLocationType(stockMutation.getToLocationType().name());
@@ -107,7 +91,10 @@ public class StockMutationService {
         return response;
     }
 
-    // GET ALL FOR SUPER ADMIN
+    // --- MAIN METHODS ---
+
+    // KHUSUS SUPER ADMIN
+
     public List<StockMutationResponse> findAllStockMutation() {
         getAuthenticatedSuperAdmin();
         return stockMutationRepository.findAll().stream()
@@ -115,118 +102,42 @@ public class StockMutationService {
                 .toList();
     }
 
-    // 🔄 GET ALL BY PARTNER (Bisa diakses Employee, otomatis terfilter milik Partner-nya)
+    // KHUSUS OWNER
+
     public List<StockMutationResponse> findAll() {
-        User currentUser = getAuthenticatedUser();
-
-        List<StockMutation> mutations =
-                stockMutationRepository.findByPartner(currentUser.getPartner());
-
-        // SUPER ADMIN / ADMIN
-        if (isAdmin(currentUser)) {
-            return mutations.stream()
-                    .map(this::mapToResponse)
-                    .toList();
-        }
-
-        // EMPLOYEE
-        if (isEmployee(currentUser)) {
-
-            if (currentUser.getBranch() == null) {
-                throw new RuntimeException("Employee tidak memiliki branch.");
-            }
-
-            Long branchId = currentUser.getBranch().getId();
-
-            mutations = mutations.stream()
-                    .filter(m ->
-                            ("BRANCH".equalsIgnoreCase(
-                                    m.getToLocationType() != null
-                                            ? m.getToLocationType().name()
-                                            : null)
-                                    && branchId.equals(m.getToLocationId()))
-                                    ||
-                                    ("BRANCH".equalsIgnoreCase(
-                                            m.getFromLocationType() != null
-                                                    ? m.getFromLocationType().name()
-                                                    : null)
-                                            && branchId.equals(m.getFromLocationId()))
-                    )
-                    .toList();
-        }
-
-        return mutations.stream()
+        User currentUser = getAuthenticatedOwner();
+        return stockMutationRepository.findByPartner(currentUser.getPartner()).stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    // 🔄 GET ALL PAGINATED
     public Page<StockMutationResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
+        User currentUser = getAuthenticatedOwner();
 
-        if (isAdmin(currentUser)) {
-            return stockMutationRepository.findAll(pageRequest).map(this::mapToResponse);
-        }
-
-        // Jalur operasional Admin Partner & Employee
-        User activeUser = getAuthenticatedAdminPartnerOrEmployee();
-        if (activeUser.getPartner() == null) {
+        if (currentUser.getPartner() == null) {
             throw new RuntimeException("User tidak terasosiasi dengan Partner.");
         }
 
-        return stockMutationRepository.findByPartnerId(activeUser.getPartner().getId(), pageRequest)
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("id").descending());
+        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), pageRequest)
                 .map(this::mapToResponse);
     }
 
-    // 🔄 GET BY ID
     public StockMutationResponse findById(Long id) {
-        User currentUser = getAuthenticatedUser();
+        User currentUser = getAuthenticatedOwner();
         StockMutation mutation = stockMutationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
 
-        if (!isAdmin(currentUser)) {
-
-            if (currentUser.getPartner() == null ||
-                    !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Stock mutation bukan milik partner Anda.");
-            }
-
-            // VALIDASI KHUSUS EMPLOYEE
-            if (isEmployee(currentUser)) {
-
-                if (currentUser.getBranch() == null) {
-                    throw new RuntimeException("Employee tidak memiliki branch.");
-                }
-
-                Long branchId = currentUser.getBranch().getId();
-
-                boolean hasAccess =
-                        ("BRANCH".equalsIgnoreCase(
-                                mutation.getToLocationType() != null
-                                        ? mutation.getToLocationType().name()
-                                        : null)
-                                && branchId.equals(mutation.getToLocationId()))
-                                ||
-                                ("BRANCH".equalsIgnoreCase(
-                                        mutation.getFromLocationType() != null
-                                                ? mutation.getFromLocationType().name()
-                                                : null)
-                                        && branchId.equals(mutation.getFromLocationId()));
-
-                if (!hasAccess) {
-                    throw new RuntimeException(
-                            "Akses Ditolak: Mutasi ini bukan branch Anda.");
-                }
-            }
+        if (currentUser.getPartner() == null ||
+                !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
         }
+
         return mapToResponse(mutation);
     }
 
-    // 🔄 GET BY PRODUCT
     public List<StockMutationResponse> findByProductId(Long productId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwner();
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
@@ -241,9 +152,8 @@ public class StockMutationService {
                 .toList();
     }
 
-    // 🔄 GET BY PARTNER ID
     public List<StockMutationResponse> findByPartnerId(Long partnerId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwner();
 
         if (currentUser.getPartner() == null ||
                 !currentUser.getPartner().getId().equals(partnerId)) {
@@ -255,33 +165,27 @@ public class StockMutationService {
                 .toList();
     }
 
-    // ⚙️ RECORD MUTATION (Biarkan berjalan internal, tidak diblokir untuk employee karena dipicu oleh system flow)
     @Transactional
-    public void recordMutation(Product product, Partners partner, String type, 
-                              String fromType, Long fromId, 
-                              String toType, Long toId, 
-                              Long qty, String refType, Long refId, 
-                              String notes, User user) {
+    public void recordMutation(Product product, Partners partner, String type,
+                               String fromType, Long fromId,
+                               String toType, Long toId,
+                               Long qty, String refType, Long refId,
+                               String notes, User user) {
         StockMutation mutation = new StockMutation();
         mutation.setProduct(product);
         mutation.setPartner(partner);
-        
         mutation.setType(StockMutation.Type.valueOf(type.toUpperCase()));
-        
         mutation.setFromLocationType(fromType != null ? StockMutation.Location.valueOf(fromType.toUpperCase()) : null);
         mutation.setFromLocationId(fromId);
-        
         if (toType != null) {
             mutation.setToLocationType(StockMutation.Location.valueOf(toType.toUpperCase()));
         }
         mutation.setToLocationId(toId);
-        
         mutation.setQty(qty);
         mutation.setReferenceType(StockMutation.ReferenceType.valueOf(refType.toUpperCase()));
         mutation.setReferenceId(refId);
         mutation.setNotes(notes);
         mutation.setCreatedBy(user);
-        
         stockMutationRepository.save(mutation);
     }
 }

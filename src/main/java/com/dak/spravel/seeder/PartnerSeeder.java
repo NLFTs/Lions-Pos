@@ -93,7 +93,7 @@ public class PartnerSeeder {
         // ── 2. Admin Partner: nairha ──────────────────────────────────────────
         User adminPartner = createUserIfNotExists(
                 "nairha", "Nairha Admin NLFTs", "nairha@nlfts.co.id",
-                "Bismillah00", partner, null, "admin-partners");
+                "Bismillah00", partner, null, "owner");
 
         // ── 3. Gudang Pusat ───────────────────────────────────────────────────
         Warehouses gudang = new Warehouses();
@@ -122,6 +122,11 @@ public class PartnerSeeder {
             bw.setCreatedBy(adminPartner);
             branchWarehousesRepository.save(bw);
         }
+
+        // ── 5b. Kasir / Employee ──────────────────────────────────────────────
+        createUserIfNotExists(
+                "kasir.nlfts", "Kasir Cabang Badung", "kasir@nlfts.co.id",
+                "Bismillah00", partner, cabang, "employee");
 
         // ── 6. Kategori: Elektronik ───────────────────────────────────────────
         CategoryProduct kategoriElektronik = createCategoryIfNotExists("Elektronik", partner, adminPartner);
@@ -256,10 +261,11 @@ public class PartnerSeeder {
             return existing.get();
         }
         
-        Role role = roleRepository.existsBySlugAndPartnerId(roleSlug, partner.getId())
-                ? roleRepository.findAllByPartnerIdOrPartnerIsNull(partner.getId()).stream().filter(r -> r.getSlug().equals(roleSlug)).findFirst().get()
-                : roleRepository.findAll().stream().filter(r -> r.getSlug().equals(roleSlug) && r.getPartner() == null).findFirst()
-                .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' global tidak ditemukan."));
+        // Cari role global (partner_id = null) dengan slug yang sesuai
+        Role role = roleRepository.findAll().stream()
+                .filter(r -> r.getSlug().equals(roleSlug) && r.getPartner() == null)
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' global tidak ditemukan. Pastikan PermissionSeeder sudah dijalankan."));
 
         User user = new User();
         user.setUsername(username);
