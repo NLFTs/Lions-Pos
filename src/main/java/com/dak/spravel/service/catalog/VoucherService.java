@@ -2,7 +2,6 @@ package com.dak.spravel.service.catalog;
 
 import java.security.SecureRandom;
 import java.util.List;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,6 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.util.AuditHelper;
-
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -29,7 +27,7 @@ public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
 
-    // ─── AUTH HELPERS ────────────────────────────────────────────────────────
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -40,54 +38,55 @@ public class VoucherService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🛠️ HELPER UTAMA: Cek murni role Owner
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("owner"));
-    }
-
-    // 🛠️ MODIFIKASI: Ambil User Owner Partner Murni (Menghapus filter lama employee)
-    private User getAuthenticatedOwnerUser() {
-        User user = getAuthenticatedUser();
-
-        boolean isAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-
-        if (isAdmin) {
-            throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
-        }
-
-        if (!isOwner(user)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diizinkan mengelola data master voucher.");
-        }
-
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
-            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+            return;
         }
 
-        return user;
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    // Helper: Validasi Kepemilikan Voucher
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
     private Voucher getValidatedVoucher(Long id, User currentUser) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher", id));
 
-        if (currentUser.getPartner() == null ||
-                !voucher.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        if (currentUser.getPartner() == null) {
+            return voucher;
+        }
+
+        if (voucher.getPartner() == null || !voucher.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Voucher ini milik partner lain.");
         }
 
         return voucher;
     }
 
+    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
     // ==========================================
-    // CREATE ( KUNCI: Hanya Owner)
+    // CREATE (🔒 Berbasis Permission)
     // ==========================================
     @Transactional
     public VoucherResponse create(VoucherRequest request) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        
         Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat voucher tanpa scope partner.");
+        }
 
         if (request.getCode() != null && voucherRepository.existsByCode(request.getCode().trim())) {
             throw new RuntimeException("Voucher code already exists");
@@ -103,13 +102,14 @@ public class VoucherService {
     }
 
     // ==========================================
-    // UPDATE ( KUNCI: Hanya Owner)
+    // UPDATE (🔒 Berbasis Permission)
     // ==========================================
     @Transactional
     public VoucherResponse update(Long id, VoucherRequest request) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.update");
+        
         Voucher voucher = getValidatedVoucher(id, currentUser);
-
         validateRequest(request);
 
         if (request.getCode() != null && !voucher.getCode().equals(request.getCode().trim())
@@ -123,36 +123,52 @@ public class VoucherService {
         return mapToResponse(voucherRepository.save(voucher));
     }
 
-    // GET BY ID
+    // ==========================================
+    // GET BY ID (🔒 Berbasis Permission)
+    // ==========================================
     public VoucherResponse getById(Long id) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.show");
+        
         return mapToResponse(getValidatedVoucher(id, currentUser));
     }
 
-    // GET ALL
+    // ==========================================
+    // GET ALL (🔒 Berbasis Permission)
+    // ==========================================
     public List<VoucherResponse> getAll() {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.index"); // 💡 Sikat pake permission index
+        
+        // 👑 Jika yang akses Super Admin Global, tampilin seluruh voucher semua tenant tanpa terkecuali
+        if (currentUser.getPartner() == null) {
+            return voucherRepository.findAll().stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        // 🏢 Jika Partner, hanya ambil voucher milik dia sendiri
         return voucherRepository.findAllByPartner(currentUser.getPartner())
-                .stream().map(this::mapToResponse).toList();
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     // ==========================================
-    // DELETE ( KUNCI: Hanya Owner)
+    // DELETE (🔒 Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan menghapus voucher.");
-        }
+        checkPermission(currentUser, "voucher.delete"); // 💡 Sikat pake permission delete
 
         Voucher voucher = getValidatedVoucher(id, currentUser);
         AuditHelper.setDeleted(voucher);
         voucherRepository.delete(voucher);
     }
 
-    // MAPPING
+    // ─── 🔄 UTILS & MAPPERS SECTION ──────────────────────────────────────────
+
     public VoucherResponse mapToResponse(Voucher voucher) {
         if (voucher == null) return null;
 
@@ -195,7 +211,6 @@ public class VoucherService {
         return dto;
     }
 
-    // PRIVATE UTILS
     private void mapToEntity(Voucher voucher, VoucherRequest request, Partners partner) {
         voucher.setPartner(partner);
 

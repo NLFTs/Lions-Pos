@@ -11,12 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dak.spravel.dto.request.order.OrderItemsRequest;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.order.OrderItems;
 import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
+import com.dak.spravel.handler.ResourceNotFoundException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -29,149 +31,135 @@ public class OrderItemsService {
     private final OrdersRepository ordersRepository;
     private final UserRepository userRepository;
 
-    // =========================
-    // AUTH USER
-    // =========================
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
         return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    // =========================
-    // HELPER: CEK ROLE OWNER
-    // =========================
-    private boolean isOwner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("owner"));
-    }
-
-    // =========================
-    // 🛠️ MODIFIKASI: AMBIL USER OWNER PARTNER MURNI
-    // =========================
-    private User getAuthenticatedOwnerUser() {
-        User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("owner") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
-        return user;
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    // =========================
-    // VALIDASI OWNERSHIP
-    // =========================
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
+    }
+
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
     private OrderItems getValidatedOrderItem(Long id, User currentUser) {
         OrderItems item = orderItemsRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order item not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("OrderItem", id));
 
-        if (currentUser.getPartner() == null
-                || item.getOrder() == null
-                || item.getOrder().getPartner() == null
-                || !item.getOrder().getPartner().getId()
-                .equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Anda tidak bisa mengakses Order Item partner lain.");
+        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        if (currentUser.getPartner() == null) {
+            return item;
+        }
+
+        if (item.getOrder() == null || item.getOrder().getPartner() == null || 
+                !item.getOrder().getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses Order Item partner lain.");
         }
 
         return item;
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
+
     public List<OrderItems> findAllOrderItems() {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
         return orderItemsRepository.findAll();
     }
 
-    // =========================
-    // KHUSUS PARTNER (Murni Owner)
-    // =========================
-    public List<OrderItems> findAll() {
-        User currentUser = getAuthenticatedOwnerUser();
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
 
-        return orderItemsRepository.findAll()
-                .stream()
-                .filter(item ->
-                        item.getOrder() != null
-                                && item.getOrder().getPartner() != null
-                                && item.getOrder().getPartner().getId()
-                                .equals(currentUser.getPartner().getId()))
+    public List<OrderItems> findAll() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.show"); // 💡 Masuk ke rumpun melihat data transaksi
+
+        // 👑 Handling Super Admin: Tarik semua item transaksi global
+        if (currentUser.getPartner() == null) {
+            return orderItemsRepository.findAll();
+        }
+
+        // 🏢 Handling Tenant: Filter item yang hanya milik perusahaan context dia sendiri
+        return orderItemsRepository.findAll().stream()
+                .filter(item -> item.getOrder() != null 
+                        && item.getOrder().getPartner() != null
+                        && item.getOrder().getPartner().getId().equals(currentUser.getPartner().getId()))
                 .toList();
     }
 
-    // =========================
-    // FIND BY ID
-    // =========================
     public OrderItems findById(Long id) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.show");
         return getValidatedOrderItem(id, currentUser);
     }
 
-    // =========================
-    // FIND BY PRODUCT NAME
-    // =========================
     public OrderItems findByProductName(String productName) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.show");
 
         OrderItems item = orderItemsRepository.findByProductName(productName)
-                .orElseThrow(() -> new RuntimeException("Order item not found"));
+                .orElseThrow(() -> new RuntimeException("Order item dengan nama '" + productName + "' tidak ditemukan"));
 
-        if (currentUser.getPartner() == null
-                || item.getOrder() == null
-                || item.getOrder().getPartner() == null
-                || !item.getOrder().getPartner().getId()
-                .equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Anda tidak bisa mengakses Order Item partner lain.");
+        // 🛡️ Multi-Tenant Adaptif Guard (Bebaskan jika Super Admin)
+        if (currentUser.getPartner() != null) {
+            if (item.getOrder() == null || item.getOrder().getPartner() == null || 
+                    !item.getOrder().getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses Order Item partner lain.");
+            }
         }
 
         return item;
     }
 
-    // =========================
-    // CREATE ( Kunci Owner karena Employee Hapus)
-    // =========================
+    // ==========================================
+    // CREATE / ADD ITEM (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public OrderItems create(OrderItemsRequest request) {
-        User currentUser = getAuthenticatedOwnerUser();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.update"); // 💡 Menambah item ke dalam order dihitung sebagai aksi update transaksi
 
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+        Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak boleh membuat item order langsung tanpa scope tenant.");
         }
 
         Orders order = ordersRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Orders", request.getOrderId()));
 
-        // VALIDASI CROSS PARTNER
-        if (order.getPartner() == null
-                || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Order milik partner lain.");
+        // Validasi Cross-Tenant Data Injection Prevention
+        if (order.getPartner() == null || !order.getPartner().getId().equals(partner.getId())) {
+            throw new RuntimeException("Akses Ditolak: Target Order ini milik partner lain.");
         }
 
         Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
 
         OrderItems item = new OrderItems();
         item.setOrder(order);
@@ -184,18 +172,14 @@ public class OrderItemsService {
         return orderItemsRepository.save(item);
     }
 
-    // =========================
-    // DELETE ( Kunci Owner)
-    // =========================
+    // ==========================================
+    // DELETE ITEM (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedOwnerUser();
-        
-        // 📍 VALIDASI UTAMA: Tolak jika bukan owner
-        if (!isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner yang diperbolehkan mengelola data ini.");
-        }
-        
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "order.update"); // 💡 Menghapus baris item belanjaan dihitung sebagai update order
+
         OrderItems item = getValidatedOrderItem(id, currentUser);
         orderItemsRepository.delete(item);
     }

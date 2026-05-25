@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,9 +41,8 @@ public class PurchaseOrderService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
-    // =========================
-    // AUTH USER
-    // =========================
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -52,129 +52,118 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-        boolean isSuperAdmin = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isSuperAdmin) throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
-        return user;
-    }
-
-    // =========================
-    // KHUSUS ADMIN PARTNER / EMPLOYEE
-    // =========================
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Masukkan role "employee" murni agar diizinkan untuk melihat daftar PO
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("owner") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
-        return user;
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    // 💡 HELPER BARU: Cek apakah user murni seorang Employee
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
     }
 
-    // =========================
-    // VALIDASI PURCHASE ORDER (cross-partner)
-    // =========================
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
     private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
 
-        if (currentUser.getPartner() == null
-                || po.getPartner() == null
-                || !po.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        if (currentUser.getPartner() == null) {
+            return po;
+        }
+
+        if (po.getPartner() == null || !po.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Purchase Order bukan milik partner Anda.");
         }
 
         return po;
     }
 
-    // =========================
-    // KHUSUS SUPER ADMIN
-    // =========================
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
     public List<PurchaseOrder> findAllPurchaseOrders() {
-        getAuthenticatedSuperAdmin();
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
         return purchaseOrderRepository.findAll();
     }
 
-    // =========================
-    // KHUSUS PARTNER / EMPLOYEE
-    // =========================
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
     public List<PurchaseOrder> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.index"); 
+
+        // 👑 Handling Super Admin Global: Tarik semua riwayat PO tanpa filter tenant
+        if (currentUser.getPartner() == null) {
+            return purchaseOrderRepository.findAll();
+        }
+
         return purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
                 currentUser.getPartner().getId());
     }
 
-    // =========================
-    // PAGINATION KHUSUS PARTNER
-    // =========================
+    // PAGINATION TENANT
     public Page<PurchaseOrder> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.index"); 
 
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        // 👑 Handling Super Admin Global di Pagination
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
+            return purchaseOrderRepository.findAll(pageable);
         }
 
         return purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
-                currentUser.getPartner().getId(),
-                PageRequest.of(page, size, Sort.by("createdAt").descending()));
+                currentUser.getPartner().getId(), pageable);
     }
 
-    // =========================
     // GET BY ID
-    // =========================
     public PurchaseOrder findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.show"); 
         return getValidatedPurchaseOrder(id, currentUser);
     }
 
-    // =========================
-    // GET ITEMS
-    // =========================
+    // GET ITEMS BY ORDER ID
     public List<PurchaseOrderItems> findItemsByOrderId(Long orderId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.show"); 
         getValidatedPurchaseOrder(orderId, currentUser);
         return purchaseOrderItemsRepository.findByPurchaseOrderId(orderId);
     }
 
-    // =========================
-    // CREATE
-    // =========================
+    // ==========================================
+    // CREATE PURCHASE ORDER (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public PurchaseOrder create(PurchaseOrderRequestDTO request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang membuat Purchase Order baru
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk membuat Purchase Order.");
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.store"); 
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen Purchase Order langsung.");
         }
 
         Supplier supplier = supplierRepository.findById(request.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", request.getSupplierId()));
 
-        if (supplier.getPartner() == null
-                || !supplier.getPartner().getId().equals(partner.getId())) {
+        if (supplier.getPartner() == null || !supplier.getPartner().getId().equals(partner.getId())) {
             throw new RuntimeException("Akses Ditolak: Supplier bukan milik partner Anda.");
         }
 
@@ -182,7 +171,7 @@ public class PurchaseOrderService {
         po.setPartner(partner);
         po.setSupplier(supplier);
         po.setPoNumber(generatePoNumber());
-        po.setLocationType(request.getLocationType());
+        po.setLocationType(request.getLocationType().toUpperCase());
         po.setLocationId(request.getLocationId());
         po.setOrderDate(request.getOrderDate());
         po.setExpectedDate(request.getExpectedDate());
@@ -196,9 +185,8 @@ public class PurchaseOrderService {
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
 
-            if (product.getPartner() == null
-                    || !product.getPartner().getId().equals(partner.getId())) {
-                throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
+            if (product.getPartner() == null || !product.getPartner().getId().equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Product '" + product.getName() + "' bukan milik partner Anda.");
             }
 
             PurchaseOrderItems item = new PurchaseOrderItems();
@@ -216,46 +204,38 @@ public class PurchaseOrderService {
         saved.setTotal(items.stream()
                 .map(PurchaseOrderItems::getSubtotal)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
-        purchaseOrderRepository.save(saved);
-
-        return saved;
+        
+        return purchaseOrderRepository.save(saved);
     }
 
-    // =========================
-    // UPDATE STATUS
-    // =========================
+    // ==========================================
+    // UPDATE STATUS (🔒 Berbasis Permission)
+    // ==========================================
+    @Transactional
     public PurchaseOrder updateStatus(Long id, String status) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang mengubah status Purchase Order
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk mengubah status Purchase Order.");
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.update"); 
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setStatus(PurchaseOrder.Status.valueOf(status.toUpperCase()));
         return purchaseOrderRepository.save(po);
     }
 
-    // =========================
-    // SOFT DELETE
-    // =========================
+    // ==========================================
+    // SOFT DELETE (🔒 Berbasis Permission)
+    // ==========================================
+    @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang menghapus Purchase Order
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus Purchase Order.");
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_order.delete"); 
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setDeletedAt(LocalDateTime.now());
         purchaseOrderRepository.save(po);
     }
 
-    // =========================
-    // GENERATE PO NUMBER
-    // =========================
+    // ─── 🔄 PRIVATE GENERATOR UTILS ───────────────────────────────────────────
+
     private String generatePoNumber() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String prefix = "PO-" + date + "-";
