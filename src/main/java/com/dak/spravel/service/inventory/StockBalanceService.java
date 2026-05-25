@@ -77,15 +77,13 @@ public class StockBalanceService {
     // =========================
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Tambahkan role "employee" murni agar diizinkan lolos melihat data stok
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
                         role.getSlug().equalsIgnoreCase("employee"));
         boolean isNotSuperAdmin = user.getRoles().stream()
                 .noneMatch(role -> role.getSlug().equalsIgnoreCase("super_admin"));
         if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Employee yang diizinkan.");
         }
         return user;
     }

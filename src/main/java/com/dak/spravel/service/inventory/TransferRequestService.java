@@ -7,6 +7,8 @@ import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
 import com.dak.spravel.repository.auth.UserRepository;
@@ -25,7 +27,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.dak.spravel.model.common.Partners;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +37,8 @@ public class TransferRequestService {
     private final WarehousesRepository warehousesRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
+    private final StockBalanceService stockBalanceService;
+    private final StockMutationService stockMutationService;
 
     private User getAuthenticatedUser() {
         Authentication auth =
@@ -58,15 +61,14 @@ public class TransferRequestService {
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
                         role.getSlug().equalsIgnoreCase("employee"));
 
         boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
 
         if (!isAuthorized || !isStaff) {
             throw new RuntimeException(
-                "Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan."
+                "Akses Ditolak: Hanya Owner atau Employee yang diizinkan."
             );
         }
         return user;
@@ -86,8 +88,7 @@ public class TransferRequestService {
     private boolean isEmployee(User user) {
         return user.getRoles().stream()
                 .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee"));
     }
 
     private boolean isBranchAccessible(
@@ -610,10 +611,37 @@ public class TransferRequestService {
 
             item.setQtyReceived(realQtyReceived);
 
+            // BUG FIX #1: Update stok FROM (kurangi) dan TO (tambah), catat mutation
+            Product product = item.getProduct();
+            Partners partner = tr.getPartner();
+
+            String fromType = tr.getFromLocationType().name().toLowerCase();
+            Long fromId = tr.getFromLocationId();
+            String toType = tr.getToLocationType().name().toLowerCase();
+            Long toId = tr.getToLocationId();
+
+            // Kurangi stok lokasi asal
+            stockBalanceService.adjustStock(product.getId(),
+                    tr.getFromLocationType().name(), fromId, -realQtyReceived);
+
+            // Tambah stok lokasi tujuan
+            stockBalanceService.adjustStock(product.getId(),
+                    tr.getToLocationType().name(), toId, realQtyReceived);
+
+            // Catat stock mutation type=TRANSFER
+            stockMutationService.recordMutation(
+                    product, partner,
+                    "TRANSFER",
+                    fromType, fromId,
+                    toType, toId,
+                    realQtyReceived,
+                    "transfer_request", tr.getId(),
+                    "Transfer #" + tr.getId() + " diterima",
+                    currentUser
+            );
         }
 
         transferRequestItemRepository.saveAll(tr.getItems());
-
 
         TransferRequest updatedTR = transferRequestRepository.save(tr);
         return mapToResponse(updatedTR);
