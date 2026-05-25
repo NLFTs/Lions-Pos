@@ -13,7 +13,7 @@ import Label from '@/components/ui/Label.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import Alert from '@/components/ui/Alert.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, MapPin, Building2, Warehouse } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, MapPin, Building2, Warehouse, Shield, Check } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -27,11 +27,13 @@ const isAdmin = computed(() => authStore.isAdmin)
 // ─── State ───────────────────────────────────────────────────────────────────
 const branches = ref([])
 const warehouses = ref([])
+const availableRoles = ref([])
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(10)
+const roles = computed(() => availableRoles.value)
 
 // Unified list of locations
 const allLocations = computed(() => {
@@ -67,6 +69,7 @@ const emptyForm = () => ({
   address: '',
   username: '',
   password: '',
+  roleIds: [],
 })
 
 const form = ref(emptyForm())
@@ -108,11 +111,21 @@ async function fetchLocations() {
   }
 }
 
+async function fetchRoles() {
+  try {
+    const res = await api.get('/api/v1/roles') 
+    availableRoles.value = res.data?.data || res.data || []
+  } catch (err) {
+    console.error("Gagal load roles", err)
+  }
+}
+
 function openCreate() {
   form.value = emptyForm()
   formError.value = null
   modalMode.value = 'create'
   showDrawer.value = true
+  fetchRoles()
 }
 
 function openEdit(l) {
@@ -156,6 +169,7 @@ async function saveLocation() {
     if (form.value.type === 'branch') {
       payload.username = form.value.username
       payload.password = form.value.password
+      payload.roleIds = form.value.roleIds
     }
     
     if (modalMode.value === 'create') {
@@ -174,6 +188,14 @@ async function saveLocation() {
   }
 }
 
+function toggleRole(roleId) {
+  const idx = form.value.roleIds.indexOf(roleId)
+  if (idx === -1) {
+    form.value.roleIds.push(roleId)
+  } else {
+    form.value.roleIds.splice(idx, 1)
+  }
+}
 // ─── Delete ───────────────────────────────────────────────────────────────────
 const deleteModal = ref({ show: false, location: null, confirmText: '' })
 const deleting = ref(false)
@@ -404,6 +426,31 @@ onMounted(fetchLocations)
               <div class="space-y-1.5">
                 <Label for="l-password">Password <span class="text-destructive">*</span></Label>
                 <Input id="l-password" type="password" v-model="form.password" placeholder="Password untuk login cabang" :disabled="saving" />
+              </div>
+              <div v-if="form.type === 'branch'" class="space-y-1.5 mt-4 pt-4 border-t border-border">
+                <label class="text-xs font-bold uppercase tracking-wider text-zinc-500">Assign Roles <span class="text-destructive">*</span></label>
+                <div class="rounded-md border border-input overflow-hidden bg-background">
+                  <div class="max-h-44 overflow-y-auto divide-y divide-border">
+                    <button v-for="role in roles" :key="role.id"
+                      type="button"
+                      @click="toggleRole(role.id)"
+                      :disabled="saving"
+                      class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 cursor-pointer transition-colors outline-none text-left disabled:opacity-50">
+                      <div class="flex items-center gap-3">
+                        <Shield class="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p class="font-medium text-sm text-foreground">{{ role.name }}</p>
+                          <p class="text-xs text-muted-foreground">{{ role.slug }}</p>
+                        </div>
+                      </div>
+                      <Check v-if="form.roleIds.includes(role.id)" class="h-4 w-4 text-primary" />
+                    </button>
+                  </div>
+                  <div v-if="roles.length === 0" class="p-3 text-xs text-muted-foreground italic text-center">
+                    No roles available.
+                  </div>
+                </div>
+                <p v-if="form.type === 'branch' && form.roleIds.length === 0" class="text-[10px] text-destructive">Wajib pilih minimal satu role.</p>
               </div>
             </div>
           </div>

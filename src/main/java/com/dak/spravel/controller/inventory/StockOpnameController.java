@@ -31,7 +31,13 @@ public class StockOpnameController {
 
     private final StockOpnameService stockOpnameService;
 
-
+    @GetMapping
+    @PreAuthorize("hasAuthority('stock_opname.index')")
+    public ResponseEntity<ResData<List<StockOpnameResponse>>> getAll() {
+        log.info("[GET] /api/v1/stock-opnames - Fetching all stock opnames");
+        return ResponseBuilder.ok(stockOpnameService.findAll());
+    }
+    
     @GetMapping("/admin")
     @PreAuthorize("hasAuthority('stock_opname.index')")
     public ResponseEntity<ResData<List<StockOpnameResponse>>> getAllForAdmin() {

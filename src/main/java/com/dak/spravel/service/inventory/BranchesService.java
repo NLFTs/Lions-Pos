@@ -157,13 +157,13 @@ public class BranchesService {
     @Transactional
     public BranchResponse create(BranchRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "branch.store"); // 💡 Siapapun bisa create asal dikasih izin Owner
+        checkPermission(currentUser, "branch.store");
         
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner manapun.");
         }
-
+    
         Branches branch = new Branches();
         branch.setPartners(partner);
         branch.setName(request.getName());
@@ -171,16 +171,16 @@ public class BranchesService {
         branch.setIsActive(true);
         branch.setCreatedAt(LocalDateTime.now());
         branch.setCreatedBy(currentUser);
-
+    
         Branches savedBranch = branchesRepository.save(branch);
-
+    
         // ── Buat Akun User Kasir/Staff Cabang Otomatis ────────────────────────
         if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
             String username = request.getUsername().trim();
             if (userRepository.findByUsername(username).isPresent()) {
                 throw new IllegalArgumentException("Username '" + username + "' sudah digunakan.");
             }
-
+    
             User branchUser = new User();
             branchUser.setUsername(username);
             branchUser.setFullname("Cabang " + savedBranch.getName());
@@ -188,20 +188,17 @@ public class BranchesService {
             branchUser.setPassword(passwordEncoder.encode(request.getPassword()));
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
-
-            // 💡 FIX AMAN: Ambil role global 'employee' yang valid dan anti-null
-            Role employeeRole = roleRepository.findAll().stream()
-                    .filter(r -> r.getSlug().equalsIgnoreCase("employee"))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Role 'employee' global tidak ditemukan di database."));
-            
-            Set<Role> roles = new HashSet<>();
-            roles.add(employeeRole);
-            branchUser.setRoles(roles);
-
+    
+            // 💡 FIX DINAMIS: Resolve role dari request (bukan hardcoded!)
+            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+                branchUser.setRoles(resolveRoles(request.getRoleIds(), partner));
+            } else {
+                throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user ini.");
+            }
+    
             userRepository.save(branchUser);
         }
-
+    
         // ── Inisialisasi Kebutuhan Stock Balance Awal (+0 Qty) ──────────────────
         List<Product> products = productRepository.findAllByPartner(partner);
         for (Product product : products) {
@@ -216,8 +213,26 @@ public class BranchesService {
             stock.setUpdatedAt(LocalDateTime.now());
             stockBalanceRepository.save(stock);
         }
-
+    
         return mapToResponse(savedBranch);
+    }
+    
+    // ── HELPER: Pastikan method ini ada di bawah dalam class BranchService ──
+    private Set<Role> resolveRoles(List<Long> roleIds, Partners targetPartner) {
+        List<Role> roles = roleRepository.findAllById(roleIds);
+        
+        if (roles.size() != roleIds.size()) {
+            throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
+        }
+    
+        // 🛡️ SECURITY GUARD: Pastikan role belong to partner yang sama
+        for (Role role : roles) {
+            if (role.getPartner() != null && !role.getPartner().getId().equals(targetPartner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            }
+        }
+        
+        return new HashSet<>(roles);
     }
 
     @Transactional

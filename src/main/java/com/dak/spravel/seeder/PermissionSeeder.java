@@ -8,6 +8,7 @@ import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 
+import org.checkerframework.checker.units.qual.m;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +59,8 @@ public class PermissionSeeder {
         {"purchase_order", "Purchase Order", "Manage purchase orders"},
         {"purchase_receipt", "Purchase Receipt", "Manage purchase receipts"},
         {"supplier", "Supplier", "Manage suppliers"},
+        {"order", "Order", "Manage orders"},
+        {"order_item", "Order Item", "Manage order items"},
         {"voucher", "Voucher", "Manage vouchers and discounts"},
     };
 
@@ -182,6 +185,18 @@ public class PermissionSeeder {
         {"supplier.delete", "Delete Supplier",      "supplier"},
         {"supplier.admin",  "Admin Access to Suppliers", "supplier"},
 
+        {"order.index",  "View All Orders",   "order"},
+        {"order.show",   "View Order Detail", "order"},
+        {"order.store",  "Create Order",      "order"},
+        {"order.update", "Update Order",      "order"},
+        {"order.delete", "Delete Order",      "order"},        
+
+        {"order_item.index",  "View All Order Items",   "order_item"},
+        {"order_item.show",   "View Order Item Detail", "order_item"},
+        {"order_item.store",  "Create Order Item",      "order_item"},
+        {"order_item.update", "Update Order Item",      "order_item"},
+        {"order_item.delete", "Delete Order Item",      "order_item"},        
+
         {"voucher.index",  "View All Vouchers",   "voucher"},
         {"voucher.show",   "View Voucher Detail", "voucher"},
         {"voucher.store",  "Create Voucher",      "voucher"},
@@ -258,18 +273,19 @@ public class PermissionSeeder {
                 moduleSlug.equals("transfer_request") ||
                 moduleSlug.equals("stock_opname") ||
                 moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("order_item") ||
+                moduleSlug.equals("order") ||
                 moduleSlug.equals("supplier") ||
                 moduleSlug.equals("voucher") ||
                 moduleSlug.equals("dashboard") ||
                 moduleSlug.equals("pos") ||
-                moduleSlug.equals("report")) {
+                moduleSlug.equals("report")) { 
                 ownerPerms.add(p);  
             }
         }
         ownerRole.setPermissions(ownerPerms);
         roleRepository.save(ownerRole);
         log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
-
 
         // 5. Assign "admin" role to super user "su"
         userRepository.findByUsername("su").ifPresent(su -> {

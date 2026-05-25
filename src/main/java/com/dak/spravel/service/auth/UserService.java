@@ -206,13 +206,7 @@ public class UserService {
             if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
                 user.setRoles(resolveRoles(request.getRoleIds(), targetPartner));
             } else {
-                Role defaultRole = roleRepository.findAll().stream()
-                        .filter(r -> r.getSlug().equalsIgnoreCase("employee"))
-                        .findFirst()
-                        .orElseThrow(() -> new RuntimeException("Role template 'employee' tidak ditemukan di database."));
-                Set<Role> roles = new HashSet<>();
-                roles.add(defaultRole);
-                user.setRoles(roles);
+                throw new IllegalArgumentException("Pilih satu role untuk user ini.");
             }
 
         // ==========================================

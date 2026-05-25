@@ -132,9 +132,9 @@ public class PartnerService {
 
         // 2. Ambil role global template 'admin-partners' (Buat dicopy ke user admin partner baru)
         Role adminPartnerRole = roleRepository.findAll().stream()
-                .filter(r -> r.getSlug().equalsIgnoreCase("admin-partners") && r.getPartner() == null)
+                .filter(r -> r.getSlug().equalsIgnoreCase("owner") && r.getPartner() == null)
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Role template 'admin-partners' global tidak ditemukan di database."));
+                .orElseThrow(() -> new RuntimeException("Role template 'owner' global tidak ditemukan di database."));
 
         // 3. Daftarkan akun User Admin Utama milik Partner tersebut
         User adminUser = new User();
