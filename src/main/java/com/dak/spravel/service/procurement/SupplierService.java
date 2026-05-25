@@ -25,7 +25,9 @@ public class SupplierService {
     private final SupplierRepository supplierRepository;
     private final UserRepository userRepository;
 
-    // AUTH HELPERS
+    // =========================
+    // AUTH USER
+    // =========================
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -35,6 +37,9 @@ public class SupplierService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
     }
 
+    // =========================
+    // KHUSUS SUPER ADMIN
+    // =========================
     private User getAuthenticatedSuperAdmin() {
         User user = getAuthenticatedUser();
         boolean isSuperAdmin = user.getRoles().stream()
@@ -43,28 +48,37 @@ public class SupplierService {
         return user;
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
+    // =========================
+    // HELPER: CEK ROLE OWNER
+    // =========================
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
+    }
+
+    // =========================
+    // 🛠️ MODIFIKASI: AMBIL USER OWNER PARTNER MURNI
+    // =========================
+    private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Daftarkan role "employee" agar bisa melihat data supplier
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+
+        if (!isOwner(user) || isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner Partner yang diizinkan mengelola data Supplier.");
         }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
         return user;
     }
 
-    // 💡 HELPER BARU: Cek apakah user murni seorang Employee
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
-    }
-
-    // KHUSUS SUPER ADMIN
+    // =========================
+    // KHUSUS SUPER ADMIN METHODS
+    // =========================
     public List<Supplier> findAllAdmin() {
         getAuthenticatedSuperAdmin();
         return supplierRepository.findAll(Sort.by("id").descending());
@@ -75,27 +89,20 @@ public class SupplierService {
         return supplierRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()));
     }
 
-    // KHUSUS PARTNER / EMPLOYEE (Bisa diakses employee, Read-Only)
+    // ==========================================
+    // READ ( Owner Only)
+    // ==========================================
     public List<Supplier> findAllByPartner() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
-        }
+        User currentUser = getAuthenticatedOwnerUser();
         return supplierRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
     }
 
+    // ==========================================
+    // CREATE ( Owner Only)
+    // ==========================================
     @Transactional
     public Supplier create(Supplier supplier) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang membuat data supplier baru
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak memiliki akses untuk menambah supplier.");
-        }
-
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
-        }
+        User currentUser = getAuthenticatedOwnerUser();
 
         if (supplierRepository.existsByNameAndPartnerIdAndDeletedAtIsNull(supplier.getName(), currentUser.getPartner().getId())) {
             throw new IllegalArgumentException("Supplier dengan nama tersebut sudah ada.");
@@ -108,32 +115,12 @@ public class SupplierService {
         return supplierRepository.save(supplier);
     }
 
-    @Transactional
-    public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang menghapus data supplier
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak memiliki akses untuk menghapus supplier.");
-        }
-
-        Supplier supplier = supplierRepository.findById(id)
-                .filter(s -> s.getPartner().getId().equals(currentUser.getPartner().getId()))
-                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Supplier tidak ditemukan"));
-
-        supplier.setDeletedAt(LocalDateTime.now());
-        supplier.setDeletedBy(currentUser);
-        supplierRepository.save(supplier);
-    }
-
+    // ==========================================
+    // UPDATE ( Owner Only)
+    // ==========================================
     @Transactional
     public Supplier update(Long id, Supplier updatedData) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee dilarang mengedit/mengubah data supplier
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak memiliki akses untuk mengubah data supplier.");
-        }
+        User currentUser = getAuthenticatedOwnerUser();
 
         Supplier supplier = supplierRepository.findById(id)
                 .filter(s -> s.getPartner().getId().equals(currentUser.getPartner().getId()))
@@ -150,5 +137,21 @@ public class SupplierService {
         supplier.setUpdatedAt(LocalDateTime.now());
         supplier.setUpdatedBy(currentUser);
         return supplierRepository.save(supplier);
+    }
+
+    // ==========================================
+    // DELETE (Owner Only)
+    // ==========================================
+    @Transactional
+    public void delete(Long id) {
+        User currentUser = getAuthenticatedOwnerUser();
+
+        Supplier supplier = supplierRepository.findById(id)
+                .filter(s -> s.getPartner().getId().equals(currentUser.getPartner().getId()))
+                .orElseThrow(() -> new RuntimeException("Akses Ditolak: Supplier tidak ditemukan"));
+
+        supplier.setDeletedAt(LocalDateTime.now());
+        supplier.setDeletedBy(currentUser);
+        supplierRepository.save(supplier);
     }
 }

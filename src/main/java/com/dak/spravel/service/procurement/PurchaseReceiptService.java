@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -12,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptItemDTO;
 import com.dak.spravel.dto.request.procurement.PurchaseReceiptRequestDTO;
 import com.dak.spravel.handler.ResourceNotFoundException;
@@ -73,35 +75,30 @@ public class PurchaseReceiptService {
     }
 
     // =========================
-    // KHUSUS ADMIN PARTNER / EMPLOYEE
+    // HELPER: CEK ROLE OWNER
     // =========================
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Masukkan role "employee" murni agar diizinkan melihat riwayat penerimaan barang
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
-        }
-        return user;
+    private boolean isOwner(User user) {
+        return user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equals("owner"));
     }
 
-    // =============================================================
-    // KHUSUS PENGELOLA CABANG (EMPLOYEE) UNTUK TERIMA BARANG
-    // =============================================================
-    private User getAuthenticatedEmployeeOnly() {
+    // =========================
+    //  AMBIL USER OWNER PARTNER MURNI
+    // =========================
+    private User getAuthenticatedOwnerUser() {
         User user = getAuthenticatedUser();
-        // 🛠️ MODIFIKASI: Mendukung deteksi slug "employee" murni sesuai standar modul
-        boolean isEmployee = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee-partners") || 
-                        role.getSlug().equalsIgnoreCase("employee"));
-        if (!isEmployee) {
-            throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang (Employee) yang diizinkan untuk menerima barang.");
+        
+        boolean isSuperAdmin = user.getRoles().stream()
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
+
+        if (!isOwner(user) || isSuperAdmin) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner Partner yang diizinkan mengakses menu penerimaan barang.");
         }
+
+        if (user.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: User tidak terasosiasi dengan Partner manapun.");
+        }
+
         return user;
     }
 
@@ -148,10 +145,10 @@ public class PurchaseReceiptService {
     }
 
     // =========================
-    // KHUSUS PARTNER / EMPLOYEE
+    // KHUSUS PARTNER (Murni Owner)
     // =========================
     public List<PurchaseReceipt> findAll() {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
 
         return purchaseReceiptRepository.findAll()
                 .stream()
@@ -167,12 +164,7 @@ public class PurchaseReceiptService {
     // PAGINATION KHUSUS PARTNER
     // =========================
     public Page<PurchaseReceipt> findAll(int page, int size) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
+        User currentUser = getAuthenticatedOwnerUser();
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("receivedDate").descending());
         return purchaseReceiptRepository
                 .findAllByPurchaseOrderPartnerId(currentUser.getPartner().getId(), pageRequest);
@@ -182,7 +174,7 @@ public class PurchaseReceiptService {
     // GET BY ORDER ID
     // =========================
     public List<PurchaseReceipt> findByOrderId(Long purchaseOrderId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         getValidatedPurchaseOrder(purchaseOrderId, currentUser);
         return purchaseReceiptRepository.findByPurchaseOrderId(purchaseOrderId);
     }
@@ -191,7 +183,7 @@ public class PurchaseReceiptService {
     // GET BY ID
     // =========================
     public PurchaseReceipt findById(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         return getValidatedPurchaseReceipt(id, currentUser);
     }
 
@@ -199,29 +191,18 @@ public class PurchaseReceiptService {
     // GET ITEMS
     // =========================
     public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedOwnerUser();
         getValidatedPurchaseReceipt(receiptId, currentUser);
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
 
-    // =========================
-    // CREATE — dengan update stok otomatis
-    // =========================
+    // ==========================================
+    // CREATE — dengan update stok otomatis (Owner Only)
+    // ==========================================
     @Transactional
     public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
-        User currentUser = getAuthenticatedEmployeeOnly();
-
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
+        User currentUser = getAuthenticatedOwnerUser();
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
-
-        // 🛠️ STRATEGI VALIDASI UTAMA MODUL E: 
-        // Pastikan Employee hanya bisa terima barang di lokasi cabang/gudang miliknya sendiri jika akunnya memiliki mapping branchId
-        if (currentUser.getBranch() != null && !po.getLocationId().equals(currentUser.getBranch().getId())) {
-            throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang di lokasi cabang/warehouse yang ditugaskan kepada Anda.");
-        }
 
         // Validasi: PO harus dalam status ORDERED atau PARTIAL untuk bisa diterima
         if (po.getStatus() == PurchaseOrder.Status.DRAFT) {
@@ -238,7 +219,6 @@ public class PurchaseReceiptService {
         receipt.setNotes(request.getNotes());
 
         PurchaseReceipt saved = purchaseReceiptRepository.save(receipt);
-
         List<PurchaseReceiptItem> items = new ArrayList<>();
 
         for (PurchaseReceiptItemDTO itemDTO : request.getItems()) {
