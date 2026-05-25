@@ -22,12 +22,12 @@ const { confirm } = useConfirm()
 const auth = useAuthStore()
 const { isAdmin } = storeToRefs(auth)
 
-// Cek apakah user adalah admin-partners (owner/manager) — bisa konfirmasi transfer
-const isAdminPartner = computed(() => {
+        // Cek apakah user adalah owner (bisa konfirmasi transfer)
+const isOwner = computed(() => {
   const roles = auth.user?.roles || []
   return isAdmin.value || roles.some(r => {
     const slug = typeof r === 'string' ? r : (r.slug || r.name || '')
-    return slug.toLowerCase() === 'admin-partners'
+    return slug.toLowerCase() === 'owner'
   })
 })
 
@@ -412,8 +412,8 @@ onMounted(fetchOrders)
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
 
-              <!-- Konfirmasi Transfer — hanya admin-partners (owner/manager) -->
-              <button v-if="pendingTransferPayment && isAdminPartner"
+              <!-- Konfirmasi Transfer — hanya owner -->
+              <button v-if="pendingTransferPayment && isOwner"
                 :disabled="actionLoading"
                 @click="verifyTransfer(pendingTransferPayment.id)"
                 class="w-full h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 text-sm font-bold transition-colors disabled:opacity-50">

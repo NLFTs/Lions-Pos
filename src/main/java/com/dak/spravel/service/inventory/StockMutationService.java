@@ -47,18 +47,18 @@ public class StockMutationService {
         return user;
     }
 
-    // 🛠️ HELPER TAMBAHAN: Validasi agar Admin Partner dan Employee murni bisa lolos barengan
     private User getAuthenticatedAdminPartnerOrEmployee() {
         User user = getAuthenticatedUser();
         boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee"));
+                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
+                        role.getSlug().equalsIgnoreCase("admin-partners") ||
+                        role.getSlug().equalsIgnoreCase("employee") ||
+                        role.getSlug().equalsIgnoreCase("employee-partners"));
         boolean isNotSuperAdmin = user.getRoles().stream()
                 .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
         
         if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Employee yang diizinkan.");
         }
         return user;
     }
@@ -71,8 +71,7 @@ public class StockMutationService {
     private boolean isEmployee(User user) {
         return user.getRoles().stream()
                 .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners"));
+                        role.getSlug().equalsIgnoreCase("employee"));
     }
 
     // 🔥 MAP TO RESPONSE (Sudah fix Type Mismatch Enum & Aman dari NullPointer)

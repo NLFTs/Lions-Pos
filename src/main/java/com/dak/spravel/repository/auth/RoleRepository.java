@@ -17,7 +17,7 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     Optional<Role> findBySlugAndPartnerId(String slug, Long partnerId);
     boolean existsBySlugAndPartnerId(String slug, Long partnerId);
 
-    @Query("SELECT r FROM Role r WHERE r.partner.id = :partnerId OR (r.partner IS NULL AND r.slug != 'admin' AND r.slug != 'admin-partners')")
+    @Query("SELECT r FROM Role r WHERE r.partner.id = :partnerId OR (r.partner IS NULL AND r.slug NOT IN ('admin', 'super_admin'))")
     List<Role> findAllByPartnerIdOrPartnerIsNull(@Param("partnerId") Long partnerId);    
 
     boolean existsBySlugAndPartnerIsNull(String slug);
