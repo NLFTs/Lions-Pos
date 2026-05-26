@@ -1,5 +1,12 @@
 package com.dak.spravel.service.catalog;
 
+import java.security.SecureRandom;
+import java.util.List;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.dak.spravel.dto.request.product.VoucherRequest;
 import com.dak.spravel.dto.response.catalogresponse.VoucherResponse;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
@@ -12,13 +19,6 @@ import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.security.SecureRandom;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -27,59 +27,65 @@ public class VoucherService {
     private final VoucherRepository voucherRepository;
     private final UserRepository userRepository;
 
-    // Helper: Ambil User & Block Admin
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
-        User user = userRepository.findByUsername(auth.getName())
+        return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
 
-           boolean isAdmin = user.getRoles().stream()
-                    .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
-
-            if (isAdmin) {
-                throw new RuntimeException("Akses Ditolak: Admin tidak diperbolehkan mengelola Voucher.");
-            }
-
-            // ✅ TAMBAH — Employee dilarang kelola voucher
-            boolean isEmployee = user.getRoles().stream()
-                    .anyMatch(role ->
-                            role.getSlug().equalsIgnoreCase("employee") ||
-                                    role.getSlug().equalsIgnoreCase("employee-partners")
-                    );
-
-            if (isEmployee) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee tidak dapat mengelola Voucher."
-                );
-            }
-
-            return user;
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
-    // Helper: Validasi Kepemilikan Voucher
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
+    }
+
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
     private Voucher getValidatedVoucher(Long id, User currentUser) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher", id));
 
-        if (currentUser.getPartner() == null ||
-                !voucher.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        if (currentUser.getPartner() == null) {
+            return voucher;
+        }
+
+        if (voucher.getPartner() == null || !voucher.getPartner().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Voucher ini milik partner lain.");
         }
 
         return voucher;
     }
 
-    // CREATE
+    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // ==========================================
+    // CREATE (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public VoucherResponse create(VoucherRequest request) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        
         Partners partner = currentUser.getPartner();
-
         if (partner == null) {
-            throw new RuntimeException("User tidak memiliki Partner.");
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat voucher tanpa scope partner.");
         }
 
         if (request.getCode() != null && voucherRepository.existsByCode(request.getCode().trim())) {
@@ -95,12 +101,15 @@ public class VoucherService {
         return mapToResponse(voucherRepository.save(voucher));
     }
 
-    // UPDATE
+    // ==========================================
+    // UPDATE (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public VoucherResponse update(Long id, VoucherRequest request) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.update");
+        
         Voucher voucher = getValidatedVoucher(id, currentUser);
-
         validateRequest(request);
 
         if (request.getCode() != null && !voucher.getCode().equals(request.getCode().trim())
@@ -114,29 +123,52 @@ public class VoucherService {
         return mapToResponse(voucherRepository.save(voucher));
     }
 
-    // GET BY ID
+    // ==========================================
+    // GET BY ID (🔒 Berbasis Permission)
+    // ==========================================
     public VoucherResponse getById(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.show");
+        
         return mapToResponse(getValidatedVoucher(id, currentUser));
     }
 
-    // GET ALL
+    // ==========================================
+    // GET ALL (🔒 Berbasis Permission)
+    // ==========================================
     public List<VoucherResponse> getAll() {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.index"); // 💡 Sikat pake permission index
+        
+        // 👑 Jika yang akses Super Admin Global, tampilin seluruh voucher semua tenant tanpa terkecuali
+        if (currentUser.getPartner() == null) {
+            return voucherRepository.findAll().stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        // 🏢 Jika Partner, hanya ambil voucher milik dia sendiri
         return voucherRepository.findAllByPartner(currentUser.getPartner())
-                .stream().map(this::mapToResponse).toList();
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
-    // DELETE
+    // ==========================================
+    // DELETE (🔒 Berbasis Permission)
+    // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "voucher.delete"); // 💡 Sikat pake permission delete
+
         Voucher voucher = getValidatedVoucher(id, currentUser);
         AuditHelper.setDeleted(voucher);
         voucherRepository.delete(voucher);
     }
 
-    // MAPPING
+    // ─── 🔄 UTILS & MAPPERS SECTION ──────────────────────────────────────────
+
     public VoucherResponse mapToResponse(Voucher voucher) {
         if (voucher == null) return null;
 
@@ -179,7 +211,6 @@ public class VoucherService {
         return dto;
     }
 
-    // PRIVATE UTILS
     private void mapToEntity(Voucher voucher, VoucherRequest request, Partners partner) {
         voucher.setPartner(partner);
 

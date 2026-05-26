@@ -7,7 +7,6 @@ import com.dak.spravel.repository.auth.ModuleRepository;
 import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +40,7 @@ public class PermissionSeeder {
         {"branch_warehouse", "Branch Warehouse", "Manage branch warehouses"},
         {"stock_balance",      "Stock Balance",      "Manage stock balances"},
         {"stock_mutation", "Stock Mutation", "Manage stock mutations"},
+        {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"category", "Category", "Manage product categories"},
         {"produk",    "Product",    "Manage blog products"},
         {"product_photo", "Product Photo", "Manage blog product photo"},
@@ -55,7 +55,10 @@ public class PermissionSeeder {
         {"transfer_request", "Transfer Request", "Manage stock transfers"},
         {"stock_opname", "Stock Opname", "Manage stock opname"},
         {"purchase_order", "Purchase Order", "Manage purchase orders"},
+        {"purchase_receipt", "Purchase Receipt", "Manage purchase receipts"},
         {"supplier", "Supplier", "Manage suppliers"},
+        {"order", "Order", "Manage orders"},
+        {"order_item", "Order Item", "Manage order items"},
         {"voucher", "Voucher", "Manage vouchers and discounts"},
     };
 
@@ -135,6 +138,12 @@ public class PermissionSeeder {
         {"stock_mutation.index",  "View All Stock Mutations",   "stock_mutation"},
         {"stock_mutation.show",   "View Stock Mutation Detail", "stock_mutation"},
 
+        {"stock_opname.index",  "View All Stock Opnames",   "stock_opname"},
+        {"stock_opname.store",  "Create Stock Opname",      "stock_opname"},
+        {"stock_opname.show",   "View Stock Opname Detail", "stock_opname"},
+        {"stock_opname.update", "Update Stock Opname",      "stock_opname"},
+        {"stock_opname.delete", "Delete Stock Opname",      "stock_opname"},
+
         {"log.index",  "View All Logs",  "log"},
         {"log.show",   "View Log Detail", "log"},
 
@@ -160,12 +169,31 @@ public class PermissionSeeder {
         {"purchase_order.update", "Update Purchase Order", "purchase_order"},
         {"purchase_order.delete", "Delete Purchase Order", "purchase_order"},
 
+        {"purchase_receipt.index", "View All Purchase Receipts", "purchase_receipt"},
+        {"purchase_receipt.show",  "View Purchase Receipt Detail", "purchase_receipt"},
+        {"purchase_receipt.store", "Create Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.update", "Update Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.delete", "Delete Purchase Receipt", "purchase_receipt"},
+        
+
         {"supplier.index",  "View All Suppliers",   "supplier"},
         {"supplier.show",   "View Supplier Detail", "supplier"},
         {"supplier.store",  "Create Supplier",      "supplier"},
         {"supplier.update", "Update Supplier",      "supplier"},
         {"supplier.delete", "Delete Supplier",      "supplier"},
         {"supplier.admin",  "Admin Access to Suppliers", "supplier"},
+
+        {"order.index",  "View All Orders",   "order"},
+        {"order.show",   "View Order Detail", "order"},
+        {"order.store",  "Create Order",      "order"},
+        {"order.update", "Update Order",      "order"},
+        {"order.delete", "Delete Order",      "order"},        
+
+        {"order_item.index",  "View All Order Items",   "order_item"},
+        {"order_item.show",   "View Order Item Detail", "order_item"},
+        {"order_item.store",  "Create Order Item",      "order_item"},
+        {"order_item.update", "Update Order Item",      "order_item"},
+        {"order_item.delete", "Delete Order Item",      "order_item"},        
 
         {"voucher.index",  "View All Vouchers",   "voucher"},
         {"voucher.show",   "View Voucher Detail", "voucher"},
@@ -210,6 +238,7 @@ public class PermissionSeeder {
             Role r = new Role();
             r.setSlug("admin");
             r.setName("Administrator");
+            r.setType(Role.Type.INTERNAL);
             return r;
         });
         adminRole.setPermissions(allPermsSet);
@@ -222,6 +251,7 @@ public class PermissionSeeder {
             Role r = new Role();
             r.setSlug("owner");
             r.setName("Owner / Pemilik Mitra");
+            r.setType(Role.Type.EXTERNAL);
             return r;
         });
         ownerRole.setPermissions(new HashSet<>());
@@ -241,63 +271,19 @@ public class PermissionSeeder {
                 moduleSlug.equals("transfer_request") ||
                 moduleSlug.equals("stock_opname") ||
                 moduleSlug.equals("purchase_order") ||
+                moduleSlug.equals("order_item") ||
+                moduleSlug.equals("order") ||
                 moduleSlug.equals("supplier") ||
                 moduleSlug.equals("voucher") ||
                 moduleSlug.equals("dashboard") ||
                 moduleSlug.equals("pos") ||
-                moduleSlug.equals("report")) {
-                ownerPerms.add(p);
+                moduleSlug.equals("report")) { 
+                ownerPerms.add(p);  
             }
         }
         ownerRole.setPermissions(ownerPerms);
         roleRepository.save(ownerRole);
         log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
-
-        // Role "employee" — kasir/karyawan, akses terbatas
-        Role employeeRole = roleRepository.findBySlugAndPartnerId("employee", null).orElseGet(() -> {
-            Role r = new Role();
-            r.setSlug("employee");
-            r.setName("Karyawan / Kasir");
-            return r;
-        });
-
-        Set<Permission> employeePerms = new HashSet<>();
-        for (Permission p : allPerms) {
-            String moduleSlug = p.getModule().getSlug();
-            String permSlug = p.getSlug();
-            // Employee: bisa lihat produk, stok, buat order, buat transfer request, input opname
-            if (moduleSlug.equals("dashboard") ||
-                moduleSlug.equals("pos") ||
-                permSlug.equals("produk.index") || permSlug.equals("produk.show") ||
-                permSlug.equals("category.index") || permSlug.equals("category.show") ||
-                permSlug.equals("branch.index") || permSlug.equals("branch.show") ||
-                permSlug.equals("warehouse.index") || permSlug.equals("warehouse.show") ||
-                permSlug.equals("stock_balance.index") || permSlug.equals("stock_balance.show") ||
-                permSlug.equals("stock_mutation.index") || permSlug.equals("stock_mutation.show") ||
-                permSlug.equals("transfer_request.index") || permSlug.equals("transfer_request.show") ||
-                permSlug.equals("transfer_request.store") || permSlug.equals("transfer_request.update") ||
-                permSlug.equals("stock_opname.index") || permSlug.equals("stock_opname.show") ||
-                permSlug.equals("stock_opname.store") || permSlug.equals("stock_opname.update") ||
-                permSlug.equals("purchase_order.index") || permSlug.equals("purchase_order.show") ||
-                permSlug.equals("purchase_order.update") ||
-                permSlug.equals("supplier.index") || permSlug.equals("supplier.show") ||
-                permSlug.equals("voucher.index") || permSlug.equals("voucher.show")) {
-                employeePerms.add(p);
-            }
-        }
-        employeeRole.setPermissions(employeePerms);
-        roleRepository.save(employeeRole);
-        log.info("[SEEDER] Employee role seeded with {} permissions", employeePerms.size());
-
-        // Backward compat: keep admin-partners as alias pointing to same perms
-        Role adminPartnersRole = roleRepository.findBySlugAndPartnerId("admin-partners", null).orElseGet(() -> {
-            Role r = new Role();
-            r.setSlug("admin-partners");
-            r.setName("Admin Partners (legacy)");
-            return r;
-        });
-        adminPartnersRole.setPermissions(ownerPerms);
-        roleRepository.save(adminPartnersRole);
 
         // 5. Assign "admin" role to super user "su"
         userRepository.findByUsername("su").ifPresent(su -> {

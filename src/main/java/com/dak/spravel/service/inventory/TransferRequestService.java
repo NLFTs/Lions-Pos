@@ -2,12 +2,9 @@ package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
 import com.dak.spravel.dto.request.inventory.TransferRequestItemDTO;
-import com.dak.spravel.dto.response.components.PartnerSimpleDto;
-import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
@@ -18,11 +15,7 @@ import com.dak.spravel.repository.inventory.TransferRequestRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -40,685 +33,395 @@ public class TransferRequestService {
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
 
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
-        Authentication auth =
-            SecurityContextHolder.getContext().getAuthentication();
-        if (
-            auth == null ||
-            !auth.isAuthenticated() ||
-            "anonymousUser".equals(auth.getName())
-        ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
-        return userRepository
-            .findByUsername(auth.getName())
-            .orElseThrow(() ->
-                new RuntimeException("User tidak ditemukan di database")
-            );
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
-
-        boolean isStaff = !user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || role.getSlug().equalsIgnoreCase("super_admin"));
-
-        if (!isAuthorized || !isStaff) {
-            throw new RuntimeException(
-                "Akses Ditolak: Hanya Owner atau Employee yang diizinkan."
-            );
-        }
-        return user;
-    }
-
-    private boolean isAdmin(User user) {
-        return user
-            .getRoles()
-            .stream()
-            .anyMatch(
-                role ->
-                    role.getSlug().equalsIgnoreCase("super_admin") ||
-                    role.getSlug().equalsIgnoreCase("admin")
-            );
-    }
-
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee"));
-    }
-
-    private boolean isBranchAccessible(
-            TransferRequest.Location locationType,
-            Long locationId,
-            User user
-    ) {
-
-        if (user.getBranch() == null) {
-            return false;
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
 
-        return locationType == TransferRequest.Location.BRANCH
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
+    }
+
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
+    }
+
+    // Helper: Validasi Akses Branch Kerja Karyawan (Dinamis tanpa hardcode role string)
+    private boolean isBranchAccessible(TransferRequest.Location type, Long locationId, User user) {
+        return user.getBranch() != null
+                && type == TransferRequest.Location.BRANCH
                 && user.getBranch().getId().equals(locationId);
     }
 
-    private TransferRequest getValidatedTransferRequest(
-        Long id,
-        User currentUser
-    ) {
-        TransferRequest transferRequest = transferRequestRepository
-            .findById(id)
-            .orElseThrow(() ->
-                new ResourceNotFoundException("TransferRequest", id)
-            );
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
-        if (
-            currentUser.getPartner() == null ||
-            !transferRequest
-                .getPartner()
-                .getId()
-                .equals(currentUser.getPartner().getId())
-        ) {
-            throw new RuntimeException(
-                "Akses Ditolak: Transfer request bukan milik partner Anda."
-            );
+    private TransferRequest getValidatedTransferRequest(Long id, User currentUser) {
+        TransferRequest tr = transferRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
+
+        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        if (currentUser.getPartner() == null) {
+            return tr;
         }
 
-        return transferRequest;
+        if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Data Transfer Request bukan milik partner Anda");
+        }
+
+        return tr;
     }
 
-    // Khusus Untuk Super Admin
-    public List<TransferRequestResponse> findAllTransferRequest() {
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
+    // KHUSUS SUPER ADMIN GLOBAL
+
+    public List<TransferRequestResponse> findAllAdmin() {
         User currentUser = getAuthenticatedUser();
-
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Hanya Admin yang boleh melihat semua Transfer Request."
-            );
-        }
+        checkSuperAdminOnly(currentUser);
 
         return transferRequestRepository.findAll()
                 .stream()
                 .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // Otak Mapping Utama ke DTO Response
-    public TransferRequestResponse mapToResponse(
-        TransferRequest transferRequest
-    ) {
-        if (transferRequest == null) return null;
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION MATRIKS)
 
-        // Partner DTO Mapping dengan Pengaman Lazy-Load
-        PartnerSimpleDto partnerDto = null;
-        if (transferRequest.getPartner() != null) {
-            partnerDto = new PartnerSimpleDto();
-            partnerDto.setId(transferRequest.getPartner().getId());
-            partnerDto.setName(transferRequest.getPartner().getName());
-        } else if (transferRequest.getPartnerId() != null) {
-            partnerDto = new PartnerSimpleDto();
-            partnerDto.setId(transferRequest.getPartnerId());
-            partnerDto.setName("Partner ID " + transferRequest.getPartnerId());
-        }
-
-        // Items Detail Mapping
-        List<TransferRequestResponse.TransferRequestItemResponse> itemResponses =
-                transferRequest.getItems()
-                        .stream()
-                        .map(this::mapItemToResponse)
-                        .collect(Collectors.toList());
-
-        // Bangun Response dengan data audit trail penuh sesuai field entity
-        return TransferRequestResponse.builder()
-            .id(transferRequest.getId())
-            .partner(partnerDto)
-            .fromLocationType(
-                transferRequest.getFromLocationType() != null
-                    ? transferRequest.getFromLocationType().name()
-                    : null
-            )
-            .fromLocationId(transferRequest.getFromLocationId())
-            .toLocationType(
-                transferRequest.getToLocationType() != null
-                    ? transferRequest.getToLocationType().name()
-                    : null
-            )
-            .toLocationId(transferRequest.getToLocationId())
-            .status(transferRequest.getStatus())
-            .notes(transferRequest.getNotes())
-            .requestedAt(transferRequest.getRequestedAt())
-            .approvedAt(transferRequest.getApprovedAt())
-            .receivedAt(transferRequest.getReceivedAt())
-            .createdAt(transferRequest.getCreatedAt())
-            .updatedAt(transferRequest.getUpdatedAt())
-            .deletedAt(transferRequest.getDeletedAt())
-            .createdBy(mapUserToSimpleDto(transferRequest.getCreatedBy()))
-            .updatedBy(mapUserToSimpleDto(transferRequest.getUpdatedBy()))
-            .deletedBy(mapUserToSimpleDto(transferRequest.getDeletedBy()))
-            .approvedBy(mapUserToSimpleDto(transferRequest.getApprovedByUser()))
-            // Menghubungkan ke getter user peng-approve
-            .receivedBy(mapUserToSimpleDto(transferRequest.getReceivedByUser()))
-            // Menghubungkan ke getter user penerima
-            .items(itemResponses)
-            .build();
-    }
-
-    private TransferRequestResponse.TransferRequestItemResponse mapItemToResponse(
-        TransferRequestItem item
-    ) {
-        if (item == null) return null;
-
-        TransferRequestResponse.ProductSimpleDto productDto = null;
-        if (item.getProduct() != null) {
-            productDto = new TransferRequestResponse.ProductSimpleDto();
-            productDto.setId(item.getProduct().getId());
-            productDto.setName(item.getProduct().getName());
-            productDto.setSku(item.getProduct().getSku());
-        }
-
-        TransferRequestResponse.TransferRequestItemResponse response =
-            new TransferRequestResponse.TransferRequestItemResponse();
-        response.setId(item.getId());
-        response.setProduct(productDto);
-
-        // Mengamankan tipe data antara Long (Response DTO) dan BigDecimal/Long dari Model
-        response.setQtyRequested(
-            item.getQtyRequested() != null
-                ? item.getQtyRequested().longValue()
-                : null
-        );
-        response.setQtyReceived(
-            item.getQtyReceived() != null
-                ? item.getQtyReceived().longValue()
-                : null
-        );
-
-        return response;
-    }
-
-    private UserSimpleDto mapUserToSimpleDto(User user) {
-        if (user == null) return null;
-
-        UserSimpleDto dto = new UserSimpleDto();
-        dto.setId(user.getId());
-        dto.setUsername(user.getUsername());
-        return dto;
-    }
-
-    // GET ALL (Filter per Mitra)
-    public List<TransferRequest> findAll() {
-
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (currentUser.getPartner() == null) {
-            throw new RuntimeException(
-                "User tidak terasosiasi dengan Partner."
-            );
-        }
-        List<TransferRequest> transferRequests = transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(
-                                currentUser.getPartner().getId()
-                        );
-
-        // FILTER KHUSUS EMPLOYEE
-        if (isEmployee(currentUser)) {
-
-            if (currentUser.getBranch() == null) {
-                throw new RuntimeException("Employee tidak memiliki branch.");
-            }
-
-            Long branchId = currentUser.getBranch().getId();
-
-            transferRequests = transferRequests.stream()
-                    .filter(tr ->
-                            ("BRANCH".equalsIgnoreCase(
-                                    tr.getFromLocationType() != null
-                                            ? tr.getFromLocationType().name()
-                                            : null)
-                                    && branchId.equals(tr.getFromLocationId()))
-                                    ||
-                                    ("BRANCH".equalsIgnoreCase(
-                                            tr.getToLocationType() != null
-                                                    ? tr.getToLocationType().name()
-                                                    : null)
-                                            && branchId.equals(tr.getToLocationId()))
-                    )
-                    .toList();
-        }
-
-        return transferRequests;
-    }
-
-    // GET ALL PAGINATED
-    public Page<TransferRequestResponse> findAll(int page, int size) {
+    public List<TransferRequestResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        PageRequest pageRequest = PageRequest.of(
-            page,
-            size,
-            Sort.by("id").descending()
-        );
-
-        if (isAdmin(currentUser)) {
-            return transferRequestRepository
-                .findAll(pageRequest)
-                .map(this::mapToResponse);
-        }
+        checkPermission(currentUser, "transfer_request.index");
 
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException(
-                "User tidak terasosiasi dengan Partner."
-            );
+            return transferRequestRepository.findAll().stream().map(this::mapToResponse).toList();
         }
 
-        Page<TransferRequestResponse> result =
-                transferRequestRepository
-                        .findByPartnerIdAndDeletedAtIsNull(
-                                currentUser.getPartner().getId(),
-                                pageRequest
-                        )
-                        .map(this::mapToResponse);
+        List<TransferRequest> data = transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(
+                currentUser.getPartner().getId()
+        );
 
-        if (isEmployee(currentUser)) {
-
-            if (currentUser.getBranch() == null) {
-                throw new RuntimeException("Employee tidak memiliki branch.");
-            }
-
+        // 🛡️ BRANCH ISOLATION
+        if (currentUser.getBranch() != null) {
             Long branchId = currentUser.getBranch().getId();
-
-            List<TransferRequestResponse> filtered =
-                    result.getContent().stream()
-                            .filter(tr ->
-                                    ("BRANCH".equalsIgnoreCase(tr.getFromLocationType())
-                                            && branchId.equals(tr.getFromLocationId()))
-                                            ||
-                                            ("BRANCH".equalsIgnoreCase(tr.getToLocationType())
-                                                    && branchId.equals(tr.getToLocationId()))
-                            )
-                            .toList();
-
-            return new org.springframework.data.domain.PageImpl<>(
-                    filtered,
-                    pageRequest,
-                    filtered.size()
-            );
+            data = data.stream()
+                    .filter(tr ->
+                        (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
+                        (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()))
+                    ).toList();
+        }
+        // 🛡️ WAREHOUSE ISOLATION
+        else if (currentUser.getWarehouse() != null) {
+            Long warehouseId = currentUser.getWarehouse().getId();
+            data = data.stream()
+                    .filter(tr ->
+                        (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
+                        (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()))
+                    ).toList();
         }
 
-        return result;
+        return data.stream().map(this::mapToResponse).toList();
     }
 
-    // GET BY ID
     public TransferRequestResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        TransferRequest transferRequest =
-                transferRequestRepository.findByIdWithItems(id)
-                        .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
+        checkPermission(currentUser, "transfer_request.show");
 
-        if (!isAdmin(currentUser)) {
-            if (currentUser.getPartner() == null ||
-                    !transferRequest.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
+        TransferRequest tr = transferRequestRepository.findByIdWithItems(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
+
+        if (currentUser.getPartner() != null) {
+            if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Data Transfer bukan milik partner Anda.");
+            }
+
+            // Branch isolation
+            if (currentUser.getBranch() != null) {
+                Long branchId = currentUser.getBranch().getId();
+                boolean access =
+                    (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
+                    (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()));
+                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan cabang Anda.");
+            }
+            // Warehouse isolation
+            else if (currentUser.getWarehouse() != null) {
+                Long warehouseId = currentUser.getWarehouse().getId();
+                boolean access =
+                    (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
+                    (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()));
+                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan gudang Anda.");
             }
         }
-        if (isEmployee(currentUser)) {
 
-            boolean hasAccess =
-                    isBranchAccessible(
-                            transferRequest.getFromLocationType(),
-                            transferRequest.getFromLocationId(),
-                            currentUser
-                    )
-                            ||
-                            isBranchAccessible(
-                                    transferRequest.getToLocationType(),
-                                    transferRequest.getToLocationId(),
-                                    currentUser
-                            );
-
-            if (!hasAccess) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Transfer request bukan branch Anda."
-                );
-            }
-        }
-        return mapToResponse(transferRequest);
+        return mapToResponse(tr);
     }
 
-    // GET BY PARTNER ID
-    public List<TransferRequest> findByPartnerId(Long partnerId) {
-
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (currentUser.getPartner() == null ||
-                !currentUser.getPartner().getId().equals(partnerId)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Anda tidak bisa mengakses data partner lain."
-            );
-        }
-
-        List<TransferRequest> transferRequests =
-                transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(partnerId);
-
-        // FILTER EMPLOYEE
-        if (isEmployee(currentUser)) {
-
-            if (currentUser.getBranch() == null) {
-                throw new RuntimeException("Employee tidak memiliki branch.");
-            }
-
-            Long branchId = currentUser.getBranch().getId();
-
-            transferRequests = transferRequests.stream()
-                    .filter(tr ->
-                            (
-                                    tr.getFromLocationType() == TransferRequest.Location.BRANCH
-                                            && branchId.equals(tr.getFromLocationId())
-                            )
-                                    ||
-                                    (
-                                            tr.getToLocationType() == TransferRequest.Location.BRANCH
-                                                    && branchId.equals(tr.getToLocationId())
-                                    )
-                    )
-                    .toList();
-        }
-
-        return transferRequests;
-    }
-
-    // CREATE (Modifikasi mutakhir: Menembak langsung ke field partnerId Long & menyimpan detail items)
+    // FORMULASI REQUEST TRANSFER BARANG BARU (DRAFT / PENDING)
     @Transactional
     public TransferRequestResponse create(TransferRequestDTO request) {
-
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "transfer_request.store"); // 💡 Siapapun boleh input asal diberi izin Owner
 
         Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen transfer langsung.");
+        }
 
-        TransferRequest transferRequest = new TransferRequest();
+        TransferRequest tr = new TransferRequest();
+        tr.setPartner(partner);
 
-        transferRequest.setPartner(partner);
-
-        // 1. Deteksi Otomatis Lokasi Asal (From) via Database
+        // Resolusi Lokasi Asal Pengirim (FROM)
         Long fromId = request.getFromLocationId();
-
         if (warehousesRepository.existsById(fromId)) {
-
-            transferRequest.setFromLocationType(
-                    TransferRequest.Location.WAREHOUSE
-            );
-
-            transferRequest.setFromLocationId(fromId);
-
+            tr.setFromLocationType(TransferRequest.Location.WAREHOUSE);
         } else if (branchesRepository.existsById(fromId)) {
-
-            transferRequest.setFromLocationType(
-                    TransferRequest.Location.BRANCH
-            );
-
-            transferRequest.setFromLocationId(fromId);
-
+            tr.setFromLocationType(TransferRequest.Location.BRANCH);
         } else {
-
-            throw new RuntimeException(
-                    "Gagal: ID lokasi asal (" + fromId + ") tidak ditemukan di Gudang maupun Cabang!"
-            );
+            throw new RuntimeException("Lokasi asal pengirim (From Location) tidak valid.");
         }
+        tr.setFromLocationId(fromId);
 
+        // Resolusi Lokasi Target Penerima (TO)
         Long toId = request.getToLocationId();
-
         if (warehousesRepository.existsById(toId)) {
-
-            transferRequest.setToLocationType(
-                    TransferRequest.Location.WAREHOUSE
-            );
-
-            transferRequest.setToLocationId(toId);
-
+            tr.setToLocationType(TransferRequest.Location.WAREHOUSE);
         } else if (branchesRepository.existsById(toId)) {
-
-            transferRequest.setToLocationType(
-                    TransferRequest.Location.BRANCH
-            );
-
-            transferRequest.setToLocationId(toId);
-
+            tr.setToLocationType(TransferRequest.Location.BRANCH);
         } else {
+            throw new RuntimeException("Lokasi target penerima (To Location) tidak valid.");
+        }
+        tr.setToLocationId(toId);
 
-            throw new RuntimeException(
-                    "Gagal: ID lokasi tujuan (" + toId + ") tidak ditemukan di Gudang maupun Cabang!"
-            );
+        tr.setStatus(TransferRequest.Status.PENDING);
+        tr.setRequestedAt(LocalDateTime.now());
+        tr.setCreatedAt(LocalDateTime.now());
+        tr.setCreatedBy(currentUser);
+        tr.setNotes(request.getNotes());
+
+        TransferRequest saved = transferRequestRepository.save(tr);
+
+        // Simpan items
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            List<TransferRequestItem> items = request.getItems().stream().map(dto -> {
+                TransferRequestItem item = new TransferRequestItem();
+                item.setTransferRequest(saved);
+                item.setProductId(dto.getProductId());
+                item.setQtyRequested(dto.getQtyRequested().longValue());
+                return item;
+            }).toList();
+            transferRequestItemRepository.saveAll(items);
         }
 
-        // VALIDASI KHUSUS EMPLOYEE
-        if (isEmployee(currentUser)) {
-
-            if (currentUser.getBranch() == null) {
-
-                throw new RuntimeException(
-                        "Employee tidak memiliki branch."
-                );
-            }
-
-            Long branchId = currentUser.getBranch().getId();
-
-            boolean hasAccess =
-
-                    (
-                            transferRequest.getFromLocationType()
-                                    == TransferRequest.Location.BRANCH
-
-                                    &&
-
-                                    branchId.equals(
-                                            transferRequest.getFromLocationId()
-                                    )
-                    )
-
-                            ||
-
-                            (
-                                    transferRequest.getToLocationType()
-                                            == TransferRequest.Location.BRANCH
-
-                                            &&
-
-                                            branchId.equals(
-                                                    transferRequest.getToLocationId()
-                                            )
-                            );
-
-            if (!hasAccess) {
-
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee hanya boleh membuat transfer untuk branch miliknya."
-                );
-            }
-        }
-
-        transferRequest.setNotes(request.getNotes());
-
-        transferRequest.setStatus(
-                TransferRequest.Status.PENDING
-        );
-
-        transferRequest.setRequestedAt(
-                LocalDateTime.now()
-        );
-
-        transferRequest.setCreatedAt(
-                LocalDateTime.now()
-        );
-
-        transferRequest.setCreatedBy(currentUser);
-
-        TransferRequest savedTR =
-                transferRequestRepository.save(transferRequest);
-
-        return mapToResponse(savedTR);
+        return mapToResponse(transferRequestRepository.findByIdWithItems(saved.getId()).orElse(saved));
     }
-    // RECEIVE TRANSFER (Konfirmasi Penerimaan Stok & Pencatatan Mutasi otomatis)
+
+    // EKSEKUSI PENERIMAAN BARANG DI LOKASI TUJUAN & AMANDEMEN STOK BALANCE REAL-TIME
     @Transactional
-    public TransferRequestResponse receiveTransfer(
-        Long transferRequestId,
-        List<TransferRequestItemDTO> receivedItemsPayload
-    ) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+    public TransferRequestResponse receiveTransfer(Long id, List<TransferRequestItemDTO> items) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "transfer_request.update"); // 💡 Siapapun boleh approve serah terima asal punya permission
 
-        TransferRequest tr = transferRequestRepository.findById(transferRequestId)
-                .orElseThrow(() -> new RuntimeException("Transfer Request tidak ditemukan"));
+        TransferRequest tr = transferRequestRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
 
-        if (isEmployee(currentUser)) {
-
-            boolean hasAccess =
-                    isBranchAccessible(
-                            tr.getFromLocationType(),
-                            tr.getFromLocationId(),
-                            currentUser
-                    )
-                            ||
-                            isBranchAccessible(
-                                    tr.getToLocationType(),
-                                    tr.getToLocationId(),
-                                    currentUser
-                            );
-
-            if (!hasAccess) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Transfer request bukan branch Anda."
-                );
+        // Tenant Protection Guard
+        if (currentUser.getPartner() != null) {
+            if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Dokumen transfer bukan milik partner Anda.");
             }
-        }
-
-        if (tr.getStatus() != TransferRequest.Status.PENDING && tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
-            throw new RuntimeException("Gagal: Transfer Request sudah diproses sebelumnya atau telah dibatalkan.");
+            
+            // Branch Guard: hanya staff cabang tujuan yang bisa terima
+            if (currentUser.getBranch() != null) {
+                if (tr.getToLocationType() != TransferRequest.Location.BRANCH ||
+                    !currentUser.getBranch().getId().equals(tr.getToLocationId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di cabang tugas Anda.");
+                }
+            }
+            // Warehouse Guard: hanya staff gudang tujuan yang bisa terima
+            else if (currentUser.getWarehouse() != null) {
+                if (tr.getToLocationType() != TransferRequest.Location.WAREHOUSE ||
+                    !currentUser.getWarehouse().getId().equals(tr.getToLocationId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di gudang tugas Anda.");
+                }
+            }
         }
 
         tr.setStatus(TransferRequest.Status.RECEIVED);
         tr.setReceivedAt(LocalDateTime.now());
         tr.setReceivedByUser(currentUser);
-        tr.setUpdatedAt(LocalDateTime.now());
-        tr.setUpdatedBy(currentUser);
 
-        for (TransferRequestItem item : tr.getItems()) {
-            Long realQtyReceived = receivedItemsPayload.stream()
-                    .filter(p -> p.getProductId().equals(item.getProduct().getId()))
-                    .map(p -> p.getQtyRequested() != null ? p.getQtyRequested().longValue() : 0L)
+        // Load items dengan fetch
+        List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
+
+        for (TransferRequestItem item : trItems) {
+            // Gunakan qty dari request jika ada, fallback ke qty_requested
+            Long qty = items.stream()
+                    .filter(i -> i.getProductId().equals(item.getProductId()))
+                    .map(i -> i.getQtyRequested().longValue())
                     .findFirst()
-                    .orElse(item.getQtyRequested() != null ? item.getQtyRequested().longValue() : 0L);
+                    .orElse(item.getQtyRequested());
 
-            item.setQtyReceived(realQtyReceived);
+            item.setQtyReceived(qty);
 
-            // BUG FIX #1: Update stok FROM (kurangi) dan TO (tambah), catat mutation
-            Product product = item.getProduct();
-            Partners partner = tr.getPartner();
+            stockBalanceService.adjustStock(
+                    item.getProductId(),
+                    tr.getFromLocationType().name().toUpperCase(),
+                    tr.getFromLocationId(),
+                    -qty
+            );
 
-            String fromType = tr.getFromLocationType().name().toLowerCase();
-            Long fromId = tr.getFromLocationId();
-            String toType = tr.getToLocationType().name().toLowerCase();
-            Long toId = tr.getToLocationId();
+            stockBalanceService.adjustStock(
+                    item.getProductId(),
+                    tr.getToLocationType().name().toUpperCase(),
+                    tr.getToLocationId(),
+                    qty
+            );
 
-            // Kurangi stok lokasi asal
-            stockBalanceService.adjustStock(product.getId(),
-                    tr.getFromLocationType().name(), fromId, -realQtyReceived);
+            // Ambil product untuk mutation record
+            com.dak.spravel.model.catalog.Product product = item.getProduct();
+            if (product == null) {
+                product = new com.dak.spravel.model.catalog.Product();
+                product.setId(item.getProductId());
+                product.setPartner(tr.getPartner());
+            }
 
-            // Tambah stok lokasi tujuan
-            stockBalanceService.adjustStock(product.getId(),
-                    tr.getToLocationType().name(), toId, realQtyReceived);
-
-            // Catat stock mutation type=TRANSFER
             stockMutationService.recordMutation(
-                    product, partner,
+                    product,
+                    tr.getPartner(),
                     "TRANSFER",
-                    fromType, fromId,
-                    toType, toId,
-                    realQtyReceived,
-                    "transfer_request", tr.getId(),
-                    "Transfer #" + tr.getId() + " diterima",
+                    tr.getFromLocationType().name().toUpperCase(),
+                    tr.getFromLocationId(),
+                    tr.getToLocationType().name().toUpperCase(),
+                    tr.getToLocationId(),
+                    qty,
+                    "TRANSFER_REQUEST",
+                    tr.getId(),
+                    "Transfer diterima oleh " + currentUser.getUsername(),
                     currentUser
             );
         }
 
-        transferRequestItemRepository.saveAll(tr.getItems());
-
-        TransferRequest updatedTR = transferRequestRepository.save(tr);
-        return mapToResponse(updatedTR);
+        transferRequestItemRepository.saveAll(trItems);
+        return mapToResponse(transferRequestRepository.save(tr));
     }
 
-    // SOFT DELETE
     @Transactional
     public void delete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        TransferRequest transferRequest = getValidatedTransferRequest(
-            id,
-            currentUser
-        );
-        transferRequest.setDeletedAt(LocalDateTime.now());
-        transferRequest.setDeletedBy(currentUser);
-        transferRequestRepository.save(transferRequest);
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "transfer_request.delete");
+
+        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
+
+        tr.setDeletedAt(LocalDateTime.now());
+        tr.setDeletedBy(currentUser);
+
+        transferRequestRepository.save(tr);
     }
 
-    // UPDATE STATUS (approve: pending→approved, in_transit, dll)
     @Transactional
-    public TransferRequestResponse updateStatus(Long id, String newStatus) {
+    public TransferRequestResponse updateStatus(Long id, String status) {
         User currentUser = getAuthenticatedUser();
-        TransferRequest tr = transferRequestRepository
-            .findById(id)
-            .orElseThrow(() ->
-                new RuntimeException("Transfer Request tidak ditemukan")
-            );
+        checkPermission(currentUser, "transfer_request.update");
 
-        if (!isAdmin(currentUser)) {
-            if (currentUser.getPartner() == null ||
-                    !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Transfer request bukan milik partner Anda.");
-            }
-        }
+        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
 
-        if (isEmployee(currentUser)) {
-
-            boolean hasAccess = isBranchAccessible(tr.getFromLocationType(),
-                            tr.getFromLocationId(), currentUser
-                    )
-                            ||
-                            isBranchAccessible(
-                                    tr.getToLocationType(),
-                                    tr.getToLocationId(),
-                                    currentUser
-                            );
-
-            if (!hasAccess) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Transfer request bukan branch Anda."
-                );
-            }
-        }
-        try {
-            TransferRequest.Status status = TransferRequest.Status.valueOf(
-                newStatus.toUpperCase()
-            );
-            tr.setStatus(status);
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Status tidak valid: " + newStatus);
-        }
-
-        if ("approved".equalsIgnoreCase(newStatus)) {
-            tr.setApprovedAt(LocalDateTime.now());
-            tr.setApprovedByUser(currentUser);
-        }
-        
-        if ("received".equalsIgnoreCase(newStatus)) {
-            tr.setReceivedAt(LocalDateTime.now());
-            tr.setReceivedByUser(currentUser);
-        }
-
+        tr.setStatus(TransferRequest.Status.valueOf(status.toUpperCase()));
         tr.setUpdatedAt(LocalDateTime.now());
         tr.setUpdatedBy(currentUser);
-        TransferRequest saved = transferRequestRepository.save(tr);
-        return mapToResponse(saved);
+
+        return mapToResponse(transferRequestRepository.save(tr));
+    }
+
+    // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
+
+    private String resolveLocationName(TransferRequest.Location type, Long locationId) {
+        if (type == null || locationId == null) return null;
+        if (type == TransferRequest.Location.BRANCH) {
+            return branchesRepository.findById(locationId).map(b -> b.getName()).orElse("Branch #" + locationId);
+        }
+        return warehousesRepository.findById(locationId).map(w -> w.getName()).orElse("Warehouse #" + locationId);
+    }
+
+    public TransferRequestResponse mapToResponse(TransferRequest tr) {
+        if (tr == null) return null;
+
+        com.dak.spravel.dto.response.components.UserSimpleDto createdByDto = null;
+        if (tr.getCreatedBy() != null) {
+            createdByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            createdByDto.setId(tr.getCreatedBy().getId());
+            createdByDto.setUsername(tr.getCreatedBy().getUsername());
+        }
+
+        com.dak.spravel.dto.response.components.UserSimpleDto approvedByDto = null;
+        if (tr.getApprovedByUser() != null) {
+            approvedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            approvedByDto.setId(tr.getApprovedByUser().getId());
+            approvedByDto.setUsername(tr.getApprovedByUser().getUsername());
+        }
+
+        com.dak.spravel.dto.response.components.UserSimpleDto receivedByDto = null;
+        if (tr.getReceivedByUser() != null) {
+            receivedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            receivedByDto.setId(tr.getReceivedByUser().getId());
+            receivedByDto.setUsername(tr.getReceivedByUser().getUsername());
+        }
+
+        List<TransferRequestResponse.TransferRequestItemResponse> itemResponses = null;
+        if (tr.getItems() != null) {
+            itemResponses = tr.getItems().stream().map(item -> {
+                TransferRequestResponse.TransferRequestItemResponse ir = new TransferRequestResponse.TransferRequestItemResponse();
+                ir.setId(item.getId());
+                ir.setQtyRequested(item.getQtyRequested() != null ? item.getQtyRequested().longValue() : 0L);
+                ir.setQtyReceived(item.getQtyReceived());
+                if (item.getProduct() != null) {
+                    TransferRequestResponse.ProductSimpleDto pd = new TransferRequestResponse.ProductSimpleDto();
+                    pd.setId(item.getProduct().getId());
+                    pd.setName(item.getProduct().getName());
+                    pd.setSku(item.getProduct().getSku());
+                    ir.setProduct(pd);
+                }
+                return ir;
+            }).toList();
+        }
+
+        return TransferRequestResponse.builder()
+                .id(tr.getId())
+                .fromLocationType(tr.getFromLocationType() != null ? tr.getFromLocationType().name().toLowerCase() : null)
+                .fromLocationId(tr.getFromLocationId())
+                .fromLocationName(resolveLocationName(tr.getFromLocationType(), tr.getFromLocationId()))
+                .toLocationType(tr.getToLocationType() != null ? tr.getToLocationType().name().toLowerCase() : null)
+                .toLocationId(tr.getToLocationId())
+                .toLocationName(resolveLocationName(tr.getToLocationType(), tr.getToLocationId()))
+                .status(tr.getStatus())
+                .notes(tr.getNotes())
+                .requestedAt(tr.getRequestedAt())
+                .approvedAt(tr.getApprovedAt())
+                .receivedAt(tr.getReceivedAt())
+                .createdAt(tr.getCreatedAt())
+                .updatedAt(tr.getUpdatedAt())
+                .createdBy(createdByDto)
+                .approvedBy(approvedByDto)
+                .receivedBy(receivedByDto)
+                .items(itemResponses)
+                .build();
     }
 }

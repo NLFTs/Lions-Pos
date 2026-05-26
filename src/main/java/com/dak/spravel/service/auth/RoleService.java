@@ -16,6 +16,8 @@ import com.dak.spravel.repository.auth.UserRepository;
 import org.springframework.security.core.Authentication; 
 import org.springframework.security.core.context.SecurityContextHolder; 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -32,9 +34,55 @@ public class RoleService {
     private final PermissionRepository permissionRepository;
     private final PermissionCacheService permissionCacheService;
 
-    // 💡 Semua user (termasuk employee) masih bisa ngelihat list role buat keperluan UI
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("User tidak terautentikasi");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
+
+    // 🔥 KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
+        }
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
+    }
+
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
+    private void validatePartnerAccess(Role role, User currentUser) {
+        // 👑 Jika Super Admin Global, bypass validasi kepemilikan tenant
+        if (currentUser.getPartner() == null) {
+            return;
+        }
+        if (role.getPartner() != null) {    
+            if (!role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new SecurityException("Akses Ditolak: Anda tidak diperbolehkan mengelola role milik partner lain.");
+            }
+        } 
+    }
+
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // GET ALL ROLES
     public List<RoleResponse> findAll() {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.index"); // 💡 Saring via permission index
+
         if (currentUser.getPartner() != null) {
             return roleRepository.findAllByPartnerIdOrPartnerIsNull(currentUser.getPartner().getId())
                     .stream().map(this::toResponse).toList();
@@ -42,8 +90,11 @@ public class RoleService {
         return roleRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    // GET ROLE BY ID
     public RoleResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.show");
+
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
         
@@ -52,9 +103,12 @@ public class RoleService {
         return toResponse(role);
     }
 
+    // CREATE ROLE
+    @Transactional
     public RoleResponse create(CreateRoleRequest request) {
-        // 🔒 KUNCI: Cuma Super Admin atau Admin Partner yang bisa lolos ke sini!
-        User currentUser = getAuthenticatedAdminOrAdminPartner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.store"); // 💡 Siapapun boleh buat role asal diberi izin Owner
+
         Partners partner = currentUser.getPartner();
         
         boolean slugExists = (partner != null) 
@@ -68,7 +122,8 @@ public class RoleService {
         Role role = new Role();
         role.setName(request.getName());
         role.setSlug(request.getSlug());
-        role.setPartner(partner); 
+        role.setPartner(partner);
+        role.setType(Role.Type.EXTERNAL);        
         role.setCreatedBy(currentUser);
         role.setCreatedAt(LocalDateTime.now());
 
@@ -79,14 +134,15 @@ public class RoleService {
         return toResponse(roleRepository.save(role));
     }
 
+    // UPDATE ROLE
+    @Transactional
     public RoleResponse update(Long id, UpdateRoleRequest request) {
-        // 🔒 KUNCI: Proteksi hak akses edit role
-        User currentUser = getAuthenticatedAdminOrAdminPartner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.update");
 
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
         
-        // Proteksi Tenant: mastiin gak silang partner
         validatePartnerAccess(role, currentUser);
 
         if (request.getName() != null) role.setName(request.getName());
@@ -108,9 +164,11 @@ public class RoleService {
         return toResponse(roleRepository.save(role));
     }
 
+    // DELETE ROLE
+    @Transactional
     public void delete(Long id) {
-        // 🔒 KUNCI: Proteksi hak akses delete role
-        User currentUser = getAuthenticatedAdminOrAdminPartner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.delete");
 
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
@@ -125,9 +183,11 @@ public class RoleService {
         permissionCacheService.evictAll();
     }
 
+    // ASSIGN MATRIX PERMISSIONS TO ROLE
+    @Transactional
     public RoleResponse assignPermissions(Long id, AssignPermissionsRequest request) {
-        // 🔒 KUNCI: Proteksi hak akses ganti permission role
-        User currentUser = getAuthenticatedAdminOrAdminPartner();
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.update"); // 💡 Mengubah susunan matriks permission dihitung hak kelola update role
 
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
@@ -146,10 +206,12 @@ public class RoleService {
         return toResponse(savedRole);
     }
 
+    // FETCH ALL SYSTEM PERMISSIONS (GROUPED BY MODULE)
     public Map<String, List<PermissionResponse>> getAllPermissionsGrouped() {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.show"); // 💡 Membuka daftar pilihan checklist permission matrix
         
-        java.util.Set<String> blacklistedModules = Set.of("partner", "permission", "module", "log");
+        Set<String> blacklistedModules = Set.of("partner", "permission", "module", "log");
 
         return permissionRepository.findAll().stream()
                 .filter(p -> {
@@ -163,44 +225,7 @@ public class RoleService {
                 .collect(Collectors.groupingBy(PermissionResponse::getModuleSlug));
     }
 
-    // ─── 🔒 Kumpulan Gerbang Autentikasi Internal ───────────────────────────────
-
-    private User getAuthenticatedUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
-            throw new RuntimeException("User tidak terautentikasi");
-        }
-        return userRepository.findByUsername(auth.getName())
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
-    }
-
-    // 💡 HELPER UTAMA BARU: Mengizinkan Super Admin ATAU Admin Partner sekaligus!
-    private User getAuthenticatedAdminOrAdminPartner() {
-        User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("admin") || 
-                                  role.getSlug().equalsIgnoreCase("super_admin") || 
-                                  role.getSlug().equalsIgnoreCase("admin-partners"));
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Super Admin atau Admin Partner yang diizinkan mengelola role.");
-        }
-        return user;
-    }
-
-    // ─── Helper Security Gate ──────────────────────────────────────────────────
-
-    private void validatePartnerAccess(Role role, User currentUser) {
-        if (currentUser.getPartner() == null) {
-            return;
-        }
-        if (role.getPartner() != null) {    
-            if (!role.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new SecurityException("Gak boleh ngutak-ngatik role punya partner lain, Mip!");
-            }
-        } 
-    }
-
-    // ─── Mappers ──────────────────────────────────────────────────────────────
+    // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
 
     private RoleResponse toResponse(Role role) {
         RoleResponse res = new RoleResponse();

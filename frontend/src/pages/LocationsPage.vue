@@ -13,7 +13,7 @@ import Label from '@/components/ui/Label.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import Alert from '@/components/ui/Alert.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, MapPin, Building2, Warehouse } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, MapPin, Building2, Warehouse, Shield, Check } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -27,11 +27,13 @@ const isAdmin = computed(() => authStore.isAdmin)
 // ─── State ───────────────────────────────────────────────────────────────────
 const branches = ref([])
 const warehouses = ref([])
+const availableRoles = ref([])
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(10)
+const roles = computed(() => availableRoles.value)
 
 // Unified list of locations
 const allLocations = computed(() => {
@@ -67,6 +69,7 @@ const emptyForm = () => ({
   address: '',
   username: '',
   password: '',
+  roleIds: [],
 })
 
 const form = ref(emptyForm())
@@ -108,11 +111,21 @@ async function fetchLocations() {
   }
 }
 
+async function fetchRoles() {
+  try {
+    const res = await api.get('/api/v1/roles') 
+    availableRoles.value = res.data?.data || res.data || []
+  } catch (err) {
+    console.error("Gagal load roles", err)
+  }
+}
+
 function openCreate() {
   form.value = emptyForm()
   formError.value = null
   modalMode.value = 'create'
   showDrawer.value = true
+  fetchRoles()
 }
 
 function openEdit(l) {
@@ -133,6 +146,7 @@ async function saveLocation() {
     return
   }
 
+  // Validasi Branch: username & password wajib
   if (form.value.type === 'branch' && modalMode.value === 'create') {
     if (!form.value.username?.trim()) {
       formError.value = 'Username wajib diisi untuk pembuatan Cabang.'
@@ -140,6 +154,22 @@ async function saveLocation() {
     }
     if (!form.value.password || form.value.password.length < 6) {
       formError.value = 'Password wajib diisi dan minimal 6 karakter.'
+      return
+    }
+    if (!form.value.roleIds || form.value.roleIds.length === 0) {
+      formError.value = 'Wajib pilih minimal satu role untuk user cabang.'
+      return
+    }
+  }
+
+  // Validasi Warehouse: jika username diisi, password & role wajib
+  if (form.value.type === 'warehouse' && modalMode.value === 'create' && form.value.username?.trim()) {
+    if (!form.value.password || form.value.password.length < 6) {
+      formError.value = 'Password wajib diisi dan minimal 6 karakter.'
+      return
+    }
+    if (!form.value.roleIds || form.value.roleIds.length === 0) {
+      formError.value = 'Wajib pilih minimal satu role untuk user gudang.'
       return
     }
   }
@@ -153,9 +183,12 @@ async function saveLocation() {
       name: form.value.name,
       address: form.value.address,
     }
-    if (form.value.type === 'branch') {
+
+    // Kirim data user untuk branch (wajib) dan warehouse (opsional jika username diisi)
+    if (modalMode.value === 'create' && form.value.username?.trim()) {
       payload.username = form.value.username
       payload.password = form.value.password
+      payload.roleIds = form.value.roleIds
     }
     
     if (modalMode.value === 'create') {
@@ -174,6 +207,14 @@ async function saveLocation() {
   }
 }
 
+function toggleRole(roleId) {
+  const idx = form.value.roleIds.indexOf(roleId)
+  if (idx === -1) {
+    form.value.roleIds.push(roleId)
+  } else {
+    form.value.roleIds.splice(idx, 1)
+  }
+}
 // ─── Delete ───────────────────────────────────────────────────────────────────
 const deleteModal = ref({ show: false, location: null, confirmText: '' })
 const deleting = ref(false)
@@ -393,6 +434,7 @@ onMounted(fetchLocations)
               />
             </div>
 
+            <!-- Form User untuk Branch (create only) -->
             <div v-if="form.type === 'branch' && modalMode === 'create'" class="space-y-4 border-t border-border pt-4 mt-4">
               <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Akun Pengguna Cabang</h4>
               
@@ -404,6 +446,72 @@ onMounted(fetchLocations)
               <div class="space-y-1.5">
                 <Label for="l-password">Password <span class="text-destructive">*</span></Label>
                 <Input id="l-password" type="password" v-model="form.password" placeholder="Password untuk login cabang" :disabled="saving" />
+              </div>
+              <div class="space-y-1.5 mt-4 pt-4 border-t border-border">
+                <label class="text-xs font-bold uppercase tracking-wider text-zinc-500">Assign Roles <span class="text-destructive">*</span></label>
+                <div class="rounded-md border border-input overflow-hidden bg-background">
+                  <div class="max-h-44 overflow-y-auto divide-y divide-border">
+                    <button v-for="role in roles" :key="role.id"
+                      type="button"
+                      @click="toggleRole(role.id)"
+                      :disabled="saving"
+                      class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 cursor-pointer transition-colors outline-none text-left disabled:opacity-50">
+                      <div class="flex items-center gap-3">
+                        <Shield class="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p class="font-medium text-sm text-foreground">{{ role.name }}</p>
+                          <p class="text-xs text-muted-foreground">{{ role.slug }}</p>
+                        </div>
+                      </div>
+                      <Check v-if="form.roleIds.includes(role.id)" class="h-4 w-4 text-primary" />
+                    </button>
+                  </div>
+                  <div v-if="roles.length === 0" class="p-3 text-xs text-muted-foreground italic text-center">
+                    No roles available.
+                  </div>
+                </div>
+                <p v-if="form.roleIds.length === 0" class="text-[10px] text-destructive">Wajib pilih minimal satu role.</p>
+              </div>
+            </div>
+
+            <!-- Form User untuk Warehouse (create only) -->
+            <div v-if="form.type === 'warehouse' && modalMode === 'create'" class="space-y-4 border-t border-border pt-4 mt-4">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Akun Pengelola Gudang <span class="text-zinc-400 font-normal normal-case">(opsional)</span></h4>
+              
+              <div class="space-y-1.5">
+                <Label for="w-username">Username</Label>
+                <Input id="w-username" v-model="form.username" placeholder="Username untuk login gudang" :disabled="saving" />
+              </div>
+
+              <div class="space-y-1.5">
+                <Label for="w-password">Password</Label>
+                <Input id="w-password" type="password" v-model="form.password" placeholder="Password untuk login gudang" :disabled="saving" />
+              </div>
+
+              <div v-if="form.username" class="space-y-1.5 mt-4 pt-4 border-t border-border">
+                <label class="text-xs font-bold uppercase tracking-wider text-zinc-500">Assign Roles <span class="text-destructive">*</span></label>
+                <div class="rounded-md border border-input overflow-hidden bg-background">
+                  <div class="max-h-44 overflow-y-auto divide-y divide-border">
+                    <button v-for="role in roles" :key="role.id"
+                      type="button"
+                      @click="toggleRole(role.id)"
+                      :disabled="saving"
+                      class="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 cursor-pointer transition-colors outline-none text-left disabled:opacity-50">
+                      <div class="flex items-center gap-3">
+                        <Shield class="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p class="font-medium text-sm text-foreground">{{ role.name }}</p>
+                          <p class="text-xs text-muted-foreground">{{ role.slug }}</p>
+                        </div>
+                      </div>
+                      <Check v-if="form.roleIds.includes(role.id)" class="h-4 w-4 text-primary" />
+                    </button>
+                  </div>
+                  <div v-if="roles.length === 0" class="p-3 text-xs text-muted-foreground italic text-center">
+                    No roles available.
+                  </div>
+                </div>
+                <p v-if="form.username && form.roleIds.length === 0" class="text-[10px] text-destructive">Wajib pilih minimal satu role jika username diisi.</p>
               </div>
             </div>
           </div>

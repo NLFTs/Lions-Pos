@@ -33,7 +33,8 @@ public class Voucher  {
     @Column(nullable = false)
     private String name;
     
-    @Column( nullable = false)
+    @Column( nullable = true)
+    @Enumerated(EnumType.STRING)
     private DiscountType discountType; // "percent" atau "fixed"
 
     public enum DiscountType {

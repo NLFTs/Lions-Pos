@@ -14,6 +14,7 @@ import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,7 +37,7 @@ import java.util.HashSet;
 @Service
 @RequiredArgsConstructor
 public class BranchesService {
- 
+
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -44,174 +45,142 @@ public class BranchesService {
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
 
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
             throw new RuntimeException("User tidak terautentikasi");
         }
-
         return userRepository.findByUsername(auth.getName())
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equals("admin") ||
-                                role.getSlug().equals("super_admin")
-                );
-    }
-
-    private User getAuthenticatedSuperAdmin() {
-        User user = getAuthenticatedUser();
-
-        boolean isSuperAdmin = isAdmin(user);
-        if (!isSuperAdmin) {
-            throw new RuntimeException("Akses ditolak: Anda bukan Super Admin");
+    // 🔥 KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Super Admin murni (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
 
-        return user;
-    }
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
 
-
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners") ||
-                                role.getSlug().equalsIgnoreCase("owner") ||
-                                role.getSlug().equalsIgnoreCase("employee")
-                );
-
-        boolean isNotSuperAdmin = user.getRoles().stream()
-                .noneMatch(role -> role.getSlug().equalsIgnoreCase("admin"));
-
-        if (!isAuthorized || !isNotSuperAdmin) {
-            throw new RuntimeException("Akses Ditolak: Hanya Admin Partner atau Employee yang diizinkan.");
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
         }
+    }
 
-        return user;
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses ditolak: Fitur ini khusus Super Admin Global.");
+        }
     }
-    
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners")
-                );
-    }
+
+    // ─── 🛡️ MULTI-TENANT GUARD ────────────────────────────────────────
 
     private Branches getValidatedBranch(Long id, User currentUser) {
-
         Branches branch = branchesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
 
-        if (currentUser.getPartner() == null || branch.getPartners() == null || !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
+        // 👑 Super Admin bypass checking partner id
+        if (currentUser.getPartner() == null) {
+            return branch;
+        }
+
+        if (branch.getPartners() == null || !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch partner lain.");
         }
 
         return branch;
     }
 
+    // ─── 🚀 MAIN METHODS CORRESPONDENCE ────────────────────────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
+
     public List<BranchResponse> findAllBranches() {
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
 
-        getAuthenticatedSuperAdmin();
-
-        List<Branches> branches = branchesRepository.findAll();
-
-        return branches.stream()
+        return branchesRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     public Page<BranchResponse> findPageAdmin(int page, int size) {
-        getAuthenticatedSuperAdmin();
-        
-        return branchesRepository.findAll(PageRequest.of(page, size))
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
+
+        return branchesRepository.findAll(PageRequest.of(page, size, Sort.by("id").descending()))
                 .map(this::mapToResponse);
     }
 
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
+
     public List<BranchResponse> findAll() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.index");
 
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
+        if (currentUser.getPartner() == null) {
+            return branchesRepository.findAll().stream().map(this::mapToResponse).toList();
+        }
 
-        return branchesRepository.findByPartners(currentUser.getPartner())
-                .stream()
+        return branchesRepository.findByPartners(currentUser.getPartner()).stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
-    
-
     public Page<BranchResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("name").ascending());
+        checkPermission(currentUser, "branch.index");
 
-        if (isAdmin(currentUser)) {
-            return branchesRepository.findAll(pageRequest).map(this::mapToResponse);
-        }
-
+        Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
         if (currentUser.getPartner() == null) {
-            throw new RuntimeException("User tidak terasosiasi dengan Partner.");
+            return branchesRepository.findAll(pageable).map(this::mapToResponse);
         }
 
-        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), pageRequest)
+        return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), pageable)
                 .map(this::mapToResponse);
     }
 
-
     public BranchResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        Branches branch = branchesRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
+        checkPermission(currentUser, "branch.show");
 
-        if (!isAdmin(currentUser)) {
-            if (currentUser.getPartner() == null || branch.getPartners() == null || !branch.getPartners().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses branch partner lain.");
-            }
-        }
-
+        Branches branch = getValidatedBranch(id, currentUser);
         return mapToResponse(branch);
     }
 
-
     @Transactional
     public BranchResponse create(BranchRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.store");
+        
         Partners partner = currentUser.getPartner();
-
         if (partner == null) {
             throw new RuntimeException("User tidak terasosiasi dengan partner manapun.");
         }
-
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat menambah Cabang baru."
-            );
-        }
-
+    
         Branches branch = new Branches();
-
         branch.setPartners(partner);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setIsActive(true);
         branch.setCreatedAt(LocalDateTime.now());
         branch.setCreatedBy(currentUser);
-
+    
         Branches savedBranch = branchesRepository.save(branch);
-
-        // Create user if username and password are provided
+    
+        // ── Buat Akun User Kasir/Staff Cabang Otomatis ────────────────────────
         if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
             String username = request.getUsername().trim();
             if (userRepository.findByUsername(username).isPresent()) {
                 throw new IllegalArgumentException("Username '" + username + "' sudah digunakan.");
             }
-
+    
             User branchUser = new User();
             branchUser.setUsername(username);
             branchUser.setFullname("Cabang " + savedBranch.getName());
@@ -219,17 +188,18 @@ public class BranchesService {
             branchUser.setPassword(passwordEncoder.encode(request.getPassword()));
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
-
-            Role employeeRole = roleRepository.findBySlugAndPartnerId("employee-partners", partner.getId())
-                    .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
-            Set<Role> roles = new HashSet<>();
-            roles.add(employeeRole);
-            branchUser.setRoles(roles);
-
+    
+            // 💡 FIX DINAMIS: Resolve role dari request (bukan hardcoded!)
+            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+                branchUser.setRoles(resolveRoles(request.getRoleIds(), partner));
+            } else {
+                throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user ini.");
+            }
+    
             userRepository.save(branchUser);
         }
-
-        // Inisialisasi Stock Balance untuk semua produk partner di branch baru
+    
+        // ── Inisialisasi Kebutuhan Stock Balance Awal (+0 Qty) ──────────────────
         List<Product> products = productRepository.findAllByPartner(partner);
         for (Product product : products) {
             StockBalance stock = new StockBalance();
@@ -240,29 +210,40 @@ public class BranchesService {
             stock.setCreatedAt(LocalDateTime.now());
             stock.setCreatedBy(currentUser);
             stock.setUpdatedBy(currentUser);
+            stock.setUpdatedAt(LocalDateTime.now());
             stockBalanceRepository.save(stock);
         }
-
+    
         return mapToResponse(savedBranch);
     }
-
+    
+    // ── HELPER: Pastikan method ini ada di bawah dalam class BranchService ──
+    private Set<Role> resolveRoles(List<Long> roleIds, Partners targetPartner) {
+        List<Role> roles = roleRepository.findAllById(roleIds);
+        
+        if (roles.size() != roleIds.size()) {
+            throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
+        }
+    
+        // 🛡️ SECURITY GUARD: Pastikan role belong to partner yang sama
+        for (Role role : roles) {
+            if (role.getPartner() != null && !role.getPartner().getId().equals(targetPartner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            }
+        }
+        
+        return new HashSet<>(roles);
+    }
 
     @Transactional
     public BranchResponse update(Long id, BranchRequest request) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat mengubah data Cabang."
-            );
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.update");
 
         Branches branch = getValidatedBranch(id, currentUser);
-
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setUpdatedBy(currentUser);
-
         AuditHelper.setUpdated(branch);
 
         return mapToResponse(branchesRepository.save(branch));
@@ -270,19 +251,12 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse softDelete(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat menghapus Cabang."
-            );
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.delete"); // 💡 Diubah ke permission delete
 
         Branches branch = getValidatedBranch(id, currentUser);
-
         branch.setIsActive(false);
         branch.setDeletedBy(currentUser);
-
         AuditHelper.setUpdated(branch);
 
         return mapToResponse(branchesRepository.save(branch));
@@ -290,20 +264,12 @@ public class BranchesService {
 
     @Transactional
     public BranchResponse restoreBranch(Long id) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat memulihkan Cabang."
-            );
-        }
-
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.update");
 
         Branches branch = getValidatedBranch(id, currentUser);
-
         branch.setIsActive(true);
         branch.setUpdatedBy(currentUser);
-
         AuditHelper.setUpdated(branch);
 
         return mapToResponse(branchesRepository.save(branch));
@@ -311,26 +277,19 @@ public class BranchesService {
 
     @Transactional
     public void delete(Long id) {
-
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat menghapus permanen Cabang."
-            );
-        }
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.delete");
 
         Branches branch = getValidatedBranch(id, currentUser);
-
         branchesRepository.delete(branch);
     }
 
-    private BranchResponse mapToResponse(Branches branch) {
+    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
+    private BranchResponse mapToResponse(Branches branch) {
         if (branch == null) return null;
 
         BranchResponse response = new BranchResponse();
-
         response.setId(branch.getId());
         response.setName(branch.getName());
         response.setAddress(branch.getAddress());
@@ -339,12 +298,9 @@ public class BranchesService {
         response.setUpdatedAt(branch.getUpdatedAt());
 
         if (branch.getPartners() != null) {
-
             PartnerSimpleDto partnerDto = new PartnerSimpleDto();
-
             partnerDto.setId(branch.getPartners().getId());
             partnerDto.setName(branch.getPartners().getName());
-
             response.setPartner(partnerDto);
         }
 
@@ -355,14 +311,10 @@ public class BranchesService {
     }
 
     private UserSimpleDto mapUserToDto(User user) {
-
         if (user == null) return null;
-
         UserSimpleDto dto = new UserSimpleDto();
-
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
-
         return dto;
     }
 }

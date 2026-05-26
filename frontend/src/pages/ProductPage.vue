@@ -485,7 +485,7 @@ function productAvatarStyle(name = '') {
       </Alert>
 
       <!-- Table card -->
-      <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+      <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm ovew">
         <CardContent class="p-0">
           <!-- Loading -->
           <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-3">
@@ -574,12 +574,12 @@ function productAvatarStyle(name = '') {
                       :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                       @click.stop="toggleStatus(product)"
                     >
-                      <span
-                        class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                    <span
+                        class="pointer-events-none h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
                         :class="product.is_active ? 'translate-x-4' : 'translate-x-0'"
-                      >
+                    >
                         <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
-                      </span>
+                    </span>
                     </button>
                   </div>
                 </div>
@@ -670,12 +670,12 @@ function productAvatarStyle(name = '') {
                         :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                         @click.stop="toggleStatus(product)"
                       >
-                        <span
-                          class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
-                          :class="product.is_active ? 'translate-x-4' : 'translate-x-0'"
-                        >
-                          <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
-                        </span>
+                          <span
+                            class="pointer-events-none h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
+                            :class="product.is_active ? 'translate-x-4' : 'translate-x-0'"
+                          >
+                            <Loader2 v-if="togglingStatus === product.id" class="h-2.5 w-2.5 animate-spin text-primary" />
+                          </span>
                       </button>
                     </TableCell>
 

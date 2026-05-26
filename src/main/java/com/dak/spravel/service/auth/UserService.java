@@ -24,6 +24,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -44,6 +45,8 @@ public class UserService {
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
+    // ─── 💾 FILE SYSTEM UTILS ──────────────────────────────────────────────────
+
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
         try {
@@ -59,7 +62,7 @@ public class UserService {
         }
     }
 
-    // --- HELPER ---
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -70,128 +73,114 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream().anyMatch(role -> {
-            String slug = role.getSlug() == null ? "" : role.getSlug().toLowerCase();
-            return slug.equals("admin") || slug.equals("super_admin") ||
-                   slug.equals("super-admin") || slug.equals("superadmin");
-        });
+    // 🔥 KUNCI UTAMA: Cek permission slug tanpa intervensi teks nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission sistem
+        if (user.getPartner() == null) {
+            return;
+        }
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    private boolean isAdminPartner(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("admin-partners"));
+    // private void checkSuperAdminOnly(User user) {
+    //     if (user.getPartner() != null) {
+    //         throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+    //     }
+    // }
+
+    // 🛡️ AMAN MULTI-TENANCY: Resolusi role dan validasi kepemilikan tenant
+    private Set<Role> resolveRoles(List<Long> roleIds, Partners partner) {
+        Set<Role> roles = new HashSet<>();
+        for (Long roleId : roleIds) {
+            Role role = roleRepository.findById(roleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
+            
+            // Proteksi cross-tenant role injection
+            if (partner != null && role.getPartner() != null) {
+                if (!role.getPartner().getId().equals(partner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+                }
+            }
+            roles.add(role);
+        }
+        return roles;
     }
 
-    private boolean isEmployeeOnly(User user) {
-        return user.getRoles().stream()
-                .allMatch(role ->
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                                role.getSlug().equalsIgnoreCase("employee-partners")
-                );
-    }
+    // ─── 🚀 CORE METHODS MANAGEMENT USER ────────────────────────────────────────
 
-    // --- LOGIC UTAMA ---
-
-    // GET ALL
+    // GET ALL USER
     public List<UserResponse> findAll() {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "user.index");
 
-        // Super admin bisa lihat semua user
-        if (isAdmin(currentUser)) {
+        // Super Admin narik semua user global
+        if (currentUser.getPartner() == null) {
             return userRepository.findAll(Sort.by("username").ascending())
                     .stream().map(this::toResponse).toList();
         }
 
-        // Admin partner hanya lihat user partnernya sendiri
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
-            return userRepository.findByPartnerId(currentUser.getPartner().getId())
-                    .stream().map(this::toResponse).toList();
-        }
-
-        if (isEmployeeOnly(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat melihat daftar user."
-            );
-        }
-
-        throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
+        // Tenant hanya narik bawahan di perusahaannya sendiri
+        return userRepository.findByPartnerId(currentUser.getPartner().getId())
+                .stream().map(this::toResponse).toList();
     }
 
-    // GET ALL PAGINATED
+    // GET ALL PAGINATED & SEARCH
     public Page<UserResponse> findAll(int page, int size, String search) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "user.index");
+        
         Pageable pageable = PageRequest.of(page, size, Sort.by("username").ascending());
 
-        if (isAdmin(currentUser)) {
+        if (currentUser.getPartner() == null) {
             if (search != null && !search.isBlank()) {
                 return userRepository.search(search, pageable).map(this::toResponse);
             }
             return userRepository.findAll(pageable).map(this::toResponse);
         }
 
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
-            return userRepository.findByPartnerId(currentUser.getPartner().getId(), pageable)
-                    .map(this::toResponse);
-        }
-        if (isEmployeeOnly(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat melihat daftar user."
-            );
-        }
-
-        throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
+        return userRepository.findByPartnerId(currentUser.getPartner().getId(), pageable)
+                .map(this::toResponse);
     }
-
 
     // GET BY ID
     public UserResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", id));
-
-        // Super admin bisa lihat semua
-        if (isAdmin(currentUser)) {
-            return toResponse(user);
-        }
-
-        // Admin partner hanya bisa lihat user partnernya sendiri
-        if (isAdminPartner(currentUser) && currentUser.getPartner() != null) {
-            if (user.getPartner() == null ||
-                    !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
-            }
-            return toResponse(user);
-        }
-
-        // Employee hanya boleh lihat profile sendiri
-        if (isEmployeeOnly(currentUser)) {
-
-            if (!currentUser.getId().equals(id)) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee hanya bisa melihat profile sendiri."
-                );
-            }
-
+        
+        // 👤 SELF PROFILE BYPASS: Setiap user selalu berhak melihat profilnya sendiri
+        if (currentUser.getId().equals(id)) {
             return toResponse(currentUser);
         }
 
-        throw new RuntimeException("Akses Ditolak: Anda tidak punya akses ke data user.");
+        checkPermission(currentUser, "user.show");
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        // Multi-Tenant Isolation
+        if (currentUser.getPartner() != null) {
+            if (user.getPartner() == null || !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
+            }
+        }
+
+        return toResponse(user);
     }
 
-    // CREATE
+    // CREATE USER BARU
     @Transactional
     public UserResponse create(CreateUserRequest request) {
         User currentUser = getAuthenticatedUser();
-
-        if (isEmployeeOnly(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat membuat user."
-            );
-        }
+        checkPermission(currentUser, "user.store");
 
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username '" + request.getUsername() + "' already exists");
+            throw new IllegalArgumentException("Username '" + request.getUsername() + "' sudah terdaftar.");
         }
 
         User user = new User();
@@ -202,128 +191,86 @@ public class UserService {
             user.setAvatar(request.getAvatar());
         }
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setCreatedAt(LocalDateTime.now());
+
+        Partners targetPartner;
 
         // ==========================================
-        // SKENARIO 1: JIKA YANG LOGIN ADMIN PARTNER
+        // SKENARIO 1: OPERASIONAL TENANT / PARTNER
         // ==========================================
-        if (isAdminPartner(currentUser)) {
-            if (currentUser.getPartner() == null) {
-                throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-            }
-            // 🔒 Otomatis kunci ke partner si admin itu sendiri
-            Partners currentPartner = currentUser.getPartner();
-            user.setPartner(currentPartner);
-
-            // 🔒 Otomatis kunci role ke employee-partners
-            Set<Role> roles = new HashSet<>();
-            Role employeeRole = roleRepository.findBySlugAndPartnerId("employee-partners", currentPartner.getId())
-                    .orElseThrow(() -> new RuntimeException("Role employee-partners tidak ditemukan"));
-            roles.add(employeeRole);
-            user.setRoles(roles);
-
-            // 🔒 Validasi Branch: Jika dia nge-assign branch, branch itu WAJIB milik partnernya sendiri
-            if (request.getBranchId() != null) {
-                Branches branch = branchesRepository.findById(request.getBranchId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Branch tidak ditemukan"));
-                
-                if (branch.getPartners() == null || !branch.getPartners().getId().equals(currentPartner.getId())) {
-                    throw new RuntimeException("Akses Ditolak: Anda tidak bisa memasukkan user ke Cabang milik Partner lain!");
-                }
-                user.setBranch(branch);
-            }
-
-        // ==========================================
-        // SKENARIO 2: JIKA YANG LOGIN SUPER ADMIN
-        // ==========================================
-        } else if (isAdmin(currentUser)) {
-            // 🛠️ Super Admin WAJIB menentukan target Partnernya
-            if (request.getPartnerId() == null) {
-                throw new IllegalArgumentException("Super Admin wajib mengisi partnerId untuk user baru.");
-            }
-            Partners targetPartner = partnerRepository.findById(request.getPartnerId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Partner tidak ditemukan"));
+        if (currentUser.getPartner() != null) {
+            targetPartner = currentUser.getPartner();
             user.setPartner(targetPartner);
 
-            // 🛠️ Super Admin WAJIB menentukan Role-nya apa
-            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
-                throw new IllegalArgumentException("Super Admin wajib mengisi minimal satu roleId.");
-            }
-            user.setRoles(resolveRoles(request.getRoleIds()));
-
-            // 🛠️ Super Admin set branch (opsional, tapi divalidasi harus sinkron dengan partner yang dipilih)
-            if (request.getBranchId() != null) {
-                Branches branch = branchesRepository.findById(request.getBranchId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Branch tidak ditemukan"));
-                
-                if (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId())) {
-                    throw new RuntimeException("Error: Cabang yang dipilih tidak sinkron dengan Partner yang dituju.");
-                }
-                user.setBranch(branch);
+            // Pasang role dinamis pilihan Owner, jika kosong auto-fallback ke role global template 'employee'
+            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+                user.setRoles(resolveRoles(request.getRoleIds(), targetPartner));
+            } else {
+                throw new IllegalArgumentException("Pilih satu role untuk user ini.");
             }
 
+        // ==========================================
+        // SKENARIO 2: SUPER ADMIN GLOBAL SCOPE
+        // ==========================================
         } else {
-            throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk membuat user.");
+            if (request.getPartnerId() == null) {
+                throw new IllegalArgumentException("Super Admin wajib melampirkan target partnerId.");
+            }
+            targetPartner = partnerRepository.findById(request.getPartnerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Partner", request.getPartnerId()));
+            user.setPartner(targetPartner);
+
+            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
+                throw new IllegalArgumentException("Super Admin wajib melampirkan minimal satu target roleId.");
+            }
+            user.setRoles(resolveRoles(request.getRoleIds(), targetPartner));
+        }
+
+        // Validasi Alokasi Penempatan Cabang (Branch Guard)
+        if (request.getBranchId() != null) {
+            Branches branch = branchesRepository.findById(request.getBranchId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
+            
+            if (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Cabang yang dipilih tidak sinkron dengan perusahaan target.");
+            }
+            user.setBranch(branch);
         }
 
         return toResponse(userRepository.save(user));
     }
 
-    // UPDATE
+    // UPDATE DATA USER
+    @Transactional
     public UserResponse update(Long id, UpdateUserRequest request) {
-
         User currentUser = getAuthenticatedUser();
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
-        // EMPLOYEE hanya boleh edit dirinya sendiri
-        if (isEmployeeOnly(currentUser)) {
+        boolean isSelfUpdate = currentUser.getId().equals(id);
 
-            if (!currentUser.getId().equals(id)) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee hanya bisa mengedit profile sendiri."
-                );
-            }
-
-            // Employee tidak boleh ubah role
-            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Employee tidak dapat mengubah role."
-                );
+        // Jika bukan ngedit diri sendiri, wajib diinterogasi permission & tenant-nya
+        if (!isSelfUpdate) {
+            checkPermission(currentUser, "user.update");
+            if (currentUser.getPartner() != null) {
+                if (user.getPartner() == null || !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                    throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
+                }
             }
         }
-        // Admin partner hanya bisa update user partnernya sendiri
-        if (isAdminPartner(currentUser)) {
-            if (user.getPartner() == null ||
-                    !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
-            }
-            // ✅ TAMBAH — hanya boleh edit Employee
-            if (!isEmployeeOnly(user)) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Admin Partner hanya dapat mengubah data akun Employee."
-                );
-            }
 
-            // ✅ TAMBAH — dilarang ganti role
-            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Admin Partner tidak dapat mengubah role user."
-                );
-            }
-        } else if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk mengubah user.");
-        }
-
+        // Update core info
         if (request.getUsername() != null) {
             if (!request.getUsername().equals(user.getUsername()) &&
                     userRepository.findByUsername(request.getUsername()).isPresent()) {
-                throw new IllegalArgumentException("Username '" + request.getUsername() + "' already exists");
+                throw new IllegalArgumentException("Username '" + request.getUsername() + "' sudah digunakan.");
             }
             user.setUsername(request.getUsername());
         }
 
         if (request.getFullname() != null) user.setFullname(request.getFullname());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
+        
         if (request.getAvatar() != null) {
             if (user.getAvatar() != null && !user.getAvatar().equals(request.getAvatar())) {
                 deleteFileDisk(user.getAvatar());
@@ -339,44 +286,37 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        // Hanya super admin yang bisa ganti role
-        if (isAdmin(currentUser) && request.getRoleIds() != null) {
-            Set<Role> roles = resolveRoles(request.getRoleIds());
-            user.setRoles(roles);
+        // Update Hak Akses / Matriks Role (Dilarang keras memodifikasi role diri sendiri!)
+        if (request.getRoleIds() != null) {
+            if (isSelfUpdate) {
+                throw new RuntimeException("Akses Ditolak: Demi keamanan, Anda tidak bisa memanipulasi Role Anda sendiri.");
+            }
+            Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
+            user.setRoles(resolveRoles(request.getRoleIds(), partnerContext));
             permissionCacheService.evict(user.getUsername());
         }
 
         return toResponse(userRepository.save(user));
     }
 
-    // DELETE
+    // DELETE ACCOUNT USER
+    @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "user.delete");
+
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
-        if (isEmployeeOnly(currentUser)) {
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee tidak dapat menghapus user."
-            );
+        if (currentUser.getId().equals(id)) {
+            throw new RuntimeException("Akses Ditolak: Tindakan bunuh diri ilegal! Anda dilarang menghapus akun sendiri wkwk.");
         }
 
-        // Admin partner hanya bisa delete user partnernya sendiri
-        if (isAdminPartner(currentUser)) {
-            if (user.getPartner() == null ||
-                    !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
+        if (currentUser.getPartner() != null) {
+            if (user.getPartner() == null || !user.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
             }
-            // ✅ TAMBAH — hanya boleh hapus Employee
-            if (!isEmployeeOnly(user)) {
-                throw new RuntimeException(
-                        "Akses Ditolak: Admin Partner hanya dapat menghapus akun Employee."
-                );
-            }
-        } else if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak punya akses untuk menghapus user.");
         }
-
 
         permissionCacheService.evict(user.getUsername());
         if (user.getAvatar() != null) {
@@ -385,30 +325,24 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
-    // CHANGE PASSWORD
+    // MANDIRI CHANGE PASSWORD
     public void changePassword(Long userId, ChangePasswordRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-
         User currentUser = getAuthenticatedUser();
-
-        if (isEmployeeOnly(currentUser)
-                && !currentUser.getId().equals(userId)) {
-
-            throw new RuntimeException(
-                    "Akses Ditolak: Employee hanya bisa mengubah password sendiri."
-            );
+        
+        if (!currentUser.getId().equals(userId)) {
+            throw new RuntimeException("Akses Ditolak: Anda hanya diperbolehkan mengubah password milik Anda sendiri.");
         }
 
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Current password is incorrect");
+        if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
+            throw new IllegalArgumentException("Password saat ini salah. Periksa kembali.");
         }
 
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(currentUser);
     }
 
-    // MAPPING
+    // ─── 🔄 PRIVATE MAPPERS & UTILS ───────────────────────────────────────────
+
     private UserResponse toResponse(User user) {
         UserResponse res = new UserResponse();
         res.setId(user.getId());
@@ -419,12 +353,9 @@ public class UserService {
         res.setCreatedAt(user.getCreatedAt());
 
         if (user.getPartner() != null) {
-
             PartnerSimpleDto partnerDto = new PartnerSimpleDto();
-
             partnerDto.setId(user.getPartner().getId());
             partnerDto.setName(user.getPartner().getName());
-
             res.setPartner(partnerDto);
         }
 
@@ -443,15 +374,5 @@ public class UserService {
         res.setRoles(roleDataList);
 
         return res;
-    }
-
-    private Set<Role> resolveRoles(List<Long> roleIds) {
-        Set<Role> roles = new HashSet<>();
-        for (Long roleId : roleIds) {
-            Role role = roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
-            roles.add(role);
-        }
-        return roles;
     }
 }

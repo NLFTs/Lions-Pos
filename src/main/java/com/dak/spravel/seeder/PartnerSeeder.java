@@ -17,6 +17,7 @@ import com.dak.spravel.model.procurement.PurchaseOrderItems;
 import com.dak.spravel.model.procurement.PurchaseReceipt;
 import com.dak.spravel.model.procurement.PurchaseReceiptItem;
 import com.dak.spravel.model.procurement.Supplier;
+import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
@@ -47,6 +48,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -70,48 +72,133 @@ public class PartnerSeeder {
     private final StockMutationRepository stockMutationRepository;
     private final StockOpnameRepository stockOpnameRepository;
     private final StockOpnameItemRepository stockOpnameItemRepository;
+    private final PermissionRepository permissionRepository;
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Transactional
     public void run() {
+        // Ambil atau buat partner PT NLFTs
+        Partners partner;
         if (partnerRepository.existsBySlug("pt-nlfts")) {
-            log.info("[PartnerSeeder] PT NLFTs sudah ada, skip.");
-            return;
+            log.info("[PartnerSeeder] PT NLFTs sudah ada, melanjutkan seeding data tambahan...");
+            partner = partnerRepository.findBySlug("pt-nlfts")
+                .orElseThrow(() -> new RuntimeException("Partner pt-nlfts tidak ditemukan"));
+        } else {
+            log.info("[PartnerSeeder] Mulai seeding PT NLFTs...");
+
+            // ── 1. Partner ────────────────────────────────────────────────────────
+            partner = new Partners();
+            partner.setName("PT NLFTs");
+            partner.setSlug("pt-nlfts");
+            partner.setPlan(Partners.Plan.PRO);
+            partner.setIsActive(true);
+            partner = partnerRepository.save(partner);
         }
 
-        log.info("[PartnerSeeder] Mulai seeding PT NLFTs...");
-
-        // ── 1. Partner ────────────────────────────────────────────────────────
-        Partners partner = new Partners();
-        partner.setName("PT NLFTs");
-        partner.setSlug("pt-nlfts");
-        partner.setPlan(Partners.Plan.PRO);
-        partner.setIsActive(true);
-        partner = partnerRepository.save(partner);
-
-        // ── 2. Admin Partner: nairha ──────────────────────────────────────────
+        // ── 2. Owner Partner: nairha ──────────────────────────────────────────
         User adminPartner = createUserIfNotExists(
                 "nairha", "Nairha Admin NLFTs", "nairha@nlfts.co.id",
                 "Bismillah00", partner, null, "owner");
 
+        // Variabel final untuk digunakan di lambda
+        final Partners partnerRef = partner;
+        final User adminRef = adminPartner;
+
         // ── 3. Gudang Pusat ───────────────────────────────────────────────────
-        Warehouses gudang = new Warehouses();
-        gudang.setPartners(partner);
-        gudang.setName("Gudang Pusat NLFTs");
-        gudang.setAddress("Jl. Industri Raya No. 10, Bandung");
-        gudang.setIsActive(true);
-        gudang.setCreatedBy(adminPartner);
-        gudang = warehousesRepository.save(gudang);
+        Warehouses gudang = warehousesRepository
+            .findByPartnersIdAndDeletedAtIsNull(partnerRef.getId())
+            .stream()
+            .filter(w -> w.getName().equals("Gudang Pusat NLFTs"))
+            .findFirst()
+            .orElseGet(() -> {
+                Warehouses g = new Warehouses();
+                g.setPartners(partnerRef);
+                g.setName("Gudang Pusat NLFTs");
+                g.setAddress("Jl. Industri Raya No. 10, Bandung");
+                g.setIsActive(true);
+                g.setCreatedBy(adminRef);
+                return warehousesRepository.save(g);
+            });
 
         // ── 4. Cabang Badung Pusat ────────────────────────────────────────────
-        Branches cabang = new Branches();
-        cabang.setPartners(partner);
-        cabang.setName("Cabang Badung Pusat");
-        cabang.setAddress("Jl. Raya Kuta No. 88, Badung, Bali");
-        cabang.setIsActive(true);
-        cabang.setCreatedBy(adminPartner);
-        cabang = branchesRepository.save(cabang);
+        Branches cabang = branchesRepository.findByPartners(partnerRef)
+            .stream()
+            .filter(b -> b.getName().equals("Cabang Badung Pusat"))
+            .findFirst()
+            .orElseGet(() -> {
+                Branches c = new Branches();
+                c.setPartners(partnerRef);
+                c.setName("Cabang Badung Pusat");
+                c.setAddress("Jl. Raya Kuta No. 88, Badung, Bali");
+                c.setIsActive(true);
+                c.setCreatedBy(adminRef);
+                return branchesRepository.save(c);
+            });
+
+        // ── 4b. Role Cabang (per-partner) ─────────────────────────────────────
+        Role roleCabang = createPartnerRoleIfNotExists(
+            "cabang", "Kasir Cabang", partner, adminPartner,
+            new String[]{
+                "branch.index", "branch.show",
+                "produk.index", "produk.show",
+                "category.index", "category.show",
+                "stock_balance.index", "stock_balance.show",
+                "stock_mutation.index", "stock_mutation.show",
+                "stock_opname.index", "stock_opname.show", "stock_opname.store", "stock_opname.update",
+                "transfer_request.index", "transfer_request.show", "transfer_request.store",
+                "order.index", "order.show", "order.store", "order.update",
+                "order_item.index", "order_item.show", "order_item.store",
+                "pos.index",
+                "dashboard.index",
+                "report.index",
+                "voucher.index", "voucher.show",
+            }
+        );
+
+        // ── 4c. Role Gudang (per-partner) ─────────────────────────────────────
+        Role roleGudang = createPartnerRoleIfNotExists(
+            "gudang", "Pengelola Gudang", partner, adminPartner,
+            new String[]{
+                "warehouse.index", "warehouse.show",
+                "produk.index", "produk.show",
+                "category.index", "category.show",
+                "stock_balance.index", "stock_balance.show", "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
+                "stock_mutation.index", "stock_mutation.show",
+                "stock_opname.index", "stock_opname.show", "stock_opname.store", "stock_opname.update",
+                "transfer_request.index", "transfer_request.show", "transfer_request.store", "transfer_request.update",
+                "purchase_order.index", "purchase_order.show", "purchase_order.store", "purchase_order.update",
+                "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
+                "supplier.index", "supplier.show",
+                "dashboard.index",
+                "report.index",
+            }
+        );
+
+        // ── 4d. User Cabang: davingm ──────────────────────────────────────────
+        createBranchUserIfNotExists(
+            "davingm", "Davin GM Cabang NLFTs Djogja", "davingm@nlfts.co.id",
+            "12345678", partner, cabang, roleCabang);
+
+        // ── 4e. Cabang NLFTs Djogja ───────────────────────────────────────────
+        Branches cabangDjogja = new Branches();
+        cabangDjogja.setPartners(partner);
+        cabangDjogja.setName("Cabang NLFTs Djogja");
+        cabangDjogja.setAddress("Jl. Malioboro No. 1, Yogyakarta");
+        cabangDjogja.setIsActive(true);
+        cabangDjogja.setCreatedBy(adminPartner);
+        final Branches savedCabangDjogja = branchesRepository.save(cabangDjogja);
+
+        // Update user davingm ke cabang Djogja
+        userRepository.findByUsername("davingm").ifPresent(u -> {
+            u.setBranch(savedCabangDjogja);
+            userRepository.save(u);
+        });
+
+        // ── 4f. User Gudang: gudangnlfts ──────────────────────────────────────
+        createWarehouseUserIfNotExists(
+            "gudangnlfts", "Pengelola Gudang Pusat NLFTs", "gudang@nlfts.co.id",
+            "12345678", partner, gudang, roleGudang);
 
         // ── 5. Branch ↔ Warehouse mapping ────────────────────────────────────
         if (!branchWarehousesRepository.existsByBranchesAndWarehouses(cabang, gudang)) {
@@ -124,9 +211,6 @@ public class PartnerSeeder {
         }
 
         // ── 5b. Kasir / Employee ──────────────────────────────────────────────
-        createUserIfNotExists(
-                "kasir.nlfts", "Kasir Cabang Badung", "kasir@nlfts.co.id",
-                "Bismillah00", partner, cabang, "employee");
 
         // ── 6. Kategori: Elektronik ───────────────────────────────────────────
         CategoryProduct kategoriElektronik = createCategoryIfNotExists("Elektronik", partner, adminPartner);
@@ -140,6 +224,12 @@ public class PartnerSeeder {
         // ── 8. Supplier ───────────────────────────────────────────────────────
         Supplier supplier = createSupplierIfNotExists(partner, adminPartner);
 
+        // ── 9-14. Purchase Order, Receipt, Stock — hanya jika belum ada ──────
+        final Partners partnerFinal = partner;
+        boolean hasPO = purchaseOrderRepository.findAll().stream()
+            .anyMatch(po -> po.getPartner() != null && po.getPartner().getId().equals(partnerFinal.getId()));
+
+        if (!hasPO) {
         // ── 9. Purchase Order → Inisialisasi awal ────────────────────────────
         PurchaseOrder po = createPurchaseOrder(partner, supplier, gudang.getId(), generatePoNumber(), adminPartner);
         BigDecimal qty50 = new BigDecimal("50");
@@ -195,9 +285,39 @@ public class PartnerSeeder {
         log.info("[PartnerSeeder] Transfer selesai. Gudang: 40 | Cabang: 10 per produk.");
 
         // ── 14. Stock Opname Cabang (APPROVED) ────────────────────────────────
-        // 💡 Diubah: Aktor pembuat Opname dialihkan penuh ke adminPartner (nairha)
         seedStockOpname(partner, cabang, adminPartner, adminPartner, laptop, komputer, tablet);
         log.info("[PartnerSeeder] Stock Opname Cabang dibuat (APPROVED).");
+        } else {
+            log.info("[PartnerSeeder] PO/Stock sudah ada, skip seeding PO & stock.");
+        }
+
+        // ── 15. Stock awal Cabang NLFTs Djogja (davingm) ─────────────────────
+        // Ambil cabangDjogja dari DB (sudah disimpan di step 4e)
+        branchesRepository.findByPartners(partner).stream()
+            .filter(b -> b.getName().equals("Cabang NLFTs Djogja"))
+            .findFirst()
+            .ifPresent(cabangDjogja2 -> {
+                boolean hasStock = stockBalanceRepository
+                    .findByLocationTypeAndLocationId("BRANCH", cabangDjogja2.getId())
+                    .stream().anyMatch(sb -> sb.getProduct() != null &&
+                        sb.getProduct().getPartner() != null &&
+                        sb.getProduct().getPartner().getId().equals(partnerFinal.getId()));
+
+                if (!hasStock) {
+                    // Ambil produk dari DB
+                    productRepository.findAllByPartner(partnerFinal).forEach(prod -> {
+                        addStockBalance(prod, "BRANCH", cabangDjogja2.getId(), 8L, adminPartner);
+                        createMutation(prod, partnerFinal, null, 8L,
+                            "WAREHOUSE", gudang.getId(),
+                            "BRANCH", cabangDjogja2.getId(),
+                            StockMutation.Type.TRANSFER, StockMutation.ReferenceType.TRANSFER_REQUEST,
+                            adminPartner, "Stok awal Cabang NLFTs Djogja");
+                        // Kurangi dari gudang
+                        addStockBalance(prod, "WAREHOUSE", gudang.getId(), -8L, adminPartner);
+                    });
+                    log.info("[PartnerSeeder] Stok awal Cabang NLFTs Djogja: 8 per produk.");
+                }
+            });
 
         log.info("[PartnerSeeder] ✅ Seeding selesai!");
     }
@@ -280,6 +400,87 @@ public class PartnerSeeder {
         }
         user.getRoles().add(role);
         return userRepository.save(user);
+    }
+
+    /**
+     * Buat user cabang dengan role per-partner (bukan role global).
+     */
+    private User createBranchUserIfNotExists(String username, String fullname, String email,
+            String rawPassword, Partners partner, Branches branch, Role role) {
+        Optional<User> existing = userRepository.findByUsername(username);
+        if (existing.isPresent()) {
+            log.info("[PartnerSeeder] User '{}' sudah ada, skip.", username);
+            return existing.get();
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setFullname(fullname);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setPartner(partner);
+        user.setBranch(branch);
+        user.setRoles(new HashSet<>());
+        user.getRoles().add(role);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Buat user gudang dengan role per-partner (bukan role global).
+     */
+    private User createWarehouseUserIfNotExists(String username, String fullname, String email,
+            String rawPassword, Partners partner, Warehouses warehouse, Role role) {
+        Optional<User> existing = userRepository.findByUsername(username);
+        if (existing.isPresent()) {
+            log.info("[PartnerSeeder] User '{}' sudah ada, skip.", username);
+            return existing.get();
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setFullname(fullname);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        user.setPartner(partner);
+        user.setWarehouse(warehouse);
+        user.setRoles(new HashSet<>());
+        user.getRoles().add(role);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Buat role per-partner dengan permission slugs yang diberikan.
+     */
+    private Role createPartnerRoleIfNotExists(String slug, String name, Partners partner,
+            User createdBy, String[] permissionSlugs) {
+        // Cek apakah role sudah ada untuk partner ini
+        Optional<Role> existing = roleRepository.findBySlugAndPartnerId(slug, partner.getId());
+        if (existing.isPresent()) {
+            log.info("[PartnerSeeder] Role '{}' untuk partner '{}' sudah ada, skip.", slug, partner.getName());
+            return existing.get();
+        }
+
+        Role role = new Role();
+        role.setSlug(slug);
+        role.setName(name);
+        role.setPartner(partner);
+        role.setType(Role.Type.EXTERNAL);
+        role.setCreatedBy(createdBy);
+        role.setCreatedAt(java.time.LocalDateTime.now());
+
+        // Assign permissions berdasarkan slug
+        Set<com.dak.spravel.model.auth.Permission> perms = new HashSet<>();
+        for (String permSlug : permissionSlugs) {
+            permissionRepository.findBySlug(permSlug).ifPresentOrElse(
+                perms::add,
+                () -> log.warn("[PartnerSeeder] Permission slug '{}' tidak ditemukan, skip.", permSlug)
+            );
+        }
+        role.setPermissions(perms);
+
+        Role saved = roleRepository.save(role);
+        log.info("[PartnerSeeder] Role '{}' dibuat dengan {} permissions.", slug, perms.size());
+        return saved;
     }
 
     private CategoryProduct createCategoryIfNotExists(String name, Partners partner, User createdBy) {

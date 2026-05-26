@@ -3,16 +3,15 @@ package com.dak.spravel.service.inventory;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import com.dak.spravel.dto.request.inventory.StockOpnameItemDTO;
 import com.dak.spravel.dto.request.inventory.StockOpnameRequestDTO;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
@@ -31,7 +30,6 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.inventory.StockOpnameItemRepository;
 import com.dak.spravel.repository.inventory.StockOpnameRepository;
-import com.dak.spravel.service.inventory.StockMutationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +44,8 @@ public class StockOpnameService {
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMutationService stockMutationService;
 
+    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -55,48 +55,377 @@ public class StockOpnameService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    private User getAuthenticatedAdminPartnerOrEmployee() {
-        User user = getAuthenticatedUser();
-        boolean isAuthorized = user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("owner") ||
-                        role.getSlug().equalsIgnoreCase("admin-partners") ||
-                        role.getSlug().equalsIgnoreCase("employee") ||
-                        role.getSlug().equalsIgnoreCase("employee-partners"));
-
-        if (!isAuthorized) {
-            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Employee yang diizinkan.");
+    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    private void checkPermission(User user, String permissionSlug) {
+        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
         }
-        return user;
+
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        }
     }
 
-    private boolean isAdmin(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("super_admin") || role.getSlug().equals("admin"));
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
     }
 
-    private boolean isAdminPartnerAndEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equals("employee") || 
-                        role.getSlug().equals("owner"));
-    }
-
-    // 💡 HELPER BARU: Deteksi apakah user adalah Employee murni
-    private boolean isEmployee(User user) {
-        return user.getRoles().stream()
-                .anyMatch(role -> role.getSlug().equalsIgnoreCase("employee"));
-    }
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private StockOpname getValidatedOpname(Long id, User currentUser) {
         StockOpname opname = stockOpnameRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockOpname", id));
 
-        if (currentUser.getPartner() == null ||
-                !opname.getPartner().getId().equals(currentUser.getPartner().getId())) {
-            throw new RuntimeException("Akses Ditolak: Stock opname bukan milik partner Anda.");
+        if (currentUser.getPartner() == null) {
+            return opname;
+        }
+
+        if (opname.getPartner() == null || !opname.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Data Stock Opname bukan milik partner Anda");
         }
 
         return opname;
     }
+
+    /**
+     * Filter list opname berdasarkan lokasi user (branch atau warehouse).
+     * Owner (tidak punya branch/warehouse) bisa lihat semua dalam partner.
+     */
+    private List<StockOpname> filterByUserLocation(List<StockOpname> data, User user) {
+        if (user.getBranch() != null) {
+            return data.stream()
+                    .filter(o -> "BRANCH".equalsIgnoreCase(o.getLocation())
+                            && user.getBranch().getId().equals(o.getLocationId()))
+                    .toList();
+        }
+        if (user.getWarehouse() != null) {
+            return data.stream()
+                    .filter(o -> "WAREHOUSE".equalsIgnoreCase(o.getLocation())
+                            && user.getWarehouse().getId().equals(o.getLocationId()))
+                    .toList();
+        }
+        return data; // owner/admin partner: lihat semua
+    }
+
+    /**
+     * Throw jika user tidak berhak akses lokasi opname tertentu.
+     */
+    private void enforceLocationAccess(String locationType, Long locationId, User user) {
+        if (user.getBranch() != null) {
+            if (!"BRANCH".equalsIgnoreCase(locationType) || !user.getBranch().getId().equals(locationId)) {
+                throw new RuntimeException("Akses Ditolak: Opname ini bukan milik cabang Anda.");
+            }
+        } else if (user.getWarehouse() != null) {
+            if (!"WAREHOUSE".equalsIgnoreCase(locationType) || !user.getWarehouse().getId().equals(locationId)) {
+                throw new RuntimeException("Akses Ditolak: Opname ini bukan milik gudang Anda.");
+            }
+        }
+    }
+
+    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
+
+    public List<StockOpnameResponse> findAllAdmin() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.index"); // 💡 Saring via permission index
+        checkSuperAdminOnly(currentUser);
+
+        return stockOpnameRepository.findByDeletedAtIsNull()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public Page<StockOpnameResponse> findPageAdmin(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.index"); // 💡 Saring via permission index
+        checkSuperAdminOnly(currentUser);
+
+        return stockOpnameRepository.findByDeletedAtIsNull(
+                        PageRequest.of(page, size, Sort.by("createdAt").descending()))
+                .map(this::mapToResponse);
+    }
+
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
+
+    public List<StockOpnameResponse> findAll() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.index");
+
+        if (currentUser.getPartner() == null) {
+            return stockOpnameRepository.findByDeletedAtIsNull()
+                    .stream()
+                    .map(this::mapToResponse)
+                    .toList();
+        }
+
+        List<StockOpname> data = stockOpnameRepository
+                .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+
+        // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
+        data = filterByUserLocation(data, currentUser);
+
+        return data.stream().map(this::mapToResponse).toList();
+    }
+
+    public StockOpnameResponse findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.show");
+        StockOpname opname = getValidatedOpname(id, currentUser);
+
+        // 🛡️ LOCATION ISOLATION
+        if (currentUser.getPartner() != null) {
+            enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
+        }
+
+        return mapToResponse(opname);
+    }
+
+    public List<StockOpnameItemResponse> findItemsByOpnameId(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.show");
+        StockOpname opname = getValidatedOpname(id, currentUser);
+
+        if (currentUser.getPartner() != null) {
+            enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
+        }
+
+        return stockOpnameItemRepository.findByStockOpnameId(id)
+                .stream()
+                .map(this::mapItemToResponse)
+                .toList();
+    }
+
+    public Page<StockOpnameResponse> findAll(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.index");
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        if (currentUser.getPartner() == null) {
+            return stockOpnameRepository.findAll(pageable).map(this::mapToResponse);
+        }
+
+        // Ambil semua dulu, filter per lokasi, lalu page manual
+        List<StockOpname> all = stockOpnameRepository
+                .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+        all = filterByUserLocation(all, currentUser);
+
+        int start = page * size;
+        int end = Math.min(start + size, all.size());
+        List<StockOpname> paged = start >= all.size() ? List.of() : all.subList(start, end);
+
+        return new org.springframework.data.domain.PageImpl<>(
+                paged.stream().map(this::mapToResponse).toList(),
+                pageable,
+                all.size()
+        );
+    }
+
+    // FORMULASI PEMBUATAN DRAFT DOKUMEN OPNAME
+    @Transactional
+    public StockOpnameResponse create(StockOpnameRequestDTO request) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.store");
+        
+        Partners partner = currentUser.getPartner();
+        if (partner == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen opname langsung.");
+        }
+
+        // 🛡️ LOCATION GUARD: user hanya boleh buat opname di lokasi tugasnya
+        enforceLocationAccess(request.getLocationType(), request.getLocationId(), currentUser);
+
+        StockOpname opname = new StockOpname();
+        opname.setPartner(partner);
+        opname.setLocation(request.getLocationType().toUpperCase());
+        opname.setLocationId(request.getLocationId());
+        opname.setDate(request.getDate());
+        opname.setNotes(request.getNotes());
+        opname.setStatus(StockOpname.Status.DRAFT);
+        opname.setCreatedBy(currentUser);
+        opname.setCreatedAt(LocalDateTime.now());
+
+        StockOpname saved = stockOpnameRepository.save(opname);
+
+        if (request.getItems() != null) {
+            List<StockOpnameItem> items = new ArrayList<>();
+
+            for (StockOpnameItemDTO dto : request.getItems()) {
+                Product product = productRepository.findById(dto.getProductId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Product", dto.getProductId()));
+
+                if (product.getPartner() == null || !product.getPartner().getId().equals(partner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Product '" + product.getName() + "' bukan milik partner Anda");
+                }
+
+                // Ambil snapshot kuantitas sistem saat ini secara real-time
+                long systemQty = stockBalanceRepository
+                        .findByProductIdAndLocationTypeAndLocationId(
+                                product.getId(),
+                                request.getLocationType().toUpperCase(),
+                                request.getLocationId()
+                        )
+                        .map(sb -> sb.getQty() == null ? 0L : sb.getQty())
+                        .orElse(0L);
+
+                StockOpnameItem item = new StockOpnameItem();
+                item.setStockOpname(saved);
+                item.setProduct(product);
+                item.setQtySystem(systemQty);
+
+                long physical = dto.getQtyPhysical() == null ? 0L : dto.getQtyPhysical();
+                item.setQtyPhysical(physical);
+                item.setQtyDifference(physical - systemQty);
+                item.setNotes(dto.getNotes());
+
+                items.add(item);
+            }
+
+            stockOpnameItemRepository.saveAll(items);
+        }
+
+        return mapToResponse(saved);
+    }
+
+    // INPUT HASIL PERHITUNGAN FISIK LAPANGAN
+    @Transactional
+    public StockOpnameResponse inputQtyPhysical(Long opnameId, List<StockOpnameItemDTO> itemsInput) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.update");
+        
+        StockOpname opname = getValidatedOpname(opnameId, currentUser);
+
+        if (opname.getStatus() != StockOpname.Status.DRAFT) {
+            throw new RuntimeException("Gagal: Dokumen opname ini sudah diproses dan dikunci.");
+        }
+
+        for (StockOpnameItemDTO dto : itemsInput) {
+            StockOpnameItem item = stockOpnameItemRepository.findByStockOpnameId(opnameId)
+                    .stream()
+                    .filter(i -> i.getProduct().getId().equals(dto.getProductId()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Item produk tidak ditemukan di dokumen opname ini."));
+
+            long physical = dto.getQtyPhysical() == null ? 0L : dto.getQtyPhysical();
+            long system = item.getQtySystem() == null ? 0L : item.getQtySystem();
+
+            item.setQtyPhysical(physical);
+            item.setQtyDifference(physical - system);
+            item.setCountedBy(currentUser);
+            item.setCountedAt(LocalDateTime.now());
+            item.setNotes(dto.getNotes());
+
+            stockOpnameItemRepository.save(item);
+        }
+
+        return mapToResponse(opname);
+    }
+
+    // SINKRONISASI WORKFLOW STATUS DOKUMEN
+    @Transactional
+    public StockOpname updateStatus(Long id, String status) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.update");
+        
+        StockOpname opname = getValidatedOpname(id, currentUser);
+        StockOpname.Status newStatus = StockOpname.Status.valueOf(status.toUpperCase());
+
+        opname.setStatus(newStatus);
+
+        if (newStatus == StockOpname.Status.REVIEWED) {
+            opname.setReviewedAt(LocalDateTime.now());
+            opname.setReviewedBy(currentUser);
+        }
+
+        if (newStatus == StockOpname.Status.APPROVED) {
+            opname.setApprovedAt(LocalDateTime.now());
+            opname.setApprovedBy(currentUser);
+        }
+
+        // ⚙️ EKSEKUSI PENYESUAIAN STOK JIKA STATUS BERUBAH MENJADI ADJUSTED
+        if (newStatus == StockOpname.Status.ADJUSTED) {
+            applyAdjustment(opname, currentUser);
+        }
+
+        opname.setUpdatedAt(LocalDateTime.now());
+        opname.setUpdatedBy(currentUser);
+
+        return stockOpnameRepository.save(opname);
+    }
+
+    // PROSES EKSEKUSI UPDATE STOK BALANCE & INPUT AUDIT LOG MUTASI
+    private void applyAdjustment(StockOpname opname, User user) {
+        List<StockOpnameItem> items = stockOpnameItemRepository.findByStockOpnameId(opname.getId());
+
+        for (StockOpnameItem item : items) {
+            long diff = item.getQtyDifference() == null ? 0L : item.getQtyDifference();
+            if (diff == 0) continue; // Jika selisih nol, lewati (stok klop aman jaya)
+
+            StockBalance balance = stockBalanceRepository
+                    .findByProductIdAndLocationTypeAndLocationId(
+                            item.getProduct().getId(),
+                            opname.getLocation().toUpperCase(),
+                            opname.getLocationId()
+                    )
+                    .orElse(new StockBalance());
+
+            if (balance.getId() == null) {
+                balance.setProduct(item.getProduct());
+                balance.setLocationType(opname.getLocation().toUpperCase());
+                balance.setLocationId(opname.getLocationId());
+                balance.setCreatedBy(user);
+                balance.setCreatedAt(LocalDateTime.now());
+            }
+
+            long current = balance.getQty() == null ? 0L : balance.getQty();
+            balance.setQty(current + diff);
+            balance.setUpdatedBy(user);
+            balance.setUpdatedAt(LocalDateTime.now());
+
+            stockBalanceRepository.save(balance);
+
+            // Suntik otomatis ke rekaman audit histori mutasi barang Spravel
+            stockMutationService.recordMutation(
+                    item.getProduct(),
+                    opname.getPartner(),
+                    "ADJUSTMENT",
+                    opname.getLocation().toUpperCase(),
+                    opname.getLocationId(),
+                    opname.getLocation().toUpperCase(),
+                    opname.getLocationId(),
+                    Math.abs(diff),
+                    "STOCK_OPNAME",
+                    opname.getId(),
+                    "Adjustment Opname #" + opname.getId() + " - Notes: " + item.getNotes(),
+                    user
+            );
+        }
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_opname.delete"); // 💡 Sikat via permission delete
+        
+        StockOpname opname = getValidatedOpname(id, currentUser);
+
+        opname.setDeletedAt(LocalDateTime.now());
+        opname.setDeletedBy(currentUser);
+
+        stockOpnameRepository.save(opname);
+    }
+
+    // ─── 🔄 UTILS MAPPERS SECTION ───────────────────────────────────────────
 
     private StockOpnameResponse mapToResponse(StockOpname opname) {
         PartnerSimpleDto partnerDto = null;
@@ -106,11 +435,11 @@ public class StockOpnameService {
             partnerDto.setName(opname.getPartner().getName());
         }
 
-        List<StockOpnameResponse.StockOpnameItemResponse> itemResponses =
+        List<StockOpnameItemResponse> itemResponses =
                 stockOpnameItemRepository.findByStockOpnameId(opname.getId())
                         .stream()
                         .map(this::mapItemToResponse)
-                        .collect(Collectors.toList());
+                        .toList();
 
         return StockOpnameResponse.builder()
                 .id(opname.getId())
@@ -134,7 +463,7 @@ public class StockOpnameService {
                 .build();
     }
 
-    private StockOpnameResponse.StockOpnameItemResponse mapItemToResponse(StockOpnameItem item) {
+    private StockOpnameItemResponse mapItemToResponse(StockOpnameItem item) {
         StockOpnameResponse.ProductSimpleDto productDto = null;
 
         if (item.getProduct() != null) {
@@ -144,15 +473,15 @@ public class StockOpnameService {
             productDto.setSku(item.getProduct().getSku());
         }
 
-        StockOpnameResponse.StockOpnameItemResponse response = new StockOpnameResponse.StockOpnameItemResponse();
+        StockOpnameItemResponse response = new StockOpnameItemResponse();
         response.setId(item.getId());
         response.setProduct(productDto);
         response.setQtySystem(item.getQtySystem());
         response.setQtyPhysical(item.getQtyPhysical());
         response.setQtyDifference(item.getQtyDifference());
         response.setNotes(item.getNotes());
-        response.setCountedBy(mapUserToSimpleDto(item.getCountedBy()));
         response.setCountedAt(item.getCountedAt());
+        response.setCountedBy(mapUserToSimpleDto(item.getCountedBy()));
 
         return response;
     }
@@ -163,288 +492,5 @@ public class StockOpnameService {
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
         return dto;
-    }
-
-    public List<StockOpnameResponse> findAllOpName() {
-        User currentUser = getAuthenticatedUser();
-        if (!isAdmin(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Hanya Super Admin yang diperbolehkan.");
-        }
-        List<StockOpname> allStockOpnames = stockOpnameRepository.findByDeletedAtIsNull();
-        return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
-    }
-
-    // RIWAYAT OPNAME (Bisa dibaca oleh Employee)
-    public List<StockOpnameResponse> findAll() {
-        User currentUser = getAuthenticatedUser();
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            if (currentUser.getPartner() == null) {
-                throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-            }
-            List<StockOpname> opnames = stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
-            return opnames.stream().map(this::mapToResponse).collect(Collectors.toList());
-        }
-
-        List<StockOpname> allStockOpnames = stockOpnameRepository.findByDeletedAtIsNull();
-        return allStockOpnames.stream().map(this::mapToResponse).collect(Collectors.toList());
-    }
-
-    public Page<StockOpnameResponse> findAll(int page, int size) {
-        User currentUser = getAuthenticatedUser();
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-
-        if (isAdminPartnerAndEmployee(currentUser)) {
-            if (currentUser.getPartner() == null) {
-                throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-            }
-            Page<StockOpname> opnames = stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageRequest);
-            return opnames.map(this::mapToResponse);
-        }
-
-        Page<StockOpname> opnames = stockOpnameRepository.findByDeletedAtIsNull(pageRequest);
-        return opnames.map(this::mapToResponse);
-    }
-
-    public StockOpnameResponse findById(Long id) {
-        User currentUser = getAuthenticatedUser();
-        return mapToResponse(getValidatedOpname(id, currentUser));
-    }
-
-    public List<StockOpnameItemResponse> findItemsByOpnameId(Long opnameId) {
-        User currentUser = getAuthenticatedUser();
-        getValidatedOpname(opnameId, currentUser);
-
-        List<StockOpnameItem> items = stockOpnameItemRepository.findByStockOpnameId(opnameId);
-        return items.stream().map(this::mapItemToResponse).collect(Collectors.toList());
-    }
-
-    // =============================================================
-    // CREATE SESI OPNAME — ❌ BLOKIR JIKA EMPLOYEE
-    // =============================================================
-    @Transactional
-    public StockOpnameResponse create(StockOpnameRequestDTO request) {
-        User currentUser = getAuthenticatedUser();
-
-        // 🔥 VALIDASI: Employee dilarang membuat sesi opname baru
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan membuat sesi opname.");
-        }
-
-        Partners partner = currentUser.getPartner();
-        if (partner == null) {
-            throw new RuntimeException("User ini tidak terasosiasi dengan Partner manapun.");
-        }
-
-        StockOpname opname = new StockOpname();
-        opname.setPartner(partner);
-        opname.setLocation(request.getLocationType());
-        opname.setLocationId(request.getLocationId());
-        opname.setDate(request.getDate());
-        opname.setNotes(request.getNotes());
-        opname.setStatus(StockOpname.Status.DRAFT);
-
-        StockOpname saved = stockOpnameRepository.save(opname);
-
-        if (request.getItems() != null && !request.getItems().isEmpty()) {
-            List<StockOpnameItem> items = new ArrayList<>();
-            for (StockOpnameItemDTO itemDTO : request.getItems()) {
-                Product product = productRepository.findById(itemDTO.getProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
-
-                if (!product.getPartner().getId().equals(partner.getId())) {
-                    throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
-                }
-
-                long qtySystem = stockBalanceRepository
-                        .findByProductIdAndLocationTypeAndLocationId(
-                                product.getId(),
-                                request.getLocationType().toUpperCase(),
-                                request.getLocationId())
-                        .map(sb -> sb.getQty() != null ? sb.getQty() : 0L)
-                        .orElse(0L);
-
-                StockOpnameItem item = new StockOpnameItem();
-                item.setStockOpname(saved);
-                item.setProduct(product);
-                item.setQtySystem(qtySystem);
-
-                long qtyPhysical = itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : 0L;
-                item.setQtyPhysical(qtyPhysical);
-                
-                long qtyDifference = qtyPhysical - qtySystem;
-                item.setQtyDifference(qtyDifference);
-
-                item.setNotes(itemDTO.getNotes());
-                items.add(item);
-            }
-            stockOpnameItemRepository.saveAll(items);
-        }
-        return mapToResponse(saved);
-    }
-
-    // =============================================================
-    // INPUT HITUNGAN FISIK DI LAPANGAN —  DIIZINKAN UNTUK EMPLOYEE
-    // =============================================================
-    @Transactional
-    public StockOpnameResponse inputQtyPhysical(Long opnameId, List<StockOpnameItemDTO> itemsInput) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-        StockOpname opname = getValidatedOpname(opnameId, currentUser);
-
-        // Validasi: Hanya bisa input jika status sesi opname masih DRAFT
-        if (opname.getStatus() != StockOpname.Status.DRAFT) {
-            throw new RuntimeException("Akses Ditolak: Tidak bisa mengisi hitungan fisik pada sesi opname yang sudah diproses.");
-        }
-
-        for (StockOpnameItemDTO itemDTO : itemsInput) {
-            StockOpnameItem item = stockOpnameItemRepository.findByStockOpnameId(opnameId)
-                    .stream()
-                    .filter(i -> i.getProduct().getId().equals(itemDTO.getProductId()))
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan dalam daftar sesi opname ini"));
-
-            long qtyPhysical = itemDTO.getQtyPhysical() != null ? itemDTO.getQtyPhysical() : 0L;
-            item.setQtyPhysical(qtyPhysical);
-            
-            // Hitung selisih otomatis
-            long qtySystem = item.getQtySystem() != null ? item.getQtySystem() : 0L;
-            item.setQtyDifference(qtyPhysical - qtySystem);
-            item.setCountedBy(currentUser);
-            item.setCountedAt(LocalDateTime.now());
-            if (itemDTO.getNotes() != null) {
-                item.setNotes(itemDTO.getNotes());
-            }
-
-            stockOpnameItemRepository.save(item);
-        }
-
-        return mapToResponse(opname);
-    }
-
-    // =============================================================
-    // MANAGEMENT / UPDATE STATUS (APPROVE/REVIEW/ADJUSTED) — ❌ BLOKIR JIKA EMPLOYEE
-    // =============================================================
-    @Transactional
-    public StockOpname updateStatus(Long id, String status) {
-        User currentUser = getAuthenticatedAdminPartnerOrEmployee();
-
-        // 🔥 VALIDASI: Employee tidak boleh menyetujui (Approve) atau mengelola eksekusi opname
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak memiliki hak untuk memproses status manajemen Opname.");
-        }
-
-        StockOpname stockOpname = getValidatedOpname(id, currentUser);
-
-        String statusUpper = status.toUpperCase();
-        StockOpname.Status newStatus = StockOpname.Status.valueOf(statusUpper);
-
-        // Validasi transisi status yang diizinkan
-        if (newStatus == StockOpname.Status.ADJUSTED && stockOpname.getStatus() != StockOpname.Status.APPROVED) {
-            throw new RuntimeException("Gagal: Opname harus berstatus APPROVED sebelum bisa di-ADJUSTED.");
-        }
-
-        // Set status baru
-        stockOpname.setStatus(newStatus);
-
-        if (newStatus == StockOpname.Status.REVIEWED) {
-            stockOpname.setReviewedAt(LocalDateTime.now());
-            stockOpname.setReviewedBy(currentUser);
-        }
-        else if (newStatus == StockOpname.Status.APPROVED) {
-            // BUG FIX #2a: APPROVED hanya mencatat siapa yang approve & kapan.
-            // Tidak ada perubahan stok di sini — itu dilakukan saat ADJUSTED.
-            stockOpname.setApprovedAt(LocalDateTime.now());
-            stockOpname.setApprovedBy(currentUser);
-
-            // Hitung ulang qty_difference untuk memastikan data akurat
-            List<StockOpnameItem> stockOpnameItems = stockOpnameItemRepository
-                    .findByStockOpnameId(stockOpname.getId());
-
-            for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
-                Long qtySystem = stockOpnameItem.getQtySystem() != null ? stockOpnameItem.getQtySystem() : 0L;
-                Long qtyPhysical = stockOpnameItem.getQtyPhysical() != null ? stockOpnameItem.getQtyPhysical() : 0L;
-                Long qtyDifference = qtyPhysical - qtySystem;
-                stockOpnameItem.setQtyDifference(qtyDifference);
-
-                if (qtyDifference < 0) {
-                    stockOpnameItem.setNotes("STOK MINUS " + qtyDifference);
-                } else if (qtyDifference > 0) {
-                    stockOpnameItem.setNotes("STOK PLUS " + qtyDifference);
-                } else {
-                    stockOpnameItem.setNotes("STOK SESUAI");
-                }
-                stockOpnameItemRepository.save(stockOpnameItem);
-            }
-        }
-        else if (newStatus == StockOpname.Status.ADJUSTED) {
-            // BUG FIX #2b: ADJUSTED adalah status yang benar-benar menerapkan koreksi stok
-            List<StockOpnameItem> stockOpnameItems = stockOpnameItemRepository
-                    .findByStockOpnameId(stockOpname.getId());
-
-            for (StockOpnameItem stockOpnameItem : stockOpnameItems) {
-                Long qtyDifference = stockOpnameItem.getQtyDifference() != null
-                        ? stockOpnameItem.getQtyDifference() : 0L;
-
-                // Hanya proses item yang ada selisih
-                if (qtyDifference == 0) continue;
-
-                if (stockOpnameItem.getProduct() != null) {
-                    // Update stock balance dengan menambahkan selisih (bukan set ke qtyPhysical)
-                    StockBalance stockBalance = stockBalanceRepository
-                            .findByProductIdAndLocationTypeAndLocationId(
-                                    stockOpnameItem.getProduct().getId(),
-                                    stockOpname.getLocation(),
-                                    stockOpname.getLocationId()
-                            ).orElse(new StockBalance());
-
-                    if (stockBalance.getId() == null) {
-                        stockBalance.setProduct(stockOpnameItem.getProduct());
-                        stockBalance.setLocationType(stockOpname.getLocation());
-                        stockBalance.setLocationId(stockOpname.getLocationId());
-                        stockBalance.setCreatedBy(currentUser);
-                    }
-
-                    long currentQty = stockBalance.getQty() != null ? stockBalance.getQty() : 0L;
-                    stockBalance.setQty(currentQty + qtyDifference);
-                    stockBalance.setUpdatedBy(currentUser);
-                    stockBalanceRepository.save(stockBalance);
-
-                    // Catat StockMutation type=ADJUSTMENT
-                    stockMutationService.recordMutation(
-                            stockOpnameItem.getProduct(),
-                            stockOpname.getPartner(),
-                            "ADJUSTMENT",
-                            stockOpname.getLocation(), stockOpname.getLocationId(),
-                            stockOpname.getLocation(), stockOpname.getLocationId(),
-                            Math.abs(qtyDifference),
-                            "stock_opname", stockOpname.getId(),
-                            "Opname #" + stockOpname.getId() + " adjustment: "
-                                    + (qtyDifference > 0 ? "+" : "") + qtyDifference,
-                            currentUser
-                    );
-                }
-            }
-        }
-
-        stockOpname.setUpdatedAt(LocalDateTime.now());
-        stockOpname.setUpdatedBy(currentUser);
-
-        return stockOpnameRepository.save(stockOpname);
-    }
-
-    // =============================================================
-    // DELETE SESI OPNAME — ❌ BLOKIR JIKA EMPLOYEE
-    // =============================================================
-    public void delete(Long id) {
-        User currentUser = getAuthenticatedUser();
-
-        // 🔥 VALIDASI: Employee dilarang menghapus sesi opname
-        if (isEmployee(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Employee tidak diizinkan untuk menghapus data opname.");
-        }
-
-        StockOpname opname = getValidatedOpname(id, currentUser);
-        opname.setDeletedAt(LocalDateTime.now());
-        stockOpnameRepository.save(opname);
     }
 }
