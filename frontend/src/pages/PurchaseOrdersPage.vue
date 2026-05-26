@@ -39,12 +39,7 @@ const { can } = usePermission()
 const { toast } = useToast()
 const authStore = useAuthStore()
 
-const isEmployee = computed(() => {
-  // Semua user partner (bukan super admin) bisa menerima barang jika punya permission
-  return !authStore.isAdmin && authStore.user?.roles?.length > 0
-})
-
-const canReceive = computed(() => authStore.isAdmin || isEmployee.value)
+const canReceive = computed(() => !authStore.isAdmin && authStore.user?.roles?.length > 0)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const pos = ref([])
@@ -98,6 +93,66 @@ const showDrawer = ref(false)
 const drawerMode = ref('detail') // 'create' | 'detail'
 const saving = ref(false)
 const formError = ref(null)
+
+// ─── Receipt Drawer State ─────────────────────────────────────────────────────
+const showReceiptDrawer = ref(false)
+const receiptSaving = ref(false)
+const receiptError = ref(null)
+const receiptForm = ref({
+  purchaseOrderId: null,
+  receivedDate: new Date().toISOString().slice(0, 16),
+  notes: '',
+  items: []
+})
+
+function openReceiptDrawer(po) {
+  receiptForm.value = {
+    purchaseOrderId: po.id,
+    receivedDate: new Date().toISOString().slice(0, 16),
+    notes: '',
+    items: (po.items || []).map(item => ({
+      purchaseOrderItemId: item.id,
+      productId: item.product?.id || item.productId,
+      productName: item.product?.name || `Produk #${item.productId}`,
+      qtyOrdered: item.qtyOrdered,
+      qtyReceived: item.qtyOrdered, // default: terima semua
+      unitCost: item.unitCost,
+      notes: ''
+    }))
+  }
+  receiptError.value = null
+  showReceiptDrawer.value = true
+}
+
+async function submitReceipt() {
+  receiptError.value = null
+  if (receiptForm.value.items.some(i => !i.qtyReceived || i.qtyReceived <= 0)) {
+    receiptError.value = 'Semua item harus memiliki jumlah yang valid.'
+    return
+  }
+  receiptSaving.value = true
+  try {
+    await api.post('/api/v1/purchase-receipts', {
+      purchaseOrderId: receiptForm.value.purchaseOrderId,
+      receivedDate: receiptForm.value.receivedDate,
+      notes: receiptForm.value.notes || null,
+      items: receiptForm.value.items.map(i => ({
+        purchaseOrderItemId: i.purchaseOrderItemId,
+        productId: i.productId,
+        qtyReceived: Number(i.qtyReceived),
+        notes: i.notes || null
+      }))
+    })
+    toast.success('Barang berhasil diterima! Stok telah diperbarui.')
+    showReceiptDrawer.value = false
+    showDrawer.value = false
+    fetchData()
+  } catch (err) {
+    receiptError.value = err.response?.data?.message || err.response?.data?.data?.message || 'Gagal memproses penerimaan barang.'
+  } finally {
+    receiptSaving.value = false
+  }
+}
 const selectedPO = ref(null)
 
 const emptyForm = () => ({
@@ -181,6 +236,12 @@ async function openDetail(po) {
   selectedPO.value = po
   drawerMode.value = 'detail'
   showDrawer.value = true
+  try {
+    const res = await api.get(`/api/v1/purchase-orders/${po.id}/items`)
+    selectedPO.value.items = res.data
+  } catch (err) {
+    console.error('Gagal memuat item Purchase Order:', err)
+  }
 }
 
 function addItem() {
@@ -262,9 +323,11 @@ function statusDotClass(s) {
 }
 
 function getLocationName(type, id) {
-  // Try to find in loaded locations or use the ones from PO detail
-  const loc = locations.value.find(l => l.type === type && l.id === id)
-  return loc ? loc.name : `Lokasi #${id}`
+  if (!type || id == null) return '-'
+  const loc = locations.value.find(l => l.type?.toLowerCase() === type.toLowerCase() && String(l.id) === String(id))
+  if (loc) return loc.name
+  const typeLabel = type.toLowerCase() === 'warehouse' ? 'Gudang' : 'Cabang'
+  return `${typeLabel} #${id}`
 }
 
 // ─── Copy Helpers ─────────────────────────────────────────────────────────────
@@ -315,12 +378,43 @@ async function updatePOStatus(id, newStatus) {
   updatingPoId.value = id
   updatingStatus.value = true
   try {
-    await api.patch(`/api/v1/purchase-orders/${id}/status?status=${newStatus}`)
-    toast.success(`Status PO berhasil diubah ke ${statusLabel(newStatus)}!`)
+    if (newStatus?.toLowerCase() === 'received') {
+      // 1. Fetch the items for this PO
+      const itemsRes = await api.get(`/api/v1/purchase-orders/${id}/items`)
+      const poItems = itemsRes.data || []
+      
+      if (poItems.length === 0) {
+        throw new Error('Purchase Order tidak memiliki item.')
+      }
+
+      // 2. Prepare receipt request payload
+      const payload = {
+        purchaseOrderId: id,
+        receivedDate: new Date().toISOString(),
+        notes: 'Penerimaan otomatis dari sistem',
+        items: poItems.map(item => ({
+          purchaseOrderItemId: item.id,
+          productId: item.product?.id || item.productId,
+          qtyReceived: item.qtyOrdered - (item.qtyReceived || 0)
+        })).filter(item => item.qtyReceived > 0)
+      }
+
+      if (payload.items.length === 0) {
+        throw new Error('Semua item dalam Purchase Order ini sudah diterima.')
+      }
+
+      // 3. Create the purchase receipt to add stock and log mutation
+      await api.post('/api/v1/purchase-receipts', payload)
+      toast.success('Barang berhasil diterima dan stok telah diperbarui!')
+    } else {
+      await api.patch(`/api/v1/purchase-orders/${id}/status?status=${newStatus}`)
+      toast.success(`Status PO berhasil diubah ke ${statusLabel(newStatus)}!`)
+    }
     showDrawer.value = false
     fetchData()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal mengubah status PO.')
+    console.error('Gagal memproses status PO:', err)
+    toast.error(err.response?.data?.message || err.message || 'Gagal memproses status PO.')
   } finally {
     updatingStatus.value = false
     updatingPoId.value = null
@@ -388,7 +482,7 @@ onMounted(async () => {
                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ po.supplier?.name }}</div>
                     <div class="text-[10px] text-zinc-400 italic mb-1">{{ po.supplier?.phone || '' }}</div>
                     <div class="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Warehouse v-if="po.locationType === 'warehouse'" class="h-3 w-3 opacity-60" />
+                      <Warehouse v-if="po.locationType?.toLowerCase() === 'warehouse'" class="h-3 w-3 opacity-60" />
                       <Building2 v-else class="h-3 w-3 opacity-60" />
                       <span>{{ getLocationName(po.locationType, po.locationId) }}</span>
                     </div>
@@ -423,11 +517,9 @@ onMounted(async () => {
                     v-if="po.status?.toLowerCase() === 'ordered' && canReceive"
                     size="sm"
                     class="h-7 w-28 text-[11px] flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                    :disabled="updatingStatus"
-                    @click.stop="updatePOStatus(po.id, 'received')"
+                    @click.stop="openReceiptDrawer(po)"
                   >
-                    <Loader2 v-if="updatingPoId === po.id" class="h-3 w-3 animate-spin" />
-                    <CheckCircle2 v-else class="h-3 w-3 text-white" />
+                    <CheckCircle2 class="h-3 w-3 text-white" />
                     <span>Terima Barang</span>
                   </Button>
                 </div>
@@ -462,7 +554,7 @@ onMounted(async () => {
                     </td>
                     <td class="py-4">
                       <div class="flex items-center gap-1.5 text-xs text-zinc-700 dark:text-zinc-300">
-                        <Warehouse v-if="po.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-60" />
+                        <Warehouse v-if="po.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-60" />
                         <Building2 v-else class="h-3.5 w-3.5 opacity-60" />
                         <span>{{ getLocationName(po.locationType, po.locationId) }}</span>
                       </div>
@@ -501,11 +593,9 @@ onMounted(async () => {
                           v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive"
                           size="sm"
                           class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm shrink-0"
-                          :disabled="updatingStatus"
-                          @click.stop="updatePOStatus(po.id, 'received')"
+                          @click.stop="openReceiptDrawer(po)"
                         >
-                          <Loader2 v-if="updatingPoId === po.id" class="h-3.5 w-3.5 animate-spin" />
-                          <CheckCircle2 v-else class="h-3.5 w-3.5 text-white" />
+                          <CheckCircle2 class="h-3.5 w-3.5 text-white" />
                           <span>Terima Barang</span>
                         </Button>
                         
@@ -730,7 +820,7 @@ onMounted(async () => {
                 <div class="space-y-1">
                   <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tujuan</p>
                   <div class="flex items-center gap-1.5 text-sm font-semibold">
-                    <Warehouse v-if="selectedPO.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
+                    <Warehouse v-if="selectedPO.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
                     <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
                     {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
                   </div>
@@ -797,13 +887,11 @@ onMounted(async () => {
                   Kirim PO
                 </Button>
                 <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive"
+                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive"
                   class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  :disabled="updatingStatus"
-                  @click="updatePOStatus(selectedPO.id, 'received')"
+                  @click="openReceiptDrawer(selectedPO)"
                 >
                   <CheckCircle2 class="h-4 w-4 mr-2" />
-                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                   Terima Barang
                 </Button>
                 <Button 
@@ -820,6 +908,95 @@ onMounted(async () => {
               </div>
             </div>
           </template>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ─── RECEIPT DRAWER ─────────────────────────────────────────────── -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showReceiptDrawer" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="showReceiptDrawer = false" />
+      </Transition>
+      <Transition name="slide-right">
+        <div v-if="showReceiptDrawer" class="fixed inset-y-0 right-0 z-[60] flex flex-col w-full sm:max-w-[520px] bg-card shadow-2xl sm:border-l overflow-hidden">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-emerald-50/60 dark:bg-emerald-950/20">
+            <div>
+              <h3 class="font-semibold text-base text-emerald-800 dark:text-emerald-300">Terima Barang</h3>
+              <p class="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-0.5">Konfirmasi penerimaan barang dan perbarui stok.</p>
+            </div>
+            <Button variant="ghost" size="icon" @click="showReceiptDrawer = false">
+              <X class="h-4 w-4" />
+            </Button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div v-if="receiptError" class="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-3">
+              <p class="text-sm text-red-600 dark:text-red-400">{{ receiptError }}</p>
+            </div>
+
+            <!-- Tanggal Terima -->
+            <div class="space-y-1.5">
+              <Label>Tanggal & Waktu Terima <span class="text-destructive">*</span></Label>
+              <Input v-model="receiptForm.receivedDate" type="datetime-local" class="h-9" :disabled="receiptSaving" />
+            </div>
+
+            <!-- Catatan -->
+            <div class="space-y-1.5">
+              <Label>Catatan Penerimaan</Label>
+              <textarea
+                v-model="receiptForm.notes"
+                rows="2"
+                :disabled="receiptSaving"
+                placeholder="Catatan opsional..."
+                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+              />
+            </div>
+
+            <!-- Item List -->
+            <div class="space-y-3">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Item yang Diterima</h4>
+              <div v-for="(item, i) in receiptForm.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                      <Package class="h-3.5 w-3.5 text-zinc-400" />
+                    </div>
+                    <span class="text-sm font-semibold">{{ item.productName }}</span>
+                  </div>
+                  <span class="text-[10px] text-zinc-400">Dipesan: {{ item.qtyOrdered }} pcs</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="space-y-1">
+                    <Label class="text-[10px] text-zinc-500">Qty Diterima <span class="text-destructive">*</span></Label>
+                    <Input
+                      v-model.number="item.qtyReceived"
+                      type="number"
+                      min="1"
+                      :max="item.qtyOrdered"
+                      class="h-8 text-sm"
+                      :disabled="receiptSaving"
+                    />
+                  </div>
+                  <div class="space-y-1">
+                    <Label class="text-[10px] text-zinc-500">Catatan Item</Label>
+                    <Input v-model="item.notes" placeholder="Opsional" class="h-8 text-sm" :disabled="receiptSaving" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+            <Button variant="outline" class="flex-1" @click="showReceiptDrawer = false" :disabled="receiptSaving">Batal</Button>
+            <Button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" @click="submitReceipt" :disabled="receiptSaving">
+              <Loader2 v-if="receiptSaving" class="h-4 w-4 mr-2 animate-spin" />
+              <CheckCircle2 v-else class="h-4 w-4 mr-2" />
+              Konfirmasi Terima
+            </Button>
+          </div>
         </div>
       </Transition>
     </Teleport>

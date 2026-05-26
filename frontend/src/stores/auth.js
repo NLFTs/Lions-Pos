@@ -72,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
         id: me.id,
         username: me.username,
         fullname: me.fullname,
+        avatar: me.avatar ?? null,
         roles: me.roles ?? [],
         branchId: me.branchId ?? null,
         branchName: me.branchName ?? null,

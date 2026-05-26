@@ -106,7 +106,7 @@ const MENU_GROUPS = [
     label: 'Procurement',
     items: [
       { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
-      { label: 'Purchase Order', icon: ClipboardList, to: '/dashboard/purchase-orders', permission: 'purchase_order.index' },
+      { label: 'Purchase Order', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
   {
@@ -149,7 +149,12 @@ function filterMenu(groups) {
 
   return groups.reduce((acc, group) => {
     const filteredItems = group.items.reduce((items, item) => {
-      if (item.permission && !isAdmin && !can(item.permission)) return items
+      // Support anyPermission: tampilkan jika punya salah satu
+      if (item.anyPermission) {
+        if (!isAdmin && !item.anyPermission.some(p => can(p))) return items
+      } else if (item.permission && !isAdmin && !can(item.permission)) {
+        return items
+      }
       const filtered = { ...item }
       if (filtered.children) {
         filtered.children = filterMenu([{ label: '', items: filtered.children }])[0]?.items || []
@@ -538,8 +543,20 @@ onBeforeUnmount(() => {
             <button
               class="flex w-full items-center gap-2 rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors outline-none"
             >
-              <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0 shadow-sm border border-primary/20">
-                {{ userInitial }}
+              <div class="relative w-8 h-8 shrink-0">
+                <img
+                  v-if="user?.avatar"
+                  :src="user.avatar"
+                  :alt="displayName"
+                  class="w-8 h-8 rounded-full border border-border bg-muted object-cover"
+                  @error="(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }"
+                />
+                <div
+                  class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0 shadow-sm border border-primary/20"
+                  :style="user?.avatar ? 'display:none' : ''"
+                >
+                  {{ userInitial }}
+                </div>
               </div>
               <div class="flex flex-col flex-1 text-left overflow-hidden">
                 <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-none mb-0.5">{{ displayName }}</span>
