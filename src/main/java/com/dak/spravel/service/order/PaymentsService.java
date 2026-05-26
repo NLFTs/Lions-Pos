@@ -237,13 +237,24 @@ public class PaymentsService {
         paymentsRepository.delete(payments);
     }
 
-    // ==========================================
-    // VERIFY TRANSFER (🔒 Berbasis Permission)
-    // ==========================================
+    
     @Transactional
     public PaymentResponse verifyPayment(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "payment.update"); // 💡 Konfirmasi mutasi dana masuk diatur via permission update
+
+        //  hanya user yang punya partner  yang bisa konfirmasi
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak bisa mengkonfirmasi pembayaran. Gunakan akun partner.");
+        }
+
+        //  hanya owner/admin-partners yang bisa konfirmasi
+        boolean isOwner = currentUser.getRoles().stream()
+                .anyMatch(role ->
+                        role.getSlug().equalsIgnoreCase("owner") ||
+                        role.getSlug().equalsIgnoreCase("admin-partners"));
+        if (!isOwner) {
+            throw new RuntimeException("Akses Ditolak: Hanya Owner atau Admin Partner yang bisa mengkonfirmasi pembayaran transfer");
+        }
 
         Payments payment = getValidatedPayment(id, currentUser);
 

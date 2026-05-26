@@ -43,7 +43,6 @@ const showReceipt = ref(false)
 
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
-const orderType = ref('Dine In')
 const cart = ref([])
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
@@ -65,9 +64,16 @@ async function fetchData() {
     const cData = resC.data?.data
     categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
-    // Branches: ResData<List>
+    // Branches: ResData<List> — deduplikasi berdasarkan nama
     const bData = resB.data?.data
-    branches.value = Array.isArray(bData) ? bData : (bData?.content || [])
+    const bArr = Array.isArray(bData) ? bData : (bData?.content || [])
+    // Hapus duplikat nama, pertahankan yang ID-nya terkecil (paling lama dibuat)
+    const seen = new Set()
+    branches.value = bArr.filter(b => {
+      if (seen.has(b.name)) return false
+      seen.add(b.name)
+      return true
+    })
     if (branches.value.length > 0) {
       selectedBranchId.value = branches.value[0].id
       await fetchStockBalances(branches.value[0].id)
@@ -113,7 +119,7 @@ async function fetchStockBalances(branchId) {
 }
 
 function getStock(productId) {
-  return stockBalances.value[productId] ?? null
+  return stockBalances.value[String(productId)] ?? null
 }
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
@@ -264,6 +270,32 @@ function closePayment() {
 function closeReceipt() {
   showReceipt.value = false
   lastOrder.value = null
+  confirmingTransfer.value = false
+  // Sync stok dari server setelah modal ditutup
+  if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
+}
+
+const confirmingTransfer = ref(false)
+
+async function confirmTransferFromReceipt() {
+  const paymentId = lastOrder.value?.payments?.[0]?.id
+  if (!paymentId) {
+    toast.error('ID pembayaran tidak ditemukan.')
+    return
+  }
+  confirmingTransfer.value = true
+  try {
+    await api.patch(`/api/v1/payments/${paymentId}/verify`)
+    // Update lastOrder agar status berubah di UI
+    if (lastOrder.value?.payments?.[0]) {
+      lastOrder.value.payments[0].status = 'VERIFIED'
+    }
+    toast.success('Transfer berhasil dikonfirmasi!')
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal mengkonfirmasi transfer.')
+  } finally {
+    confirmingTransfer.value = false
+  }
 }
 
 function printReceipt() {
@@ -327,7 +359,7 @@ async function checkout() {
       branchId: selectedBranchId.value,
       orderNumber: `ORD-${Date.now()}`,
       voucherId: appliedVoucher.value?.id,
-      notes: orderType.value,
+      notes: null,
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
@@ -357,8 +389,16 @@ async function checkout() {
     voucherCode.value = ''
     showPayment.value = false
     showReceipt.value = true
-    // Refresh stok setelah transaksi
-    if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
+
+    // Kurangi stok lokal langsung agar kartu produk langsung reflect tanpa tunggu server
+    payload.items.forEach(item => {
+      const key = String(item.productId)
+      const current = stockBalances.value[key]
+      if (current !== undefined && current !== null) {
+        stockBalances.value[key] = Math.max(0, Number(current) - item.qty)
+      }
+    })
+    // Tidak fetch dari server di sini — fetch dilakukan saat modal struk ditutup
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
     const msg = err.response?.data?.data?.message
@@ -447,15 +487,6 @@ function avatarStyle(name = '') {
             <Button size="sm" variant="outline" class="h-[34px] rounded-xl px-3 bg-white dark:bg-zinc-700 shadow-sm border-none font-bold gap-1.5 mr-0.5 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50">
               <Scan class="h-3.5 w-3.5" /> Scan
             </Button>
-          </div>
-
-          <div class="flex bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-xl mb-3 lg:mb-4">
-            <button v-for="type in ['Dine In', 'Take Away', 'Delivery']" :key="type"
-              class="flex-1 text-[13px] font-bold py-2 rounded-[10px] transition-all"
-              :class="orderType === type ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700'"
-              @click="orderType = type">
-              {{ type }}
-            </button>
           </div>
 
           <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
@@ -695,10 +726,20 @@ function avatarStyle(name = '') {
                   <X class="h-4 w-4" />
                 </button>
               </div>
-              <div class="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-4">
-                <Check class="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+              <div :class="['w-14 h-14 rounded-full flex items-center justify-center mb-4',
+                lastOrder.payments?.[0]?.method === 'TRANSFER' && lastOrder.payments[0].status !== 'VERIFIED'
+                  ? 'bg-amber-100 dark:bg-amber-900/30'
+                  : 'bg-emerald-100 dark:bg-emerald-900/30']">
+                <Check :class="['h-7 w-7',
+                  lastOrder.payments?.[0]?.method === 'TRANSFER' && lastOrder.payments[0].status !== 'VERIFIED'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-emerald-600 dark:text-emerald-400']" />
               </div>
-              <h3 class="text-lg font-black text-zinc-900 dark:text-white">Transaksi Berhasil!</h3>
+              <h3 class="text-lg font-black text-zinc-900 dark:text-white">
+                {{ lastOrder.payments?.[0]?.method === 'TRANSFER' && lastOrder.payments[0].status !== 'VERIFIED'
+                  ? 'Menunggu Konfirmasi'
+                  : 'Transaksi Berhasil!' }}
+              </h3>
               <p class="text-xs text-zinc-500 font-mono mt-1">{{ lastOrder.orderNumber }}</p>
             </div>
             <div class="px-6 py-5 flex flex-col gap-3">
@@ -717,13 +758,31 @@ function avatarStyle(name = '') {
                 </div>
               </template>
               <template v-if="lastOrder.payments?.[0]?.method === 'TRANSFER'">
-                <div class="flex justify-between items-center text-sm p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40">
-                  <span class="text-blue-700 dark:text-blue-400 font-bold">Metode</span>
-                  <span class="font-black text-blue-700 dark:text-blue-400">Transfer Bank — Menunggu Konfirmasi</span>
+                <div v-if="lastOrder.payments[0].status === 'VERIFIED'"
+                  class="flex justify-between items-center text-sm p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40">
+                  <span class="text-emerald-700 dark:text-emerald-400 font-bold">Status Transfer</span>
+                  <span class="font-black text-emerald-700 dark:text-emerald-400">✓ Terkonfirmasi</span>
+                </div>
+                <div v-else
+                  class="flex justify-between items-center text-sm p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40">
+                  <span class="text-amber-700 dark:text-amber-400 font-bold">Status Transfer</span>
+                  <span class="font-black text-amber-700 dark:text-amber-400">Menunggu Konfirmasi</span>
                 </div>
               </template>
             </div>
             <div class="px-6 pb-6 flex flex-col gap-2.5">
+              <!-- Tombol Konfirmasi Transfer — hanya muncul jika transfer & belum dikonfirmasi -->
+              <button
+                v-if="lastOrder.payments?.[0]?.method === 'TRANSFER' && lastOrder.payments[0].status !== 'VERIFIED'"
+                @click="confirmTransferFromReceipt"
+                :disabled="confirmingTransfer"
+                class="w-full h-11 font-bold rounded-[14px] bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm"
+              >
+                <Loader2 v-if="confirmingTransfer" class="h-4 w-4 animate-spin" />
+                <Check v-else class="h-4 w-4" />
+                Konfirmasi Pembayaran Transfer
+              </button>
+
               <button @click="printReceipt" class="w-full h-11 font-bold rounded-[14px] border border-zinc-200 dark:border-zinc-700 flex items-center justify-center gap-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-sm">
                 <Printer class="h-4 w-4" /> Cetak Struk
               </button>
