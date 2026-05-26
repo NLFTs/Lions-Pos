@@ -26,7 +26,6 @@ public class TransferRequestController {
     @PreAuthorize("hasAuthority('transfer_request.index')")
     public ResponseEntity<ResData<List<TransferRequestResponse>>> index() {
         log.info("[GET] /api/v1/transfer-requests - Fetching list");
-        // 💡 Langsung return service, gak usah di-map ulang!
         return ResponseBuilder.ok(transferRequestService.findAll());
     }
 
@@ -55,17 +54,21 @@ public class TransferRequestController {
     @PreAuthorize("hasAuthority('transfer_request.update')")
     public ResponseEntity<ResData<TransferRequestResponse>> updateStatus(
             @PathVariable Long id,
-            @RequestParam String status,
-            @RequestBody(required = false) List<TransferRequestItemDTO> items) {
+            @RequestParam String status) {
         
         log.info("[PATCH] /api/v1/transfer-requests/{}/status status={}", id, status);
+        TransferRequestResponse result = transferRequestService.updateStatus(id, status);
+        return ResponseBuilder.ok(result);
+    }
+
+    @PatchMapping("/{id}/receive")
+    @PreAuthorize("hasAuthority('transfer_request.update')")
+    public ResponseEntity<ResData<TransferRequestResponse>> receiveTransfer(
+            @PathVariable Long id,
+            @RequestBody List<TransferRequestItemDTO> items) {
         
-        TransferRequestResponse result;
-        if ("received".equalsIgnoreCase(status)) {
-            result = transferRequestService.receiveTransfer(id, items != null ? items : java.util.Collections.emptyList());
-        } else {
-            result = transferRequestService.updateStatus(id, status);
-        }
+        log.info("[PATCH] /api/v1/transfer-requests/{}/receive - Processing item acceptance", id);
+        TransferRequestResponse result = transferRequestService.receiveTransfer(id, items != null ? items : java.util.Collections.emptyList());
         return ResponseBuilder.ok(result);
     }
 

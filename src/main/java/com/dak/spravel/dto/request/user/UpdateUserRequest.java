@@ -23,4 +23,8 @@ public class UpdateUserRequest {
     private String password;
 
     private List<Long> roleIds;
+
+    private Long branchId;
+
+    private Long warehouseId;
 }

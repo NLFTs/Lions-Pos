@@ -23,13 +23,10 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    //agar bisa membaca/menyimpan partnerId dari DTO dan database
-    @Column(name = "partner_id", nullable = false)
-    private Long partnerId;
 
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "partner_id", referencedColumnName = "id", insertable = false, updatable = false)
+    @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
     private Partners partner;
 
     /**

@@ -87,16 +87,12 @@ async function fetchLocations() {
       api.get(urlW)
     ])
     
-    // Admin branches: returns List<BranchResponse> directly (no ResData)
-    // Partner branches: returns ResData<List<BranchResponse>>
     if (isAdmin.value) {
       branches.value = Array.isArray(resB.data) ? resB.data : (resB.data?.data || [])
     } else {
       branches.value = resB.data?.data || []
     }
     
-    // Admin warehouses: returns ResData<Page<WarehouseResponse>> (paginated)
-    // Partner warehouses: returns ResData<List<WarehouseResponse>>
     const whData = resW.data?.data
     if (whData && !Array.isArray(whData) && whData.content) {
       warehouses.value = whData.content
@@ -146,7 +142,6 @@ async function saveLocation() {
     return
   }
 
-  // Validasi Branch: username & password wajib
   if (form.value.type === 'branch' && modalMode.value === 'create') {
     if (!form.value.username?.trim()) {
       formError.value = 'Username wajib diisi untuk pembuatan Cabang.'
@@ -162,7 +157,6 @@ async function saveLocation() {
     }
   }
 
-  // Validasi Warehouse: jika username diisi, password & role wajib
   if (form.value.type === 'warehouse' && modalMode.value === 'create' && form.value.username?.trim()) {
     if (!form.value.password || form.value.password.length < 6) {
       formError.value = 'Password wajib diisi dan minimal 6 karakter.'
@@ -184,7 +178,6 @@ async function saveLocation() {
       address: form.value.address,
     }
 
-    // Kirim data user untuk branch (wajib) dan warehouse (opsional jika username diisi)
     if (modalMode.value === 'create' && form.value.username?.trim()) {
       payload.username = form.value.username
       payload.password = form.value.password
@@ -250,7 +243,6 @@ onMounted(fetchLocations)
 <template>
   <AppLayout>
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
-      <!-- Header -->
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Manajemen Lokasi</h1>
@@ -260,14 +252,13 @@ onMounted(fetchLocations)
           <div class="w-full sm:w-72">
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi..." />
           </div>
-          <Button @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('branch.store') || can('warehouse.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Tambah Lokasi</span>
           </Button>
         </div>
       </div>
 
-      <!-- Table Card -->
       <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         <CardContent class="p-0">
           <div v-if="loading" class="flex items-center justify-center py-24">
@@ -279,14 +270,13 @@ onMounted(fetchLocations)
               <MapPin class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada data lokasi.</p>
-            <Button size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('branch.store') || can('warehouse.store')" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Tambah Lokasi
             </Button>
           </div>
 
           <div v-else>
-            <!-- Mobile View -->
             <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
               <div v-for="l in paginatedLocations" :key="l.type + l.id" class="p-4 flex flex-col gap-3">
                 <div class="flex items-start justify-between">
@@ -303,10 +293,10 @@ onMounted(fetchLocations)
                     </div>
                   </div>
                   <div class="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(l)">
+                    <Button v-if="l.type === 'branch' ? can('branch.update') : can('warehouse.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(l)">
                       <Pencil class="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                    <Button v-if="l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
                       <Trash2 class="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -317,7 +307,6 @@ onMounted(fetchLocations)
               </div>
             </div>
 
-            <!-- Desktop View -->
             <div class="hidden md:block overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
@@ -349,10 +338,10 @@ onMounted(fetchLocations)
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <div class="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
+                        <Button v-if="l.type === 'branch' ? can('branch.update') : can('warehouse.update')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                        <Button v-if="l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -375,7 +364,6 @@ onMounted(fetchLocations)
       </Card>
     </div>
 
-    <!-- Drawer -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
@@ -434,7 +422,6 @@ onMounted(fetchLocations)
               />
             </div>
 
-            <!-- Form User untuk Branch (create only) -->
             <div v-if="form.type === 'branch' && modalMode === 'create'" class="space-y-4 border-t border-border pt-4 mt-4">
               <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Akun Pengguna Cabang</h4>
               
@@ -474,7 +461,6 @@ onMounted(fetchLocations)
               </div>
             </div>
 
-            <!-- Form User untuk Warehouse (create only) -->
             <div v-if="form.type === 'warehouse' && modalMode === 'create'" class="space-y-4 border-t border-border pt-4 mt-4">
               <h4 class="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Akun Pengelola Gudang <span class="text-zinc-400 font-normal normal-case">(opsional)</span></h4>
               
@@ -525,7 +511,6 @@ onMounted(fetchLocations)
         </div>
       </Transition>
 
-      <!-- Delete Modal -->
       <Transition name="fade">
         <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
       </Transition>

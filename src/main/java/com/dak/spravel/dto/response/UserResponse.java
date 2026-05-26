@@ -21,6 +21,8 @@ public class UserResponse {
     private List<RoleData> roles;
     private Long branchId;
     private String branchName;
+    private Long warehouseId;
+    private String warehouseName;
 
     @Data
     public static class RoleData {
