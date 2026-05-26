@@ -98,7 +98,13 @@ async function confirmDelete() {
     fetchVouchers()
     closeDeleteModal()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menghapus voucer.')
+    const msg = err.response?.data?.message || ''
+    if (msg.includes('foreign key') || msg.includes('constraint') || err.response?.status === 500) {
+      toast.error('Voucer tidak bisa dihapus karena sudah digunakan dalam transaksi.')
+    } else {
+      toast.error(msg || 'Gagal menghapus voucer.')
+    }
+    closeDeleteModal()
   } finally {
     deleting.value = false
   }
@@ -147,11 +153,24 @@ async function saveVoucher() {
   saving.value = true
   formError.value = null
   try {
+    // Map camelCase form ke snake_case yang diharapkan backend
+    const payload = {
+      code: form.value.code,
+      name: form.value.name,
+      discount_type: form.value.discountType?.toUpperCase(),
+      discount_value: form.value.discountValue,
+      min_purchase: form.value.minPurchase,
+      max_discount: form.value.maxDiscount,
+      quota: form.value.quota,
+      valid_from: form.value.validFrom ? form.value.validFrom + 'T00:00:00' : null,
+      valid_until: form.value.validUntil ? form.value.validUntil + 'T23:59:59' : null,
+    }
+
     if (modalMode.value === 'create') {
-      await api.post('/api/v1/vouchers', form.value)
+      await api.post('/api/v1/vouchers', payload)
       toast.success('Voucer berhasil ditambahkan!')
     } else {
-      await api.put(`/api/v1/vouchers/${form.value.id}`, form.value)
+      await api.put(`/api/v1/vouchers/${form.value.id}`, payload)
       toast.success('Voucer berhasil diperbarui!')
     }
     showDrawer.value = false
@@ -169,16 +188,26 @@ function formatCurrency(val) {
 }
 
 function discountDisplay(v) {
-  const type = v.discountType || v.discount_type
+  const type = (v.discountType || v.discount_type || '').toUpperCase()
   const val = v.discountValue ?? v.discount_value ?? 0
-  return type === 'percent' ? `${val}%` : formatCurrency(val)
+  return type === 'PERCENT' ? `${val}%` : formatCurrency(val)
+}
+
+function getValidUntil(v) {
+  const raw = v.validUntil || v.valid_until || null
+  if (!raw) return null
+  return raw.split('T')[0]
+}
+
+function getValidFrom(v) {
+  const raw = v.validFrom || v.valid_from || null
+  if (!raw) return null
+  return raw.split('T')[0]
 }
 
 function getMinPurchase(v) { return v.minPurchase ?? v.min_purchase ?? 0 }
 function getQuota(v) { return v.quota ?? null }
 function getUsedCount(v) { return v.usedCount ?? v.used_count ?? 0 }
-function getValidUntil(v) { return v.validUntil || v.valid_until || null }
-function getValidFrom(v) { return v.validFrom || v.valid_from || null }
 function getIsActive(v) { return v.isActive ?? v.is_active ?? true }
 
 onMounted(() => {

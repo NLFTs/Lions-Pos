@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
@@ -7,7 +7,7 @@ import Label from '@/components/ui/Label.vue'
 import { 
   Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
   Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
-  Loader2, Building2, Printer, ReceiptText
+  Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +23,21 @@ const vouchers = ref([])
 const branches = ref([])
 const stockBalances = ref({}) // { productId: qty }
 const selectedBranchId = ref(null)
+const showBranchDropdown = ref(false)
+const branchDropdownRef = ref(null)
+
+const selectedBranch = computed(() => branches.value.find(b => b.id === selectedBranchId.value))
+
+function selectBranch(branch) {
+  selectedBranchId.value = branch.id
+  showBranchDropdown.value = false
+}
+
+function handleBranchOutsideClick(e) {
+  if (branchDropdownRef.value && !branchDropdownRef.value.contains(e.target)) {
+    showBranchDropdown.value = false
+  }
+}
 const loading = ref(false)
 const processingCheckout = ref(false)
 const lastOrder = ref(null)
@@ -79,7 +94,10 @@ async function fetchData() {
   }
 }
 
-onMounted(fetchData)
+onMounted(() => {
+  fetchData()
+  document.addEventListener('click', handleBranchOutsideClick)
+})
 
 // Reload stok saat branch berubah
 watch(selectedBranchId, (newId) => {
@@ -171,7 +189,12 @@ function formatCurrency(value) {
 }
 
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
-const subtotal = computed(() => cart.value.reduce((s, i) => s + (i.base_price || i.basePrice || i.price || 0) * i.qty, 0))
+const subtotal = computed(() => {
+  return cart.value.reduce((s, i) => {
+    const price = Number(i.base_price || i.basePrice || i.price || 0)
+    return s + price * i.qty
+  }, 0)
+})
 
 // ─── Voucher Logic ───────────────────────────────────────────────────────────
 const voucherCode = ref('')
@@ -180,27 +203,42 @@ const appliedVoucher = ref(null)
 function applyVoucher() {
   if (!voucherCode.value) return
   const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
-  if (v) {
-    appliedVoucher.value = v
-    toast.success(`Voucher "${v.name}" diterapkan!`) 
-  } else { 
+  if (!v) {
     toast.error('Kode voucher tidak valid.')
-    appliedVoucher.value = null 
+    appliedVoucher.value = null
+    return
   }
+  const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
+  if (minPurchase > 0 && subtotal.value < minPurchase) {
+    toast.error(`Min. pembelian untuk voucher ini adalah ${formatCurrency(minPurchase)}`)
+    return
+  }
+  appliedVoucher.value = v
+  toast.success(`Voucher "${v.name}" diterapkan!`)
 }
 function removeVoucher() { appliedVoucher.value = null; voucherCode.value = '' }
 
 const discountAmount = computed(() => {
   if (!appliedVoucher.value) return 0
   const v = appliedVoucher.value
+  const type = (v.discountType || v.discount_type || '').toString().toUpperCase()
+  const rawValue = v.discountValue ?? v.discount_value ?? 0
+  const value = Number(rawValue)
+  const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
+
+  // Validasi min purchase
+  if (minPurchase > 0 && subtotal.value < minPurchase) return 0
+
   let d = 0
-  if (v.discountType === 'percent') { 
-    d = subtotal.value * v.discountValue / 100
-    if (v.maxDiscount) d = Math.min(d, v.maxDiscount)
+  if (type === 'PERCENT') {
+    // discountValue = 10 berarti 10%, bukan 0.1
+    d = subtotal.value * value / 100
+    const maxDiscount = Number(v.maxDiscount ?? v.max_discount ?? 0)
+    if (maxDiscount > 0) d = Math.min(d, maxDiscount)
   } else {
-    d = v.discountValue
+    d = value
   }
-  return d
+  return Math.round(d) // bulatkan ke rupiah
 })
 const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 
@@ -329,7 +367,11 @@ async function checkout() {
     if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
-    toast.error(err.response?.data?.message || err.response?.data?.data?.message || 'Gagal memproses transaksi.')
+    const msg = err.response?.data?.data?.message
+      || err.response?.data?.message
+      || err.message
+      || 'Gagal memproses transaksi.'
+    toast.error(msg)
   } finally {
     processingCheckout.value = false
   }
@@ -364,11 +406,41 @@ function avatarStyle(name = '') {
             </div>
             
             <!-- Branch Selector -->
-            <div class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 p-1.5 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50">
-              <Building2 class="h-3.5 w-3.5 text-zinc-400" />
-              <select v-model="selectedBranchId" class="bg-transparent border-none text-[11px] font-bold outline-none focus:ring-0 min-w-[120px]">
-                <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-              </select>
+            <div ref="branchDropdownRef" class="relative">
+              <button
+                @click.stop="showBranchDropdown = !showBranchDropdown"
+                class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 px-3 py-2 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors min-w-[160px]"
+              >
+                <MapPin class="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                <span class="text-[12px] font-bold text-zinc-700 dark:text-zinc-200 flex-1 text-left truncate">
+                  {{ selectedBranch?.name || 'Pilih Cabang' }}
+                </span>
+                <ChevronDown class="h-3.5 w-3.5 text-zinc-400 shrink-0 transition-transform duration-200" :class="showBranchDropdown ? 'rotate-180' : ''" />
+              </button>
+
+              <!-- Dropdown Panel -->
+              <Transition name="dropdown">
+                <div
+                  v-if="showBranchDropdown"
+                  class="absolute top-full right-0 mt-1.5 z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+                >
+                  <div class="p-1">
+                    <button
+                      v-for="b in branches"
+                      :key="b.id"
+                      @click="selectBranch(b)"
+                      class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors text-sm"
+                      :class="selectedBranchId === b.id
+                        ? 'bg-primary/10 text-primary font-bold'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium'"
+                    >
+                      <MapPin class="h-3.5 w-3.5 shrink-0 opacity-60" />
+                      <span class="truncate">{{ b.name }}</span>
+                      <Check v-if="selectedBranchId === b.id" class="h-3.5 w-3.5 ml-auto shrink-0 text-primary" />
+                    </button>
+                  </div>
+                </div>
+              </Transition>
             </div>
           </div>
           
@@ -688,6 +760,14 @@ function avatarStyle(name = '') {
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.dropdown-enter-active, .dropdown-leave-active {
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dropdown-enter-from, .dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.97);
+}
 
 .list-enter-active, .list-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px) scale(0.98); }
