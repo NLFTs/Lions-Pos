@@ -149,6 +149,8 @@ public class PartnerSeeder {
                 "transfer_request.index", "transfer_request.show", "transfer_request.store",
                 "order.index", "order.show", "order.store", "order.update",
                 "order_item.index", "order_item.show", "order_item.store",
+                "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
+                "supplier.index", "supplier.show",
                 "pos.index",
                 "dashboard.index",
                 "report.index",
@@ -316,6 +318,55 @@ public class PartnerSeeder {
                         addStockBalance(prod, "WAREHOUSE", gudang.getId(), -8L, adminPartner);
                     });
                     log.info("[PartnerSeeder] Stok awal Cabang NLFTs Djogja: 8 per produk.");
+                }
+
+                // ── 16. PO untuk Cabang NLFTs Djogja — status ORDERED (siap diterima davingm) ──
+                boolean hasPOForDjogja = purchaseOrderRepository.findAll().stream()
+                    .anyMatch(po -> po.getPartner() != null
+                        && po.getPartner().getId().equals(partnerFinal.getId())
+                        && "BRANCH".equalsIgnoreCase(po.getLocationType())
+                        && po.getLocationId().equals(cabangDjogja2.getId())
+                        && po.getStatus() == PurchaseOrder.Status.ORDERED);
+
+                if (!hasPOForDjogja) {
+                    // Ambil produk laptop untuk PO ini
+                    productRepository.findAllByPartner(partnerFinal).stream()
+                        .filter(p -> p.getName().equals("Laptop"))
+                        .findFirst()
+                        .ifPresent(laptop2 -> {
+                            PurchaseOrder poDjogja = new PurchaseOrder();
+                            poDjogja.setPartner(partnerFinal);
+                            poDjogja.setSupplier(supplierRepository
+                                .findByPartnerIdAndDeletedAtIsNull(partnerFinal.getId())
+                                .stream().findFirst().orElse(null));
+                            poDjogja.setPoNumber(generatePoNumber());
+                            poDjogja.setLocationType("BRANCH");
+                            poDjogja.setLocationId(cabangDjogja2.getId());
+                            poDjogja.setStatus(PurchaseOrder.Status.ORDERED);
+                            poDjogja.setOrderDate(Date.valueOf(LocalDate.now()));
+                            poDjogja.setExpectedDate(Date.valueOf(LocalDate.now().plusDays(1)));
+                            poDjogja.setNotes("PO uji coba — siap diterima oleh davingm di Cabang NLFTs Djogja");
+                            poDjogja.setTotal(BigDecimal.ZERO);
+                            poDjogja.setCreatedBy(adminPartner);
+                            PurchaseOrder savedPO = purchaseOrderRepository.save(poDjogja);
+
+                            BigDecimal qty = new BigDecimal("10");
+                            BigDecimal harga = new BigDecimal("5000000");
+                            PurchaseOrderItems poItem = new PurchaseOrderItems();
+                            poItem.setPurchaseOrder(savedPO);
+                            poItem.setProduct(laptop2);
+                            poItem.setProductName(laptop2.getName());
+                            poItem.setQtyOrdered(qty);
+                            poItem.setQtyReceived(BigDecimal.ZERO);
+                            poItem.setUnitCost(harga);
+                            poItem.setSubtotal(qty.multiply(harga));
+                            purchaseOrderItemsRepository.save(poItem);
+
+                            savedPO.setTotal(qty.multiply(harga));
+                            purchaseOrderRepository.save(savedPO);
+
+                            log.info("[PartnerSeeder] PO untuk Cabang NLFTs Djogja dibuat: {} — status ORDERED, siap diterima davingm.", savedPO.getPoNumber());
+                        });
                 }
             });
 

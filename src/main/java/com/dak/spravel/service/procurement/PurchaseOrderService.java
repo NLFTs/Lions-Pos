@@ -69,6 +69,25 @@ public class PurchaseOrderService {
         }
     }
 
+    // Izinkan akses jika punya salah satu dari beberapa permission
+    private void checkAnyPermission(User user, String... permissionSlugs) {
+        if (user.getPartner() == null) return; // super admin bypass
+
+        boolean hasAny = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> {
+                    for (String slug : permissionSlugs) {
+                        if (perm.getSlug().equalsIgnoreCase(slug)) return true;
+                    }
+                    return false;
+                });
+
+        if (!hasAny) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses yang diperlukan.");
+        }
+    }
+
     private void checkSuperAdminOnly(User user) {
         if (user.getPartner() != null) {
             throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
@@ -105,7 +124,8 @@ public class PurchaseOrderService {
     // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
     public List<PurchaseOrder> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_order.index"); 
+        // Izinkan akses jika punya purchase_order.index ATAU purchase_receipt.store
+        checkAnyPermission(currentUser, "purchase_order.index", "purchase_receipt.store");
 
         // 👑 Super Admin: lihat semua
         if (currentUser.getPartner() == null) {
@@ -140,7 +160,7 @@ public class PurchaseOrderService {
     // PAGINATION TENANT
     public Page<PurchaseOrder> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_order.index"); 
+        checkAnyPermission(currentUser, "purchase_order.index", "purchase_receipt.store");
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
@@ -165,14 +185,14 @@ public class PurchaseOrderService {
     // GET BY ID
     public PurchaseOrder findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_order.show"); 
+        checkAnyPermission(currentUser, "purchase_order.show", "purchase_receipt.store");
         return getValidatedPurchaseOrder(id, currentUser);
     }
 
     // GET ITEMS BY ORDER ID
     public List<PurchaseOrderItems> findItemsByOrderId(Long orderId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_order.show"); 
+        checkAnyPermission(currentUser, "purchase_order.show", "purchase_receipt.store");
         getValidatedPurchaseOrder(orderId, currentUser);
         return purchaseOrderItemsRepository.findByPurchaseOrderId(orderId);
     }

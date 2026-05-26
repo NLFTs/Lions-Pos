@@ -71,7 +71,6 @@
         }
 
         @PostMapping
-        @PreAuthorize("hasAuthority('purchase_receipt.store')")
         public ResponseEntity<PurchaseReceipt> store(@Valid @RequestBody PurchaseReceiptRequestDTO request) {
             log.info("[POST] /api/v1/purchase-receipts purchaseOrderId={}", request.getPurchaseOrderId());
             return ResponseEntity.status(HttpStatus.CREATED).body(purchaseReceiptService.create(request));
