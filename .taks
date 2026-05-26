@@ -1,0 +1,26 @@
+## BAGIAN SUPER ADMIN
+
+- [] 1. Di bagian lokasi Super Admin, button untuk lihat saja sebaiknya dihapus karena error. Saran: hanya fitur search yang ada.
+- [] 2. Di bagian kasir Super Admin masih "gagal memuat data POS".
+- [x] 3. Button gambar branch (yang sejajar dengan teks "terminal kasir") tidak bisa dipencet.
+- [x] 4. Di bagian riwayat order belum ditampilkan.
+- [x] 5. Di bagian produk, error "An unexpected error occurred" mending diberi validasi custom seperti "tidak dapat merubah data".
+- [ ] 6. Button "tambah produk" mending di hide saja.
+- [ ] 7. Di bagian saldo stok, produk belum nampil, dan tombol add stock awal di hide saja.
+- [ ] 8. Di bagian kategori: hide button add category, bacaan "category management" ganti Bahasa Indonesia.
+- [x] 9. Di bagian kategori, fitur customize column belum bisa dipakai.
+- [ ] 10. Di bagian kategori, button add di hide saja.
+- [x] 11. Di mutasi stok data belum muncul.
+- [x] 12. Di transfer stok data belum muncul.
+- [x] 13. Di stock opname belum jalan.
+- [x] 14. Di supplier masih error "An unexpected error occurred", data supplier belum masuk.
+- [x] 15. "An unexpected error occurred" di Super Admin bagian purchase order.
+- [x] 16. Di bagian saldo stok belum tampil data.
+
+## BAGIAN ADMIN PARTNER
+
+- [x] 1. Validasi login masih Bahasa Inggris ("user not found").
+- [x] 2. Semua di admin partner masih pakai Bahasa Inggris (misal: kategori).
+- [x] 3. Pas bikin kategori, nomor langsung 2 padahal pertama kali bikin kategori
+- [x] 6. User management masih Bahasa Inggris, admin partner gabisa nambah akun user baru.
+- [x] 8. Cabang dan Gudang tidak bisa menerima Brang kiriman dari partner pada Po

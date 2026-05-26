@@ -25,7 +25,6 @@ public class StockMutationController {
     private final StockMutationService stockMutationService;
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('stock_mutation.index')")
     public ResponseEntity<ResData<Page<StockMutationResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

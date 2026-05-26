@@ -29,7 +29,6 @@ public class StockBalanceController {
 
     // SUPER ADMIN ONLY
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<List<StockBalanceResponse>> getAllForAdmin() {
         log.info("[GET] /api/v1/stock-balances/admin");
         return ResponseEntity.ok(stockBalanceService.findAllStockBalance());

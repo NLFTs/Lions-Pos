@@ -135,17 +135,26 @@ public class PurchaseReceiptService {
             return purchaseReceiptRepository.findAll();
         }
 
-        // Branch Isolation Guard Check
+        // Branch/Warehouse Isolation Guard
         return purchaseReceiptRepository.findAll().stream()
                 .filter(receipt -> receipt.getPurchaseOrder() != null
                         && receipt.getPurchaseOrder().getPartner() != null
                         && receipt.getPurchaseOrder().getPartner().getId().equals(currentUser.getPartner().getId()))
                 .filter(receipt -> {
+                    PurchaseOrder po = receipt.getPurchaseOrder();
+                    if (po == null || po.getLocationType() == null) return false;
+
                     if (currentUser.getBranch() != null) {
-                        PurchaseOrder po = receipt.getPurchaseOrder();
-                        return po.getLocationType() != null && po.getLocationType().equalsIgnoreCase("BRANCH")
+                        // User cabang: hanya lihat receipt PO untuk cabangnya
+                        return po.getLocationType().equalsIgnoreCase("BRANCH")
                                 && po.getLocationId().equals(currentUser.getBranch().getId());
                     }
+                    if (currentUser.getWarehouse() != null) {
+                        // User gudang: hanya lihat receipt PO untuk gudangnya
+                        return po.getLocationType().equalsIgnoreCase("WAREHOUSE")
+                                && po.getLocationId().equals(currentUser.getWarehouse().getId());
+                    }
+                    // Owner/admin partner: lihat semua receipt milik partner
                     return true;
                 })
                 .toList();
@@ -181,12 +190,21 @@ public class PurchaseReceiptService {
         
         PurchaseReceipt receipt = getValidatedPurchaseReceipt(id, currentUser);
 
-        // Branch Isolation Protection
-        if (currentUser.getPartner() != null && currentUser.getBranch() != null) {
+        // Strict location isolation
+        if (currentUser.getPartner() != null) {
             PurchaseOrder po = receipt.getPurchaseOrder();
-            if (po != null && po.getLocationType() != null && po.getLocationType().equalsIgnoreCase("BRANCH")
-                    && !po.getLocationId().equals(currentUser.getBranch().getId())) {
-                throw new RuntimeException("Akses Ditolak: Dokumen penerimaan ini berada di luar cabang tugas Anda.");
+            if (po != null && po.getLocationType() != null) {
+                if (currentUser.getBranch() != null) {
+                    if (!po.getLocationType().equalsIgnoreCase("BRANCH")
+                            || !po.getLocationId().equals(currentUser.getBranch().getId())) {
+                        throw new RuntimeException("Akses Ditolak: Dokumen ini bukan milik cabang Anda.");
+                    }
+                } else if (currentUser.getWarehouse() != null) {
+                    if (!po.getLocationType().equalsIgnoreCase("WAREHOUSE")
+                            || !po.getLocationId().equals(currentUser.getWarehouse().getId())) {
+                        throw new RuntimeException("Akses Ditolak: Dokumen ini bukan milik gudang Anda.");
+                    }
+                }
             }
         }
 
@@ -215,9 +233,21 @@ public class PurchaseReceiptService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
 
-        // Branch Isolation Guard: Mencegah staff cabang A nerima barang titipan cabang B
-        if (currentUser.getBranch() != null && !po.getLocationId().equals(currentUser.getBranch().getId())) {
-            throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang di lokasi cabang/warehouse yang ditugaskan kepada Anda.");
+        // Branch/Warehouse Isolation Guard: strict — hanya bisa terima PO yang ditujukan ke lokasi sendiri
+        if (currentUser.getBranch() != null) {
+            // User cabang: hanya bisa terima PO untuk cabangnya sendiri
+            if (po.getLocationType() == null
+                    || !po.getLocationType().equalsIgnoreCase("BRANCH")
+                    || !po.getLocationId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang yang ditujukan ke cabang Anda.");
+            }
+        } else if (currentUser.getWarehouse() != null) {
+            // User gudang: hanya bisa terima PO untuk gudangnya sendiri
+            if (po.getLocationType() == null
+                    || !po.getLocationType().equalsIgnoreCase("WAREHOUSE")
+                    || !po.getLocationId().equals(currentUser.getWarehouse().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang yang ditujukan ke gudang Anda.");
+            }
         }
 
         if (po.getStatus() == PurchaseOrder.Status.DRAFT) {

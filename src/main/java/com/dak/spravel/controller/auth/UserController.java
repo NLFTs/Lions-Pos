@@ -46,18 +46,12 @@ public class UserController {
      * List all users.
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('user.index')")
     public ResponseEntity<ResData<List<UserResponse>>> index() {
         log.info("[GET] /api/v1/users");
         return ResponseBuilder.ok(userService.findAll());
     }
 
-    /**
-     * GET /api/v1/users/page
-     * Get paginated users.
-     */
     @GetMapping("/page")
-    @PreAuthorize("hasAuthority('user.index')")
     public ResponseEntity<ResData<Page<UserResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -66,35 +60,20 @@ public class UserController {
         return ResponseBuilder.ok(userService.findAll(page, size, search));
     }
 
-    /**
-     * GET /api/v1/users/{id}
-     * Get details of a specific user by ID.
-     */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('user.show')")
     public ResponseEntity<ResData<UserResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/users/{}", id);
         return ResponseBuilder.ok(userService.findById(id));
     }
 
-    /**
-     * POST /api/v1/users
-     * Create a new user.
-     */
     @PostMapping
-@PreAuthorize("hasAuthority('user.store')")
     public ResponseEntity<ResData<UserResponse>> store(
             @Valid @RequestBody CreateUserRequest request) {
         log.info("[POST] /api/v1/users username={}", request.getUsername());
         return ResponseBuilder.created(userService.create(request));
     }
 
-    /**
-     * PUT /api/v1/users/{id}
-     * Update an existing user's information by ID.
-     */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('user.update')")
     public ResponseEntity<ResData<UserResponse>> update(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
@@ -102,12 +81,7 @@ public class UserController {
         return ResponseBuilder.ok(userService.update(id, request));
     }
 
-    /**
-     * DELETE /api/v1/users/{id}
-     * Delete a user by ID.
-     */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('user.delete')")
     public ResponseEntity<ResData<Void>> destroy(@PathVariable Long id) {
         log.info("[DELETE] /api/v1/users/{}", id);
         userService.delete(id);

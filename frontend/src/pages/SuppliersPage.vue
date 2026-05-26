@@ -60,8 +60,9 @@ const form = ref(emptyForm())
 async function fetchSuppliers() {
   loading.value = true
   try {
-    const res = await api.get('/api/v1/suppliers')
-    // Backend returns ResponseEntity<List<Supplier>> directly, no ResData wrapper
+    // Admin: /admin/all returns plain List; Partner: / returns plain List
+    const url = '/api/v1/suppliers'
+    const res = await api.get(url)
     suppliers.value = Array.isArray(res.data) ? res.data : (res.data?.data || [])
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal memuat data supplier.')

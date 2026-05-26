@@ -38,14 +38,12 @@ public class BranchesController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('branch.index')")
     public ResponseEntity<List<BranchResponse>> getAllForAdmin() {
         log.info("[GET] /api/v1/branches/admin - Superadmin access");
         return ResponseEntity.ok(branchesService.findAllBranches());
     }
 
     @GetMapping("/admin/page")
-    @PreAuthorize("hasAuthority('branch.index')")
     public ResponseEntity<Page<BranchResponse>> findPageAdmin( 
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
