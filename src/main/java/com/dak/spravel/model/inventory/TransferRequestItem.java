@@ -21,13 +21,16 @@ public class TransferRequestItem {
     @JoinColumn(name = "transfer_request_id", referencedColumnName = "id", updatable = false)
     private TransferRequest transferRequest;
 
+    @Column(name = "product_id", nullable = false)
+    private Long productId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", referencedColumnName = "id", insertable = false, updatable = false)
     private Product product;
 
-    @Column(name = "qty_requested", nullable = false, precision = 19, scale = 4)
+    @Column(name = "qty_requested", nullable = false)
     private Long qtyRequested;
 
-    @Column(name = "qty_received", precision = 19, scale = 4)
+    @Column(name = "qty_received")
     private Long qtyReceived;
 }

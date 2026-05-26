@@ -108,15 +108,32 @@ public class StockMutationService {
 
     public List<StockMutationResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_mutation.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "stock_mutation.index");
 
         if (currentUser.getPartner() == null) {
             return stockMutationRepository.findAll().stream().map(this::mapToResponse).toList();
         }
 
-        return stockMutationRepository.findByPartner(currentUser.getPartner()).stream()
-                .map(this::mapToResponse)
-                .toList();
+        List<StockMutation> data = stockMutationRepository.findByPartner(currentUser.getPartner());
+
+        // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
+        if (currentUser.getBranch() != null) {
+            Long branchId = currentUser.getBranch().getId();
+            data = data.stream()
+                    .filter(m ->
+                        (m.getFromLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getFromLocationId())) ||
+                        (m.getToLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getToLocationId()))
+                    ).toList();
+        } else if (currentUser.getWarehouse() != null) {
+            Long warehouseId = currentUser.getWarehouse().getId();
+            data = data.stream()
+                    .filter(m ->
+                        (m.getFromLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getFromLocationId())) ||
+                        (m.getToLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getToLocationId()))
+                    ).toList();
+        }
+
+        return data.stream().map(this::mapToResponse).toList();
     }
 
     public Page<StockMutationResponse> findAll(int page, int size) {
@@ -128,8 +145,34 @@ public class StockMutationService {
             return stockMutationRepository.findAll(pageable).map(this::mapToResponse);
         }
 
-        return stockMutationRepository.findByPartnerId(currentUser.getPartner().getId(), pageable)
-                .map(this::mapToResponse);
+        // Ambil semua per partner, filter lokasi, lalu page manual
+        List<StockMutation> all = stockMutationRepository.findByPartner(currentUser.getPartner());
+
+        if (currentUser.getBranch() != null) {
+            Long branchId = currentUser.getBranch().getId();
+            all = all.stream()
+                    .filter(m ->
+                        (m.getFromLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getFromLocationId())) ||
+                        (m.getToLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getToLocationId()))
+                    ).toList();
+        } else if (currentUser.getWarehouse() != null) {
+            Long warehouseId = currentUser.getWarehouse().getId();
+            all = all.stream()
+                    .filter(m ->
+                        (m.getFromLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getFromLocationId())) ||
+                        (m.getToLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getToLocationId()))
+                    ).toList();
+        }
+
+        int start = page * size;
+        int end = Math.min(start + size, all.size());
+        List<StockMutation> paged = start >= all.size() ? List.of() : all.subList(start, end);
+
+        return new org.springframework.data.domain.PageImpl<>(
+                paged.stream().map(this::mapToResponse).toList(),
+                pageable,
+                all.size()
+        );
     }
 
     public StockMutationResponse findById(Long id) {

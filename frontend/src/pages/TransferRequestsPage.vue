@@ -106,11 +106,29 @@ async function fetchData() {
     const url = isAdmin.value ? '/api/v1/transfer-requests/admin' : '/api/v1/transfer-requests'
     const res = await api.get(url)
     const data = res.data.data
-    if (Array.isArray(data)) {
-      transfers.value = data
-    } else {
-      transfers.value = data.content || []
-    }
+    const raw = Array.isArray(data) ? data : (data?.content || [])
+    // Normalize field names dari snake_case backend ke camelCase frontend
+    transfers.value = raw.map(t => ({
+      ...t,
+      fromLocationType: t.from_location_type || t.fromLocationType,
+      fromLocationId: t.from_location_id || t.fromLocationId,
+      fromLocationName: t.from_location_name || t.fromLocationName || `${t.from_location_type || ''} #${t.from_location_id || ''}`,
+      toLocationType: t.to_location_type || t.toLocationType,
+      toLocationId: t.to_location_id || t.toLocationId,
+      toLocationName: t.to_location_name || t.toLocationName || `${t.to_location_type || ''} #${t.to_location_id || ''}`,
+      status: t.status ? t.status.toLowerCase() : t.status,
+      createdAt: t.created_at || t.createdAt,
+      requestedAt: t.requested_at || t.requestedAt,
+      approvedAt: t.approved_at || t.approvedAt,
+      receivedAt: t.received_at || t.receivedAt,
+      createdBy: t.created_by || t.createdBy,
+      requestedBy: t.created_by || t.createdBy,
+      items: (t.items || []).map(item => ({
+        ...item,
+        qtyRequested: item.qty_requested ?? item.qtyRequested,
+        qtyReceived: item.qty_received ?? item.qtyReceived,
+      }))
+    }))
   } catch (err) {
     toast.error('Gagal memuat data transfer stok.')
   } finally {
@@ -180,15 +198,32 @@ async function saveTR() {
     return
   }
   
-  if (form.value.fromLocationId === form.value.toLocationId && form.value.fromLocationType === form.value.toLocationType) {
+  if (String(form.value.fromLocationId) === String(form.value.toLocationId) && 
+      form.value.fromLocationType === form.value.toLocationType) {
     formError.value = 'Lokasi asal dan tujuan tidak boleh sama.'
+    return
+  }
+
+  if (!form.value.items.length || form.value.items.some(i => !i.productId)) {
+    formError.value = 'Minimal satu item produk wajib dipilih.'
     return
   }
 
   saving.value = true
   formError.value = null
   try {
-    await api.post('/api/v1/transfer-requests', form.value)
+    const payload = {
+      from_location_type: form.value.fromLocationType,
+      from_location_id: Number(form.value.fromLocationId),
+      to_location_type: form.value.toLocationType,
+      to_location_id: Number(form.value.toLocationId),
+      notes: form.value.notes,
+      items: form.value.items.map(i => ({
+        product_id: Number(i.productId),
+        qty_requested: Number(i.qtyRequested)
+      }))
+    }
+    await api.post('/api/v1/transfer-requests', payload)
     toast.success('Permintaan transfer berhasil dibuat!')
     showDrawer.value = false
     fetchData()
@@ -225,7 +260,16 @@ const updatingStatus = ref(false)
 async function updateTRStatus(id, newStatus) {
   updatingStatus.value = true
   try {
-    await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus}`)
+    if (newStatus === 'received') {
+      // Kirim items dengan qty_received = qty_requested
+      const items = (selectedTR.value?.items || []).map(item => ({
+        product_id: item.product?.id || item.productId,
+        qty_requested: item.qtyRequested
+      }))
+      await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus}`, items)
+    } else {
+      await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus}`)
+    }
     toast.success(`Status transfer berhasil diubah!`)
     showDrawer.value = false
     fetchData()

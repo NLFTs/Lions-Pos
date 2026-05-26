@@ -110,24 +110,33 @@ public class TransferRequestService {
 
     public List<TransferRequestResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "transfer_request.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "transfer_request.index");
 
-        // 👑 Handling Super Admin Global: Tarik semua riwayat mutasi tanpa filter
         if (currentUser.getPartner() == null) {
             return transferRequestRepository.findAll().stream().map(this::mapToResponse).toList();
         }
 
-        // 🏢 Handling Tenant Context
         List<TransferRequest> data = transferRequestRepository.findByPartnerIdAndDeletedAtIsNull(
                 currentUser.getPartner().getId()
         );
 
-        // 🛡️ BRANCH ISOLATION: Jika user tertempel ke branch tertentu, filter agar hanya melihat area kerjanya
+        // 🛡️ BRANCH ISOLATION
         if (currentUser.getBranch() != null) {
+            Long branchId = currentUser.getBranch().getId();
             data = data.stream()
-                    .filter(tr -> isBranchAccessible(tr.getFromLocationType(), tr.getFromLocationId(), currentUser) ||
-                                  isBranchAccessible(tr.getToLocationType(), tr.getToLocationId(), currentUser))
-                    .toList();
+                    .filter(tr ->
+                        (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
+                        (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()))
+                    ).toList();
+        }
+        // 🛡️ WAREHOUSE ISOLATION
+        else if (currentUser.getWarehouse() != null) {
+            Long warehouseId = currentUser.getWarehouse().getId();
+            data = data.stream()
+                    .filter(tr ->
+                        (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
+                        (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()))
+                    ).toList();
         }
 
         return data.stream().map(this::mapToResponse).toList();
@@ -140,19 +149,26 @@ public class TransferRequestService {
         TransferRequest tr = transferRequestRepository.findByIdWithItems(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
 
-        // Multi-Tenant Isolation
         if (currentUser.getPartner() != null) {
             if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Data Transfer bukan milik partner Anda.");
             }
 
-            // Branch Context Isolation Guard
+            // Branch isolation
             if (currentUser.getBranch() != null) {
-                boolean access = isBranchAccessible(tr.getFromLocationType(), tr.getFromLocationId(), currentUser) ||
-                                 isBranchAccessible(tr.getToLocationType(), tr.getToLocationId(), currentUser);
-                if (!access) {
-                    throw new RuntimeException("Akses Ditolak: Mutasi barang tidak melibatkan cabang penugasan Anda.");
-                }
+                Long branchId = currentUser.getBranch().getId();
+                boolean access =
+                    (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
+                    (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()));
+                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan cabang Anda.");
+            }
+            // Warehouse isolation
+            else if (currentUser.getWarehouse() != null) {
+                Long warehouseId = currentUser.getWarehouse().getId();
+                boolean access =
+                    (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
+                    (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()));
+                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan gudang Anda.");
             }
         }
 
@@ -187,7 +203,6 @@ public class TransferRequestService {
         // Resolusi Lokasi Target Penerima (TO)
         Long toId = request.getToLocationId();
         if (warehousesRepository.existsById(toId)) {
-            tr.setFromLocationType(TransferRequest.Location.WAREHOUSE); // Sesuai mapping entity asli lu
             tr.setToLocationType(TransferRequest.Location.WAREHOUSE);
         } else if (branchesRepository.existsById(toId)) {
             tr.setToLocationType(TransferRequest.Location.BRANCH);
@@ -202,7 +217,21 @@ public class TransferRequestService {
         tr.setCreatedBy(currentUser);
         tr.setNotes(request.getNotes());
 
-        return mapToResponse(transferRequestRepository.save(tr));
+        TransferRequest saved = transferRequestRepository.save(tr);
+
+        // Simpan items
+        if (request.getItems() != null && !request.getItems().isEmpty()) {
+            List<TransferRequestItem> items = request.getItems().stream().map(dto -> {
+                TransferRequestItem item = new TransferRequestItem();
+                item.setTransferRequest(saved);
+                item.setProductId(dto.getProductId());
+                item.setQtyRequested(dto.getQtyRequested().longValue());
+                return item;
+            }).toList();
+            transferRequestItemRepository.saveAll(items);
+        }
+
+        return mapToResponse(transferRequestRepository.findByIdWithItems(saved.getId()).orElse(saved));
     }
 
     // EKSEKUSI PENERIMAAN BARANG DI LOKASI TUJUAN & AMANDEMEN STOK BALANCE REAL-TIME
@@ -220,9 +249,19 @@ public class TransferRequestService {
                 throw new RuntimeException("Akses Ditolak: Dokumen transfer bukan milik partner Anda.");
             }
             
-            // Branch Protection Guard: Memastikan hanya staff target cabang penerima yang berhak klik tombol terima barang
-            if (currentUser.getBranch() != null && !isBranchAccessible(tr.getToLocationType(), tr.getToLocationId(), currentUser)) {
-                throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima barang di cabang tugas Anda sendiri.");
+            // Branch Guard: hanya staff cabang tujuan yang bisa terima
+            if (currentUser.getBranch() != null) {
+                if (tr.getToLocationType() != TransferRequest.Location.BRANCH ||
+                    !currentUser.getBranch().getId().equals(tr.getToLocationId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di cabang tugas Anda.");
+                }
+            }
+            // Warehouse Guard: hanya staff gudang tujuan yang bisa terima
+            else if (currentUser.getWarehouse() != null) {
+                if (tr.getToLocationType() != TransferRequest.Location.WAREHOUSE ||
+                    !currentUser.getWarehouse().getId().equals(tr.getToLocationId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di gudang tugas Anda.");
+                }
             }
         }
 
@@ -230,34 +269,43 @@ public class TransferRequestService {
         tr.setReceivedAt(LocalDateTime.now());
         tr.setReceivedByUser(currentUser);
 
-        for (TransferRequestItem item : tr.getItems()) {
+        // Load items dengan fetch
+        List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
+
+        for (TransferRequestItem item : trItems) {
+            // Gunakan qty dari request jika ada, fallback ke qty_requested
             Long qty = items.stream()
-                    .filter(i -> i.getProductId().equals(item.getProduct().getId()))
+                    .filter(i -> i.getProductId().equals(item.getProductId()))
                     .map(i -> i.getQtyRequested().longValue())
                     .findFirst()
-                    .orElse(item.getQtyRequested().longValue());
+                    .orElse(item.getQtyRequested());
 
             item.setQtyReceived(qty);
 
-            // 🛠️ EKSEKUSI POTONG STOK DI LOKASI ASAL (FROM)
             stockBalanceService.adjustStock(
-                    item.getProduct().getId(),
+                    item.getProductId(),
                     tr.getFromLocationType().name().toUpperCase(),
                     tr.getFromLocationId(),
                     -qty
             );
 
-            // 🛠️ EKSEKUSI TAMBAH STOK DI LOKASI TUJUAN (TO)
             stockBalanceService.adjustStock(
-                    item.getProduct().getId(),
+                    item.getProductId(),
                     tr.getToLocationType().name().toUpperCase(),
                     tr.getToLocationId(),
                     qty
             );
 
-            // Suntik rekaman audit log mutasi barang Spravel otomatis
+            // Ambil product untuk mutation record
+            com.dak.spravel.model.catalog.Product product = item.getProduct();
+            if (product == null) {
+                product = new com.dak.spravel.model.catalog.Product();
+                product.setId(item.getProductId());
+                product.setPartner(tr.getPartner());
+            }
+
             stockMutationService.recordMutation(
-                    item.getProduct(),
+                    product,
                     tr.getPartner(),
                     "TRANSFER",
                     tr.getFromLocationType().name().toUpperCase(),
@@ -267,12 +315,12 @@ public class TransferRequestService {
                     qty,
                     "TRANSFER_REQUEST",
                     tr.getId(),
-                    "Transfer Request Sukses Diterima Oleh " + currentUser.getUsername(),
+                    "Transfer diterima oleh " + currentUser.getUsername(),
                     currentUser
             );
         }
 
-        transferRequestItemRepository.saveAll(tr.getItems());
+        transferRequestItemRepository.saveAll(trItems);
         return mapToResponse(transferRequestRepository.save(tr));
     }
 
@@ -305,16 +353,75 @@ public class TransferRequestService {
 
     // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
 
+    private String resolveLocationName(TransferRequest.Location type, Long locationId) {
+        if (type == null || locationId == null) return null;
+        if (type == TransferRequest.Location.BRANCH) {
+            return branchesRepository.findById(locationId).map(b -> b.getName()).orElse("Branch #" + locationId);
+        }
+        return warehousesRepository.findById(locationId).map(w -> w.getName()).orElse("Warehouse #" + locationId);
+    }
+
     public TransferRequestResponse mapToResponse(TransferRequest tr) {
         if (tr == null) return null;
-        
+
+        com.dak.spravel.dto.response.components.UserSimpleDto createdByDto = null;
+        if (tr.getCreatedBy() != null) {
+            createdByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            createdByDto.setId(tr.getCreatedBy().getId());
+            createdByDto.setUsername(tr.getCreatedBy().getUsername());
+        }
+
+        com.dak.spravel.dto.response.components.UserSimpleDto approvedByDto = null;
+        if (tr.getApprovedByUser() != null) {
+            approvedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            approvedByDto.setId(tr.getApprovedByUser().getId());
+            approvedByDto.setUsername(tr.getApprovedByUser().getUsername());
+        }
+
+        com.dak.spravel.dto.response.components.UserSimpleDto receivedByDto = null;
+        if (tr.getReceivedByUser() != null) {
+            receivedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            receivedByDto.setId(tr.getReceivedByUser().getId());
+            receivedByDto.setUsername(tr.getReceivedByUser().getUsername());
+        }
+
+        List<TransferRequestResponse.TransferRequestItemResponse> itemResponses = null;
+        if (tr.getItems() != null) {
+            itemResponses = tr.getItems().stream().map(item -> {
+                TransferRequestResponse.TransferRequestItemResponse ir = new TransferRequestResponse.TransferRequestItemResponse();
+                ir.setId(item.getId());
+                ir.setQtyRequested(item.getQtyRequested() != null ? item.getQtyRequested().longValue() : 0L);
+                ir.setQtyReceived(item.getQtyReceived());
+                if (item.getProduct() != null) {
+                    TransferRequestResponse.ProductSimpleDto pd = new TransferRequestResponse.ProductSimpleDto();
+                    pd.setId(item.getProduct().getId());
+                    pd.setName(item.getProduct().getName());
+                    pd.setSku(item.getProduct().getSku());
+                    ir.setProduct(pd);
+                }
+                return ir;
+            }).toList();
+        }
+
         return TransferRequestResponse.builder()
                 .id(tr.getId())
+                .fromLocationType(tr.getFromLocationType() != null ? tr.getFromLocationType().name().toLowerCase() : null)
+                .fromLocationId(tr.getFromLocationId())
+                .fromLocationName(resolveLocationName(tr.getFromLocationType(), tr.getFromLocationId()))
+                .toLocationType(tr.getToLocationType() != null ? tr.getToLocationType().name().toLowerCase() : null)
+                .toLocationId(tr.getToLocationId())
+                .toLocationName(resolveLocationName(tr.getToLocationType(), tr.getToLocationId()))
                 .status(tr.getStatus())
                 .notes(tr.getNotes())
                 .requestedAt(tr.getRequestedAt())
+                .approvedAt(tr.getApprovedAt())
+                .receivedAt(tr.getReceivedAt())
                 .createdAt(tr.getCreatedAt())
                 .updatedAt(tr.getUpdatedAt())
+                .createdBy(createdByDto)
+                .approvedBy(approvedByDto)
+                .receivedBy(receivedByDto)
+                .items(itemResponses)
                 .build();
     }
 }
