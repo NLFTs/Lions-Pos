@@ -49,26 +49,22 @@ public class SupplierController {
     // --- ENDPOINT PARTNER ---
 
     @GetMapping
-    @PreAuthorize("hasAuthority('supplier.index')")
     public ResponseEntity<List<Supplier>> findAll() {
         return ResponseEntity.ok(supplierService.findAllByPartner());
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('supplier.store')")
     public ResponseEntity<Supplier> create(@Valid @RequestBody Supplier supplier) {
         return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(supplier));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('supplier.delete')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         supplierService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('supplier.update')")
     public ResponseEntity<Supplier> update(
             @PathVariable Long id,
             @Valid @RequestBody Supplier supplier) {

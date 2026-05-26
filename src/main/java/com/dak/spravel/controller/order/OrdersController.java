@@ -5,7 +5,6 @@ import com.dak.spravel.dto.request.order.ReturnRequest;
 import com.dak.spravel.dto.response.ResData;
 import com.dak.spravel.dto.response.order.OrdersResponse;
 import com.dak.spravel.dto.response.order.ReturnResponse;
-import com.dak.spravel.model.order.Orders;
 import com.dak.spravel.service.order.OrdersService;
 import com.dak.spravel.util.ResponseBuilder;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +26,9 @@ public class OrdersController {
     // Super admin → findAllOrders(), partner/employee → findAll()
 
     @GetMapping("/admin")
-    public ResponseEntity<ResData<List<Orders>>> findAllForAdmin() {
+    public ResponseEntity<ResData<List<OrdersResponse>>> findAllForAdmin() {
         log.info("[GET] /api/v1/orders/admin");
-        return ResponseBuilder.ok(ordersService.findAllOrders());
+        return ResponseBuilder.ok(ordersService.findAll());
     }
 
     @GetMapping

@@ -91,29 +91,33 @@ const typeOptions = [
 async function fetchData() {
   loading.value = true
   try {
-    const urlBalances = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
+    // Admin: /admin returns List (no ResData), partner: returns ResData<List>
+    const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
     const urlBranches = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
     const urlWarehouses = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
     
     const [resB, resBr, resWh] = await Promise.all([
-      api.get(urlBalances),
+      api.get(url),
       api.get(urlBranches),
       api.get(urlWarehouses)
     ])
     
-    const dataB = resB.data?.data
-    if (dataB) {
-      const rawBalances = Array.isArray(dataB) ? dataB : (dataB.content || [])
-      balances.value = rawBalances.map(b => ({
-        ...b,
-        locationType: b.locationType || b.location_type,
-        locationId: b.locationId || b.location_id,
-        updatedAt: b.updatedAt || b.updated_at,
-        updatedBy: b.updatedBy || b.updated_by
-      }))
+    // Admin stock-balances: plain List (no ResData wrapper)
+    // Partner stock-balances: ResData<List>
+    let rawBalances
+    if (isAdmin.value) {
+      rawBalances = Array.isArray(resB.data) ? resB.data : (resB.data?.data || [])
     } else {
-      balances.value = []
+      const dataB = resB.data?.data
+      rawBalances = Array.isArray(dataB) ? dataB : (dataB?.content || [])
     }
+    balances.value = rawBalances.map(b => ({
+      ...b,
+      locationType: b.locationType || b.location_type,
+      locationId: b.locationId || b.location_id,
+      updatedAt: b.updatedAt || b.updated_at,
+      updatedBy: b.updatedBy || b.updated_by
+    }))
     
     const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
     const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])

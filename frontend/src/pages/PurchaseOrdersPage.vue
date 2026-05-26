@@ -40,11 +40,8 @@ const { toast } = useToast()
 const authStore = useAuthStore()
 
 const isEmployee = computed(() => {
-  const userRoles = authStore.user?.roles || []
-  return userRoles.some(r => {
-    const slug = typeof r === 'string' ? r : (r.slug || r.name || '')
-    return slug.toLowerCase() === 'employee-partners'
-  })
+  // Semua user partner (bukan super admin) bisa menerima barang jika punya permission
+  return !authStore.isAdmin && authStore.user?.roles?.length > 0
 })
 
 const canReceive = computed(() => authStore.isAdmin || isEmployee.value)

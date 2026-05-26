@@ -1,6 +1,6 @@
 <script setup>
 
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
@@ -57,6 +57,42 @@ const saving = ref(false)
 const formError = ref(null)
 const form = ref({ id: null, name: '', description: '' })
 
+// ─── Customize Columns ────────────────────────────────────────────────────────
+const showColumnMenu = ref(false)
+const columnMenuRef = ref(null)
+const availableColumns = [
+  { key: 'id', label: 'ID' },
+  { key: 'name', label: 'Nama Kategori' },
+  { key: 'description', label: 'Deskripsi' },
+  { key: 'createdAt', label: 'Dibuat' },
+]
+const visibleColumns = ref(['id', 'name', 'description', 'createdAt'])
+
+function toggleColumn(key) {
+  const idx = visibleColumns.value.indexOf(key)
+  if (idx === -1) visibleColumns.value.push(key)
+  else if (visibleColumns.value.length > 1) visibleColumns.value.splice(idx, 1)
+}
+
+function isColumnVisible(key) {
+  return visibleColumns.value.includes(key)
+}
+
+function handleColumnMenuOutside(e) {
+  if (columnMenuRef.value && !columnMenuRef.value.contains(e.target)) {
+    showColumnMenu.value = false
+  }
+}
+
+onMounted(() => {
+  fetchCategories()
+  document.addEventListener('click', handleColumnMenuOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleColumnMenuOutside)
+})
+
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 async function fetchCategories() {
   loading.value = true
@@ -77,8 +113,6 @@ async function fetchCategories() {
     loading.value = false
   }
 }
-
-onMounted(() => fetchCategories())
 
 // ─── Create / Edit ────────────────────────────────────────────────────────────
 function openCreate() {
@@ -105,17 +139,17 @@ async function saveCategory() {
   try {
     if (modalMode.value === 'create') {
       await api.post('/api/v1/categories', { name: form.value.name, description: form.value.description })
-      toast.success('Category created!')
+      toast.success('Kategori berhasil ditambahkan!')
     } else {
       await api.put(`/api/v1/categories/${form.value.id}`, { name: form.value.name, description: form.value.description })
-      toast.success('Category updated!')
+      toast.success('Kategori berhasil diperbarui!')
     }
     showDrawer.value = false
     fetchCategories()
   } catch (err) {
     formError.value = err.response?.data?.data?.message
       || err.response?.data?.message
-      || 'Failed to save category.'
+      || 'Gagal menyimpan kategori.'
   } finally {
     saving.value = false
   }
@@ -124,17 +158,17 @@ async function saveCategory() {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 async function doDelete(cat) {
   const ok = await confirm({
-    title: 'Delete Category',
-    description: `Are you sure you want to delete "${cat.name}"? Posts in this category will be uncategorized.`,
+    title: 'Hapus Kategori',
+    description: `Yakin ingin menghapus "${cat.name}"? Produk dalam kategori ini akan menjadi tidak berkategori.`,
   })
   if (!ok) return
 
   try {
     await api.delete(`/api/v1/categories/${cat.id}`)
-    toast.success('Category deleted!')
+    toast.success('Kategori berhasil dihapus!')
     fetchCategories()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Failed to delete category.')
+    toast.error(err.response?.data?.message || 'Gagal menghapus kategori.')
   }
 }
 
@@ -149,9 +183,9 @@ function formatDate(dt) {
     <div class="pb-6">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Category Management</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Kategori</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
-          Manage categories for content grouping.
+          Kelola kategori untuk pengelompokan produk.
         </p>
       </div>
 
@@ -159,19 +193,41 @@ function formatDate(dt) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <DataTableSearch
           v-model="searchQuery"
-          placeholder="Search categories..."
+          placeholder="Cari kategori..."
           class="w-full max-w-sm"
           input-class="h-9 text-xs"
         />
         <div class="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 border-zinc-200">
-            <LayoutGrid class="h-3.5 w-3.5" />
-            <span>Customize Columns</span>
-            <ChevronDown class="h-3 w-3 text-zinc-400" />
-          </Button>
+          <div ref="columnMenuRef" class="relative flex-1 sm:flex-none">
+            <Button variant="outline" size="sm" class="w-full flex items-center justify-center gap-2 border-zinc-200" @click="showColumnMenu = !showColumnMenu">
+              <LayoutGrid class="h-3.5 w-3.5" />
+              <span>Kolom</span>
+              <ChevronDown class="h-3 w-3 text-zinc-400" :class="showColumnMenu ? 'rotate-180' : ''" style="transition: transform 0.2s" />
+            </Button>
+            <Transition name="fade">
+              <div v-if="showColumnMenu" class="absolute right-0 top-full mt-1 z-30 w-48 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+                <div class="px-3 py-2.5 border-b border-border">
+                  <span class="text-xs font-semibold text-foreground uppercase tracking-wide">Tampilkan Kolom</span>
+                </div>
+                <div class="px-2 py-2 space-y-0.5">
+                  <button
+                    v-for="col in availableColumns"
+                    :key="col.key"
+                    @click="toggleColumn(col.key)"
+                    class="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors outline-none"
+                  >
+                    <span class="text-sm font-medium text-foreground select-none">{{ col.label }}</span>
+                    <div :class="['w-4 h-4 rounded border flex items-center justify-center transition-colors', isColumnVisible(col.key) ? 'bg-primary border-primary' : 'border-zinc-300 dark:border-zinc-600']">
+                      <svg v-if="isColumnVisible(col.key)" xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </Transition>
+          </div>
           <Button v-if="can('category.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
-            <span>Add Category</span>
+            <span>Tambah Kategori</span>
           </Button>
         </div>
       </div>
@@ -185,8 +241,8 @@ function formatDate(dt) {
         </div>
 
         <div v-else-if="filteredCategories.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p class="text-sm">No categories yet.</p>
-          <Button v-if="can('category.store') && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Create your first category</Button>
+          <p class="text-sm">Belum ada kategori.</p>
+          <Button v-if="can('category.store') && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Buat kategori pertama</Button>
         </div>
 
         <div v-else>
@@ -241,10 +297,10 @@ function formatDate(dt) {
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/40">
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px] w-16">#</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Kategori</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Deskripsi</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Dibuat</th>
+                  <th v-if="isColumnVisible('id')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px] w-16">#</th>
+                  <th v-if="isColumnVisible('name')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Kategori</th>
+                  <th v-if="isColumnVisible('description')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Deskripsi</th>
+                  <th v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Dibuat</th>
                   <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
                 </tr>
               </thead>
@@ -254,10 +310,10 @@ function formatDate(dt) {
                   :key="cat.id"
                   class="border-b last:border-0 hover:bg-muted/30 transition-colors"
                 >
-                  <td class="px-5 py-3 text-muted-foreground font-mono text-xs">{{ cat.id }}</td>
-                  <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ cat.name }}</td>
-                  <td class="px-5 py-3 text-muted-foreground max-w-[400px] truncate">{{ cat.description || '-' }}</td>
-                  <td class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
+                  <td v-if="isColumnVisible('id')" class="px-5 py-3 text-muted-foreground font-mono text-xs">{{ cat.id }}</td>
+                  <td v-if="isColumnVisible('name')" class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ cat.name }}</td>
+                  <td v-if="isColumnVisible('description')" class="px-5 py-3 text-muted-foreground max-w-[400px] truncate">{{ cat.description || '-' }}</td>
+                  <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
                   <td class="px-5 py-3 text-right">
                     <div class="flex justify-end gap-1">
                       <Button v-if="can('category.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">

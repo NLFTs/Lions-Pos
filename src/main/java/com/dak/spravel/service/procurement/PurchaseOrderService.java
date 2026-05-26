@@ -107,13 +107,34 @@ public class PurchaseOrderService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "purchase_order.index"); 
 
-        // 👑 Handling Super Admin Global: Tarik semua riwayat PO tanpa filter tenant
+        // 👑 Super Admin: lihat semua
         if (currentUser.getPartner() == null) {
             return purchaseOrderRepository.findAll();
         }
 
-        return purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
+        List<PurchaseOrder> partnerPOs = purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
                 currentUser.getPartner().getId());
+
+        // 🏢 Branch isolation: user cabang hanya lihat PO untuk cabangnya
+        if (currentUser.getBranch() != null) {
+            final Long branchId = currentUser.getBranch().getId();
+            return partnerPOs.stream()
+                    .filter(po -> "BRANCH".equalsIgnoreCase(po.getLocationType())
+                            && branchId.equals(po.getLocationId()))
+                    .toList();
+        }
+
+        // 🏭 Warehouse isolation: user gudang hanya lihat PO untuk gudangnya
+        if (currentUser.getWarehouse() != null) {
+            final Long warehouseId = currentUser.getWarehouse().getId();
+            return partnerPOs.stream()
+                    .filter(po -> "WAREHOUSE".equalsIgnoreCase(po.getLocationType())
+                            && warehouseId.equals(po.getLocationId()))
+                    .toList();
+        }
+
+        // Owner/admin partner: lihat semua PO milik partner
+        return partnerPOs;
     }
 
     // PAGINATION TENANT
@@ -123,9 +144,18 @@ public class PurchaseOrderService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        // 👑 Handling Super Admin Global di Pagination
+        // 👑 Super Admin
         if (currentUser.getPartner() == null) {
             return purchaseOrderRepository.findAll(pageable);
+        }
+
+        // Untuk branch/warehouse user, ambil semua dulu lalu filter (karena filter lokasi tidak ada di repo)
+        if (currentUser.getBranch() != null || currentUser.getWarehouse() != null) {
+            List<PurchaseOrder> filtered = findAll(); // reuse logic di atas
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), filtered.size());
+            List<PurchaseOrder> pageContent = start >= filtered.size() ? List.of() : filtered.subList(start, end);
+            return new org.springframework.data.domain.PageImpl<>(pageContent, pageable, filtered.size());
         }
 
         return purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(

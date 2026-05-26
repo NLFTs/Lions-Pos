@@ -34,7 +34,6 @@ public class CategoryProductController {
     private final CategoryProductService categoryProductService;
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('category.index')")
     public ResponseEntity<ResData<Page<CategoryProductResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

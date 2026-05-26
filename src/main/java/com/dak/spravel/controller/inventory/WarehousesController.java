@@ -32,7 +32,6 @@ public class WarehousesController {
 
     // --- SUPER ADMIN ---
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('warehouse.index')")
     public ResponseEntity<ResData<Page<WarehouseResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

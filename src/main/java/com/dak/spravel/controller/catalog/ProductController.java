@@ -37,7 +37,6 @@ public class ProductController {
     }
 
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('produk.index')")
     public ResponseEntity<ResData<Page<ProductResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -46,7 +45,6 @@ public class ProductController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('produk.index')")
     public ResponseEntity<ResData<Page<ProductResponse>>> findAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
