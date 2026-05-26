@@ -158,7 +158,13 @@ public class CategoryProductService {
         c.setParent(parent);
         c.setName(request.getName());
         c.setDescription(request.getDescription());
-        c.setSortOrder(request.getSortOrder());
+        // Auto-assign sortOrder jika tidak dikirim dari request
+        if (request.getSortOrder() != null) {
+            c.setSortOrder(request.getSortOrder());
+        } else {
+            int nextOrder = categoryProductRepository.countByPartner(partner) + 1;
+            c.setSortOrder(nextOrder);
+        }
         c.setCreatedAt(LocalDateTime.now());
         c.setCreatedBy(currentUser);
 

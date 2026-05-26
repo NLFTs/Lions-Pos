@@ -53,8 +53,8 @@ async function fetchOrders() {
   try {
     const url = isAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
     const res = await api.get(url)
-    const data = res.data.data
-    orders.value = Array.isArray(data) ? data : (data.content || [])
+    const data = res.data?.data ?? res.data
+    orders.value = Array.isArray(data) ? data : (data?.content || [])
   } catch (err) {
     toast.error('Gagal memuat data order')
   } finally {

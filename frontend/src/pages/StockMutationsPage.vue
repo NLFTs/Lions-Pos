@@ -39,15 +39,11 @@ const pageSize = ref(10)
 async function fetchData() {
   loading.value = true
   try {
-    const url = isAdmin.value ? '/api/v1/stock-mutations/admin' : '/api/v1/stock-mutations'
+    // Admin: /admin returns ResData<Page>, partner: /api/v1/stock-mutations returns ResData<List>
+    const url = isAdmin.value ? '/api/v1/stock-mutations/admin?page=0&size=500' : '/api/v1/stock-mutations'
     const res = await api.get(url)
-    const data = res.data.data
-    
-    if (Array.isArray(data)) {
-      mutations.value = data
-    } else {
-      mutations.value = data.content || []
-    }
+    const data = res.data?.data
+    mutations.value = Array.isArray(data) ? data : (data?.content || [])
   } catch (err) {
     toast.error('Gagal memuat riwayat mutasi stok.')
   } finally {

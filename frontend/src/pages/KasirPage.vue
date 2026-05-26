@@ -10,9 +10,11 @@ import {
   Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import api from '@/lib/api'
 
 const { toast } = useToast()
+const authStore = useAuthStore()
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const products = ref([])
@@ -49,10 +51,12 @@ const cart = ref([])
 async function fetchData() {
   loading.value = true
   try {
+    const isAdmin = authStore.isAdmin
+    const branchUrl = isAdmin ? '/api/v1/branches/admin' : '/api/v1/branches'
     const [resP, resC, resB] = await Promise.all([
       api.get('/api/v1/products?page=0&size=500'),  // muat semua produk untuk kasir
       api.get('/api/v1/categories'),
-      api.get('/api/v1/branches')
+      api.get(branchUrl)
     ])
 
     // Product: ResData<Page> — ambil content dari page
@@ -78,6 +82,7 @@ async function fetchData() {
       selectedBranchId.value = branches.value[0].id
       await fetchStockBalances(branches.value[0].id)
     }
+    // Super admin mungkin tidak punya branch — tetap lanjut tanpa stok
   } catch (err) {
     console.error('[POS] fetchData error:', err.response?.data || err.message)
     toast.error('Gagal memuat data POS')

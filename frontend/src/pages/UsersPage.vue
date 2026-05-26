@@ -44,39 +44,36 @@ function validateForm() {
   clearFieldErrors()
   let valid = true
 
-  // Username: required, 3-30 chars, only letters/numbers/underscore
   const uname = form.value.username.trim()
   if (!uname) {
-    fieldErrors.value.username = 'Username is required.'
+    fieldErrors.value.username = 'Username wajib diisi.'
     valid = false
   } else if (uname.length < 3) {
-    fieldErrors.value.username = 'Username must be at least 3 characters.'
+    fieldErrors.value.username = 'Username minimal 3 karakter.'
     valid = false
   } else if (uname.length > 30) {
-    fieldErrors.value.username = 'Username must not exceed 30 characters.'
+    fieldErrors.value.username = 'Username maksimal 30 karakter.'
     valid = false
   } else if (!/^[a-zA-Z0-9_]+$/.test(uname)) {
-    fieldErrors.value.username = 'Username may only contain letters, numbers, and underscores.'
+    fieldErrors.value.username = 'Username hanya boleh huruf, angka, dan underscore.'
     valid = false
   }
 
-  // Email: required
   const email = form.value.email.trim()
   if (!email) {
-    fieldErrors.value.email = 'Email is required.'
+    fieldErrors.value.email = 'Email wajib diisi.'
     valid = false
   } else if (!email.includes('@') || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    fieldErrors.value.email = 'Please enter a valid email address (e.g. john@example.com).'
+    fieldErrors.value.email = 'Masukkan alamat email yang valid (contoh: nama@domain.com).'
     valid = false
   }
 
-  // Password: required on create, min 6 chars if provided
   const pwd = form.value.password
   if (drawerMode.value === 'create' && !pwd) {
-    fieldErrors.value.password = 'Password is required.'
+    fieldErrors.value.password = 'Password wajib diisi.'
     valid = false
   } else if (pwd && pwd.length < 6) {
-    fieldErrors.value.password = 'Password must be at least 6 characters.'
+    fieldErrors.value.password = 'Password minimal 6 karakter.'
     valid = false
   }
 
@@ -111,10 +108,10 @@ const deleteError = ref('')
 
 // ─── Columns ────────────────────────────────────────────────────────
 const columns = computed(() => [
-  { key: 'username', label: 'User', sortable: true },
+  { key: 'username', label: 'Pengguna', sortable: true },
   { key: 'email', label: 'Email', sortable: true },
   { key: 'roles', label: 'Role' },
-  { key: 'createdAt', label: 'Joined', sortable: true },
+  { key: 'createdAt', label: 'Bergabung', sortable: true },
 ])
 
 // ─── Filter State ─────────────────────────────────────────────────────
@@ -202,7 +199,7 @@ async function fetchUsers() {
       allUsers.value = []
     }
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Failed to load users.')
+    toast.error(err.response?.data?.message || 'Gagal memuat data pengguna.')
   } finally {
     loading.value = false
   }
@@ -288,16 +285,16 @@ async function saveUser() {
     if (drawerMode.value === 'create') {
       payload.password = form.value.password
       await api.post('/api/v1/users', payload)
-      toast.success('User created!')
+      toast.success('Pengguna berhasil ditambahkan!')
     } else {
       if (form.value.password) payload.password = form.value.password
       await api.put(`/api/v1/users/${form.value.id}`, payload)
-      toast.success('User updated!')
+      toast.success('Pengguna berhasil diperbarui!')
     }
     showDrawer.value = false
     fetchUsers()
   } catch (err) {
-    formError.value = err.response?.data?.data?.message || err.response?.data?.message || 'Failed to save user.'
+    formError.value = err.response?.data?.data?.message || err.response?.data?.message || 'Gagal menyimpan pengguna.'
   } finally {
     saving.value = false
   }
@@ -326,18 +323,18 @@ function cancelDelete() {
 
 async function confirmDelete() {
   if (!deleteAdminUsername.value || !deleteAdminPassword.value) {
-    deleteError.value = 'Please enter admin username and password.'
+    deleteError.value = 'Masukkan username dan password admin.'
     return
   }
   try {
     deleteError.value = ''
     await api.delete(`/api/v1/users/${deletingUser.value.id}`)
-    toast.success(`User "${deletingUser.value.username}" has been deleted successfully.`)
+    toast.success(`Pengguna "${deletingUser.value.username}" berhasil dihapus.`)
     showDeleteDialog.value = false
     deletingUser.value = null
     fetchUsers()
   } catch (err) {
-    deleteError.value = err.response?.data?.message || 'Failed to delete user.'
+    deleteError.value = err.response?.data?.message || 'Gagal menghapus pengguna.'
   }
 }
 
@@ -377,13 +374,13 @@ function getAvatarColor(user) {
     <div class="pb-6">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">User Management</h1>
-        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Manage system users, roles, and permissions.</p>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manajemen Pengguna</h1>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Kelola akun pengguna, role, dan hak akses.</p>
       </div>
 
       <!-- Controls -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <DataTableSearch v-model="searchQuery" placeholder="Search by name, username, or role…" class="w-full max-w-sm" />
+        <DataTableSearch v-model="searchQuery" placeholder="Cari nama, username, atau role…" class="w-full max-w-sm" />
         <div class="flex items-center gap-2 w-full sm:w-auto">
 
           <!-- Filter Dropdown -->
@@ -414,7 +411,7 @@ function getAvatarColor(user) {
                     v-if="activeFilterCount > 0"
                     @click="clearFilters"
                     class="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
-                  >Clear all</button>
+                  >Hapus semua</button>
                 </div>
 
                 <!-- Role Section -->
@@ -430,7 +427,7 @@ function getAvatarColor(user) {
                       <span class="text-sm font-medium text-foreground select-none">{{ role.name }}</span>
                       <Check v-if="activeFilters.roles.includes(role.slug)" class="h-4 w-4 text-foreground" />
                     </button>
-                    <p v-if="availableRoles.length === 0" class="text-xs text-muted-foreground px-2 py-1">No roles available.</p>
+                    <p v-if="availableRoles.length === 0" class="text-xs text-muted-foreground px-2 py-1">Belum ada role.</p>
                   </div>
                 </div>
               </div>
@@ -440,7 +437,7 @@ function getAvatarColor(user) {
 
           <Button v-if="can('user.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
-            <span>Add User</span>
+            <span>Tambah User</span>
           </Button>
         </div>
       </div>
@@ -456,7 +453,7 @@ function getAvatarColor(user) {
             :total="total"
             :loading="loading"
             :sortable="true"
-            empty-message="No users found."
+            empty-message="Belum ada pengguna."
             @update:page="page = $event"
             @update:page-size="pageSize = $event"
           >
@@ -517,7 +514,7 @@ function getAvatarColor(user) {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem @click="openDelete(item)" class="gap-2 cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400">
-                    <Trash2 class="h-3.5 w-3.5" /> Delete
+                    <Trash2 class="h-3.5 w-3.5" /> Hapus
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -543,8 +540,8 @@ function getAvatarColor(user) {
           <!-- Drawer Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30 shrink-0">
             <div>
-              <h3 class="font-semibold text-lg text-foreground">{{ drawerMode === 'create' ? 'Add User' : 'Edit User' }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">{{ drawerMode === 'create' ? 'Create a new user account.' : 'Update user information.' }}</p>
+              <h3 class="font-semibold text-lg text-foreground">{{ drawerMode === 'create' ? 'Tambah Pengguna' : 'Edit Pengguna' }}</h3>
+              <p class="text-xs text-muted-foreground mt-0.5">{{ drawerMode === 'create' ? 'Buat akun pengguna baru.' : 'Perbarui informasi pengguna.' }}</p>
             </div>
             <button @click="showDrawer = false" class="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
               <X class="h-4 w-4" />
@@ -591,13 +588,13 @@ function getAvatarColor(user) {
                     type="button"
                     @click="avatarInputRef?.click()"
                     class="text-xs font-medium px-2.5 py-1 rounded-md border border-border bg-background hover:bg-accent text-foreground transition-colors"
-                  >Upload Photo</button>
+                  >Unggah Foto</button>
                   <button
                     v-if="avatarPreview"
                     type="button"
                     @click="removeAvatar"
                     class="text-xs font-medium px-2.5 py-1 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                  >Remove</button>
+                  >Hapus</button>
                 </div>
               </div>
               <!-- Hidden file input -->
@@ -607,7 +604,7 @@ function getAvatarColor(user) {
             <!-- Username -->
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-foreground" for="dw-username">Username <span class="text-red-500">*</span></label>
-              <input id="dw-username" v-model="form.username" type="text" placeholder="e.g. john_doe" :disabled="saving"
+              <input id="dw-username" v-model="form.username" type="text" placeholder="cth. budi_santoso" :disabled="saving"
                 :class="['flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground bg-background placeholder:text-muted-foreground outline-none transition disabled:opacity-50', fieldErrors.username ? 'border-red-400 focus:ring-2 focus:ring-red-300' : 'border-input focus:ring-2 focus:ring-ring/30 focus:border-ring']" />
               <p v-if="fieldErrors.username" class="text-xs text-red-500 flex items-center gap-1 mt-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -617,15 +614,15 @@ function getAvatarColor(user) {
 
             <!-- Full Name -->
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground" for="dw-fullname">Full Name</label>
-              <input id="dw-fullname" v-model="form.fullname" type="text" placeholder="e.g. John Doe" :disabled="saving"
+              <label class="text-sm font-medium text-foreground" for="dw-fullname">Nama Lengkap</label>
+              <input id="dw-fullname" v-model="form.fullname" type="text" placeholder="cth. Budi Santoso" :disabled="saving"
                 class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring/30 focus:border-ring outline-none transition disabled:opacity-50" />
             </div>
 
             <!-- Email -->
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-foreground" for="dw-email">Email <span class="text-red-500">*</span></label>
-              <input id="dw-email" v-model="form.email" type="text" placeholder="e.g. john@example.com" :disabled="saving"
+              <input id="dw-email" v-model="form.email" type="text" placeholder="cth. budi@contoh.com" :disabled="saving"
                 :class="['flex h-10 w-full rounded-md border px-3 py-2 text-sm text-foreground bg-background placeholder:text-muted-foreground outline-none transition disabled:opacity-50', fieldErrors.email ? 'border-red-400 focus:ring-2 focus:ring-red-300' : 'border-input focus:ring-2 focus:ring-ring/30 focus:border-ring']" />
               <p v-if="fieldErrors.email" class="text-xs text-red-500 flex items-center gap-1 mt-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -638,11 +635,11 @@ function getAvatarColor(user) {
               <label class="text-sm font-medium text-foreground" for="dw-password">
                 Password
                 <span v-if="drawerMode === 'create'" class="text-red-500">*</span>
-                <span v-else class="text-muted-foreground text-xs font-normal"> (leave blank to keep current)</span>
+                <span v-else class="text-muted-foreground text-xs font-normal"> (kosongkan untuk tidak mengubah)</span>
               </label>
               <div class="relative">
                 <input id="dw-password" v-model="form.password" :type="showPassword ? 'text' : 'password'"
-                  :placeholder="drawerMode === 'create' ? 'Enter password' : 'New password (optional)'" :disabled="saving"
+                  :placeholder="drawerMode === 'create' ? 'Masukkan password' : 'Password baru (opsional)'" :disabled="saving"
                   :class="['flex h-10 w-full rounded-md border px-3 py-2 pr-10 text-sm text-foreground bg-background placeholder:text-muted-foreground outline-none transition disabled:opacity-50', fieldErrors.password ? 'border-red-400 focus:ring-2 focus:ring-red-300' : 'border-input focus:ring-2 focus:ring-ring/30 focus:border-ring']" />
                 <button type="button" @click="showPassword = !showPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                   <EyeOff v-if="showPassword" class="h-4 w-4" />
@@ -657,7 +654,7 @@ function getAvatarColor(user) {
 
             <!-- Roles -->
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground">Assign Roles</label>
+              <label class="text-sm font-medium text-foreground">Tetapkan Role</label>
               <div class="rounded-md border border-border overflow-hidden">
                 <div class="max-h-44 overflow-y-auto divide-y divide-border">
                   <button v-for="role in roles" :key="role.id"
@@ -675,17 +672,17 @@ function getAvatarColor(user) {
                     <Check v-if="form.roleIds.includes(role.id)" class="h-4 w-4 text-foreground" />
                   </button>
                 </div>
-                <div v-if="roles.length === 0" class="p-3 text-sm text-muted-foreground">No roles available.</div>
+                <div v-if="roles.length === 0" class="p-3 text-sm text-muted-foreground">Belum ada role tersedia.</div>
               </div>
             </div>
           </div>
 
           <!-- Drawer Footer -->
           <div class="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30 shrink-0">
-            <Button variant="outline" size="sm" @click="showDrawer = false" :disabled="saving" class="text-foreground border-border">Cancel</Button>
+            <Button variant="outline" size="sm" @click="showDrawer = false" :disabled="saving" class="text-foreground border-border">Batal</Button>
             <Button size="sm" @click="saveUser" :disabled="saving" class="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <span v-if="saving" class="flex items-center gap-2"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />Saving…</span>
-              <span v-else>{{ drawerMode === 'create' ? 'Create User' : 'Save Changes' }}</span>
+              <span v-if="saving" class="flex items-center gap-2"><span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />Menyimpan…</span>
+              <span v-else>{{ drawerMode === 'create' ? 'Buat Pengguna' : 'Simpan Perubahan' }}</span>
             </Button>
           </div>
         </div>
@@ -705,9 +702,9 @@ function getAvatarColor(user) {
                   <Trash2 class="h-5 w-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <h3 class="font-semibold text-foreground">Delete User</h3>
+                  <h3 class="font-semibold text-foreground">Hapus Pengguna</h3>
                   <p class="text-sm text-muted-foreground mt-0.5">
-                    You are about to delete <span class="font-semibold text-foreground">"{{ deletingUser?.fullname || deletingUser?.username }}"</span>. This action cannot be undone.
+                    Anda akan menghapus <span class="font-semibold text-foreground">"{{ deletingUser?.fullname || deletingUser?.username }}"</span>. Tindakan ini tidak dapat dibatalkan.
                   </p>
                 </div>
               </div>
@@ -715,22 +712,22 @@ function getAvatarColor(user) {
 
             <!-- Body: Admin auth required -->
             <div class="px-6 py-5 space-y-4">
-              <p class="text-sm font-medium text-foreground">Please enter your admin credentials to confirm:</p>
+              <p class="text-sm font-medium text-foreground">Masukkan kredensial admin Anda untuk konfirmasi:</p>
 
               <div v-if="deleteError" class="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-3">
                 <p class="text-sm text-red-600 dark:text-red-400">{{ deleteError }}</p>
               </div>
 
               <div class="space-y-1.5">
-                <label class="text-sm font-medium text-foreground" for="del-username">Admin Username</label>
-                <input id="del-username" v-model="deleteAdminUsername" type="text" placeholder="Enter your admin username"
+                <label class="text-sm font-medium text-foreground" for="del-username">Username Admin</label>
+                <input id="del-username" v-model="deleteAdminUsername" type="text" placeholder="Masukkan username admin"
                   class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition" />
               </div>
 
               <div class="space-y-1.5">
-                <label class="text-sm font-medium text-foreground" for="del-password">Admin Password</label>
+                <label class="text-sm font-medium text-foreground" for="del-password">Password Admin</label>
                 <div class="relative">
-                  <input id="del-password" v-model="deleteAdminPassword" :type="showDeletePassword ? 'text' : 'password'" placeholder="Enter your admin password"
+                  <input id="del-password" v-model="deleteAdminPassword" :type="showDeletePassword ? 'text' : 'password'" placeholder="Masukkan password admin"
                     class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none transition" />
                   <button type="button" @click="showDeletePassword = !showDeletePassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     <EyeOff v-if="showDeletePassword" class="h-4 w-4" />
@@ -742,9 +739,9 @@ function getAvatarColor(user) {
 
             <!-- Footer -->
             <div class="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30">
-              <Button variant="outline" size="sm" @click="cancelDelete" class="text-foreground border-border">Cancel</Button>
+              <Button variant="outline" size="sm" @click="cancelDelete" class="text-foreground border-border">Batal</Button>
               <Button size="sm" @click="confirmDelete" class="bg-red-600 hover:bg-red-700 text-white">
-                <Trash2 class="h-3.5 w-3.5 mr-1.5" /> Delete User
+                <Trash2 class="h-3.5 w-3.5 mr-1.5" /> Hapus Pengguna
               </Button>
             </div>
           </div>

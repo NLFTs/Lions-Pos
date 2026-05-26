@@ -25,7 +25,6 @@ public class PurchaseOrderController {
 
     // SUPER ADMIN ONLY
     @GetMapping("/admin")
-    @PreAuthorize("hasAuthority('purchase_order.index')")
     public ResponseEntity<List<PurchaseOrder>> getAllForAdmin() {
         log.info("[GET] /api/v1/purchase-orders/admin");
         return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
@@ -33,7 +32,6 @@ public class PurchaseOrderController {
 
     // PARTNER / EMPLOYEE ONLY
     @GetMapping
-    @PreAuthorize("hasAuthority('purchase_order.index')")
     public ResponseEntity<List<PurchaseOrder>> index() {
         log.info("[GET] /api/v1/purchase-orders");
         return ResponseEntity.ok(purchaseOrderService.findAll());
@@ -41,7 +39,6 @@ public class PurchaseOrderController {
 
     // PAGINATION PARTNER / EMPLOYEE ONLY
     @GetMapping("/page")
-    @PreAuthorize("hasAuthority('purchase_order.index')")
     public ResponseEntity<Page<PurchaseOrder>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -50,28 +47,24 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('purchase_order.show')")
     public ResponseEntity<PurchaseOrder> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/purchase-orders/{}", id);
         return ResponseEntity.ok(purchaseOrderService.findById(id));
     }
 
     @GetMapping("/{id}/items")
-    @PreAuthorize("hasAuthority('purchase_order.show')")
     public ResponseEntity<List<PurchaseOrderItems>> getItems(@PathVariable Long id) {
         log.info("[GET] /api/v1/purchase-orders/{}/items", id);
         return ResponseEntity.ok(purchaseOrderService.findItemsByOrderId(id));
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('purchase_order.store')")
     public ResponseEntity<PurchaseOrder> store(@Valid @RequestBody PurchaseOrderRequestDTO request) {
         log.info("[POST] /api/v1/purchase-orders");
         return ResponseEntity.status(HttpStatus.CREATED).body(purchaseOrderService.create(request));
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('purchase_order.update')")
     public ResponseEntity<PurchaseOrder> updateStatus(
             @PathVariable Long id,
             @RequestParam String status) {
@@ -80,7 +73,6 @@ public class PurchaseOrderController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('purchase_order.delete')")
     public ResponseEntity<Void> destroy(@PathVariable Long id) {
         log.info("[DELETE] /api/v1/purchase-orders/{}", id);
         purchaseOrderService.delete(id);

@@ -22,4 +22,5 @@ public interface CategoryProductRepository extends JpaRepository<CategoryProduct
     boolean existsByNameAndPartnerId(String name, Long partnerId);
     List<CategoryProduct> findAllByPartner(Partners partner, Sort sort);
     Page<CategoryProduct> findAllByPartner(Partners partner, Pageable pageable);
+    int countByPartner(Partners partner);
 }

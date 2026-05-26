@@ -82,11 +82,11 @@ public class AuthController {
     public ResponseEntity<ResData<TokenResponse>> login(@RequestBody LoginRequest request) {
         log.info("[POST]: /auth/login");
         var user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Username atau password salah"));
 
         BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Invalid credentials");
+            throw new IllegalArgumentException("Username atau password salah");
         }
 
         // Collect roles and permissions to warm the server-side cache
@@ -126,15 +126,15 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<ResData<TokenResponse>> refresh(@RequestParam String refreshToken) {
         Token tokenEntity = tokenRepository.findByRefreshToken(refreshToken)
-                .orElseThrow(() -> new ResourceNotFoundException("Invalid refresh token"));
+                .orElseThrow(() -> new ResourceNotFoundException("Refresh token tidak valid"));
 
         if (tokenEntity.isRevoked() || tokenEntity.getExpiryDate().before(new Date())) {
-            throw new IllegalArgumentException("Refresh token expired or revoked");
+            throw new IllegalArgumentException("Refresh token sudah kedaluwarsa atau dicabut");
         }
 
         // Reload permissions from DB and refresh the cache
         var freshUser = userRepository.findByUsername(tokenEntity.getUsername())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Pengguna tidak ditemukan"));
 
         // Reload roles and permissions from DB and refresh the cache
         Set<String> auths = new java.util.HashSet<>();
@@ -158,7 +158,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<ResData<Void>> logout(@RequestParam String refreshToken) {
         Token tokenEntity = tokenRepository.findByRefreshToken(refreshToken)
-                .orElseThrow(() -> new ResourceNotFoundException("Invalid refresh token"));
+                .orElseThrow(() -> new ResourceNotFoundException("Refresh token tidak valid"));
         tokenEntity.setRevoked(true);
         tokenRepository.save(tokenEntity);
         permissionCacheService.evict(tokenEntity.getUsername());

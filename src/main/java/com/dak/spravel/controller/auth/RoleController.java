@@ -41,29 +41,18 @@ public class RoleController {
      * Returns all available permissions grouped by module. Use this for the role matrix UI.
      */
     @GetMapping("/permissions")
-    @PreAuthorize("hasAuthority('role.index')")
     public ResponseEntity<ResData<Map<String, List<PermissionResponse>>>> allPermissions() {
         log.info("[GET] /api/v1/roles/permissions");
         return ResponseBuilder.ok(roleService.getAllPermissionsGrouped());
     }
 
-    /**
-     * GET /api/v1/roles
-     * List all roles scoped by partner (resolved internally by service).
-     */
     @GetMapping
-    @PreAuthorize("hasAuthority('role.index')")
     public ResponseEntity<ResData<List<RoleResponse>>> index() {
         log.info("[GET] /api/v1/roles");
         return ResponseBuilder.ok(roleService.findAll());
     }
 
-    /**
-     * GET /api/v1/roles/{id}
-     * Get a specific role by ID.
-     */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('role.show')")
     public ResponseEntity<ResData<RoleResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/roles/{}", id);
         return ResponseBuilder.ok(roleService.findById(id));
