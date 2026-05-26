@@ -26,11 +26,17 @@ public class TransferRequestResponse {
     @JsonProperty("from_location_id")
     private Long fromLocationId;
 
+    @JsonProperty("from_location_name")
+    private String fromLocationName;
+
     @JsonProperty("to_location_type")
     private String toLocationType;
 
     @JsonProperty("to_location_id")
     private Long toLocationId;
+
+    @JsonProperty("to_location_name")
+    private String toLocationName;
 
     private TransferRequest.Status status;
     private String notes;

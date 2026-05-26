@@ -84,7 +84,6 @@ public class StockOpnameService {
         StockOpname opname = stockOpnameRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockOpname", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return opname;
         }
@@ -94,6 +93,41 @@ public class StockOpnameService {
         }
 
         return opname;
+    }
+
+    /**
+     * Filter list opname berdasarkan lokasi user (branch atau warehouse).
+     * Owner (tidak punya branch/warehouse) bisa lihat semua dalam partner.
+     */
+    private List<StockOpname> filterByUserLocation(List<StockOpname> data, User user) {
+        if (user.getBranch() != null) {
+            return data.stream()
+                    .filter(o -> "BRANCH".equalsIgnoreCase(o.getLocation())
+                            && user.getBranch().getId().equals(o.getLocationId()))
+                    .toList();
+        }
+        if (user.getWarehouse() != null) {
+            return data.stream()
+                    .filter(o -> "WAREHOUSE".equalsIgnoreCase(o.getLocation())
+                            && user.getWarehouse().getId().equals(o.getLocationId()))
+                    .toList();
+        }
+        return data; // owner/admin partner: lihat semua
+    }
+
+    /**
+     * Throw jika user tidak berhak akses lokasi opname tertentu.
+     */
+    private void enforceLocationAccess(String locationType, Long locationId, User user) {
+        if (user.getBranch() != null) {
+            if (!"BRANCH".equalsIgnoreCase(locationType) || !user.getBranch().getId().equals(locationId)) {
+                throw new RuntimeException("Akses Ditolak: Opname ini bukan milik cabang Anda.");
+            }
+        } else if (user.getWarehouse() != null) {
+            if (!"WAREHOUSE".equalsIgnoreCase(locationType) || !user.getWarehouse().getId().equals(locationId)) {
+                throw new RuntimeException("Akses Ditolak: Opname ini bukan milik gudang Anda.");
+            }
+        }
     }
 
     // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
@@ -125,9 +159,8 @@ public class StockOpnameService {
 
     public List<StockOpnameResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "stock_opname.index");
 
-        // 👑 Handling Super Admin: Lihat semua data opname aktif global
         if (currentUser.getPartner() == null) {
             return stockOpnameRepository.findByDeletedAtIsNull()
                     .stream()
@@ -135,24 +168,36 @@ public class StockOpnameService {
                     .toList();
         }
 
-        // 🏢 Handling Tenant: Hanya ambil data opname milik perusahaannya sendiri
-        return stockOpnameRepository
-                .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId())
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+        List<StockOpname> data = stockOpnameRepository
+                .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+
+        // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
+        data = filterByUserLocation(data, currentUser);
+
+        return data.stream().map(this::mapToResponse).toList();
     }
 
     public StockOpnameResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_opname.show");
-        return mapToResponse(getValidatedOpname(id, currentUser));
+        StockOpname opname = getValidatedOpname(id, currentUser);
+
+        // 🛡️ LOCATION ISOLATION
+        if (currentUser.getPartner() != null) {
+            enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
+        }
+
+        return mapToResponse(opname);
     }
 
     public List<StockOpnameItemResponse> findItemsByOpnameId(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_opname.show");
-        getValidatedOpname(id, currentUser);
+        StockOpname opname = getValidatedOpname(id, currentUser);
+
+        if (currentUser.getPartner() != null) {
+            enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
+        }
 
         return stockOpnameItemRepository.findByStockOpnameId(id)
                 .stream()
@@ -163,32 +208,42 @@ public class StockOpnameService {
     public Page<StockOpnameResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_opname.index");
-    
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-    
-        // 👑 LOGIC IF-ELSE MULTI-TENANT
+
         if (currentUser.getPartner() == null) {
-            return stockOpnameRepository.findAll(pageable)
-                    .map(this::mapToResponse);
-        } else {
-            return stockOpnameRepository.findByPartnerIdAndDeletedAtIsNull(
-                        currentUser.getPartner().getId(), 
-                        pageable
-                    )
-                    .map(this::mapToResponse);
+            return stockOpnameRepository.findAll(pageable).map(this::mapToResponse);
         }
+
+        // Ambil semua dulu, filter per lokasi, lalu page manual
+        List<StockOpname> all = stockOpnameRepository
+                .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
+        all = filterByUserLocation(all, currentUser);
+
+        int start = page * size;
+        int end = Math.min(start + size, all.size());
+        List<StockOpname> paged = start >= all.size() ? List.of() : all.subList(start, end);
+
+        return new org.springframework.data.domain.PageImpl<>(
+                paged.stream().map(this::mapToResponse).toList(),
+                pageable,
+                all.size()
+        );
     }
 
     // FORMULASI PEMBUATAN DRAFT DOKUMEN OPNAME
     @Transactional
     public StockOpnameResponse create(StockOpnameRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.store"); // 💡 Siapapun boleh buat asal diberi izin Owner via UI
+        checkPermission(currentUser, "stock_opname.store");
         
         Partners partner = currentUser.getPartner();
         if (partner == null) {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen opname langsung.");
         }
+
+        // 🛡️ LOCATION GUARD: user hanya boleh buat opname di lokasi tugasnya
+        enforceLocationAccess(request.getLocationType(), request.getLocationId(), currentUser);
 
         StockOpname opname = new StockOpname();
         opname.setPartner(partner);

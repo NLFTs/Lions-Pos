@@ -5,10 +5,13 @@ import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
+import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
@@ -22,11 +25,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +40,8 @@ public class WarehousesService {
 
     private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
 
@@ -208,6 +216,33 @@ public class WarehousesService {
 
         Warehouses saved = warehousesRepository.save(w);
 
+        // ── Buat Akun User Pengelola Gudang Otomatis ──────────────────────────
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
+            String username = request.getUsername().trim();
+            if (userRepository.findByUsername(username).isPresent()) {
+                throw new IllegalArgumentException("Username '" + username + "' sudah digunakan.");
+            }
+
+            if (request.getPassword() == null || request.getPassword().length() < 6) {
+                throw new IllegalArgumentException("Password wajib diisi dan minimal 6 karakter.");
+            }
+
+            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
+                throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user gudang.");
+            }
+
+            User warehouseUser = new User();
+            warehouseUser.setUsername(username);
+            warehouseUser.setFullname("Gudang " + saved.getName());
+            warehouseUser.setEmail(username + "@gaptek.com");
+            warehouseUser.setPassword(passwordEncoder.encode(request.getPassword()));
+            warehouseUser.setPartner(currentUser.getPartner());
+            warehouseUser.setWarehouse(saved);
+            warehouseUser.setRoles(resolveRoles(request.getRoleIds(), currentUser.getPartner()));
+
+            userRepository.save(warehouseUser);
+        }
+
         // ⚙️ INITIALIZE STOCK BALANCE AVAL (+0 Qty untuk setiap produk tenant)
         List<Product> products = productRepository.findAllByPartner(currentUser.getPartner());
 
@@ -225,6 +260,24 @@ public class WarehousesService {
         }
 
         return mapToResponse(saved);
+    }
+
+    // ─── HELPER: Resolve roles dengan validasi kepemilikan tenant ────────────
+
+    private Set<Role> resolveRoles(List<Long> roleIds, Partners targetPartner) {
+        List<Role> roles = roleRepository.findAllById(roleIds);
+
+        if (roles.size() != roleIds.size()) {
+            throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
+        }
+
+        for (Role role : roles) {
+            if (role.getPartner() != null && !role.getPartner().getId().equals(targetPartner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            }
+        }
+
+        return new HashSet<>(roles);
     }
 
     // ─── UPDATE WAREHOUSE ─────────────────────────────────────────────────────
