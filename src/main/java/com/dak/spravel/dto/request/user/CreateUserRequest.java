@@ -1,5 +1,6 @@
 package com.dak.spravel.dto.request.user;
 
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -28,7 +29,11 @@ public class CreateUserRequest {
 
     private String avatar;
 
+    @Column(nullable = true)
     private Long branchId;
+
+    @Column(nullable = true)
+    private Long warehouseId;
 
     @JsonProperty("partner_id")
     private Long partnerId;

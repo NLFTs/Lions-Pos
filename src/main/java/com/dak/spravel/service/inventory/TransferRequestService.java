@@ -13,6 +13,7 @@ import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.repository.inventory.TransferRequestItemRepository;
 import com.dak.spravel.repository.inventory.TransferRequestRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +31,8 @@ public class TransferRequestService {
     private final WarehousesRepository warehousesRepository;
     private final BranchesRepository branchesRepository;
     private final UserRepository userRepository;
-    private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
+    private final StockBalanceRepository stockBalanceRepository;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -44,9 +45,7 @@ public class TransferRequestService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -67,20 +66,12 @@ public class TransferRequestService {
         }
     }
 
-    // Helper: Validasi Akses Branch Kerja Karyawan (Dinamis tanpa hardcode role string)
-    private boolean isBranchAccessible(TransferRequest.Location type, Long locationId, User user) {
-        return user.getBranch() != null
-                && type == TransferRequest.Location.BRANCH
-                && user.getBranch().getId().equals(locationId);
-    }
-
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER & ISOLASI LAPANGAN) ───────────
 
     private TransferRequest getValidatedTransferRequest(Long id, User currentUser) {
         TransferRequest tr = transferRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return tr;
         }
@@ -89,13 +80,29 @@ public class TransferRequestService {
             throw new RuntimeException("Akses Ditolak: Data Transfer Request bukan milik partner Anda");
         }
 
+        if (currentUser.getBranch() != null) {
+            Long branchId = currentUser.getBranch().getId();
+            boolean involved = (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
+                               (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()));
+            if (!involved) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin melihat transfer lokasi lain.");
+            }
+        }
+        else if (currentUser.getWarehouse() != null) {
+            Long warehouseId = currentUser.getWarehouse().getId();
+            boolean involved = (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
+                               (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()));
+            if (!involved) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin melihat transfer lokasi lain.");
+            }
+        }
+
         return tr;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── 🚀 MAIN METHODS CORE ──────────────────────────────────────────────────
 
-    // KHUSUS SUPER ADMIN GLOBAL
-
+    @Transactional(readOnly = true)
     public List<TransferRequestResponse> findAllAdmin() {
         User currentUser = getAuthenticatedUser();
         checkSuperAdminOnly(currentUser);
@@ -106,8 +113,7 @@ public class TransferRequestService {
                 .toList();
     }
 
-    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION MATRIKS)
-
+    @Transactional(readOnly = true)
     public List<TransferRequestResponse> findAll() {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "transfer_request.index");
@@ -120,7 +126,6 @@ public class TransferRequestService {
                 currentUser.getPartner().getId()
         );
 
-        // 🛡️ BRANCH ISOLATION
         if (currentUser.getBranch() != null) {
             Long branchId = currentUser.getBranch().getId();
             data = data.stream()
@@ -129,7 +134,6 @@ public class TransferRequestService {
                         (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()))
                     ).toList();
         }
-        // 🛡️ WAREHOUSE ISOLATION
         else if (currentUser.getWarehouse() != null) {
             Long warehouseId = currentUser.getWarehouse().getId();
             data = data.stream()
@@ -142,44 +146,19 @@ public class TransferRequestService {
         return data.stream().map(this::mapToResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public TransferRequestResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "transfer_request.show");
 
-        TransferRequest tr = transferRequestRepository.findByIdWithItems(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
-
-        if (currentUser.getPartner() != null) {
-            if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Data Transfer bukan milik partner Anda.");
-            }
-
-            // Branch isolation
-            if (currentUser.getBranch() != null) {
-                Long branchId = currentUser.getBranch().getId();
-                boolean access =
-                    (tr.getFromLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getFromLocationId())) ||
-                    (tr.getToLocationType() == TransferRequest.Location.BRANCH && branchId.equals(tr.getToLocationId()));
-                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan cabang Anda.");
-            }
-            // Warehouse isolation
-            else if (currentUser.getWarehouse() != null) {
-                Long warehouseId = currentUser.getWarehouse().getId();
-                boolean access =
-                    (tr.getFromLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getFromLocationId())) ||
-                    (tr.getToLocationType() == TransferRequest.Location.WAREHOUSE && warehouseId.equals(tr.getToLocationId()));
-                if (!access) throw new RuntimeException("Akses Ditolak: Transfer ini tidak melibatkan gudang Anda.");
-            }
-        }
-
+        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
         return mapToResponse(tr);
     }
 
-    // FORMULASI REQUEST TRANSFER BARANG BARU (DRAFT / PENDING)
     @Transactional
     public TransferRequestResponse create(TransferRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "transfer_request.store"); // 💡 Siapapun boleh input asal diberi izin Owner
+        checkPermission(currentUser, "transfer_request.store");
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -189,27 +168,40 @@ public class TransferRequestService {
         TransferRequest tr = new TransferRequest();
         tr.setPartner(partner);
 
-        // Resolusi Lokasi Asal Pengirim (FROM)
-        Long fromId = request.getFromLocationId();
-        if (warehousesRepository.existsById(fromId)) {
-            tr.setFromLocationType(TransferRequest.Location.WAREHOUSE);
-        } else if (branchesRepository.existsById(fromId)) {
-            tr.setFromLocationType(TransferRequest.Location.BRANCH);
-        } else {
-            throw new RuntimeException("Lokasi asal pengirim (From Location) tidak valid.");
-        }
-        tr.setFromLocationId(fromId);
-
-        // Resolusi Lokasi Target Penerima (TO)
-        Long toId = request.getToLocationId();
-        if (warehousesRepository.existsById(toId)) {
-            tr.setToLocationType(TransferRequest.Location.WAREHOUSE);
-        } else if (branchesRepository.existsById(toId)) {
+        if (currentUser.getBranch() != null) {
             tr.setToLocationType(TransferRequest.Location.BRANCH);
+            tr.setToLocationId(currentUser.getBranch().getId());
+
+            if (request.getFromLocationType() == null || request.getFromLocationId() == null) {
+                throw new RuntimeException("Lokasi asal sumber barang wajib ditentukan.");
+            }
+            tr.setFromLocationType(TransferRequest.Location.valueOf(request.getFromLocationType().toUpperCase()));
+            tr.setFromLocationId(request.getFromLocationId());
+
+        } else if (currentUser.getWarehouse() != null) {
+            tr.setToLocationType(TransferRequest.Location.WAREHOUSE);
+            tr.setToLocationId(currentUser.getWarehouse().getId());
+
+            if (request.getFromLocationType() == null || request.getFromLocationId() == null) {
+                throw new RuntimeException("Lokasi asal sumber barang wajib ditentukan.");
+            }
+            tr.setFromLocationType(TransferRequest.Location.valueOf(request.getFromLocationType().toUpperCase()));
+            tr.setFromLocationId(request.getFromLocationId());
+
         } else {
-            throw new RuntimeException("Lokasi target penerima (To Location) tidak valid.");
+            if (request.getFromLocationType() == null || request.getFromLocationId() == null ||
+                request.getToLocationType() == null || request.getToLocationId() == null) {
+                throw new RuntimeException("Lokasi asal dan lokasi tujuan wajib diisi lengkap.");
+            }
+            tr.setFromLocationType(TransferRequest.Location.valueOf(request.getFromLocationType().toUpperCase()));
+            tr.setFromLocationId(request.getFromLocationId());
+            tr.setToLocationType(TransferRequest.Location.valueOf(request.getToLocationType().toUpperCase()));
+            tr.setToLocationId(request.getToLocationId());
         }
-        tr.setToLocationId(toId);
+
+        if (tr.getFromLocationType() == tr.getToLocationType() && tr.getFromLocationId().equals(tr.getToLocationId())) {
+            throw new RuntimeException("Lokasi asal dan lokasi tujuan tidak boleh sama.");
+        }
 
         tr.setStatus(TransferRequest.Status.PENDING);
         tr.setRequestedAt(LocalDateTime.now());
@@ -219,7 +211,6 @@ public class TransferRequestService {
 
         TransferRequest saved = transferRequestRepository.save(tr);
 
-        // Simpan items
         if (request.getItems() != null && !request.getItems().isEmpty()) {
             List<TransferRequestItem> items = request.getItems().stream().map(dto -> {
                 TransferRequestItem item = new TransferRequestItem();
@@ -234,34 +225,101 @@ public class TransferRequestService {
         return mapToResponse(transferRequestRepository.findByIdWithItems(saved.getId()).orElse(saved));
     }
 
-    // EKSEKUSI PENERIMAAN BARANG DI LOKASI TUJUAN & AMANDEMEN STOK BALANCE REAL-TIME
+    // 👑 🚚 STATUS ACTION 1: MIX OWNER APPROVE ATAU SUMBER KIRIM BARANG
+    @Transactional
+    public TransferRequestResponse updateStatus(Long id, String status) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "transfer_request.update");
+
+        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
+        TransferRequest.Status newStatus = TransferRequest.Status.valueOf(status.toUpperCase());
+        
+        // ⚔️ GATE 1: JIKA OWNER SETUJUI (PENDING -> APPROVED)
+        if (newStatus == TransferRequest.Status.APPROVED) {
+            if (currentUser.getBranch() != null || currentUser.getWarehouse() != null) {
+                throw new RuntimeException("Akses Ditolak: Staff Lapangan tidak berhak menyetujui rute transfer ini. Hanya Owner Pusat yang diizinkan.");
+            }
+            tr.setApprovedAt(LocalDateTime.now());
+            tr.setApprovedByUser(currentUser);
+        }
+        // ⚔️ GATE 2: JIKA LOKASI ASAL KIRIM BARANG (APPROVED -> IN_TRANSIT)
+        else if (newStatus == TransferRequest.Status.IN_TRANSIT) {
+            if (tr.getStatus() != TransferRequest.Status.APPROVED) {
+                throw new RuntimeException("Gagal: Dokumen transfer belum disetujui Owner, barang tidak boleh dikirim.");
+            }
+            
+            // Cek apakah yang klik benar-benar staff di lokasi Asal (From)
+            if (currentUser.getPartner() != null) {
+                if (currentUser.getBranch() != null) {
+                    if (tr.getFromLocationType() != TransferRequest.Location.BRANCH || !currentUser.getBranch().getId().equals(tr.getFromLocationId())) {
+                        throw new RuntimeException("Akses Ditolak: Hanya staff di lokasi ASAL yang berhak memproses pengiriman barang.");
+                    }
+                } else if (currentUser.getWarehouse() != null) {
+                    if (tr.getFromLocationType() != TransferRequest.Location.WAREHOUSE || !currentUser.getWarehouse().getId().equals(tr.getFromLocationId())) {
+                        throw new RuntimeException("Akses Ditolak: Hanya staff di lokasi ASAL yang berhak memproses pengiriman barang.");
+                    }
+                }
+            }
+        } 
+        // ⚔️ GATE 3: JIKA BATAL (CANCELLED) ATAU LAINNYA
+        else {
+            if (currentUser.getBranch() != null || currentUser.getWarehouse() != null) {
+                throw new RuntimeException("Akses Ditolak: Staff Lapangan tidak berhak mengubah ke status ini.");
+            }
+        }
+
+        tr.setStatus(newStatus);
+        tr.setUpdatedAt(LocalDateTime.now());
+        tr.setUpdatedBy(currentUser);
+
+        return mapToResponse(transferRequestRepository.save(tr));
+    }
+
+    // 🚚 STATUS ACTION 2: VALIDASI JIKA BARANG SUDAH MASUK STOK BARU BISA TERIMA
     @Transactional
     public TransferRequestResponse receiveTransfer(Long id, List<TransferRequestItemDTO> items) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "transfer_request.update"); // 💡 Siapapun boleh approve serah terima asal punya permission
+        checkPermission(currentUser, "transfer_request.update");
 
-        TransferRequest tr = transferRequestRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("TransferRequest", id));
+        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
 
-        // Tenant Protection Guard
+        // 🛑 VALIDASI WORKFLOW: Sekarang wajib IN_TRANSIT (Dikirim) dulu baru bisa di-receive
+        if (tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
+            throw new RuntimeException("Gagal: Barang belum dikirim (IN_TRANSIT) oleh lokasi asal. Tidak bisa diproses terima.");
+        }
+
+        // 🛑 GATE LOKASI TUJUAN: Cuma lokasi target (To) yang berhak sahkan dokumen
         if (currentUser.getPartner() != null) {
-            if (tr.getPartner() == null || !tr.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new RuntimeException("Akses Ditolak: Dokumen transfer bukan milik partner Anda.");
-            }
-            
-            // Branch Guard: hanya staff cabang tujuan yang bisa terima
             if (currentUser.getBranch() != null) {
                 if (tr.getToLocationType() != TransferRequest.Location.BRANCH ||
                     !currentUser.getBranch().getId().equals(tr.getToLocationId())) {
-                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di cabang tugas Anda.");
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima barang di cabang TUJUAN Anda.");
                 }
             }
-            // Warehouse Guard: hanya staff gudang tujuan yang bisa terima
             else if (currentUser.getWarehouse() != null) {
                 if (tr.getToLocationType() != TransferRequest.Location.WAREHOUSE ||
                     !currentUser.getWarehouse().getId().equals(tr.getToLocationId())) {
-                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima di gudang tugas Anda.");
+                    throw new RuntimeException("Akses Ditolak: Anda hanya berhak memproses serah terima barang di gudang TUJUAN Anda.");
                 }
+            }
+        }
+
+        List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
+
+        // 🛡️ 🔥 VALIDASI SAKTI: Cek keberadaan stok fisik di lokasi TUJUAN terlebih dahulu
+        for (TransferRequestItem item : trItems) {
+            var currentStockOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                    item.getProductId(),
+                    tr.getToLocationType().name().toUpperCase(),
+                    tr.getToLocationId()
+            );
+
+            if (currentStockOpt.isEmpty()) {
+                throw new RuntimeException("Gagal Terima: Sistem mendeteksi barang fisik belum di-input ke stok lokasi tujuan Anda. Harap masukkan stok terlebih dahulu!");
+            }
+
+            if (currentStockOpt.get().getQty() <= 0) {
+                throw new RuntimeException("Gagal Terima: Stok produk '" + (item.getProduct() != null ? item.getProduct().getName() : "ID #" + item.getProductId()) + "' di lokasi Anda masih 0 PCS. Konfirmasi input barang fisik Anda terlebih dahulu!");
             }
         }
 
@@ -269,11 +327,7 @@ public class TransferRequestService {
         tr.setReceivedAt(LocalDateTime.now());
         tr.setReceivedByUser(currentUser);
 
-        // Load items dengan fetch
-        List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
-
         for (TransferRequestItem item : trItems) {
-            // Gunakan qty dari request jika ada, fallback ke qty_requested
             Long qty = items.stream()
                     .filter(i -> i.getProductId().equals(item.getProductId()))
                     .map(i -> i.getQtyRequested().longValue())
@@ -282,21 +336,6 @@ public class TransferRequestService {
 
             item.setQtyReceived(qty);
 
-            stockBalanceService.adjustStock(
-                    item.getProductId(),
-                    tr.getFromLocationType().name().toUpperCase(),
-                    tr.getFromLocationId(),
-                    -qty
-            );
-
-            stockBalanceService.adjustStock(
-                    item.getProductId(),
-                    tr.getToLocationType().name().toUpperCase(),
-                    tr.getToLocationId(),
-                    qty
-            );
-
-            // Ambil product untuk mutation record
             com.dak.spravel.model.catalog.Product product = item.getProduct();
             if (product == null) {
                 product = new com.dak.spravel.model.catalog.Product();
@@ -315,7 +354,7 @@ public class TransferRequestService {
                     qty,
                     "TRANSFER_REQUEST",
                     tr.getId(),
-                    "Transfer diterima oleh " + currentUser.getUsername(),
+                    "Transfer request dikonfirmasi selesai/diterima oleh " + currentUser.getUsername(),
                     currentUser
             );
         }
@@ -330,25 +369,9 @@ public class TransferRequestService {
         checkPermission(currentUser, "transfer_request.delete");
 
         TransferRequest tr = getValidatedTransferRequest(id, currentUser);
-
         tr.setDeletedAt(LocalDateTime.now());
         tr.setDeletedBy(currentUser);
-
         transferRequestRepository.save(tr);
-    }
-
-    @Transactional
-    public TransferRequestResponse updateStatus(Long id, String status) {
-        User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "transfer_request.update");
-
-        TransferRequest tr = getValidatedTransferRequest(id, currentUser);
-
-        tr.setStatus(TransferRequest.Status.valueOf(status.toUpperCase()));
-        tr.setUpdatedAt(LocalDateTime.now());
-        tr.setUpdatedBy(currentUser);
-
-        return mapToResponse(transferRequestRepository.save(tr));
     }
 
     // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
