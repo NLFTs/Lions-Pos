@@ -138,7 +138,7 @@ public class PartnerSeeder {
 
         // ── 4b. Role Cabang (per-partner) ─────────────────────────────────────
         Role roleCabang = createPartnerRoleIfNotExists(
-            "cabang", "Kasir Cabang", partner, adminPartner,
+            "kasir-cabang", "Kasir Cabang", partner, adminPartner,
             new String[]{
                 "branch.index", "branch.show",
                 "produk.index", "produk.show",
@@ -160,7 +160,7 @@ public class PartnerSeeder {
 
         // ── 4c. Role Gudang (per-partner) ─────────────────────────────────────
         Role roleGudang = createPartnerRoleIfNotExists(
-            "gudang", "Pengelola Gudang", partner, adminPartner,
+            "pengelola-gudang", "Pengelola Gudang", partner, adminPartner,
             new String[]{
                 "warehouse.index", "warehouse.show",
                 "produk.index", "produk.show",
