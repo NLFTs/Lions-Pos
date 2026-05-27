@@ -51,6 +51,11 @@ const activeFilterCount = computed(() => {
 })
 
 const togglingStatus = ref(null)
+const TOGGLE_COOLDOWN_MS = 1000
+const lastToggleTime = ref(0)
+const isToggleOnCooldown = computed(() => {
+  return Date.now() - lastToggleTime.value < TOGGLE_COOLDOWN_MS
+})
 
 function clearFilters() {
   sortBy.value = 'terbaru'
@@ -366,13 +371,24 @@ async function confirmDelete() {
   }
 }
 
+
 async function toggleStatus(product) {
+  // Cek cooldown global
+  const now = Date.now()
+  if (now - lastToggleTime.value < TOGGLE_COOLDOWN_MS) {
+    toast.warning('Tunggu sebentar sebelum mengganti status lagi')
+    return
+  }
+  
   if (!can('produk.update')) {
     toast.error('Anda tidak memiliki izin untuk mengubah status produk.')
     return
   }
   
   if (togglingStatus.value === product.id) return
+  
+  // Set cooldown
+  lastToggleTime.value = now
   
   togglingStatus.value = product.id
   const originalStatus = product.is_active
@@ -622,7 +638,7 @@ function productAvatarStyle(name = '') {
                       type="button"
                       role="switch"
                       :aria-checked="product.is_active"
-                      :disabled="togglingStatus === product.id"
+                      :disabled="togglingStatus === product.id || isToggleOnCooldown"
                       class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                       @click.stop="toggleStatus(product)"
