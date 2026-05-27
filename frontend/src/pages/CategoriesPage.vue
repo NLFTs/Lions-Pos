@@ -57,6 +57,16 @@ const saving = ref(false)
 const formError = ref(null)
 const form = ref({ id: null, name: '', description: '' })
 
+// ─── Validasi frontend ───────────────────────────────────────────────────────
+const formErrors = ref({
+  name: '',
+  description: ''
+})
+
+// Cooldown untuk submit (opsional, mencegah spam klik)
+const lastSubmitTime = ref(0)
+const SUBMIT_COOLDOWN_MS = 1000 // 1 detik
+
 // ─── Customize Columns ────────────────────────────────────────────────────────
 const showColumnMenu = ref(false)
 const columnMenuRef = ref(null)
@@ -117,6 +127,7 @@ async function fetchCategories() {
 // ─── Create / Edit ────────────────────────────────────────────────────────────
 function openCreate() {
   form.value = { id: null, name: '', description: '' }
+  formErrors.value = { name: '', description: '' }
   formError.value = null
   modalMode.value = 'create'
   showDrawer.value = true
@@ -128,6 +139,7 @@ function closeDrawer() {
 
 function openEdit(cat) {
   form.value = { id: cat.id, name: cat.name, description: cat.description || '' }
+  formErrors.value = { name: '', description: '' }
   formError.value = null
   modalMode.value = 'edit'
   showDrawer.value = true
@@ -135,6 +147,22 @@ function openEdit(cat) {
 
 async function saveCategory() {
   formError.value = null
+  
+  // Validasi frontend
+  if (!validateCategoryForm()) {
+    const firstErrorField = document.querySelector('.form-error')
+    if (firstErrorField) firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
+  
+  // Cooldown untuk mencegah spam submit
+  const now = Date.now()
+  if (now - lastSubmitTime.value < SUBMIT_COOLDOWN_MS) {
+    toast.warning('Tunggu sebentar sebelum menyimpan lagi')
+    return
+  }
+  lastSubmitTime.value = now
+  
   saving.value = true
   try {
     if (modalMode.value === 'create') {
@@ -153,6 +181,33 @@ async function saveCategory() {
   } finally {
     saving.value = false
   }
+}
+
+function validateCategoryForm() {
+  // Reset errors
+  formErrors.value = { name: '', description: '' }
+  
+  let isValid = true
+  
+  // 1. Nama kategori
+  if (!form.value.name || form.value.name.trim() === '') {
+    formErrors.value.name = 'Nama kategori wajib diisi'
+    isValid = false
+  } else if (form.value.name.length < 3) {
+    formErrors.value.name = 'Nama kategori minimal 3 karakter'
+    isValid = false
+  } else if (form.value.name.length > 100) {
+    formErrors.value.name = 'Nama kategori maksimal 100 karakter'
+    isValid = false
+  }
+  
+  // 2. Deskripsi (opsional, batasi panjang)
+  if (form.value.description && form.value.description.length > 255) {
+    formErrors.value.description = 'Deskripsi maksimal 255 karakter'
+    isValid = false
+  }
+  
+  return isValid
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -381,7 +436,14 @@ function formatDate(dt) {
 
             <div class="space-y-1.5">
               <Label for="c-name">Nama Kategori <span class="text-destructive">*</span></Label>
-              <Input id="c-name" v-model="form.name" placeholder="Nama kategori" :disabled="saving" />
+              <Input 
+                id="c-name" 
+                v-model="form.name" 
+                placeholder="Nama kategori" 
+                :disabled="saving"
+                :class="{ 'border-destructive ring-destructive/20': formErrors.name }"
+              />
+              <p v-if="formErrors.name" class="text-xs text-destructive form-error">{{ formErrors.name }}</p>
             </div>
 
             <div class="space-y-1.5">
@@ -392,8 +454,12 @@ function formatDate(dt) {
                 rows="4"
                 :disabled="saving"
                 placeholder="Deskripsi opsional..."
-                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                :class="[
+                  'flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none',
+                  formErrors.description ? 'border-destructive ring-destructive/20' : ''
+                ]"
               />
+              <p v-if="formErrors.description" class="text-xs text-destructive form-error">{{ formErrors.description }}</p>
             </div>
           </div>
 
