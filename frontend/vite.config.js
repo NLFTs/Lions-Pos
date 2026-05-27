@@ -55,6 +55,7 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
       },
     },
     server: {
+      host: true,
       port: parseInt(env.VITE_DEV_PORT) || 5173,
       proxy: {
         '/api': 'http://localhost:8090',
