@@ -183,13 +183,18 @@ public class PartnerSeeder {
             "12345678", partner, cabang, roleCabang);
 
         // ── 4e. Cabang NLFTs Djogja ───────────────────────────────────────────
-        Branches cabangDjogja = new Branches();
-        cabangDjogja.setPartners(partner);
-        cabangDjogja.setName("Cabang NLFTs Djogja");
-        cabangDjogja.setAddress("Jl. Malioboro No. 1, Yogyakarta");
-        cabangDjogja.setIsActive(true);
-        cabangDjogja.setCreatedBy(adminPartner);
-        final Branches savedCabangDjogja = branchesRepository.save(cabangDjogja);
+        final Branches savedCabangDjogja = branchesRepository.findByPartners(partner).stream()
+            .filter(b -> b.getName().equals("Cabang NLFTs Djogja"))
+            .findFirst()
+            .orElseGet(() -> {
+                Branches cabangDjogja = new Branches();
+                cabangDjogja.setPartners(partner);
+                cabangDjogja.setName("Cabang NLFTs Djogja");
+                cabangDjogja.setAddress("Jl. Malioboro No. 1, Yogyakarta");
+                cabangDjogja.setIsActive(true);
+                cabangDjogja.setCreatedBy(adminPartner);
+                return branchesRepository.save(cabangDjogja);
+            });
 
         // Update user davingm ke cabang Djogja
         userRepository.findByUsername("davingm").ifPresent(u -> {
