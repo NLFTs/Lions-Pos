@@ -278,8 +278,8 @@ public class PermissionSeeder {
         roleRepository.save(ownerRole);
         log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
 
-        // 5. Assign "admin" role to super user "su"
-        userRepository.findByUsername("su").ifPresent(su -> {
+        // 5. Assign "admin" role to super user "superadmin"
+        userRepository.findByUsername("superadmin").ifPresent(su -> {
             Role managed = roleRepository.findBySlugAndPartnerId("admin", null).orElseThrow();
             if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {
                 su.getRoles().add(managed);
