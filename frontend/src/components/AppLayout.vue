@@ -233,6 +233,17 @@ const userInitial = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
+// ─── Plan / Upgrade ───────────────────────────────────────────────────
+const userPlan = computed(() => (user.value?.plan || 'basic').toLowerCase())
+const upgradeLabel = computed(() => {
+  if (userPlan.value === 'pro') return 'Upgrade to Enterprise'
+  return 'Upgrade to Pro'
+})
+const upgradeTo = computed(() => {
+  if (userPlan.value === 'pro') return '/pricing?plan=enterprise'
+  return '/pricing?plan=pro'
+})
+
 // ─── Language Switcher ────────────────────────────────────────────────
 
 // Get active color based on theme
@@ -654,9 +665,9 @@ onBeforeUnmount(() => {
 
             <!-- Upgrade Button -->
             <div class="px-3 pb-3">
-              <router-link to="/pricing">
+              <router-link :to="upgradeTo">
                 <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
-                  Upgrade to Pro
+                  {{ upgradeLabel }}
                 </Button>
               </router-link>
             </div>
