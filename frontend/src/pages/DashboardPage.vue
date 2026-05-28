@@ -7,6 +7,7 @@ import DashboardCard from '@/components/dashboard/Card.vue'
 import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import MobileSummaryTabs from '@/components/dashboard/MobileSummaryTabs.vue'
 import AboutModal from '@/components/dashboard/AboutModal.vue'
+import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue'
 import Badge from '@/components/ui/badge/Badge.vue' // Added missing import
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
@@ -345,6 +346,9 @@ function formatTime(dt) {
           </p>
         </div>
       </div>
+
+      <!-- ── Onboarding Checklist ── -->
+      <OnboardingChecklist :stats="stats" />
 
       <!-- Toolbar -->
       <div class="flex items-center justify-between gap-3">
