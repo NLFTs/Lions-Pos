@@ -12,6 +12,7 @@ public class MeResponse {
     private Long id;
     private String username;
     private String fullname;
+    private String avatar;
     private List<String> roles;
     private List<String> permissions;
     private Long branchId;

@@ -1,4 +1,4 @@
-<script setup>
+  <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppLayout from '@/components/AppLayout.vue'
