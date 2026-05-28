@@ -136,46 +136,58 @@ public class PartnerSeeder {
                 return branchesRepository.save(c);
             });
 
-        // ── 4b. Role Cabang (per-partner) ─────────────────────────────────────
-        Role roleCabang = createPartnerRoleIfNotExists(
-            "cabang", "Kasir Cabang", partner, adminPartner,
-            new String[]{
-                "branch.index", "branch.show",
-                "produk.index", "produk.show",
-                "category.index", "category.show",
-                "stock_balance.index", "stock_balance.show",
-                "stock_mutation.index", "stock_mutation.show",
-                "stock_opname.index", "stock_opname.show", "stock_opname.store", "stock_opname.update",
-                "transfer_request.index", "transfer_request.show", "transfer_request.store",
-                "order.index", "order.show", "order.store", "order.update",
-                "order_item.index", "order_item.show", "order_item.store",
-                "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
-                "supplier.index", "supplier.show",
-                "pos.index",
-                "dashboard.index",
-                "report.index",
-                "voucher.index", "voucher.show",
-            }
-        );
+        // ── 4b. Role Cabang (per-partner) — gunakan template yang sudah di-seed ──
+        final Partners partnerForRole = partner;
+        final User adminForRole = adminPartner;
+        Role roleCabang = roleRepository.findBySlugAndPartnerId("pengelola-cabang", partner.getId())
+            .orElseGet(() -> {
+                log.warn("[PartnerSeeder] Template role 'pengelola-cabang' belum ada, buat manual.");
+                return createPartnerRoleIfNotExists(
+                    "pengelola-cabang", "Pengelola Cabang", partnerForRole, adminForRole,
+                    new String[]{
+                        "produk.index", "produk.show",
+                        "category.index", "category.show",
+                        "stock_balance.index", "stock_balance.show",
+                        "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
+                        "stock_mutation.index", "stock_mutation.show",
+                        "transfer_request.index", "transfer_request.show",
+                        "transfer_request.store", "transfer_request.update",
+                        "stock_opname.index", "stock_opname.show",
+                        "purchase_order.index", "purchase_order.show",
+                        "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
+                        "supplier.index", "supplier.show",
+                        "pos.index",
+                        "order.index", "order.show", "order.store", "order.update",
+                        "order_item.index", "order_item.show", "order_item.store",
+                        "voucher.index", "voucher.show",
+                        "dashboard.index",
+                        "report.index",
+                    }
+                );
+            });
 
-        // ── 4c. Role Gudang (per-partner) ─────────────────────────────────────
-        Role roleGudang = createPartnerRoleIfNotExists(
-            "gudang", "Pengelola Gudang", partner, adminPartner,
-            new String[]{
-                "warehouse.index", "warehouse.show",
-                "produk.index", "produk.show",
-                "category.index", "category.show",
-                "stock_balance.index", "stock_balance.show", "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
-                "stock_mutation.index", "stock_mutation.show",
-                "stock_opname.index", "stock_opname.show", "stock_opname.store", "stock_opname.update",
-                "transfer_request.index", "transfer_request.show", "transfer_request.store", "transfer_request.update",
-                "purchase_order.index", "purchase_order.show", "purchase_order.store", "purchase_order.update",
-                "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
-                "supplier.index", "supplier.show",
-                "dashboard.index",
-                "report.index",
-            }
-        );
+        // ── 4c. Role Gudang (per-partner) — gunakan template yang sudah di-seed ──
+        Role roleGudang = roleRepository.findBySlugAndPartnerId("pengelola-gudang", partner.getId())
+            .orElseGet(() -> {
+                log.warn("[PartnerSeeder] Template role 'pengelola-gudang' belum ada, buat manual.");
+                return createPartnerRoleIfNotExists(
+                    "pengelola-gudang", "Pengelola Gudang", partnerForRole, adminForRole,
+                    new String[]{
+                        "produk.index", "produk.show",
+                        "category.index", "category.show",
+                        "stock_balance.index", "stock_balance.show",
+                        "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
+                        "stock_mutation.index", "stock_mutation.show",
+                        "transfer_request.index", "transfer_request.show",
+                        "transfer_request.store", "transfer_request.update",
+                        "stock_opname.index", "stock_opname.show",
+                        "purchase_order.index", "purchase_order.show",
+                        "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
+                        "supplier.index", "supplier.show",
+                        "dashboard.index",
+                    }
+                );
+            });
 
         // ── 4d. User Cabang: davingm ──────────────────────────────────────────
         createBranchUserIfNotExists(
@@ -183,13 +195,18 @@ public class PartnerSeeder {
             "12345678", partner, cabang, roleCabang);
 
         // ── 4e. Cabang NLFTs Djogja ───────────────────────────────────────────
-        Branches cabangDjogja = new Branches();
-        cabangDjogja.setPartners(partner);
-        cabangDjogja.setName("Cabang NLFTs Djogja");
-        cabangDjogja.setAddress("Jl. Malioboro No. 1, Yogyakarta");
-        cabangDjogja.setIsActive(true);
-        cabangDjogja.setCreatedBy(adminPartner);
-        final Branches savedCabangDjogja = branchesRepository.save(cabangDjogja);
+        final Branches savedCabangDjogja = branchesRepository.findByPartners(partnerRef).stream()
+            .filter(b -> b.getName().equals("Cabang NLFTs Djogja"))
+            .findFirst()
+            .orElseGet(() -> {
+                Branches cabangDjogja = new Branches();
+                cabangDjogja.setPartners(partnerRef);
+                cabangDjogja.setName("Cabang NLFTs Djogja");
+                cabangDjogja.setAddress("Jl. Malioboro No. 1, Yogyakarta");
+                cabangDjogja.setIsActive(true);
+                cabangDjogja.setCreatedBy(adminRef);
+                return branchesRepository.save(cabangDjogja);
+            });
 
         // Update user davingm ke cabang Djogja
         userRepository.findByUsername("davingm").ifPresent(u -> {

@@ -40,6 +40,7 @@ const { toast } = useToast()
 const authStore = useAuthStore()
 
 const canReceive = computed(() => !authStore.isAdmin && authStore.user?.roles?.length > 0)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const pos = ref([])
@@ -441,7 +442,7 @@ onMounted(async () => {
             <DataTableSearch v-model="searchQuery" placeholder="Cari No. PO atau Supplier..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('purchase_order.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('purchase_order.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat PO</span>
           </Button>
@@ -460,7 +461,7 @@ onMounted(async () => {
               <ClipboardList class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada Purchase Order.</p>
-            <Button v-if="can('purchase_order.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('purchase_order.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Buat PO Pertama
             </Button>
@@ -499,7 +500,7 @@ onMounted(async () => {
                 </div>
                 
                 <!-- Action Buttons directly on Mobile Card -->
-                <div v-if="['draft', 'ordered'].includes(po.status?.toLowerCase()) && can('purchase_order.update')" class="flex justify-end gap-2 mt-1 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40">
+                <div v-if="['draft', 'ordered'].includes(po.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin" class="flex justify-end gap-2 mt-1 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40">
                   <Button 
                     v-if="po.status?.toLowerCase() === 'draft'"
                     size="sm"
@@ -577,7 +578,7 @@ onMounted(async () => {
                     <td class="pr-5 py-4 text-right">
                       <div class="flex items-center justify-end gap-2">
                         <Button 
-                          v-if="po.status?.toLowerCase() === 'draft' && can('purchase_order.update')"
+                          v-if="po.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
                           size="sm"
                           variant="outline"
                           class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-700 hover:text-zinc-900 shrink-0"
@@ -590,7 +591,7 @@ onMounted(async () => {
                         </Button>
                         
                         <Button 
-                          v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive"
+                          v-if="po.status?.toLowerCase() === 'ordered' && can('purchase_order.update') && canReceive && !isSuperAdmin"
                           size="sm"
                           class="h-7 w-28 text-xs flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm shrink-0"
                           @click.stop="openReceiptDrawer(po)"
@@ -877,7 +878,7 @@ onMounted(async () => {
               </div>
               <div class="flex gap-2">
                 <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update')"
+                  v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
                   class="flex-1"
                   :disabled="updatingStatus"
                   @click="updatePOStatus(selectedPO.id, 'ordered')"
@@ -887,7 +888,7 @@ onMounted(async () => {
                   Kirim PO
                 </Button>
                 <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive"
+                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive && !isSuperAdmin"
                   class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                   @click="openReceiptDrawer(selectedPO)"
                 >
@@ -895,7 +896,7 @@ onMounted(async () => {
                   Terima Barang
                 </Button>
                 <Button 
-                  v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update')"
+                  v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin"
                   variant="destructive"
                   class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border-red-200"
                   :disabled="updatingStatus"

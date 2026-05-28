@@ -34,32 +34,31 @@ public class PermissionSeeder {
 
     // slug, name, description
     private static final String[][] ALL_MODULES = {
-        {"partner",    "Partner",    "Manage blog partners"},
-        {"branch",     "Branch",     "Manage partner branches"},
-        {"warehouse",  "Warehouse",  "Manage partner warehouses"},
-        {"branch_warehouse", "Branch Warehouse", "Manage branch warehouses"},
-        {"stock_balance",      "Stock Balance",      "Manage stock balances"},
-        {"stock_mutation", "Stock Mutation", "Manage stock mutations"},
-        {"stock_opname", "Stock Opname", "Manage stock opname"},
-        {"category", "Category", "Manage product categories"},
-        {"produk",    "Product",    "Manage blog products"},
-        {"product_photo", "Product Photo", "Manage blog product photo"},
-        {"role",       "Role",       "Manage user roles"},
-        {"permission", "Permission", "Manage system permissions"},
-        {"module",     "Module",     "Manage permission modules"},
-        {"user",       "User",       "Manage users"},
-        {"log",        "Log",        "View audit logs"},
-        {"dashboard",  "Dashboard",  "View dashboard metrics"},
-        {"pos",        "Point of Sale", "Access cashier system"},
-        {"report",     "Reports",    "View business reports"},
-        {"transfer_request", "Transfer Request", "Manage stock transfers"},
-        {"stock_opname", "Stock Opname", "Manage stock opname"},
-        {"purchase_order", "Purchase Order", "Manage purchase orders"},
-        {"purchase_receipt", "Purchase Receipt", "Manage purchase receipts"},
-        {"supplier", "Supplier", "Manage suppliers"},
-        {"order", "Order", "Manage orders"},
-        {"order_item", "Order Item", "Manage order items"},
-        {"voucher", "Voucher", "Manage vouchers and discounts"},
+        {"partner",           "Partner",           "Manage blog partners"},
+        {"branch",            "Branch",            "Manage partner branches"},
+        {"warehouse",         "Warehouse",         "Manage partner warehouses"},
+        {"branch_warehouse",  "Branch Warehouse",  "Manage branch warehouses"},
+        {"stock_balance",     "Stock Balance",     "Manage stock balances"},
+        {"stock_mutation",    "Stock Mutation",    "Manage stock mutations"},
+        {"stock_opname",      "Stock Opname",      "Manage stock opname"},
+        {"category",          "Category",          "Manage product categories"},
+        {"produk",            "Product",           "Manage blog products"},
+        {"product_photo",     "Product Photo",     "Manage blog product photo"},
+        {"role",              "Role",              "Manage user roles"},
+        {"permission",        "Permission",        "Manage system permissions"},
+        {"module",            "Module",            "Manage permission modules"},
+        {"user",              "User",              "Manage users"},
+        {"log",               "Log",               "View audit logs"},
+        {"dashboard",         "Dashboard",         "View dashboard metrics"},
+        {"pos",               "Point of Sale",     "Access cashier system"},
+        {"report",            "Reports",           "View business reports"},
+        {"transfer_request",  "Transfer Request",  "Manage stock transfers"},
+        {"purchase_order",    "Purchase Order",    "Manage purchase orders"},
+        {"purchase_receipt",  "Purchase Receipt",  "Manage purchase receipts"},
+        {"supplier",          "Supplier",          "Manage suppliers"},
+        {"order",             "Order",             "Manage orders"},
+        {"order_item",        "Order Item",        "Manage order items"},
+        {"voucher",           "Voucher",           "Manage vouchers and discounts"},
     };
 
     // slug, name, moduleSlug
@@ -151,17 +150,11 @@ public class PermissionSeeder {
         {"pos.index",       "Access POS",       "pos"},
         {"report.index",    "View Reports",    "report"},
 
-        {"transfer_request.index", "View All Transfer Requests", "transfer_request"},
-        {"transfer_request.show",  "View Transfer Request Detail", "transfer_request"},
-        {"transfer_request.store", "Create Transfer Request", "transfer_request"},
-        {"transfer_request.update", "Update Transfer Request Status", "transfer_request"},
-        {"transfer_request.delete", "Delete Transfer Request", "transfer_request"},
-
-        {"stock_opname.index", "View All Stock Opname", "stock_opname"},
-        {"stock_opname.show",  "View Stock Opname Detail", "stock_opname"},
-        {"stock_opname.store", "Create Stock Opname", "stock_opname"},
-        {"stock_opname.update", "Update Stock Opname", "stock_opname"},
-        {"stock_opname.delete", "Delete Stock Opname", "stock_opname"},
+        {"transfer_request.index",  "View All Transfer Requests",      "transfer_request"},
+        {"transfer_request.show",   "View Transfer Request Detail",    "transfer_request"},
+        {"transfer_request.store",  "Create Transfer Request",         "transfer_request"},
+        {"transfer_request.update", "Update Transfer Request Status",  "transfer_request"},
+        {"transfer_request.delete", "Delete Transfer Request",         "transfer_request"},
 
         {"purchase_order.index", "View All Purchase Orders", "purchase_order"},
         {"purchase_order.show",  "View Purchase Order Detail", "purchase_order"},
@@ -231,19 +224,40 @@ public class PermissionSeeder {
         }
 
         List<Permission> allPerms = permissionRepository.findAll();
-        Set<Permission> allPermsSet = new HashSet<>(allPerms);
 
-        // 3. Create "admin" role with ALL permissions (Global / NULL)
+        // 3. Create "admin" role — Super Admin hanya bisa akses modul tertentu
+        //    Bisa LIHAT semua, tapi CRUD hanya di: role, permission, module, user, partner, log
         Role adminRole = roleRepository.findBySlugAndPartnerId("admin", null).orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin");
-            r.setName("Administrator");
+            r.setName("Super Administrator");
             r.setType(Role.Type.INTERNAL);
             return r;
         });
-        adminRole.setPermissions(allPermsSet);
+
+        // Modul yang boleh full CRUD oleh superadmin
+        Set<String> superAdminFullCrudModules = Set.of(
+            "role", "permission", "module", "user", "partner", "log"
+        );
+
+        Set<Permission> superAdminPerms = new HashSet<>();
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            String permSlug   = p.getSlug();
+            // Modul full CRUD → semua permission diizinkan
+            if (superAdminFullCrudModules.contains(moduleSlug)) {
+                superAdminPerms.add(p);
+            }
+            // Modul lainnya → hanya index & show (read-only)
+            else if (permSlug.endsWith(".index") || permSlug.endsWith(".show")) {
+                superAdminPerms.add(p);
+            }
+        }
+
+        adminRole.setPermissions(superAdminPerms);
         Role savedAdmin = roleRepository.save(adminRole);
-        log.info("[SEEDER] Admin role '{}' now has {} permissions", savedAdmin.getSlug(), savedAdmin.getPermissions().size());
+        log.info("[SEEDER] Admin role '{}' now has {} permissions (read-only + full CRUD on: role/permission/module/user/partner/log)",
+            savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
         // 4. Update template roles with specific module access
         // Role "owner" — pemilik mitra, akses penuh ke semua modul mitranya
@@ -285,8 +299,8 @@ public class PermissionSeeder {
         roleRepository.save(ownerRole);
         log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
 
-        // 5. Assign "admin" role to super user "su"
-        userRepository.findByUsername("su").ifPresent(su -> {
+        // 5. Assign "admin" role to super user "superadmin"
+        userRepository.findByUsername("superadmin").ifPresent(su -> {
             Role managed = roleRepository.findBySlugAndPartnerId("admin", null).orElseThrow();
             if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {
                 su.getRoles().add(managed);

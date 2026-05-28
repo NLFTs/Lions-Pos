@@ -29,6 +29,7 @@ const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const products = ref([])
@@ -51,6 +52,11 @@ const activeFilterCount = computed(() => {
 })
 
 const togglingStatus = ref(null)
+const TOGGLE_COOLDOWN_MS = 1000
+const lastToggleTime = ref(0)
+const isToggleOnCooldown = computed(() => {
+  return Date.now() - lastToggleTime.value < TOGGLE_COOLDOWN_MS
+})
 
 function clearFilters() {
   sortBy.value = 'terbaru'
@@ -123,6 +129,12 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
+// ─── Validasi frontend ───────────────────────────────────────────────────────
+const formErrors = ref({
+  name: '',
+  price: '',
+  sku: ''
+})
 
 // ─── Fetch products ───────────────────────────────────────────────────────────
 async function fetchProducts(page = 0) {
@@ -185,6 +197,7 @@ onBeforeUnmount(() => {
 // ─── Create / Edit Drawer ─────────────────────────────────────────────────────
 function openCreate() {
   form.value = emptyForm()
+  formErrors.value = { name: '', price: '', sku: '' }
   formError.value = null
   modalMode.value = 'create'
   showDrawer.value = true
@@ -202,6 +215,7 @@ function openEdit(product) {
     image: null,
     imagePreview: product.imageUrl || null,
   }
+  formErrors.value = { name: '', price: '', sku: '' }
   formError.value = null
   modalMode.value = 'edit'
   showDrawer.value = true
@@ -226,6 +240,11 @@ function handleImageUpload(event) {
 
 async function saveProduct() {
   formError.value = null
+  if (!validateForm()) {
+    const firstErrorField = document.querySelector('.form-error')
+    if (firstErrorField) firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
   saving.value = true
   try {
     let imageUrl = undefined
@@ -272,6 +291,46 @@ function removeProductImage() {
   form.value.image = null
   form.value.imagePreview = null
 }
+function validateForm() {
+  // Reset errors
+  formErrors.value = { name: '', price: '', sku: '' }
+  
+  let isValid = true
+  
+  // 1. Nama produk
+  if (!form.value.name || form.value.name.trim() === '') {
+    formErrors.value.name = 'Nama produk wajib diisi'
+    isValid = false
+  } else if (form.value.name.length < 3) {
+    formErrors.value.name = 'Nama produk minimal 3 karakter'
+    isValid = false
+  } else if (form.value.name.length > 100) {
+    formErrors.value.name = 'Nama produk maksimal 100 karakter'
+    isValid = false
+  }
+  
+  // 2. Harga
+  const price = parseFloat(form.value.price)
+  if (form.value.price === '' || form.value.price === null || isNaN(price)) {
+    formErrors.value.price = 'Harga wajib diisi'
+    isValid = false
+  } else if (price < 0) {
+    formErrors.value.price = 'Harga tidak boleh negatif'
+    isValid = false
+  } else if (price === 0) {
+    formErrors.value.price = 'Harga harus lebih dari 0'
+    isValid = false
+  }
+  
+  // 3. SKU (opsional, tapi jika diisi validasi panjang)
+  if (form.value.sku && form.value.sku.length > 50) {
+    formErrors.value.sku = 'SKU maksimal 50 karakter'
+    isValid = false
+  }
+  
+  return isValid
+}
+
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
 const deleteModal = ref({
@@ -313,13 +372,24 @@ async function confirmDelete() {
   }
 }
 
+
 async function toggleStatus(product) {
+  // Cek cooldown global
+  const now = Date.now()
+  if (now - lastToggleTime.value < TOGGLE_COOLDOWN_MS) {
+    toast.warning('Tunggu sebentar sebelum mengganti status lagi')
+    return
+  }
+  
   if (!can('produk.update')) {
     toast.error('Anda tidak memiliki izin untuk mengubah status produk.')
     return
   }
   
   if (togglingStatus.value === product.id) return
+  
+  // Set cooldown
+  lastToggleTime.value = now
   
   togglingStatus.value = product.id
   const originalStatus = product.is_active
@@ -472,7 +542,7 @@ function productAvatarStyle(name = '') {
           </div>
           <!-- /Filter Dropdown -->
 
-          <Button v-if="can('produk.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('produk.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Tambah Produk</span>
           </Button>
@@ -500,7 +570,7 @@ function productAvatarStyle(name = '') {
             </div>
             <p class="text-sm font-medium">Belum ada produk</p>
             <p class="text-xs text-muted-foreground/70 mt-1">Mulai dengan menambahkan produk pertama Anda.</p>
-            <Button v-if="can('produk.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('produk.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Tambah Produk
             </Button>
@@ -535,7 +605,7 @@ function productAvatarStyle(name = '') {
                   
                   <div class="flex items-center gap-1 shrink-0">
                     <Button
-                      v-if="can('produk.update')"
+                      v-if="can('produk.update') && !isSuperAdmin"
                       variant="ghost"
                       size="icon"
                       class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
@@ -544,7 +614,7 @@ function productAvatarStyle(name = '') {
                       <Pencil class="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      v-if="can('produk.delete')"
+                      v-if="can('produk.delete') && !isSuperAdmin"
                       variant="ghost"
                       size="icon"
                       class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
@@ -569,7 +639,7 @@ function productAvatarStyle(name = '') {
                       type="button"
                       role="switch"
                       :aria-checked="product.is_active"
-                      :disabled="togglingStatus === product.id"
+                      :disabled="togglingStatus === product.id || isToggleOnCooldown"
                       class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
                       @click.stop="toggleStatus(product)"
@@ -688,7 +758,7 @@ function productAvatarStyle(name = '') {
                     <TableCell class="pr-4 py-3 text-right">
                       <div class="flex justify-end gap-1 transition-opacity">
                         <Button
-                          v-if="can('produk.update')"
+                          v-if="can('produk.update') && !isSuperAdmin"
                           variant="ghost"
                           size="icon"
                           class="h-7 w-7 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md"
@@ -698,7 +768,7 @@ function productAvatarStyle(name = '') {
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          v-if="can('produk.delete')"
+                          v-if="can('produk.delete') && !isSuperAdmin"
                           variant="ghost"
                           size="icon"
                           class="h-7 w-7 text-zinc-400 hover:text-destructive hover:bg-destructive/10 rounded-md"
@@ -813,15 +883,29 @@ function productAvatarStyle(name = '') {
             </div>
 
             <!-- Nama Produk -->
-            <div class="space-y-1.5">
-              <Label for="f-name">Nama Produk <span class="text-destructive">*</span></Label>
-              <Input id="f-name" v-model="form.name" placeholder="Contoh: Kaos Polos Putih" :disabled="saving" />
-            </div>
+          <div class="space-y-1.5">
+            <Label for="f-name">Nama Produk <span class="text-destructive">*</span></Label>
+            <Input 
+              id="f-name" 
+              v-model="form.name" 
+              placeholder="Contoh: Kaos Polos Putih" 
+              :disabled="saving"
+              :class="{ 'border-destructive ring-destructive/20': formErrors.name }"
+            />
+            <p v-if="formErrors.name" class="text-xs text-destructive form-error">{{ formErrors.name }}</p>
+          </div>
 
             <!-- SKU -->
             <div class="space-y-1.5">
               <Label for="f-sku">SKU <span class="text-muted-foreground text-xs">(opsional)</span></Label>
-              <Input id="f-sku" v-model="form.sku" placeholder="Contoh: KPP-001" :disabled="saving" />
+              <Input 
+                id="f-sku" 
+                v-model="form.sku" 
+                placeholder="Contoh: KPP-001" 
+                :disabled="saving"
+                :class="{ 'border-destructive ring-destructive/20': formErrors.sku }"
+              />
+              <p v-if="formErrors.sku" class="text-xs text-destructive form-error">{{ formErrors.sku }}</p>
             </div>
 
             <!-- Harga -->
@@ -838,8 +922,10 @@ function productAvatarStyle(name = '') {
                   placeholder="0"
                   :disabled="saving"
                   class="pl-9"
+                  :class="{ 'border-destructive ring-destructive/20': formErrors.price }"
                 />
               </div>
+              <p v-if="formErrors.price" class="text-xs text-destructive form-error">{{ formErrors.price }}</p>
             </div>
 
             <!-- Kategori -->

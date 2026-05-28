@@ -40,6 +40,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 
 // ─── 💡 SMART DETECTOR: Sinkronisasi Identitas Staff Lapangan ────────────────
 const isStaff = computed(() => !!(authStore.user?.branchId || authStore.user?.warehouseId))
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 const userLocationName = computed(() => {
   if (authStore.user?.branchId) return authStore.user.branchName
   if (authStore.user?.warehouseId) return authStore.user.warehouseName
@@ -340,7 +341,7 @@ onMounted(fetchData)
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi asal/tujuan..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('transfer_request.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('transfer_request.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat Transfer</span>
           </Button>
@@ -358,7 +359,7 @@ onMounted(fetchData)
               <Repeat2 class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada permintaan transfer.</p>
-            <Button v-if="can('transfer_request.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('transfer_request.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Mulai Transfer
             </Button>
@@ -655,7 +656,7 @@ onMounted(fetchData)
                 <div class="flex gap-2 w-full">
                   
                   <Button 
-                    v-if="selectedTR.status === 'pending' && !isStaff && can('transfer_request.update')"
+                    v-if="selectedTR.status === 'pending' && !isStaff && can('transfer_request.update') && !isSuperAdmin"
                     class="flex-1 bg-primary text-primary-foreground font-bold"
                     :disabled="updatingStatus"
                     @click="updateTRStatus(selectedTR.id, 'approved')"
@@ -666,7 +667,7 @@ onMounted(fetchData)
                   </Button>
 
                   <Button 
-                    v-if="selectedTR.status === 'approved' && isStaff && isSourceSender && can('transfer_request.update')"
+                    v-if="selectedTR.status === 'approved' && isStaff && isSourceSender && can('transfer_request.update') && !isSuperAdmin"
                     class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold"
                     :disabled="updatingStatus"
                     @click="updateTRStatus(selectedTR.id, 'in_transit')"
@@ -677,7 +678,7 @@ onMounted(fetchData)
                   </Button>
 
                   <Button 
-                    v-if="selectedTR.status === 'in_transit' && isStaff && isTargetReceiver && can('transfer_request.update')"
+                    v-if="selectedTR.status === 'in_transit' && isStaff && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin"
                     class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                     :disabled="updatingStatus"
                     @click="updateTRStatus(selectedTR.id, 'received')"

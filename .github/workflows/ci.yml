@@ -16,7 +16,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js (untuk pnpm)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -28,15 +28,7 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build Project (Frontend + Backend)
-        # -DskipTests mematikan proses testing sehingga TIDAK PERLU database sama sekali
+      - name: Build Project
         run: |
           chmod +x ./mvnw
           ./mvnw clean package -DskipTests
-
-      - name: Upload JAR Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: spravel-app
-          path: target/*.jar
-          retention-days: 7

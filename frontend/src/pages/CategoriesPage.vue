@@ -23,6 +23,7 @@ const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const categories = ref([])
@@ -56,6 +57,16 @@ const modalMode = ref('create')
 const saving = ref(false)
 const formError = ref(null)
 const form = ref({ id: null, name: '', description: '' })
+
+// ─── Validasi frontend ───────────────────────────────────────────────────────
+const formErrors = ref({
+  name: '',
+  description: ''
+})
+
+// Cooldown untuk submit (opsional, mencegah spam klik)
+const lastSubmitTime = ref(0)
+const SUBMIT_COOLDOWN_MS = 1000 // 1 detik
 
 // ─── Customize Columns ────────────────────────────────────────────────────────
 const showColumnMenu = ref(false)
@@ -117,6 +128,7 @@ async function fetchCategories() {
 // ─── Create / Edit ────────────────────────────────────────────────────────────
 function openCreate() {
   form.value = { id: null, name: '', description: '' }
+  formErrors.value = { name: '', description: '' }
   formError.value = null
   modalMode.value = 'create'
   showDrawer.value = true
@@ -128,6 +140,7 @@ function closeDrawer() {
 
 function openEdit(cat) {
   form.value = { id: cat.id, name: cat.name, description: cat.description || '' }
+  formErrors.value = { name: '', description: '' }
   formError.value = null
   modalMode.value = 'edit'
   showDrawer.value = true
@@ -135,6 +148,22 @@ function openEdit(cat) {
 
 async function saveCategory() {
   formError.value = null
+  
+  // Validasi frontend
+  if (!validateCategoryForm()) {
+    const firstErrorField = document.querySelector('.form-error')
+    if (firstErrorField) firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
+  
+  // Cooldown untuk mencegah spam submit
+  const now = Date.now()
+  if (now - lastSubmitTime.value < SUBMIT_COOLDOWN_MS) {
+    toast.warning('Tunggu sebentar sebelum menyimpan lagi')
+    return
+  }
+  lastSubmitTime.value = now
+  
   saving.value = true
   try {
     if (modalMode.value === 'create') {
@@ -153,6 +182,33 @@ async function saveCategory() {
   } finally {
     saving.value = false
   }
+}
+
+function validateCategoryForm() {
+  // Reset errors
+  formErrors.value = { name: '', description: '' }
+  
+  let isValid = true
+  
+  // 1. Nama kategori
+  if (!form.value.name || form.value.name.trim() === '') {
+    formErrors.value.name = 'Nama kategori wajib diisi'
+    isValid = false
+  } else if (form.value.name.length < 3) {
+    formErrors.value.name = 'Nama kategori minimal 3 karakter'
+    isValid = false
+  } else if (form.value.name.length > 100) {
+    formErrors.value.name = 'Nama kategori maksimal 100 karakter'
+    isValid = false
+  }
+  
+  // 2. Deskripsi (opsional, batasi panjang)
+  if (form.value.description && form.value.description.length > 255) {
+    formErrors.value.description = 'Deskripsi maksimal 255 karakter'
+    isValid = false
+  }
+  
+  return isValid
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
@@ -225,7 +281,7 @@ function formatDate(dt) {
               </div>
             </Transition>
           </div>
-          <Button v-if="can('category.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
+          <Button v-if="can('category.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Tambah Kategori</span>
           </Button>
@@ -242,7 +298,7 @@ function formatDate(dt) {
 
         <div v-else-if="filteredCategories.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <p class="text-sm">Belum ada kategori.</p>
-          <Button v-if="can('category.store') && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Buat kategori pertama</Button>
+          <Button v-if="can('category.store') && !isSuperAdmin && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Buat kategori pertama</Button>
         </div>
 
         <div v-else>
@@ -266,7 +322,7 @@ function formatDate(dt) {
                 
                 <div class="flex items-center gap-1 shrink-0">
                   <Button
-                    v-if="can('category.update')"
+                    v-if="can('category.update') && !isSuperAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
@@ -275,7 +331,7 @@ function formatDate(dt) {
                     <Pencil class="h-3.5 w-3.5" />
                   </Button>
                   <Button
-                    v-if="can('category.delete')"
+                    v-if="can('category.delete') && !isSuperAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
@@ -316,10 +372,10 @@ function formatDate(dt) {
                   <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
                   <td class="px-5 py-3 text-right">
                     <div class="flex justify-end gap-1">
-                      <Button v-if="can('category.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
+                      <Button v-if="can('category.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
                         <Pencil class="h-3.5 w-3.5" />
                       </Button>
-                      <Button v-if="can('category.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
+                      <Button v-if="can('category.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
                         <Trash2 class="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -381,7 +437,14 @@ function formatDate(dt) {
 
             <div class="space-y-1.5">
               <Label for="c-name">Nama Kategori <span class="text-destructive">*</span></Label>
-              <Input id="c-name" v-model="form.name" placeholder="Nama kategori" :disabled="saving" />
+              <Input 
+                id="c-name" 
+                v-model="form.name" 
+                placeholder="Nama kategori" 
+                :disabled="saving"
+                :class="{ 'border-destructive ring-destructive/20': formErrors.name }"
+              />
+              <p v-if="formErrors.name" class="text-xs text-destructive form-error">{{ formErrors.name }}</p>
             </div>
 
             <div class="space-y-1.5">
@@ -392,8 +455,12 @@ function formatDate(dt) {
                 rows="4"
                 :disabled="saving"
                 placeholder="Deskripsi opsional..."
-                class="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                :class="[
+                  'flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none',
+                  formErrors.description ? 'border-destructive ring-destructive/20' : ''
+                ]"
               />
+              <p v-if="formErrors.description" class="text-xs text-destructive form-error">{{ formErrors.description }}</p>
             </div>
           </div>
 
