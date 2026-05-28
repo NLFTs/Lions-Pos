@@ -23,6 +23,7 @@ const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const branches = ref([])
@@ -252,7 +253,7 @@ onMounted(fetchLocations)
           <div class="w-full sm:w-72">
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi..." />
           </div>
-          <Button v-if="can('branch.store') || can('warehouse.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="(can('branch.store') || can('warehouse.store')) && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Tambah Lokasi</span>
           </Button>
@@ -270,7 +271,7 @@ onMounted(fetchLocations)
               <MapPin class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada data lokasi.</p>
-            <Button v-if="can('branch.store') || can('warehouse.store')" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="(can('branch.store') || can('warehouse.store')) && !isSuperAdmin" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Tambah Lokasi
             </Button>
@@ -293,10 +294,10 @@ onMounted(fetchLocations)
                     </div>
                   </div>
                   <div class="flex gap-1 shrink-0">
-                    <Button v-if="l.type === 'branch' ? can('branch.update') : can('warehouse.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(l)">
+                    <Button v-if="(l.type === 'branch' ? can('branch.update') : can('warehouse.update')) && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(l)">
                       <Pencil class="h-3.5 w-3.5" />
                     </Button>
-                    <Button v-if="l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                    <Button v-if="(l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')) && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
                       <Trash2 class="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -338,10 +339,10 @@ onMounted(fetchLocations)
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <div class="flex justify-end gap-1">
-                        <Button v-if="l.type === 'branch' ? can('branch.update') : can('warehouse.update')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
+                        <Button v-if="(l.type === 'branch' ? can('branch.update') : can('warehouse.update')) && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
-                        <Button v-if="l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                        <Button v-if="(l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')) && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>

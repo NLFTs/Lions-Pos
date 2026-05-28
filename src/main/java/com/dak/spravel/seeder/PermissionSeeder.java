@@ -224,19 +224,40 @@ public class PermissionSeeder {
         }
 
         List<Permission> allPerms = permissionRepository.findAll();
-        Set<Permission> allPermsSet = new HashSet<>(allPerms);
 
-        // 3. Create "admin" role with ALL permissions (Global / NULL)
+        // 3. Create "admin" role — Super Admin hanya bisa akses modul tertentu
+        //    Bisa LIHAT semua, tapi CRUD hanya di: role, permission, module, user, partner, log
         Role adminRole = roleRepository.findBySlugAndPartnerId("admin", null).orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin");
-            r.setName("Administrator");
+            r.setName("Super Administrator");
             r.setType(Role.Type.INTERNAL);
             return r;
         });
-        adminRole.setPermissions(allPermsSet);
+
+        // Modul yang boleh full CRUD oleh superadmin
+        Set<String> superAdminFullCrudModules = Set.of(
+            "role", "permission", "module", "user", "partner", "log"
+        );
+
+        Set<Permission> superAdminPerms = new HashSet<>();
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            String permSlug   = p.getSlug();
+            // Modul full CRUD → semua permission diizinkan
+            if (superAdminFullCrudModules.contains(moduleSlug)) {
+                superAdminPerms.add(p);
+            }
+            // Modul lainnya → hanya index & show (read-only)
+            else if (permSlug.endsWith(".index") || permSlug.endsWith(".show")) {
+                superAdminPerms.add(p);
+            }
+        }
+
+        adminRole.setPermissions(superAdminPerms);
         Role savedAdmin = roleRepository.save(adminRole);
-        log.info("[SEEDER] Admin role '{}' now has {} permissions", savedAdmin.getSlug(), savedAdmin.getPermissions().size());
+        log.info("[SEEDER] Admin role '{}' now has {} permissions (read-only + full CRUD on: role/permission/module/user/partner/log)",
+            savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
         // 4. Update template roles with specific module access
         // Role "owner" — pemilik mitra, akses penuh ke semua modul mitranya

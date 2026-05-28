@@ -35,6 +35,7 @@ const { toast } = useToast()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const balances = ref([])
@@ -266,12 +267,12 @@ onMounted(fetchData)
           <p class="text-muted-foreground text-sm mt-1">Pantau ketersediaan barang di seluruh lokasi.</p>
         </div>
         <div class="flex items-center gap-2">
-          <Button v-if="can('stock_balance.transfer')" @click="openTransfer" size="sm" variant="outline" class="flex items-center gap-2 border-zinc-200 dark:border-zinc-800">
+          <Button v-if="can('stock_balance.transfer') && !isSuperAdmin" @click="openTransfer" size="sm" variant="outline" class="flex items-center gap-2 border-zinc-200 dark:border-zinc-800">
             <ArrowUpDown class="h-4 w-4 text-zinc-500" />
             <span>Transfer Stok</span>
           </Button>
 
-          <Button v-if="can('stock_balance.store')" @click="openAdjustment" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90">
+          <Button v-if="can('stock_balance.store') && !isSuperAdmin" @click="openAdjustment" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90">
             <Plus class="h-4 w-4" />
             <span>Stok Awal / Koreksi</span>
           </Button>

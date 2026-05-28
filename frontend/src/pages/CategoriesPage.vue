@@ -23,6 +23,7 @@ const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const categories = ref([])
@@ -280,7 +281,7 @@ function formatDate(dt) {
               </div>
             </Transition>
           </div>
-          <Button v-if="can('category.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
+          <Button v-if="can('category.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Tambah Kategori</span>
           </Button>
@@ -297,7 +298,7 @@ function formatDate(dt) {
 
         <div v-else-if="filteredCategories.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <p class="text-sm">Belum ada kategori.</p>
-          <Button v-if="can('category.store') && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Buat kategori pertama</Button>
+          <Button v-if="can('category.store') && !isSuperAdmin && !searchQuery" variant="outline" class="mt-3" @click="openCreate">Buat kategori pertama</Button>
         </div>
 
         <div v-else>
@@ -321,7 +322,7 @@ function formatDate(dt) {
                 
                 <div class="flex items-center gap-1 shrink-0">
                   <Button
-                    v-if="can('category.update')"
+                    v-if="can('category.update') && !isSuperAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
@@ -330,7 +331,7 @@ function formatDate(dt) {
                     <Pencil class="h-3.5 w-3.5" />
                   </Button>
                   <Button
-                    v-if="can('category.delete')"
+                    v-if="can('category.delete') && !isSuperAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
@@ -371,10 +372,10 @@ function formatDate(dt) {
                   <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
                   <td class="px-5 py-3 text-right">
                     <div class="flex justify-end gap-1">
-                      <Button v-if="can('category.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
+                      <Button v-if="can('category.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
                         <Pencil class="h-3.5 w-3.5" />
                       </Button>
-                      <Button v-if="can('category.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
+                      <Button v-if="can('category.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
                         <Trash2 class="h-3.5 w-3.5" />
                       </Button>
                     </div>

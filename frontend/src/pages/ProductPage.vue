@@ -29,6 +29,7 @@ const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const products = ref([])
@@ -541,7 +542,7 @@ function productAvatarStyle(name = '') {
           </div>
           <!-- /Filter Dropdown -->
 
-          <Button v-if="can('produk.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('produk.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Tambah Produk</span>
           </Button>
@@ -569,7 +570,7 @@ function productAvatarStyle(name = '') {
             </div>
             <p class="text-sm font-medium">Belum ada produk</p>
             <p class="text-xs text-muted-foreground/70 mt-1">Mulai dengan menambahkan produk pertama Anda.</p>
-            <Button v-if="can('produk.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('produk.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Tambah Produk
             </Button>
@@ -604,7 +605,7 @@ function productAvatarStyle(name = '') {
                   
                   <div class="flex items-center gap-1 shrink-0">
                     <Button
-                      v-if="can('produk.update')"
+                      v-if="can('produk.update') && !isSuperAdmin"
                       variant="ghost"
                       size="icon"
                       class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
@@ -613,7 +614,7 @@ function productAvatarStyle(name = '') {
                       <Pencil class="h-3.5 w-3.5" />
                     </Button>
                     <Button
-                      v-if="can('produk.delete')"
+                      v-if="can('produk.delete') && !isSuperAdmin"
                       variant="ghost"
                       size="icon"
                       class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
@@ -757,7 +758,7 @@ function productAvatarStyle(name = '') {
                     <TableCell class="pr-4 py-3 text-right">
                       <div class="flex justify-end gap-1 transition-opacity">
                         <Button
-                          v-if="can('produk.update')"
+                          v-if="can('produk.update') && !isSuperAdmin"
                           variant="ghost"
                           size="icon"
                           class="h-7 w-7 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md"
@@ -767,7 +768,7 @@ function productAvatarStyle(name = '') {
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          v-if="can('produk.delete')"
+                          v-if="can('produk.delete') && !isSuperAdmin"
                           variant="ghost"
                           size="icon"
                           class="h-7 w-7 text-zinc-400 hover:text-destructive hover:bg-destructive/10 rounded-md"

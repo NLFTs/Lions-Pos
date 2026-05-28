@@ -62,6 +62,16 @@ export const useAuthStore = defineStore('auth', () => {
     })
   })
 
+  // Super Admin Global = user tanpa partner (partner null/undefined)
+  // Berbeda dengan admin partner yang punya partner
+  const isSuperAdmin = computed(() => {
+    if (!user.value) return false
+    // Mock/empty mode: anggap bukan superadmin agar UI normal
+    if (isMockMode || isEmptyMode) return false
+    // Superadmin tidak punya partnerId
+    return !user.value.partnerId && isAdmin.value
+  })
+
   // ─── fetchMe ───────────────────────────────────────────────────────────────
   async function fetchMe() {
     try {
@@ -77,6 +87,7 @@ export const useAuthStore = defineStore('auth', () => {
         plan: me.plan ?? 'basic',
         branchId: me.branchId ?? null,
         branchName: me.branchName ?? null,
+        partnerId: me.partnerId ?? null,
       }
       permissions.value = me.permissions ?? []
       localStorage.setItem('auth_user', JSON.stringify(user.value))
@@ -120,5 +131,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { accessToken, refreshToken, user, permissions, isAuthenticated, isAdmin, login, logout, fetchMe }
+  return { accessToken, refreshToken, user, permissions, isAuthenticated, isAdmin, isSuperAdmin, login, logout, fetchMe }
 })
