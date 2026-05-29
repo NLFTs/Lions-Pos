@@ -83,11 +83,29 @@ if "%CMD%"=="full:clean" (
 )
 
 if "%CMD%"=="full:dev" (
-    echo Starting Vite + Spring Boot in parallel...
-    echo Close both windows to stop.
+    cls
 
-    start "Vite Dev Server" cmd /k "cd /d %FRONTEND% && %PNPM% run dev"
-    start "Spring Boot" cmd /k ""%MVNW%" spring-boot:run -Dexec.skip=true"
+    REM ── ASCII Art + Banner via PowerShell ─────────────────────────────────
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%DIR%spravel-banner.ps1" "%FRONTEND%" "%DIR%src\main\resources\application.properties"
+
+    REM ── Jalankan Vite dulu di window terpisah ─────────────────────────────
+    start "Spravel - Vite" cmd /c "cd /d %FRONTEND% && %PNPM% run dev"
+
+    REM ── Tunggu Vite siap (3 detik) ────────────────────────────────────────
+    timeout /t 3 /nobreak >nul
+
+    REM ── Jalankan Spring Boot, pipe ke PowerShell untuk filter log ─────────
+    "%MVNW%" spring-boot:run -Dexec.skip=true 2>&1 | powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "$started = $false; " ^
+        "while (($line = [Console]::In.ReadLine()) -ne $null) { " ^
+        "  if ($line -match 'InitializeUserDetailsManagerConfigurer|ERROR|Exception in thread|BUILD FAILURE') { $started = $true } " ^
+        "  if ($started) { " ^
+        "    if ($line -match ' ERROR |Exception|BUILD FAILURE') { Write-Host $line -ForegroundColor Red } " ^
+        "    elseif ($line -match ' WARN ') { Write-Host $line -ForegroundColor Yellow } " ^
+        "    elseif ($line -match ' DEBUG ') { Write-Host $line -ForegroundColor DarkGray } " ^
+        "    else { Write-Host $line } " ^
+        "  } " ^
+        "}"
 
     exit /b
 )

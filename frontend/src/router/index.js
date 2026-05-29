@@ -38,7 +38,7 @@ export const routes = [
       pageTitle: 'Manajemen Produk',
       pageSubtitle: 'Kelola produk, status, dan kategori.',
     },
-  },
+  }, 
   {
     path: '/dashboard/reports',
     name: 'reports',
@@ -251,6 +251,11 @@ export const routes = [
     path: '/about',
     name: 'about',
     component: () => import('@/pages/AboutPage.vue'),
+  },
+  {
+    path: '/pricing',
+    name: 'pricing',
+    component: () => import('@/pages/PricingPage.vue'),
   },
   {
     path: '/:pathMatch(.*)*',

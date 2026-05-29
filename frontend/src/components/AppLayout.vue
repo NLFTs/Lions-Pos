@@ -85,6 +85,14 @@ import {
 // ─── Menu Groups (dengan section header) ────────────────────────────────────
 const MENU_GROUPS = [
   {
+    label: 'Utama',
+    items: [
+      {
+        label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null
+      }
+    ]
+  },
+  {
     label: 'Transaksi',
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: null },
@@ -112,7 +120,6 @@ const MENU_GROUPS = [
   {
     label: 'Management',
     items: [
-      { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null },
       { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
       { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'branch.index' },
@@ -224,6 +231,36 @@ const displayEmail = computed(() => user.value?.username || '')
 const userInitial = computed(() => {
   const name = displayName.value
   return name.charAt(0).toUpperCase()
+})
+const userAvatar = computed(() => user.value?.avatar || null)
+
+// Generate warna avatar dari nama (deterministik)
+const AVATAR_PALETTE = [
+  { bg: '#dbeafe', color: '#1d4ed8' }, // blue
+  { bg: '#dcfce7', color: '#15803d' }, // green
+  { bg: '#fef9c3', color: '#a16207' }, // yellow
+  { bg: '#fce7f3', color: '#be185d' }, // pink
+  { bg: '#ede9fe', color: '#6d28d9' }, // violet
+  { bg: '#ffedd5', color: '#c2410c' }, // orange
+  { bg: '#cffafe', color: '#0e7490' }, // cyan
+  { bg: '#f1f5f9', color: '#475569' }, // slate
+]
+const avatarStyle = computed(() => {
+  const name = displayName.value
+  const hash = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const p = AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
+  return { backgroundColor: p.bg, color: p.color }
+})
+
+// ─── Plan / Upgrade ───────────────────────────────────────────────────
+const userPlan = computed(() => (user.value?.plan || 'basic').toLowerCase())
+const upgradeLabel = computed(() => {
+  if (userPlan.value === 'pro') return 'Upgrade to Enterprise'
+  return 'Upgrade to Pro'
+})
+const upgradeTo = computed(() => {
+  if (userPlan.value === 'pro') return '/pricing?plan=enterprise'
+  return '/pricing?plan=pro'
 })
 
 // ─── Language Switcher ────────────────────────────────────────────────
@@ -363,6 +400,8 @@ function handleGlobalKeydown(e) {
 onMounted(() => {
   expandActiveParents()
   window.addEventListener('keydown', handleGlobalKeydown)
+  // Refresh user data dari server agar avatar & info terbaru selalu tampil
+  auth.fetchMe()
 })
 
 onBeforeUnmount(() => {
@@ -544,19 +583,21 @@ onBeforeUnmount(() => {
               class="flex w-full items-center gap-2 rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors outline-none"
             >
               <div class="relative w-8 h-8 shrink-0">
-                <img
-                  v-if="user?.avatar"
-                  :src="user.avatar"
-                  :alt="displayName"
-                  class="w-8 h-8 rounded-full border border-border bg-muted object-cover"
-                  @error="(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='flex' }"
-                />
+                <!-- Fallback: generated avatar berwarna berdasarkan nama -->
                 <div
-                  class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0 shadow-sm border border-primary/20"
-                  :style="user?.avatar ? 'display:none' : ''"
+                  class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-white/20"
+                  :style="avatarStyle"
                 >
                   {{ userInitial }}
                 </div>
+                <!-- Avatar gambar asli — overlay di atas fallback jika ada -->
+                <img
+                  v-if="userAvatar"
+                  :src="userAvatar"
+                  :alt="displayName"
+                  class="w-8 h-8 rounded-full border border-border object-cover absolute inset-0"
+                  @error="(e) => e.target.style.display = 'none'"
+                />
               </div>
               <div class="flex flex-col flex-1 text-left overflow-hidden">
                 <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-none mb-0.5">{{ displayName }}</span>
@@ -646,11 +687,13 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Upgrade Button -->
-            <!-- <div class="px-3 pb-3">
-              <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
-                Upgrade to Pro
-              </Button>
-            </div> -->
+            <div class="px-3 pb-3">
+              <router-link :to="upgradeTo">
+                <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
+                  {{ upgradeLabel }}
+                </Button>
+              </router-link>
+            </div>
 
             <div class="border-t border-border bg-zinc-50/50 dark:bg-zinc-900/50 px-3 py-2.5 flex items-center justify-between rounded-b-md">
               <div class="flex flex-col">

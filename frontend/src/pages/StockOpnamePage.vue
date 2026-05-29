@@ -36,6 +36,7 @@ const { toast } = useToast()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const opnames = ref([])
@@ -273,7 +274,7 @@ onMounted(fetchData)
             <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi atau catatan..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
-          <Button v-if="can('stock_opname.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('stock_opname.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Buat Opname</span>
           </Button>
@@ -292,7 +293,7 @@ onMounted(fetchData)
               <PackageSearch class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada data Stock Opname.</p>
-            <Button v-if="can('stock_opname.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('stock_opname.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Mulai Opname Baru
             </Button>
@@ -553,7 +554,7 @@ onMounted(fetchData)
 
             <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
               <div class="flex gap-2">
-                <Button v-if="selectedOpname.status === 'approved' && can('stock_opname.update')" class="flex-1 bg-primary" @click="approveOpname(selectedOpname)">
+                <Button v-if="selectedOpname.status === 'approved' && can('stock_opname.update') && !isSuperAdmin" class="flex-1 bg-primary" @click="approveOpname(selectedOpname)">
                   <Check class="h-4 w-4 mr-2" /> Setujui & Rekonsiliasi
                 </Button>
                 <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>

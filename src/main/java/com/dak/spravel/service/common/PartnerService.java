@@ -11,6 +11,7 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.seeder.PartnerRoleTemplateSeeder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,10 +32,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PartnerService {
 
-    private final PartnerRepository partnerRepository;
-    private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final PartnerRepository         partnerRepository;
+    private final UserRepository            userRepository;
+    private final RoleRepository            roleRepository;
+    private final PasswordEncoder           passwordEncoder;
+    private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -130,7 +132,7 @@ public class PartnerService {
         partner.setIsActive(true);
         Partners savedPartner = partnerRepository.save(partner);
 
-        // 2. Ambil role global template 'admin-partners' (Buat dicopy ke user admin partner baru)
+        // 2. Ambil role global template 'owner' (untuk admin utama partner baru)
         Role adminPartnerRole = roleRepository.findAll().stream()
                 .filter(r -> r.getSlug().equalsIgnoreCase("owner") && r.getPartner() == null)
                 .findFirst()
@@ -148,6 +150,10 @@ public class PartnerService {
         roles.add(adminPartnerRole);
         adminUser.setRoles(roles);
         userRepository.save(adminUser);
+
+        // 4. Seed 4 template role untuk partner baru ini
+        //    (admin-partner, pengelola-gudang, pengelola-cabang, kasir)
+        partnerRoleTemplateSeeder.seedForPartner(savedPartner);
 
         return mapToResponse(savedPartner);
     }

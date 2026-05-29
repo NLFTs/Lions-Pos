@@ -58,6 +58,7 @@ public class AuthController {
         me.setId(user.getId());
         me.setUsername(user.getUsername());
         me.setFullname(user.getFullname());
+        me.setAvatar(user.getAvatar());
         me.setRoles(user.getRoles().stream().map(r -> r.getSlug()).toList());
         me.setPermissions(user.getRoles().stream()
                 .flatMap(r -> r.getPermissions().stream())

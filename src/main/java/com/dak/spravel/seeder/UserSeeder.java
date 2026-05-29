@@ -18,10 +18,10 @@ public class UserSeeder {
 
     public void run() {
         User su = new User();
-        su.setUsername("su");
+        su.setUsername("superadmin");
         su.setFullname("Super Admin");
-        su.setEmail("su@gaptek.org");
-        su.setPassword("su@123");
+        su.setEmail("superadmin@gaptek.org");
+        su.setPassword("super1234");
         process(su);
     }
 

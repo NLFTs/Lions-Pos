@@ -44,11 +44,12 @@ function toggleDropdown() {
 function updatePosition() {
   if (triggerRef.value) {
     const rect = triggerRef.value.getBoundingClientRect()
-    const dropdownHeight = 185 // Estimasi tinggi kotak menu (5 pilihan ukuran)
+    const dropdownHeight = 160 // Estimasi tinggi kotak menu (5 pilihan ukuran)
     const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
 
-    // 🔥 SMART DETECTOR: Jika mentok di bawah layar, paksa buka ke atas!
-    if (spaceBelow < dropdownHeight) {
+    // Buka ke atas hanya jika ruang bawah tidak cukup DAN ruang atas lebih lega
+    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
       isUpwards.value = true
       dropdownStyle.value = {
         position: 'fixed',
@@ -58,7 +59,7 @@ function updatePosition() {
         zIndex: '99999'
       }
     } else {
-      // Jika ruang bawah lega, normal buka ke bawah
+      // Default: buka ke bawah
       isUpwards.value = false
       dropdownStyle.value = {
         position: 'fixed',

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -16,6 +17,8 @@ import { Plus, Pencil, Trash2, Loader2, X, Truck, Phone, Mail } from 'lucide-vue
 
 const { can } = usePermission()
 const { toast } = useToast()
+const authStore = useAuthStore()
+const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const suppliers = ref([])
@@ -154,7 +157,7 @@ onMounted(fetchSuppliers)
           <div class="w-full sm:w-72">
             <DataTableSearch v-model="searchQuery" placeholder="Cari supplier..." />
           </div>
-          <Button v-if="can('supplier.store')" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+          <Button v-if="can('supplier.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
             <span>Tambah</span>
           </Button>
@@ -173,7 +176,7 @@ onMounted(fetchSuppliers)
               <Truck class="h-7 w-7 opacity-40" />
             </div>
             <p class="text-sm font-medium">Belum ada data supplier.</p>
-            <Button v-if="can('supplier.store') && !searchQuery" size="sm" class="mt-4" @click="openCreate">
+            <Button v-if="can('supplier.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
               Tambah Supplier
             </Button>
@@ -201,10 +204,10 @@ onMounted(fetchSuppliers)
                     </div>
                   </div>
                   <div class="flex gap-1 shrink-0">
-                    <Button v-if="can('supplier.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(s)">
+                    <Button v-if="can('supplier.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400" @click="openEdit(s)">
                       <Pencil class="h-3.5 w-3.5" />
                     </Button>
-                    <Button v-if="can('supplier.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(s)">
+                    <Button v-if="can('supplier.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(s)">
                       <Trash2 class="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -252,10 +255,10 @@ onMounted(fetchSuppliers)
                     </td>
                     <td class="pr-5 py-3 text-right">
                       <div class="flex justify-end gap-1">
-                        <Button v-if="can('supplier.update')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(s)">
+                        <Button v-if="can('supplier.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(s)">
                           <Pencil class="h-3.5 w-3.5" />
                         </Button>
-                        <Button v-if="can('supplier.delete')" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(s)">
+                        <Button v-if="can('supplier.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(s)">
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>
