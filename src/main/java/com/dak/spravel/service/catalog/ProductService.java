@@ -143,10 +143,11 @@ public class ProductService {
         product.setPartner(partner);
         product.setCategory(category);
 
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new RuntimeException("Nama Produk harus diisi.");
-        }
+        if (request.getName() == null || request.getName().trim().isEmpty()) { throw new RuntimeException("Nama Produk harus diisi."); }
         product.setName(request.getName());
+
+        if (request.getBasePrice() == null) { throw new RuntimeException("Harga dasar tidak boleh kosong."); }
+        if (request.getBasePrice().compareTo(java.math.BigDecimal.ZERO) < 0) { throw new RuntimeException("Harga dasar tidak boleh negatif."); }
         product.setBasePrice(request.getBasePrice());
         
         if (request.getTrackStock() != null) product.setTrackStock(request.getTrackStock());
