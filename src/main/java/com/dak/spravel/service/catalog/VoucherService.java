@@ -234,6 +234,12 @@ public class VoucherService {
         voucher.setQuota(request.getQuota());
         voucher.setValidFrom(request.getValidFrom());
         voucher.setValidUntil(request.getValidUntil());
+        // Set isActive jika dikirim dari request, default true jika null
+        if (request.getIsActive() != null) {
+            voucher.setIs_active(request.getIsActive());
+        } else if (voucher.getIs_active() == null) {
+            voucher.setIs_active(true);
+        }
     }
 
     private void validateRequest(VoucherRequest request) {

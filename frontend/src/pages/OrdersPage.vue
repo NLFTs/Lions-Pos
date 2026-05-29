@@ -143,6 +143,7 @@ async function submitReturn() {
   } catch (err) {
     const msg = err.response?.data?.data?.message
       || err.response?.data?.message
+      || err.message
       || 'Gagal memproses retur.'
     toast.error(msg)
   } finally { submittingReturn.value = false }

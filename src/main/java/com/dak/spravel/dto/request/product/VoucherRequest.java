@@ -42,4 +42,7 @@ public class VoucherRequest {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @JsonProperty("valid_until")
     private LocalDateTime validUntil;
+
+    @JsonProperty("is_active")
+    private Boolean isActive;
 }
