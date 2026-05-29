@@ -182,6 +182,17 @@ public class OrdersService {
         if (request.getVoucherId() != null) {
             voucher = voucherRepository.findById(request.getVoucherId())
                     .orElseThrow(() -> new ResourceNotFoundException("Voucher", request.getVoucherId()));
+
+            // Validasi voucher aktif
+            if (Boolean.FALSE.equals(voucher.getIs_active())) {
+                throw new RuntimeException("Voucher sudah tidak aktif dan tidak bisa digunakan.");
+            }
+
+            // Validasi kuota — quota 0 atau null berarti unlimited
+            int currentUsed = voucher.getUsed_count() != null ? voucher.getUsed_count() : 0;
+            if (voucher.getQuota() != null && voucher.getQuota() > 0 && currentUsed >= voucher.getQuota()) {
+                throw new RuntimeException("Kuota voucher sudah habis.");
+            }
         }
 
         // Create Order Header Record
@@ -229,7 +240,7 @@ public class OrdersService {
         if (voucher != null) {
             BigDecimal discountValue = voucher.getDiscountValue();
 
-            if ("percent".equalsIgnoreCase(voucher.getDiscountType().toString())) {
+            if ("PERCENT".equalsIgnoreCase(voucher.getDiscountType().toString())) {
                 discount = subtotal.multiply(new BigDecimal(String.valueOf(voucher.getDiscountValue()))).divide(new BigDecimal(100));
                 if (voucher.getMaxDiscount() != null && discount.compareTo(voucher.getMaxDiscount()) > 0) {
                     discount = voucher.getMaxDiscount();
@@ -240,6 +251,20 @@ public class OrdersService {
         }
         savedOrder.setDiscountAmount(discount);
         savedOrder.setTotal(subtotal.subtract(discount));
+
+        // Increment used_count voucher jika dipakai
+        if (voucher != null) {
+            int currentUsed = voucher.getUsed_count() != null ? voucher.getUsed_count() : 0;
+            voucher.setUsed_count(currentUsed + 1);
+
+            // Auto-nonaktifkan jika kuota sudah penuh setelah increment
+            if (voucher.getQuota() != null && voucher.getQuota() > 0 && voucher.getUsed_count() >= voucher.getQuota()) {
+                voucher.setIs_active(false);
+            }
+
+            voucherRepository.save(voucher);
+        }
+
         ordersRepository.save(savedOrder);
 
         // Payment Processing Engine Gateway

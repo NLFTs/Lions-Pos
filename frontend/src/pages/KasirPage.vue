@@ -213,6 +213,19 @@ function applyVoucher() {
     appliedVoucher.value = null
     return
   }
+  // Cek status aktif
+  const isActive = v.isActive ?? v.is_active ?? true
+  if (!isActive) {
+    toast.error('Voucher ini sudah tidak aktif.')
+    return
+  }
+  // Cek kuota
+  const quota = v.quota ?? null
+  const usedCount = v.usedCount ?? v.used_count ?? 0
+  if (quota !== null && quota > 0 && usedCount >= quota) {
+    toast.error('Kuota voucher sudah habis.')
+    return
+  }
   const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
   if (minPurchase > 0 && subtotal.value < minPurchase) {
     toast.error(`Min. pembelian untuk voucher ini adalah ${formatCurrency(minPurchase)}`)

@@ -162,6 +162,7 @@ async function saveVoucher() {
       min_purchase: form.value.minPurchase,
       max_discount: form.value.maxDiscount,
       quota: form.value.quota,
+      is_active: form.value.isActive,
       valid_from: form.value.validFrom ? form.value.validFrom + 'T00:00:00' : null,
       valid_until: form.value.validUntil ? form.value.validUntil + 'T23:59:59' : null,
     }
