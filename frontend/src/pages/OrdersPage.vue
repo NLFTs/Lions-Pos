@@ -105,7 +105,7 @@ async function cancelOrder(order) {
     await fetchOrders()
     closeDetail()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal membatalkan order.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal membatalkan order.')
   } finally { actionLoading.value = false }
 }
 
@@ -117,7 +117,7 @@ async function verifyTransfer(paymentId) {
     await fetchOrders()
     closeDetail()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal mengkonfirmasi transfer.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal mengkonfirmasi transfer.')
   } finally { actionLoading.value = false }
 }
 
@@ -141,7 +141,10 @@ async function submitReturn() {
     await fetchOrders()
     closeDetail()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal memproses retur.')
+    const msg = err.response?.data?.data?.message
+      || err.response?.data?.message
+      || 'Gagal memproses retur.'
+    toast.error(msg)
   } finally { submittingReturn.value = false }
 }
 
