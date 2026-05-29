@@ -1,7 +1,7 @@
 package com.dak.spravel.dto.response;
 
 import lombok.Data;
-
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
@@ -17,7 +17,7 @@ public class UserResponse {
     private String fullname;
     private String email;
     private String avatar;
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
     private List<RoleData> roles;
     private Long branchId;
     private String branchName;
