@@ -285,68 +285,82 @@ onMounted(fetchSuppliers)
       <Transition name="fade">
         <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
       </Transition>
-      <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] bg-card shadow-2xl sm:border-l overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div>
-              <h3 class="font-semibold text-base">{{ modalMode === 'create' ? 'Tambah Supplier' : 'Edit Supplier' }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">Lengkapi data pemasok barang Anda.</p>
+    
+      <Transition name="scale">
+        <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
+          
+          <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
+            
+            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
+              <div>
+                <h3 class="font-semibold text-base">{{ modalMode === 'create' ? 'Tambah Supplier' : 'Edit Supplier' }}</h3>
+                <p class="text-xs text-muted-foreground mt-0.5">Lengkapi data pemasok barang Anda.</p>
+              </div>
+              <Button variant="ghost" size="icon" @click="showDrawer = false">
+                <X class="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="ghost" size="icon" @click="showDrawer = false">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-            <div class="space-y-1.5">
-              <Label for="name">Nama Supplier <span class="text-destructive">*</span></Label>
-              <Input id="name" v-model="form.name" placeholder="Contoh: PT Sumber Rejeki" :disabled="saving" />
+    
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+              
+              <div class="space-y-1.5">
+                <Label for="name">Nama Supplier <span class="text-destructive">*</span></Label>
+                <Input id="name" v-model="form.name" placeholder="Contoh: PT Sumber Rejeki" :disabled="saving" />
+              </div>
+    
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <Label for="phone">Nomor Telepon</Label>
+                  <Input id="phone" v-model="form.phone" placeholder="021-xxxx atau 08xx" :disabled="saving" />
+                </div>
+                <div class="space-y-1.5">
+                  <Label for="email">Alamat Email</Label>
+                  <Input id="email" v-model="form.email" type="email" placeholder="supplier@example.com" :disabled="saving" />
+                </div>
+              </div>
+    
+              <div class="space-y-1.5">
+                <Label for="address">Alamat Lengkap</Label>
+                <textarea 
+                  id="address" 
+                  v-model="form.address" 
+                  rows="3" 
+                  class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" 
+                  placeholder="Alamat kantor atau gudang supplier..."
+                  :disabled="saving"
+                />
+              </div>
+    
+              <div class="space-y-1.5">
+                <Label for="notes">Catatan Tambahan</Label>
+                <textarea 
+                  id="notes" 
+                  v-model="form.notes" 
+                  rows="2" 
+                  class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none" 
+                  placeholder="Catatan khusus, syarat pembayaran, dll..."
+                  :disabled="saving"
+                />
+              </div>
             </div>
-            <div class="space-y-1.5">
-              <Label for="phone">Nomor Telepon</Label>
-              <Input id="phone" v-model="form.phone" placeholder="021-xxxx atau 08xx" :disabled="saving" />
+    
+            <div class="flex justify-end gap-3 px-6 py-4 border-t bg-muted/30 shrink-0">
+              <Button variant="outline" @click="showDrawer = false" :disabled="saving">Batal</Button>
+              <Button @click="saveSupplier" :disabled="saving" class="bg-primary hover:bg-primary/90">
+                <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                {{ modalMode === 'create' ? 'Simpan Supplier' : 'Perbarui' }}
+              </Button>
             </div>
-            <div class="space-y-1.5">
-              <Label for="email">Alamat Email</Label>
-              <Input id="email" v-model="form.email" type="email" placeholder="supplier@example.com" :disabled="saving" />
-            </div>
-            <div class="space-y-1.5">
-              <Label for="address">Alamat Lengkap</Label>
-              <textarea 
-                id="address" 
-                v-model="form.address" 
-                rows="3" 
-                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" 
-                placeholder="Alamat kantor atau gudang supplier..."
-                :disabled="saving"
-              />
-            </div>
-            <div class="space-y-1.5">
-              <Label for="notes">Catatan Tambahan</Label>
-              <textarea 
-                id="notes" 
-                v-model="form.notes" 
-                rows="2" 
-                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" 
-                placeholder="Catatan khusus, syarat pembayaran, dll..."
-                :disabled="saving"
-              />
-            </div>
-          </div>
-          <div class="flex justify-end gap-3 px-6 py-4 border-t bg-muted/30">
-            <Button variant="outline" @click="showDrawer = false" :disabled="saving">Batal</Button>
-            <Button @click="saveSupplier" :disabled="saving" class="bg-primary hover:bg-primary/90">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-              {{ modalMode === 'create' ? 'Simpan Supplier' : 'Perbarui' }}
-            </Button>
+    
           </div>
         </div>
       </Transition>
-
-      <!-- Delete Modal -->
+    
       <Transition name="fade">
         <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
       </Transition>
+    
       <Transition name="scale">
         <div v-if="deleteModal.show" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
           <div class="bg-card rounded-xl shadow-2xl w-full max-w-md border border-border pointer-events-auto p-6 overflow-hidden">
@@ -380,8 +394,6 @@ onMounted(fetchSuppliers)
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
 .scale-enter-active, .scale-leave-active { transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95); }
 </style>

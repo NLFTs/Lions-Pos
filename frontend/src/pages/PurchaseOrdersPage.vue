@@ -106,12 +106,33 @@ const receiptForm = ref({
   items: []
 })
 
-function openReceiptDrawer(po) {
+async function openReceiptDrawer(po) {
+  receiptError.value = null
+  
+  // Ambil data items dari cache objek atau tembak langsung ke API jika belum ada
+  let poItems = po.items
+  
+  if (!poItems || poItems.length === 0) {
+    try {
+      // Kita tarik langsung datanya via API berdasarkan ID Purchase Order-nya
+      const res = await api.get(`/api/v1/purchase-orders/${po.id}/items`)
+      poItems = res.data || []
+      
+      // Cadangkan juga ke objek po-nya biar datanya sinkron
+      po.items = poItems
+    } catch (err) {
+      console.error('Gagal mengambil item untuk penerimaan barang:', err)
+      toast.error('Gagal memuat daftar produk dari server.')
+      return // Stop eksekusi kalau API bermasalah
+    }
+  }
+
+  // Setelah dipastikan poItems terisi penuh, baru kita set ke receiptForm
   receiptForm.value = {
     purchaseOrderId: po.id,
     receivedDate: new Date().toISOString().slice(0, 16),
     notes: '',
-    items: (po.items || []).map(item => ({
+    items: poItems.map(item => ({
       purchaseOrderItemId: item.id,
       productId: item.product?.id || item.productId,
       productName: item.product?.name || `Produk #${item.productId}`,
@@ -121,9 +142,9 @@ function openReceiptDrawer(po) {
       notes: ''
     }))
   }
-  receiptError.value = null
+  
   showReceiptDrawer.value = true
-}
+} 
 
 async function submitReceipt() {
   receiptError.value = null
@@ -179,11 +200,9 @@ async function loadLocations() {
       api.get('/api/v1/branches'),
       api.get('/api/v1/warehouses')
     ])
-    // Branches: ResData<List>
     const brData = resB.data?.data || []
     const branches = (Array.isArray(brData) ? brData : (brData.content || [])).map(x => ({ ...x, type: 'branch' }))
     
-    // Warehouses: ResData<List> or ResData<Page>
     const whRaw = resW.data?.data
     const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
     const warehouses = whArr.map(x => ({ ...x, type: 'warehouse' }))
@@ -212,10 +231,8 @@ async function loadFormOptions() {
       api.get('/api/v1/suppliers'),
       api.get('/api/v1/products')
     ])
-    // Suppliers: plain List without wrapper
     suppliers.value = Array.isArray(resS.data) ? resS.data : (resS.data?.data || [])
     
-    // Products: ResData<Page>
     const pData = resP.data?.data
     products.value = pData && pData.content ? pData.content : (Array.isArray(pData) ? pData : [])
     
@@ -380,7 +397,6 @@ async function updatePOStatus(id, newStatus) {
   updatingStatus.value = true
   try {
     if (newStatus?.toLowerCase() === 'received') {
-      // 1. Fetch the items for this PO
       const itemsRes = await api.get(`/api/v1/purchase-orders/${id}/items`)
       const poItems = itemsRes.data || []
       
@@ -388,7 +404,6 @@ async function updatePOStatus(id, newStatus) {
         throw new Error('Purchase Order tidak memiliki item.')
       }
 
-      // 2. Prepare receipt request payload
       const payload = {
         purchaseOrderId: id,
         receivedDate: new Date().toISOString(),
@@ -404,7 +419,6 @@ async function updatePOStatus(id, newStatus) {
         throw new Error('Semua item dalam Purchase Order ini sudah diterima.')
       }
 
-      // 3. Create the purchase receipt to add stock and log mutation
       await api.post('/api/v1/purchase-receipts', payload)
       toast.success('Barang berhasil diterima dan stok telah diperbarui!')
     } else {
@@ -431,7 +445,6 @@ onMounted(async () => {
 <template>
   <AppLayout>
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
-      <!-- Header -->
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Purchase Order</h1>
@@ -449,7 +462,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Table Card -->
       <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         <CardContent class="p-0">
           <div v-if="loading" class="flex items-center justify-center py-24">
@@ -468,7 +480,6 @@ onMounted(async () => {
           </div>
 
           <div v-else>
-            <!-- Mobile List -->
             <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
               <div v-for="po in paginatedPOs" :key="po.id" class="p-4 flex flex-col gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="openDetail(po)">
                 <div class="flex justify-between items-center">
@@ -483,8 +494,7 @@ onMounted(async () => {
                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ po.supplier?.name }}</div>
                     <div class="text-[10px] text-zinc-400 italic mb-1">{{ po.supplier?.phone || '' }}</div>
                     <div class="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-1">
-                      <Warehouse v-if="po.locationType?.toLowerCase() === 'warehouse'" class="h-3 w-3 opacity-60" />
-                      <Building2 v-else class="h-3 w-3 opacity-60" />
+                      <Warehouse class="h-3 w-3 opacity-60" />
                       <span>{{ getLocationName(po.locationType, po.locationId) }}</span>
                     </div>
                     <div class="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-1.5">
@@ -499,7 +509,6 @@ onMounted(async () => {
                   <div class="text-sm font-bold text-right text-zinc-900 dark:text-zinc-100">{{ formatCurrency(po.total) }}</div>
                 </div>
                 
-                <!-- Action Buttons directly on Mobile Card -->
                 <div v-if="['draft', 'ordered'].includes(po.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin" class="flex justify-end gap-2 mt-1 pt-2 border-t border-zinc-100/60 dark:border-zinc-800/40">
                   <Button 
                     v-if="po.status?.toLowerCase() === 'draft'"
@@ -527,7 +536,6 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Desktop Table -->
             <div class="hidden md:block overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
@@ -622,382 +630,383 @@ onMounted(async () => {
       </Card>
     </div>
 
-    <!-- Drawer -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
       </Transition>
-      <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[550px] bg-card shadow-2xl sm:border-l overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
-            <div>
-              <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Purchase Order' : 'Detail Purchase Order' }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke supplier secara efisien.</p>
+      <Transition name="scale">
+        <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
+          
+          <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
+            
+            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
+              <div>
+                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Purchase Order' : 'Detail Purchase Order' }}</h3>
+                <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke supplier secara efisien.</p>
+              </div>
+              <Button variant="ghost" size="icon" @click="showDrawer = false">
+                <X class="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="ghost" size="icon" @click="showDrawer = false">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
 
-          <!-- CREATE MODE -->
-          <template v-if="drawerMode === 'create'">
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-              
-              <!-- Section: Info Dasar -->
-              <div class="space-y-4">
-                <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                  <Truck class="h-3 w-3" /> Informasi Dasar
-                </h4>
-                <div class="space-y-1.5">
-                  <Label>Pilih Supplier <span class="text-destructive">*</span></Label>
-                  <select v-model="form.supplierId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="" disabled>Pilih supplier...</option>
-                    <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
-                  </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
+            <template v-if="drawerMode === 'create'">
+              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+                
+                <div class="space-y-4">
+                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                    <Truck class="h-3 w-3" /> Informasi Dasar
+                  </h4>
                   <div class="space-y-1.5">
-                    <Label>Tipe Tujuan</Label>
-                    <div class="grid grid-cols-2 gap-2">
-                      <button 
-                        type="button"
-                        @click="form.locationType = 'warehouse'; form.locationId = ''"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'warehouse' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
-                      >
-                        <Warehouse class="h-3.5 w-3.5" /> Gudang
-                      </button>
-                      <button 
-                        type="button"
-                        @click="form.locationType = 'branch'; form.locationId = ''"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'branch' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
-                      >
-                        <Building2 class="h-3.5 w-3.5" /> Cabang
-                      </button>
-                    </div>
-                  </div>
-                  <div class="space-y-1.5">
-                    <Label>Pilih Lokasi <span class="text-destructive">*</span></Label>
-                    <select v-model="form.locationId" class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none">
-                      <option value="" disabled>Pilih...</option>
-                      <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
-                        {{ l.name }}
-                      </option>
+                    <Label>Pilih Supplier <span class="text-destructive">*</span></Label>
+                    <select v-model="form.supplierId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+                      <option value="" disabled>Pilih supplier...</option>
+                      <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
                     </select>
                   </div>
+
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                      <Label>Tipe Tujuan</Label>
+                      <div class="grid grid-cols-2 gap-2">
+                        <button 
+                          type="button"
+                          @click="form.locationType = 'warehouse'; form.locationId = ''"
+                          :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'warehouse' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
+                        >
+                          <Warehouse class="h-3.5 w-3.5" /> Gudang
+                        </button>
+                        <button 
+                          type="button"
+                          @click="form.locationType = 'branch'; form.locationId = ''"
+                          :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'branch' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
+                        >
+                          <Building2 class="h-3.5 w-3.5" /> Cabang
+                        </button>
+                      </div>
+                    </div>
+                    <div class="space-y-1.5">
+                      <Label>Pilih Lokasi <span class="text-destructive">*</span></Label>
+                      <select v-model="form.locationId" class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none">
+                        <option value="" disabled>Pilih...</option>
+                        <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
+                          {{ l.name }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                      <Label>Tanggal Order</Label>
+                      <Input v-model="form.orderDate" type="date" class="h-9" />
+                    </div>
+                    <div class="space-y-1.5">
+                      <Label>Estimasi Tiba</Label>
+                      <Input v-model="form.expectedDate" type="date" class="h-9" />
+                    </div>
+                  </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="space-y-1.5">
-                    <Label>Tanggal Order</Label>
-                    <Input v-model="form.orderDate" type="date" class="h-9" />
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between">
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                      <Package class="h-3 w-3" /> Item Pesanan
+                    </h4>
+                    <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
+                      <Plus class="h-3 w-3 mr-1" /> Tambah Item
+                    </Button>
                   </div>
-                  <div class="space-y-1.5">
-                    <Label>Estimasi Tiba</Label>
-                    <Input v-model="form.expectedDate" type="date" class="h-9" />
+
+                  <div class="space-y-3">
+                    <div v-for="(item, i) in form.items" :key="i" class="relative p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group">
+                      <Button 
+                        v-if="form.items.length > 1" 
+                        variant="ghost" 
+                        size="icon" 
+                        class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
+                        @click="removeItem(i)"
+                      >
+                        <X class="h-3 w-3" />
+                      </Button>
+                      
+                      <div class="grid grid-cols-1 gap-3">
+                        <div class="space-y-1">
+                          <Label class="text-[10px] text-zinc-500">Pilih Produk</Label>
+                          <select v-model="item.productId" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none">
+                            <option value="" disabled>Pilih produk...</option>
+                            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
+                          </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                          <div class="space-y-1">
+                            <Label class="text-[10px] text-zinc-500">Kuantitas</Label>
+                            <Input v-model.number="item.qtyOrdered" type="number" min="1" class="h-8 text-xs text-center" />
+                          </div>
+                          <div class="space-y-1">
+                            <Label class="text-[10px] text-zinc-500">Harga Satuan (HPP)</Label>
+                            <Input v-model.number="item.unitCost" type="number" min="0" class="h-8 text-xs" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div class="space-y-1.5">
+                  <Label>Catatan Tambahan</Label>
+                  <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Catatan untuk supplier..." />
                 </div>
               </div>
 
-              <!-- Section: Item Pesanan -->
-              <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                    <Package class="h-3 w-3" /> Item Pesanan
-                  </h4>
-                  <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
-                    <Plus class="h-3 w-3 mr-1" /> Tambah Item
+              <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-xs text-muted-foreground uppercase tracking-widest font-bold">Total Estimasi</span>
+                  <span class="text-xl font-black text-primary">{{ formatCurrency(formTotal) }}</span>
+                </div>
+                <div class="flex gap-3">
+                  <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
+                  <Button class="flex-1" @click="savePO" :disabled="saving">
+                    <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                    Simpan Order
                   </Button>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="selectedPO">
+              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                
+                <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Purchase Order</span>
+                      <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
+                    </div>
+                    <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
+                      {{ statusLabel(selectedPO.status) }}
+                    </Badge>
+                  </div>
+                  
+                  <div class="flex items-center gap-2 pt-1 border-t border-primary/10">
+                    <button
+                      @click="copyPOCode"
+                      :class="[
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                        copiedCode
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                          : 'bg-background border border-primary/20 text-primary hover:bg-primary/10'
+                      ]"
+                    >
+                      <ClipboardCheck v-if="copiedCode" class="h-3.5 w-3.5" />
+                      <Copy v-else class="h-3.5 w-3.5" />
+                      {{ copiedCode ? 'Tersalin!' : 'Salin Kode PO' }}
+                    </button>
+                    <button
+                      @click="copyAllInfo"
+                      :class="[
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                        copiedAll
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                          : 'bg-background border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                      ]"
+                    >
+                      <ClipboardCheck v-if="copiedAll" class="h-3.5 w-3.5" />
+                      <ClipboardList v-else class="h-3.5 w-3.5" />
+                      {{ copiedAll ? 'Tersalin!' : 'Salin Semua Info' }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Supplier</p>
+                    <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ selectedPO.supplier?.name || '-' }}</p>
+                    <p class="text-[11px] text-zinc-500 leading-relaxed">{{ selectedPO.supplier?.address || '-' }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tujuan Penerima</p>
+                    <div class="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      <Warehouse v-if="selectedPO.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
+                      <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
+                      {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
+                    </div>
+                    <Badge variant="outline" class="text-[9px] h-4 px-1.5 uppercase tracking-tighter mt-0.5">{{ selectedPO.locationType }}</Badge>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6 pt-1">
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tanggal Pemesanan</p>
+                    <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.orderDate || selectedPO.createdAt) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimasi Barang Tiba</p>
+                    <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.expectedDate) }}</p>
+                  </div>
                 </div>
 
                 <div class="space-y-3">
-                  <div v-for="(item, i) in form.items" :key="i" class="relative p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group animate-in slide-in-from-right-2 duration-200">
-                    <Button 
-                      v-if="form.items.length > 1" 
-                      variant="ghost" 
-                      size="icon" 
-                      class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
-                      @click="removeItem(i)"
-                    >
-                      <X class="h-3 w-3" />
-                    </Button>
-                    
-                    <div class="grid grid-cols-1 gap-3">
-                      <div class="space-y-1">
-                        <Label class="text-[10px] text-zinc-500">Pilih Produk</Label>
-                        <select v-model="item.productId" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none">
-                          <option value="" disabled>Pilih produk...</option>
-                          <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
-                        </select>
-                      </div>
-                      <div class="grid grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                          <Label class="text-[10px] text-zinc-500">Kuantitas</Label>
-                          <Input v-model.number="item.qtyOrdered" type="number" min="1" class="h-8 text-xs" />
+                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Daftar Item Pesanan</h4>
+                  <div class="space-y-2">
+                    <div v-for="(item, i) in selectedPO.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
+                      <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
+                          <Package class="h-4 w-4" />
                         </div>
-                        <div class="space-y-1">
-                          <Label class="text-[10px] text-zinc-500">Harga Satuan (HPP)</Label>
-                          <Input v-model.number="item.unitCost" type="number" min="0" class="h-8 text-xs" />
+                        <div>
+                          <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ item.product?.name || `Produk #${item.productId}` }}</p>
+                          <p class="text-[10px] text-muted-foreground mt-0.5">
+                            {{ item.qtyOrdered }} PCS × {{ formatCurrency(item.unitCost) }}
+                            <span v-if="item.qtyReceived > 0" class="ml-2 text-emerald-600 font-bold dark:text-emerald-400">• Berhasil Masuk: {{ item.qtyReceived }}</span>
+                          </p>
                         </div>
                       </div>
+                      <span class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ formatCurrency(item.qtyOrdered * item.unitCost) }}</span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Section: Catatan -->
-              <div class="space-y-1.5">
-                <Label>Catatan Tambahan</Label>
-                <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="Catatan untuk supplier..." />
-              </div>
-            </div>
-
-            <!-- Footer Summary -->
-            <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50">
-              <div class="flex items-center justify-between mb-4">
-                <span class="text-xs text-muted-foreground uppercase tracking-widest font-bold">Total Estimasi</span>
-                <span class="text-xl font-black text-primary">{{ formatCurrency(formTotal) }}</span>
-              </div>
-              <div class="flex gap-3">
-                <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
-                <Button class="flex-1" @click="savePO" :disabled="saving">
-                  <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                  Simpan Order
-                </Button>
-              </div>
-            </div>
-          </template>
-
-          <!-- DETAIL MODE -->
-          <template v-else-if="selectedPO">
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Purchase Order</span>
-                    <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
-                  </div>
-                  <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
-                    {{ statusLabel(selectedPO.status) }}
-                  </Badge>
+                <div v-if="selectedPO.notes" class="space-y-1 bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100/50 dark:border-amber-800/30">
+                  <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Catatan</p>
+                  <p class="text-xs italic text-amber-800/80 dark:text-amber-200/80">{{ selectedPO.notes }}</p>
                 </div>
-                <div class="flex items-center gap-2 pt-1 border-t border-primary/10">
-                  <button
-                    @click="copyPOCode"
-                    :class="[
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
-                      copiedCode
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
-                        : 'bg-background border border-primary/20 text-primary hover:bg-primary/10'
-                    ]"
+              </div>
+
+              <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto shrink-0">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-muted-foreground font-bold">SUBTOTAL COST</span>
+                  <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ formatCurrency(selectedPO.total) }}</span>
+                </div>
+                <div class="flex items-center justify-between mb-4">
+                  <span class="text-xs text-muted-foreground font-bold uppercase tracking-widest">Grand Total</span>
+                  <span class="text-2xl font-black text-primary">{{ formatCurrency(selectedPO.total) }}</span>
+                </div>
+                
+                <div class="flex gap-2">
+                  <Button 
+                    v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
+                    class="flex-1"
+                    :disabled="updatingStatus"
+                    @click="updatePOStatus(selectedPO.id, 'ordered')"
                   >
-                    <ClipboardCheck v-if="copiedCode" class="h-3.5 w-3.5" />
-                    <Copy v-else class="h-3.5 w-3.5" />
-                    {{ copiedCode ? 'Tersalin!' : 'Salin Kode PO' }}
-                  </button>
-                  <button
-                    @click="copyAllInfo"
-                    :class="[
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
-                      copiedAll
-                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
-                        : 'bg-background border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                    ]"
+                    <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                    <Send v-else class="h-4 w-4 mr-2" />
+                    Kirim PO
+                  </Button>
+                  <Button 
+                    v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive && !isSuperAdmin"
+                    class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    @click="openReceiptDrawer(selectedPO)"
                   >
-                    <ClipboardCheck v-if="copiedAll" class="h-3.5 w-3.5" />
-                    <ClipboardList v-else class="h-3.5 w-3.5" />
-                    {{ copiedAll ? 'Tersalin!' : 'Salin Semua Info' }}
-                  </button>
+                    <CheckCircle2 class="h-4 w-4 mr-2" />
+                    Terima Barang
+                  </Button>
+                  <Button 
+                    v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin"
+                    variant="destructive"
+                    class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200"
+                    :disabled="updatingStatus"
+                    @click="updatePOStatus(selectedPO.id, 'cancelled')"
+                  >
+                    <X class="h-4 w-4 mr-2" />
+                    Batalkan PO
+                  </Button>
+                  <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
                 </div>
               </div>
+            </template>
+          </div>
 
-              <div class="grid grid-cols-2 gap-6">
-                <div class="space-y-1">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Supplier</p>
-                  <p class="text-sm font-semibold">{{ selectedPO.supplier?.name }}</p>
-                  <p class="text-[11px] text-zinc-500">{{ selectedPO.supplier?.address || '-' }}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tujuan</p>
-                  <div class="flex items-center gap-1.5 text-sm font-semibold">
-                    <Warehouse v-if="selectedPO.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
-                    <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
-                    {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
-                  </div>
-                  <Badge variant="outline" class="text-[9px] h-4 px-1.5 uppercase tracking-tighter">{{ selectedPO.locationType }}</Badge>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-6 pt-2">
-                <div class="space-y-1">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tanggal Order</p>
-                  <p class="text-sm">{{ formatDate(selectedPO.orderDate || selectedPO.createdAt) }}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimasi Tiba</p>
-                  <p class="text-sm">{{ formatDate(selectedPO.expectedDate) }}</p>
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Item Pesanan</h4>
-                <div class="space-y-2">
-                  <div v-for="(item, i) in selectedPO.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
-                    <div class="flex items-center gap-3">
-                      <div class="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
-                        <Package class="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p class="text-sm font-semibold">{{ item.product?.name || `Produk #${item.productId}` }}</p>
-                        <p class="text-[10px] text-muted-foreground">
-                          {{ item.qtyOrdered }} pcs × {{ formatCurrency(item.unitCost) }}
-                          <span v-if="item.qtyReceived > 0" class="ml-2 text-emerald-600 font-bold">• Diterima: {{ item.qtyReceived }}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <span class="text-sm font-bold">{{ formatCurrency(item.qtyOrdered * item.unitCost) }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="selectedPO.notes" class="space-y-1 bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100/50 dark:border-amber-800/30">
-                <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Catatan</p>
-                <p class="text-xs italic text-amber-800/80 dark:text-amber-200/80">{{ selectedPO.notes }}</p>
-              </div>
-            </div>
-
-            <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs text-muted-foreground font-bold">SUBTOTAL</span>
-                <span class="text-sm font-medium">{{ formatCurrency(selectedPO.total) }}</span>
-              </div>
-              <div class="flex items-center justify-between mb-4">
-                <span class="text-xs text-muted-foreground font-bold uppercase tracking-widest">Grand Total</span>
-                <span class="text-2xl font-black text-primary">{{ formatCurrency(selectedPO.total) }}</span>
-              </div>
-              <div class="flex gap-2">
-                <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
-                  class="flex-1"
-                  :disabled="updatingStatus"
-                  @click="updatePOStatus(selectedPO.id, 'ordered')"
-                >
-                  <Send class="h-4 w-4 mr-2" />
-                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                  Kirim PO
-                </Button>
-                <Button 
-                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive && !isSuperAdmin"
-                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  @click="openReceiptDrawer(selectedPO)"
-                >
-                  <CheckCircle2 class="h-4 w-4 mr-2" />
-                  Terima Barang
-                </Button>
-                <Button 
-                  v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin"
-                  variant="destructive"
-                  class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border-red-200"
-                  :disabled="updatingStatus"
-                  @click="updatePOStatus(selectedPO.id, 'cancelled')"
-                >
-                  <X class="h-4 w-4 mr-2" />
-                  Batalkan PO
-                </Button>
-                <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
-              </div>
-            </div>
-          </template>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ─── RECEIPT DRAWER ─────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="showReceiptDrawer" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="showReceiptDrawer = false" />
       </Transition>
-      <Transition name="slide-right">
-        <div v-if="showReceiptDrawer" class="fixed inset-y-0 right-0 z-[60] flex flex-col w-full sm:max-w-[520px] bg-card shadow-2xl sm:border-l overflow-hidden">
-          <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-emerald-50/60 dark:bg-emerald-950/20">
-            <div>
-              <h3 class="font-semibold text-base text-emerald-800 dark:text-emerald-300">Terima Barang</h3>
-              <p class="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-0.5">Konfirmasi penerimaan barang dan perbarui stok.</p>
-            </div>
-            <Button variant="ghost" size="icon" @click="showReceiptDrawer = false">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-
-          <!-- Body -->
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <div v-if="receiptError" class="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-3">
-              <p class="text-sm text-red-600 dark:text-red-400">{{ receiptError }}</p>
+      <Transition name="scale">
+        <div v-if="showReceiptDrawer" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+          
+          <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
+            
+            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-emerald-50/60 dark:bg-emerald-950/20">
+              <div>
+                <h3 class="font-semibold text-base text-emerald-800 dark:text-emerald-300">Terima Barang Masuk</h3>
+                <p class="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-0.5">Konfirmasi penerimaan produk fisik dan update kartu stok.</p>
+              </div>
+              <Button variant="ghost" size="icon" @click="showReceiptDrawer = false">
+                <X class="h-4 w-4" />
+              </Button>
             </div>
 
-            <!-- Tanggal Terima -->
-            <div class="space-y-1.5">
-              <Label>Tanggal & Waktu Terima <span class="text-destructive">*</span></Label>
-              <Input v-model="receiptForm.receivedDate" type="datetime-local" class="h-9" :disabled="receiptSaving" />
-            </div>
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div v-if="receiptError" class="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-3">
+                <p class="text-sm text-red-600 dark:text-red-400">{{ receiptError }}</p>
+              </div>
 
-            <!-- Catatan -->
-            <div class="space-y-1.5">
-              <Label>Catatan Penerimaan</Label>
-              <textarea
-                v-model="receiptForm.notes"
-                rows="2"
-                :disabled="receiptSaving"
-                placeholder="Catatan opsional..."
-                class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
-              />
-            </div>
+              <div class="space-y-1.5">
+                <Label>Tanggal & Waktu Terima <span class="text-destructive">*</span></Label>
+                <Input v-model="receiptForm.receivedDate" type="datetime-local" class="h-9" :disabled="receiptSaving" />
+              </div>
 
-            <!-- Item List -->
-            <div class="space-y-3">
-              <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Item yang Diterima</h4>
-              <div v-for="(item, i) in receiptForm.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-3">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                      <Package class="h-3.5 w-3.5 text-zinc-400" />
+              <div class="space-y-1.5">
+                <Label>Catatan Log Penerimaan</Label>
+                <textarea
+                  v-model="receiptForm.notes"
+                  rows="2"
+                  :disabled="receiptSaving"
+                  placeholder="Instruksi tambahan atau kondisi pengiriman barang..."
+                  class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                />
+              </div>
+
+              <div class="space-y-3">
+                <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Rincian Jumlah Kuantitas Tiba</h4>
+                
+                <div v-for="(item, i) in receiptForm.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                        <Package class="h-3.5 w-3.5 text-zinc-400" />
+                      </div>
+                      <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ item.productName }}</span>
                     </div>
-                    <span class="text-sm font-semibold">{{ item.productName }}</span>
+                    <span class="text-[10px] text-zinc-400 font-bold bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">Tag PO: {{ item.qtyOrdered }} PCS</span>
                   </div>
-                  <span class="text-[10px] text-zinc-400">Dipesan: {{ item.qtyOrdered }} pcs</span>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="space-y-1">
-                    <Label class="text-[10px] text-zinc-500">Qty Diterima <span class="text-destructive">*</span></Label>
-                    <Input
-                      v-model.number="item.qtyReceived"
-                      type="number"
-                      min="1"
-                      :max="item.qtyOrdered"
-                      class="h-8 text-sm"
-                      :disabled="receiptSaving"
-                    />
-                  </div>
-                  <div class="space-y-1">
-                    <Label class="text-[10px] text-zinc-500">Catatan Item</Label>
-                    <Input v-model="item.notes" placeholder="Opsional" class="h-8 text-sm" :disabled="receiptSaving" />
+                  
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                      <Label class="text-[10px] text-zinc-500">Qty Fisik Diterima <span class="text-destructive">*</span></Label>
+                      <Input
+                        v-model.number="item.qtyReceived"
+                        type="number"
+                        min="1"
+                        :max="item.qtyOrdered"
+                        class="h-8 text-sm text-center font-bold"
+                        :disabled="receiptSaving"
+                      />
+                    </div>
+                    <div class="space-y-1">
+                      <Label class="text-[10px] text-zinc-500">Catatan Item Masuk</Label>
+                      <Input v-model="item.notes" placeholder="Contoh: Aman, Box Robek" class="h-8 text-sm" :disabled="receiptSaving" />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+
+            <div class="flex gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+              <Button variant="outline" class="flex-1" @click="showReceiptDrawer = false" :disabled="receiptSaving">Batal</Button>
+              <Button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold" @click="submitReceipt" :disabled="receiptSaving">
+                <Loader2 v-if="receiptSaving" class="h-4 w-4 mr-2 animate-spin" />
+                <CheckCircle2 v-else class="h-4 w-4 mr-2" />
+                Konfirmasi Terima
+              </Button>
+            </div>
           </div>
 
-          <!-- Footer -->
-          <div class="flex gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
-            <Button variant="outline" class="flex-1" @click="showReceiptDrawer = false" :disabled="receiptSaving">Batal</Button>
-            <Button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" @click="submitReceipt" :disabled="receiptSaving">
-              <Loader2 v-if="receiptSaving" class="h-4 w-4 mr-2 animate-spin" />
-              <CheckCircle2 v-else class="h-4 w-4 mr-2" />
-              Konfirmasi Terima
-            </Button>
-          </div>
         </div>
       </Transition>
     </Teleport>
@@ -1005,8 +1014,24 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
+/* ─── FADE EFFECT BACKGROUND BACKDROP ─── */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ─── SCALE EFFECT DI TENGAH MONITOR LU ─── */
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
 </style>

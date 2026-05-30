@@ -267,11 +267,6 @@ onMounted(fetchData)
           <p class="text-muted-foreground text-sm mt-1">Pantau ketersediaan barang di seluruh lokasi.</p>
         </div>
         <div class="flex items-center gap-2">
-          <Button v-if="can('stock_balance.transfer') && !isSuperAdmin" @click="openTransfer" size="sm" variant="outline" class="flex items-center gap-2 border-zinc-200 dark:border-zinc-800">
-            <ArrowUpDown class="h-4 w-4 text-zinc-500" />
-            <span>Transfer Stok</span>
-          </Button>
-
           <Button v-if="can('stock_balance.store') && !isSuperAdmin" @click="openAdjustment" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90">
             <Plus class="h-4 w-4" />
             <span>Stok Awal / Koreksi</span>
@@ -393,281 +388,138 @@ onMounted(fetchData)
 
     <!-- ─── 🛡️ PIXEL PERFECT DRAWER ADJUSTMENT (KOREKSI STOK) sesuai image_0b509d.png ─── -->
     <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
-      </Transition>
-      <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[440px] bg-background shadow-2xl sm:border-l border-zinc-200 dark:border-zinc-800 overflow-hidden">
-          
-          <!-- HEADER -->
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 border-zinc-100 dark:border-zinc-800">
-            <div>
-              <h3 class="font-bold text-zinc-950 dark:text-zinc-50 text-base">Stok Awal / Koreksi</h3>
-              <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Atur saldo stok secara langsung.</p>
-            </div>
-            <Button variant="ghost" size="icon" @click="showDrawer = false" class="h-8 w-8 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-
-          <!-- BODY FORM -->
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <Alert v-if="formError" variant="destructive" class="text-xs py-2.5">{{ formError }}</Alert>
-            
-            <!-- Pilih Produk -->
-            <div class="space-y-1.5">
-              <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pilih Produk *</Label>
-              <div class="relative">
-                <select v-model="form.productId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
-                  <option value="" disabled>Pilih produk...</option>
-                  <option v-for="p in products" :key="p.id" :value="p.id">
-                    {{ p.name }} ({{ p.sku }})
-                  </option>
-                </select>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
-                  <ChevronDown class="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Tipe Lokasi -->
-            <div class="space-y-1.5">
-              <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Tipe Lokasi</Label>
-              <div class="grid grid-cols-2 gap-2">
-                <button 
-                  type="button" 
-                  @click="form.locationType = 'warehouse'; form.locationId = ''" 
-                  :class="[
-                    'flex items-center justify-center gap-2 h-10 rounded-md border text-sm font-medium transition-all shadow-sm', 
-                    form.locationType === 'warehouse' 
-                      ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900 dark:border-zinc-50' 
-                      : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
-                  ]"
-                >
-                  <Warehouse class="h-4 w-4" /> Warehouse
-                </button>
-                <button 
-                  type="button" 
-                  @click="form.locationType = 'branch'; form.locationId = ''" 
-                  :class="[
-                    'flex items-center justify-center gap-2 h-10 rounded-md border text-sm font-medium transition-all shadow-sm', 
-                    form.locationType === 'branch' 
-                      ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900 dark:border-zinc-50' 
-                      : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
-                  ]"
-                >
-                  <Building2 class="h-4 w-4" /> Branch
-                </button>
-              </div>
-            </div>
-
-            <!-- Pilih Lokasi -->
-            <div class="space-y-1.5">
-              <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pilih Lokasi *</Label>
-              <div class="relative">
-                <select v-model="form.locationId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
-                  <option value="" disabled>Pilih lokasi...</option>
-                  <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
-                    {{ l.name }}
-                  </option>
-                </select>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
-                  <ChevronDown class="h-4 w-4" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Jumlah Stok -->
-            <div class="space-y-1.5">
-              <Label for="qty" class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Jumlah Stok *</Label>
-              <div class="relative flex items-center">
-                <Input 
-                  id="qty" 
-                  v-model.number="form.qty" 
-                  type="number" 
-                  placeholder="0" 
-                  class="h-10 pr-12 pl-3 w-full border border-zinc-200 dark:border-zinc-800 focus-visible:ring-2 focus-visible:ring-zinc-950 dark:focus-visible:ring-zinc-300 rounded-md bg-background text-sm shadow-sm" 
-                />
-                <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[10px] font-bold text-zinc-400 tracking-wide">
-                  PCS
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- FOOTER ACTIONS -->
-          <div class="flex justify-end gap-3 px-6 py-4 border-t bg-background border-zinc-100 dark:border-zinc-800 shrink-0">
-            <Button variant="outline" @click="showDrawer = false" :disabled="saving" class="h-9 px-4 text-sm font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-background text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900">
-              Batal
-            </Button>
-            <Button @click="saveAdjustment" :disabled="saving" class="h-9 px-4 text-sm font-medium rounded-md bg-[#18181b] hover:bg-[#18181b]/90 text-white dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-              Simpan Saldo
-            </Button>
-          </div>
-
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ─── NEW DRAWER: TRANSFER STOK ─── -->
-    <Teleport to="body">
         <Transition name="fade">
-        <div v-if="showTransferDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showTransferDrawer = false" />
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
         </Transition>
-        <Transition name="slide-right">
-        <div v-if="showTransferDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[440px] bg-background shadow-2xl sm:border-l border-zinc-200 dark:border-zinc-800 overflow-hidden">
+    
+        <Transition name="scale">
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
             
-            <!-- HEADER -->
-            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 border-zinc-100 dark:border-zinc-800">
-            <div>
-                <h3 class="font-bold text-zinc-950 dark:text-zinc-50 text-base">Buat Transfer Stok</h3>
-                <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Atur mutasi barang antar lokasi bisnis.</p>
-            </div>
-            <Button variant="ghost" size="icon" @click="showTransferDrawer = false" class="h-8 w-8 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
-                <X class="h-4 w-4" />
-            </Button>
-            </div>
-
-            <!-- BODY DRAWER -->
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <Alert v-if="transferFormError" variant="destructive" class="text-xs py-2.5">{{ transferFormError }}</Alert>
-
-            <!-- CONTAINER RUTE MUTASI -->
-            <div class="border rounded-xl p-4 bg-zinc-50/50 dark:bg-zinc-900/20 space-y-4 border-zinc-200 dark:border-zinc-800 relative mt-2">
-                <span class="absolute -top-2.5 left-3 px-1.5 bg-background text-[10px] font-bold tracking-wider text-zinc-400 uppercase">Rute Mutasi</span>
+            <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-background shadow-2xl border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden pointer-events-auto">
+              
+              <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 border-zinc-100 dark:border-zinc-800">
+                <div>
+                  <h3 class="font-bold text-zinc-950 dark:text-zinc-50 text-base">Stok Awal / Koreksi</h3>
+                  <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Atur saldo stok secara langsung.</p>
+                </div>
+                <Button variant="ghost" size="icon" @click="showDrawer = false" class="h-8 w-8 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+    
+              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                <Alert v-if="formError" variant="destructive" class="text-xs py-2.5">{{ formError }}</Alert>
                 
-                <!-- DARI (ASAL) -->
                 <div class="space-y-1.5">
-                <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Dari (Asal) *</Label>
-                <div class="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg">
-                    <button 
-                    type="button" 
-                    @click="transferForm.fromLocationType = 'warehouse'; transferForm.fromLocationId = ''" 
-                    :class="[
-                        'flex items-center justify-center gap-2 h-8 rounded-md text-xs font-semibold transition-all shadow-sm', 
-                        transferForm.fromLocationType === 'warehouse' 
-                        ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900' 
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    ]"
-                    >
-                    <Warehouse class="h-3.5 w-3.5" /> WAREHOUSE
-                    </button>
-                    <button 
-                    type="button" 
-                    @click="transferForm.fromLocationType = 'branch'; transferForm.fromLocationId = ''" 
-                    :class="[
-                        'flex items-center justify-center gap-2 h-8 rounded-md text-xs font-semibold transition-all shadow-sm', 
-                        transferForm.fromLocationType === 'branch' 
-                        ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900' 
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    ]"
-                    >
-                    <Building2 class="h-3.5 w-3.5" /> BRANCH
-                    </button>
-                </div>
-                <div class="relative">
-                    <select v-model="transferForm.fromLocationId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
-                    <option value="" disabled>Pilih lokasi asal...</option>
-                    <option v-for="loc in transferFromOptions" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
+                  <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pilih Produk *</Label>
+                  <div class="relative">
+                    <select v-model="form.productId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
+                      <option value="" disabled>Pilih produk...</option>
+                      <option v-for="p in products" :key="p.id" :value="p.id">
+                        {{ p.name }} ({{ p.sku }})
+                      </option>
                     </select>
                     <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
-                    <ChevronDown class="h-4 w-4" />
+                      <ChevronDown class="h-4 w-4" />
                     </div>
+                  </div>
                 </div>
-                </div>
-
-                <!-- SWAP BUTTON -->
-                <div class="flex justify-center -my-2 relative z-10">
-                <button type="button" @click="swapTransferRoute" class="p-2 rounded-full border bg-background hover:bg-zinc-50 border-zinc-200 dark:border-zinc-700 text-zinc-500 shadow-sm transition-all">
-                    <ArrowUpDown class="h-3.5 w-3.5" />
-                </button>
-                </div>
-
-                <!-- KE (TUJUAN) -->
+    
                 <div class="space-y-1.5">
-                <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ke (Tujuan) *</Label>
-                <div class="grid grid-cols-2 gap-2 p-1 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg">
+                  <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Tipe Lokasi</Label>
+                  <div class="grid grid-cols-2 gap-2">
                     <button 
-                    type="button" 
-                    @click="transferForm.toLocationType = 'warehouse'; transferForm.toLocationId = ''" 
-                    :class="[
-                        'flex items-center justify-center gap-2 h-8 rounded-md text-xs font-semibold transition-all shadow-sm', 
-                        transferForm.toLocationType === 'warehouse' 
-                        ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900' 
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    ]"
+                      type="button" 
+                      @click="form.locationType = 'warehouse'; form.locationId = ''" 
+                      :class="[
+                        'flex items-center justify-center gap-2 h-10 rounded-md border text-sm font-medium transition-all shadow-sm', 
+                        form.locationType === 'warehouse' 
+                          ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900 dark:border-zinc-50' 
+                          : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
+                      ]"
                     >
-                    <Warehouse class="h-3.5 w-3.5" /> WAREHOUSE
+                      <Warehouse class="h-4 w-4" /> Warehouse
                     </button>
                     <button 
-                    type="button" 
-                    @click="transferForm.toLocationType = 'branch'; transferForm.toLocationId = ''" 
-                    :class="[
-                        'flex items-center justify-center gap-2 h-8 rounded-md text-xs font-semibold transition-all shadow-sm', 
-                        transferForm.toLocationType === 'branch' 
-                        ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900' 
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
-                    ]"
+                      type="button" 
+                      @click="form.locationType = 'branch'; form.locationId = ''" 
+                      :class="[
+                        'flex items-center justify-center gap-2 h-10 rounded-md border text-sm font-medium transition-all shadow-sm', 
+                        form.locationType === 'branch' 
+                          ? 'bg-[#18181b] text-white border-[#18181b] dark:bg-zinc-50 dark:text-zinc-900 dark:border-zinc-50' 
+                          : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
+                      ]"
                     >
-                    <Building2 class="h-3.5 w-3.5" /> BRANCH
+                      <Building2 class="h-4 w-4" /> Branch
                     </button>
+                  </div>
                 </div>
-                <div class="relative">
-                    <select v-model="transferForm.toLocationId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
-                    <option value="" disabled>Pilih lokasi tujuan...</option>
-                    <option v-for="loc in transferToOptions" :key="loc.id" :value="loc.id">{{ loc.name }}</option>
+    
+                <div class="space-y-1.5">
+                  <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pilih Lokasi *</Label>
+                  <div class="relative">
+                    <select v-model="form.locationId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
+                      <option value="" disabled>Pilih lokasi...</option>
+                      <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
+                        {{ l.name }}
+                      </option>
                     </select>
                     <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
-                    <ChevronDown class="h-4 w-4" />
+                      <ChevronDown class="h-4 w-4" />
                     </div>
+                  </div>
                 </div>
-                </div>
-            </div>
-
-            <!-- ITEM DATA SECTION -->
-            <div class="space-y-3 pt-2">
-                <Label class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Item Transfer</Label>
-                <div class="grid grid-cols-4 gap-3">
-                <div class="col-span-3 space-y-1.5">
-                    <Label class="text-xs text-muted-foreground">Produk</Label>
-                    <div class="relative">
-                    <select v-model="transferForm.productId" class="w-full h-10 pl-3 pr-10 text-sm rounded-md border border-zinc-200 dark:border-zinc-800 bg-background outline-none appearance-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 transition-all cursor-pointer text-zinc-900 dark:text-zinc-100">
-                        <option value="" disabled>Pilih produk...</option>
-                        <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
-                    </select>
-                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-400">
-                        <ChevronDown class="h-4 w-4" />
+    
+                <div class="space-y-1.5">
+                  <Label for="qty" class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Jumlah Stok *</Label>
+                  <div class="relative flex items-center">
+                    <Input 
+                      id="qty" 
+                      v-model.number="form.qty" 
+                      type="number" 
+                      placeholder="0" 
+                      class="h-10 pr-12 pl-3 w-full border border-zinc-200 dark:border-zinc-800 focus-visible:ring-2 focus-visible:ring-zinc-950 dark:focus-visible:ring-zinc-300 rounded-md bg-background text-sm shadow-sm" 
+                    />
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[10px] font-bold text-zinc-400 tracking-wide">
+                      PCS
                     </div>
-                    </div>
+                  </div>
                 </div>
-                <div class="col-span-1 space-y-1.5">
-                    <Label class="text-xs text-muted-foreground">Qty</Label>
-                    <Input type="number" min="1" v-model.number="transferForm.qty" class="text-center h-10 border border-zinc-200 dark:border-zinc-800 focus-visible:ring-2 focus-visible:ring-zinc-950 rounded-md bg-background text-sm shadow-sm" />
-                </div>
-                </div>
+              </div>
+    
+              <div class="flex justify-end gap-3 px-6 py-4 border-t bg-background border-zinc-100 dark:border-zinc-800 shrink-0">
+                <Button variant="outline" @click="showDrawer = false" :disabled="saving" class="h-9 px-4 text-sm font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-background text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+                  Batal
+                </Button>
+                <Button @click="saveAdjustment" :disabled="saving" class="h-9 px-4 text-sm font-medium rounded-md bg-[#18181b] hover:bg-[#18181b]/90 text-white dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm">
+                  <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                  Simpan Saldo
+                </Button>
+              </div>
+    
             </div>
-            </div>
-
-            <!-- FOOTER ACTIONS -->
-            <div class="flex justify-end gap-3 px-6 py-4 border-t bg-background border-zinc-100 dark:border-zinc-800 shrink-0">
-            <Button variant="outline" @click="showTransferDrawer = false" :disabled="transferSaving" class="h-9 px-4 text-sm font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-background text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900">
-                Batal
-            </Button>
-            <Button @click="saveTransfer" :disabled="transferSaving || loading" class="h-9 px-4 text-sm font-medium rounded-md bg-[#18181b] hover:bg-[#18181b]/90 text-white dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm">
-                <Loader2 v-if="transferSaving" class="h-4 w-4 mr-2 animate-spin" /> Kirim Stok
-            </Button>
-            </div>
-
-        </div>
+          </div>
         </Transition>
-    </Teleport>
+      </Teleport>
   </AppLayout>
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
-</style>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+ 
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}</style>

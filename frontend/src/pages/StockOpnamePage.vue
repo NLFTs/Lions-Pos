@@ -389,187 +389,198 @@ onMounted(fetchData)
 
     <!-- Drawer -->
     <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
-      </Transition>
-      <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[600px] bg-card shadow-2xl sm:border-l overflow-hidden">
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
-            <div>
-              <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Input Hasil Opname' : 'Detail Stock Opname' }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5">Rekonsiliasi perbedaan stok fisik dan sistem.</p>
-            </div>
-            <Button variant="ghost" size="icon" @click="showDrawer = false">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-
-          <!-- CREATE MODE -->
-          <template v-if="drawerMode === 'create'">
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-              
-              <!-- Header Info -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-4">
-                  <div class="space-y-1.5">
-                    <Label class="text-xs font-bold uppercase tracking-tight">Pilih Lokasi Audit</Label>
-                    <div class="grid grid-cols-2 gap-2">
-                      <button type="button" @click="form.location = 'warehouse'; form.locationId = ''; form.items = []" :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200 hover:bg-zinc-50']">
-                        WAREHOUSE
-                      </button>
-                      <button type="button" @click="form.location = 'branch'; form.locationId = ''; form.items = []" :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[10px] font-bold transition-all', form.location === 'branch' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200 hover:bg-zinc-50']">
-                        BRANCH
-                      </button>
-                    </div>
-                    <select v-model="form.locationId" @change="form.items = []" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none">
-                      <option value="" disabled>Pilih lokasi...</option>
-                      <option v-for="l in locations.filter(x => x.type === form.location)" :key="l.id" :value="l.id">{{ l.name }}</option>
-                    </select>
-                  </div>
+        <Transition name="fade">
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
+        </Transition>
+        <Transition name="scale">
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
+            <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
+              <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
+                <div>
+                    <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Input Hasil Opname' : 'Detail Stock Opname' }}</h3>
+                    <p class="text-xs text-muted-foreground mt-0.5">Rekonsiliasi perbedaan stok fisik dan sistem.</p>
                 </div>
-                <div class="space-y-4">
-                  <div class="space-y-1.5">
-                    <Label class="text-xs font-bold uppercase tracking-tight">Waktu Audit</Label>
-                    <Input v-model="form.date" type="datetime-local" class="h-10" />
-                  </div>
-                </div>
+                <Button variant="ghost" size="icon" @click="showDrawer = false">
+                    <X class="h-4 w-4" />
+                </Button>
               </div>
-
-              <!-- Item Section -->
-              <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                    <Package class="h-3 w-3" /> Daftar Item & Hasil Hitung
-                  </h4>
-                  <Button variant="outline" size="sm" class="h-8 text-[10px] font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10" @click="fetchLocationStock" :disabled="!form.locationId || loading">
-                    <RefreshCw class="h-3 w-3 mr-1.5" :class="{'animate-spin': loading}" /> Tarik Stok Sistem
-                  </Button>
-                </div>
-
-                <div v-if="form.items.length === 0" class="flex flex-col items-center justify-center py-12 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50/50">
-                  <Package class="h-8 w-8 text-zinc-300 mb-2" />
-                  <p class="text-xs text-muted-foreground">Gunakan tombol "Tarik Stok Sistem" untuk memuat data.</p>
-                </div>
-
-                <div v-else class="space-y-3">
-                  <div v-for="(item, i) in form.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-                    <div class="flex justify-between items-start mb-3">
-                      <div>
-                        <p class="text-sm font-bold">{{ item.productName }}</p>
-                        <p class="text-[10px] font-mono text-muted-foreground">{{ item.sku }}</p>
-                      </div>
-                      <div class="text-right">
-                        <p class="text-[10px] uppercase font-bold text-zinc-400">Selisih</p>
-                        <span :class="['text-xs font-black', diffColor(item.qtyPhysical - item.qtySystem)]">
-                          {{ (item.qtyPhysical - item.qtySystem) > 0 ? '+' : '' }}{{ item.qtyPhysical - item.qtySystem }}
-                        </span>
+              <template v-if="drawerMode === 'create'">
+                <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                  <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-4">
+                      <div class="space-y-1.5">
+                        <Label class="text-xs font-bold uppercase tracking-tight">Pilih Lokasi Audit</Label>
+                        <div class="grid grid-cols-2 gap-2">
+                          <button type="button" @click="form.location = 'warehouse'; form.locationId = ''; form.items = []" :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200 hover:bg-zinc-50']">
+                            WAREHOUSE
+                          </button>
+                          <button type="button" @click="form.location = 'branch'; form.locationId = ''; form.items = []" :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[10px] font-bold transition-all', form.location === 'branch' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200 hover:bg-zinc-50']">
+                            BRANCH
+                          </button>
+                        </div>
+                        <select v-model="form.locationId" @change="form.items = []" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none">
+                          <option value="" disabled>Pilih lokasi...</option>
+                          <option v-for="l in locations.filter(x => x.type === form.location)" :key="l.id" :value="l.id">{{ l.name }}</option>
+                        </select>
                       </div>
                     </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                      <div class="space-y-1">
-                        <Label class="text-[10px] uppercase text-zinc-500 font-bold">Stok Sistem</Label>
-                        <div class="h-8 flex items-center px-3 bg-zinc-100 dark:bg-zinc-800 rounded-md text-xs font-bold border border-zinc-200 dark:border-zinc-700">
-                          {{ item.qtySystem }} PCS
+                    <div class="space-y-4">
+                      <div class="space-y-1.5">
+                        <Label class="text-xs font-bold uppercase tracking-tight">Waktu Audit</Label>
+                        <Input v-model="form.date" type="datetime-local" class="h-10" />
+                      </div>
+                    </div>
+                  </div>
+    
+                  <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                        <Package class="h-3 w-3" /> Daftar Item & Hasil Hitung
+                      </h4>
+                      <Button variant="outline" size="sm" class="h-8 text-[10px] font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10" @click="fetchLocationStock" :disabled="!form.locationId || loading">
+                        <RefreshCw class="h-3 w-3 mr-1.5" :class="{'animate-spin': loading}" /> Tarik Stok Sistem
+                      </Button>
+                    </div>
+    
+                    <div v-if="form.items.length === 0" class="flex flex-col items-center justify-center py-12 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50/50">
+                      <Package class="h-8 w-8 text-zinc-300 mb-2" />
+                      <p class="text-xs text-muted-foreground">Gunakan tombol "Tarik Stok Sistem" untuk memuat data.</p>
+                    </div>
+    
+                    <div v-else class="space-y-3">
+                      <div v-for="(item, i) in form.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+                        <div class="flex justify-between items-start mb-3">
+                          <div>
+                            <p class="text-sm font-bold">{{ item.productName }}</p>
+                            <p class="text-[10px] font-mono text-muted-foreground">{{ item.sku }}</p>
+                          </div>
+                          <div class="text-right">
+                            <p class="text-[10px] uppercase font-bold text-zinc-400">Selisih</p>
+                            <span :class="['text-xs font-black', diffColor(item.qtyPhysical - item.qtySystem)]">
+                              {{ (item.qtyPhysical - item.qtySystem) > 0 ? '+' : '' }}{{ item.qtyPhysical - item.qtySystem }}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                          <div class="space-y-1">
+                            <Label class="text-[10px] uppercase text-zinc-500 font-bold">Stok Sistem</Label>
+                            <div class="h-8 flex items-center px-3 bg-zinc-100 dark:bg-zinc-800 rounded-md text-xs font-bold border border-zinc-200 dark:border-zinc-700">
+                              {{ item.qtySystem }} PCS
+                            </div>
+                          </div>
+                          <div class="space-y-1">
+                            <Label class="text-[10px] uppercase text-primary font-bold">Fisik Terhitung</Label>
+                            <Input v-model.number="item.qtyPhysical" type="number" class="h-8 text-xs font-bold border-primary/30 focus:ring-primary/20" />
+                          </div>
                         </div>
                       </div>
-                      <div class="space-y-1">
-                        <Label class="text-[10px] uppercase text-primary font-bold">Fisik Terhitung</Label>
-                        <Input v-model.number="item.qtyPhysical" type="number" class="h-8 text-xs font-bold border-primary/30 focus:ring-primary/20" />
+                    </div>
+                  </div>
+    
+                  <div class="space-y-1.5">
+                    <Label>Catatan Audit</Label>
+                    <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" placeholder="Contoh: Barang rusak ditemukan, stok tertukar, dll." />
+                  </div>
+                </div>
+    
+                <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+                  <div class="flex gap-3">
+                    <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
+                    <Button class="flex-1" @click="saveOpname" :disabled="saving || form.items.length === 0">
+                      <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                      Simpan Draft Opname
+                    </Button>
+                  </div>
+                </div>
+              </template>
+    
+              <template v-else-if="selectedTR || selectedOpname">
+                <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+                  <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
+                    <div>
+                      <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">{{ selectedOpname.locationType }}</span>
+                      <h4 class="text-base font-bold leading-none">{{ selectedOpname.locationName }}</h4>
+                    </div>
+                    <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedOpname.status)]" variant="outline">
+                      {{ statusLabel(selectedOpname.status) }}
+                    </Badge>
+                  </div>
+    
+                  <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
+                      <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Auditor</p>
+                      <p class="font-medium text-xs">{{ selectedOpname.createdBy?.username || '-' }}</p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
+                      <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Waktu</p>
+                      <p class="font-medium text-xs">{{ formatDate(selectedOpname.date) }}</p>
+                    </div>
+                  </div>
+    
+                  <div class="space-y-3">
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Rincian Hasil Audit</h4>
+                    <div class="space-y-2">
+                      <div v-for="(item, i) in selectedOpname.items" :key="i" class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
+                        <div class="flex justify-between items-start mb-2">
+                          <div class="flex items-center gap-2">
+                            <Package class="h-3.5 w-3.5 text-zinc-400" />
+                            <span class="text-sm font-bold">{{ item.product?.name || `Produk #${item.productId}` }}</span>
+                          </div>
+                          <div :class="['text-xs font-black', diffColor(item.qtyPhysical - item.qtySystem)]">
+                            {{ (item.qtyPhysical - item.qtySystem) > 0 ? '+' : '' }}{{ item.qtyPhysical - item.qtySystem }}
+                          </div>
+                        </div>
+                        <div class="flex gap-4 text-[11px]">
+                          <span class="text-muted-foreground uppercase tracking-tighter">Sistem: <b>{{ item.qtySystem }}</b></span>
+                          <span class="text-primary uppercase tracking-tighter">Fisik: <b>{{ item.qtyPhysical }}</b></span>
+                        </div>
+                        <p v-if="item.notes" class="text-[10px] italic text-muted-foreground mt-1.5 border-l-2 border-zinc-200 pl-2">{{ item.notes }}</p>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <div class="space-y-1.5">
-                <Label>Catatan Audit</Label>
-                <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20" placeholder="Contoh: Barang rusak ditemukan, stok tertukar, dll." />
-              </div>
-            </div>
-
-            <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50">
-              <div class="flex gap-3">
-                <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
-                <Button class="flex-1" @click="saveOpname" :disabled="saving || form.items.length === 0">
-                  <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                  Simpan Draft Opname
-                </Button>
-              </div>
-            </div>
-          </template>
-
-          <!-- DETAIL MODE -->
-          <template v-else-if="selectedOpname">
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-              <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
-                <div>
-                  <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">{{ selectedOpname.locationType }}</span>
-                  <h4 class="text-base font-bold leading-none">{{ selectedOpname.locationName }}</h4>
-                </div>
-                <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedOpname.status)]" variant="outline">
-                  {{ statusLabel(selectedOpname.status) }}
-                </Badge>
-              </div>
-
-              <div class="grid grid-cols-2 gap-4 text-sm">
-                <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Auditor</p>
-                  <p class="font-medium">{{ selectedOpname.createdBy?.username || '-' }}</p>
-                </div>
-                <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Waktu</p>
-                  <p class="font-medium">{{ formatDate(selectedOpname.date) }}</p>
-                </div>
-              </div>
-
-              <div class="space-y-3">
-                <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Rincian Hasil Audit</h4>
-                <div class="space-y-2">
-                  <div v-for="(item, i) in selectedOpname.items" :key="i" class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
-                    <div class="flex justify-between items-start mb-2">
-                      <div class="flex items-center gap-2">
-                        <Package class="h-3.5 w-3.5 text-zinc-400" />
-                        <span class="text-sm font-bold">{{ item.product?.name || `Produk #${item.productId}` }}</span>
-                      </div>
-                      <div :class="['text-xs font-black', diffColor(item.qtyPhysical - item.qtySystem)]">
-                        {{ (item.qtyPhysical - item.qtySystem) > 0 ? '+' : '' }}{{ item.qtyPhysical - item.qtySystem }}
-                      </div>
-                    </div>
-                    <div class="flex gap-4 text-[11px]">
-                      <span class="text-muted-foreground uppercase tracking-tighter">Sistem: <b>{{ item.qtySystem }}</b></span>
-                      <span class="text-primary uppercase tracking-tighter">Fisik: <b>{{ item.qtyPhysical }}</b></span>
-                    </div>
-                    <p v-if="item.notes" class="text-[10px] italic text-muted-foreground mt-1.5 border-l-2 border-zinc-200 pl-2">{{ item.notes }}</p>
+    
+                  <div v-if="selectedOpname.notes" class="space-y-1 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                    <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Catatan Tambahan</p>
+                    <p class="text-xs italic">{{ selectedOpname.notes }}</p>
                   </div>
                 </div>
-              </div>
-
-              <div v-if="selectedOpname.notes" class="space-y-1 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Catatan Tambahan</p>
-                <p class="text-xs italic">{{ selectedOpname.notes }}</p>
-              </div>
-            </div>
-
-            <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
-              <div class="flex gap-2">
-                <Button v-if="selectedOpname.status === 'approved' && can('stock_opname.update') && !isSuperAdmin" class="flex-1 bg-primary" @click="approveOpname(selectedOpname)">
-                  <Check class="h-4 w-4 mr-2" /> Setujui & Rekonsiliasi
-                </Button>
-                <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
-              </div>
-            </div>
-          </template>
-        </div>
-      </Transition>
-    </Teleport>
+    
+                <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto shrink-0">
+                  <div class="flex gap-2">
+                    <Button v-if="selectedOpname.status === 'approved' && can('stock_opname.update') && !isSuperAdmin" class="flex-1 bg-primary text-primary-foreground font-bold" @click="approveOpname(selectedOpname)">
+                      <Check class="h-4 w-4 mr-2" /> Setujui & Rekonsiliasi
+                    </Button>
+                    <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
+                  </div>
+                </div>
+              </template>
+             </div>
+           </div>
+         </Transition>
+      </Teleport>
   </AppLayout>
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+ 
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
 </style>

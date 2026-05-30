@@ -203,7 +203,7 @@ public class PartnerRoleTemplateSeeder {
     @Transactional
     public void seedForPartner(Partners partner) {
         for (RoleTemplate template : TEMPLATES) {
-            if (roleRepository.existsBySlugAndPartnerId(template.slug(), partner.getId())) {
+            if (roleRepository.existsBySlug(template.slug())) {
                 log.debug("[RoleTemplate] Role '{}' sudah ada untuk partner '{}', skip.",
                     template.slug(), partner.getName());
                 continue;
@@ -212,7 +212,6 @@ public class PartnerRoleTemplateSeeder {
             Role role = new Role();
             role.setSlug(template.slug());
             role.setName(template.name());
-            role.setPartner(partner);
             role.setType(Role.Type.EXTERNAL);
             role.setCreatedAt(LocalDateTime.now());
 

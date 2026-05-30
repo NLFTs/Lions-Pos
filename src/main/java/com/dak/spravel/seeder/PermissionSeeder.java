@@ -227,7 +227,7 @@ public class PermissionSeeder {
 
         // 3. Create "admin" role — Super Admin hanya bisa akses modul tertentu
         //    Bisa LIHAT semua, tapi CRUD hanya di: role, permission, module, user, partner, log
-        Role adminRole = roleRepository.findBySlugAndPartnerId("admin", null).orElseGet(() -> {
+        Role adminRole = roleRepository.findBySlug("admin").orElseGet(() -> {
             Role r = new Role();
             r.setSlug("admin");
             r.setName("Super Administrator");
@@ -261,7 +261,7 @@ public class PermissionSeeder {
 
         // 4. Update template roles with specific module access
         // Role "owner" — pemilik mitra, akses penuh ke semua modul mitranya
-        Role ownerRole = roleRepository.findBySlugAndPartnerId("owner", null).orElseGet(() -> {
+        Role ownerRole = roleRepository.findBySlug("owner").orElseGet(() -> {
             Role r = new Role();
             r.setSlug("owner");
             r.setName("Owner / Pemilik Mitra");
@@ -275,7 +275,6 @@ public class PermissionSeeder {
             String moduleSlug = p.getModule().getSlug();
             if (moduleSlug.equals("user") || 
                 moduleSlug.equals("category") ||
-                moduleSlug.equals("role") ||
                 moduleSlug.equals("produk") ||
                 moduleSlug.equals("warehouse") ||
                 moduleSlug.equals("branch") ||
@@ -301,7 +300,7 @@ public class PermissionSeeder {
 
         // 5. Assign "admin" role to super user "superadmin"
         userRepository.findByUsername("superadmin").ifPresent(su -> {
-            Role managed = roleRepository.findBySlugAndPartnerId("admin", null).orElseThrow();
+            Role managed = roleRepository.findBySlug("admin").orElseThrow();
             if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {
                 su.getRoles().add(managed);
                 userRepository.save(su);
