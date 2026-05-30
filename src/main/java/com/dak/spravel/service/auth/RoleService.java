@@ -9,7 +9,6 @@ import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Permission;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
@@ -62,31 +61,14 @@ public class RoleService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
-
-    private void validatePartnerAccess(Role role, User currentUser) {
-        // 👑 Jika Super Admin Global, bypass validasi kepemilikan tenant
-        if (currentUser.getPartner() == null) {
-            return;
-        }
-        if (role.getPartner() != null) {    
-            if (!role.getPartner().getId().equals(currentUser.getPartner().getId())) {
-                throw new SecurityException("Akses Ditolak: Anda tidak diperbolehkan mengelola role milik partner lain.");
-            }
-        } 
-    }
-
     // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
-    // GET ALL ROLES
+    // GET ALL ROLES (Semua user ngelihat list role global yang sama dari pusat)
     public List<RoleResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "role.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "role.index"); 
 
-        if (currentUser.getPartner() != null) {
-            return roleRepository.findAllByPartnerIdOrPartnerIsNull(currentUser.getPartner().getId())
-                    .stream().map(this::toResponse).toList();
-        }
+        // 💡 FIX: Tidak perlu lagi membedakan query kaku findAllByPartnerIdOrPartnerIsNull
         return roleRepository.findAll().stream().map(this::toResponse).toList();
     }
 
@@ -98,8 +80,6 @@ public class RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
         
-        validatePartnerAccess(role, currentUser);
-        
         return toResponse(role);
     }
 
@@ -107,22 +87,24 @@ public class RoleService {
     @Transactional
     public RoleResponse create(CreateRoleRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "role.store"); // 💡 Siapapun boleh buat role asal diberi izin Owner
-
-        Partners partner = currentUser.getPartner();
         
-        boolean slugExists = (partner != null) 
-                ? roleRepository.existsBySlugAndPartnerId(request.getSlug(), partner.getId())
-                : roleRepository.existsBySlugAndPartnerIsNull(request.getSlug());
+        // 🚨 BLOCK ACCESS: Owner Pusat / Admin Partner dilarang bikin role baru!
+        if (currentUser.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Owner atau Admin Partner tidak berhak membuat role baru. Fitur ini dikunci oleh Super Admin Pusat.");
+        }
+        
+        checkPermission(currentUser, "role.store"); 
+
+        // 💡 FIX: Cek duplikasi slug murni global tanpa melihat scope partner id lagi
+        boolean slugExists = roleRepository.existsBySlug(request.getSlug());
 
         if (slugExists) {
-            throw new IllegalArgumentException("Role slug '" + request.getSlug() + "' already exists for this partner scope");
+            throw new IllegalArgumentException("Role slug '" + request.getSlug() + "' already exists global system scope");
         }
 
         Role role = new Role();
         role.setName(request.getName());
         role.setSlug(request.getSlug());
-        role.setPartner(partner);
         role.setType(Role.Type.EXTERNAL);        
         role.setCreatedBy(currentUser);
         role.setCreatedAt(LocalDateTime.now());
@@ -138,21 +120,21 @@ public class RoleService {
     @Transactional
     public RoleResponse update(Long id, UpdateRoleRequest request) {
         User currentUser = getAuthenticatedUser();
+        
+        // 🚨 BLOCK ACCESS: Owner Pusat / Admin Partner dilarang edit konfigurasi role!
+        if (currentUser.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Owner atau Admin Partner tidak berhak mengubah konfigurasi role.");
+        }
+        
         checkPermission(currentUser, "role.update");
 
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
-        
-        validatePartnerAccess(role, currentUser);
 
         if (request.getName() != null) role.setName(request.getName());
         if (request.getSlug() != null && !request.getSlug().equals(role.getSlug())) {
-            Partners partner = currentUser.getPartner();
-            boolean slugExists = (partner != null) 
-                    ? roleRepository.existsBySlugAndPartnerId(request.getSlug(), partner.getId())
-                    : roleRepository.existsBySlugAndPartnerIsNull(request.getSlug());
-
-            if (slugExists) {
+            // 💡 FIX: Pengecekan slug bersifat unik secara global di database
+            if (roleRepository.existsBySlug(request.getSlug())) {
                 throw new IllegalArgumentException("Role slug '" + request.getSlug() + "' already exists");
             }
             role.setSlug(request.getSlug());
@@ -168,17 +150,14 @@ public class RoleService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "role.delete");
-
-        Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Role", id));
         
-        validatePartnerAccess(role, currentUser);
-
-        if ("admin".equals(role.getSlug()) && role.getPartner() == null) {
-            throw new IllegalArgumentException("The global master admin role cannot be deleted");
+        // 🚨 BLOCK ACCESS: Owner Pusat / Admin Partner dilarang hapus role!
+        if (currentUser.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Owner atau Admin Partner tidak berhak menghapus role sistem.");
         }
         
+        checkPermission(currentUser, "role.delete");
+
         roleRepository.deleteById(id);
         permissionCacheService.evictAll();
     }
@@ -187,12 +166,16 @@ public class RoleService {
     @Transactional
     public RoleResponse assignPermissions(Long id, AssignPermissionsRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "role.update"); // 💡 Mengubah susunan matriks permission dihitung hak kelola update role
+        
+        // 🚨 BLOCK ACCESS: Owner Pusat / Admin Partner dilarang otak-atik matriks checklist permission!
+        if (currentUser.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Owner atau Admin Partner tidak diizinkan mengubah hak akses (Matrix Permission) dari role ini.");
+        }
+        
+        checkPermission(currentUser, "role.update"); 
 
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
-        
-        validatePartnerAccess(role, currentUser);
 
         Set<Permission> perms = request.getPermissionIds() != null
                 ? new HashSet<>(permissionRepository.findAllById(request.getPermissionIds()))
@@ -209,8 +192,9 @@ public class RoleService {
     // FETCH ALL SYSTEM PERMISSIONS (GROUPED BY MODULE)
     public Map<String, List<PermissionResponse>> getAllPermissionsGrouped() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "role.show"); // 💡 Membuka daftar pilihan checklist permission matrix
+        checkPermission(currentUser, "role.show"); 
         
+        // Modul-modul rahasia yang tidak boleh disentuh/dilihat partner luar pusat
         Set<String> blacklistedModules = Set.of("partner", "permission", "module", "log");
 
         return permissionRepository.findAll().stream()

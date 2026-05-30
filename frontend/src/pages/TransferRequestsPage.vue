@@ -105,11 +105,11 @@ const statusOptions = [
 { value: 'in_transit', label: 'Dalam Kirim' },
 { value: 'received', label: 'Diterima' },
 { value: 'cancelled', label: 'Batal' }
-]})a
+]
 
 const locationTypeOptions = [
 { value: 'warehouse', label: 'Warehouse' },
-{ value: 'branch', label: 'Branch' }
+  { value: 'branch', label: 'Branch' }
 ]
 
 // ─── Form Options ────────────────────────────────────────────────────────────
@@ -477,288 +477,291 @@ onMounted(fetchData)
     </div>
 
     <Teleport to="body">
-    <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
-    </Transition>
-        <Transition name="slide-right">
-            <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[500px] bg-card shadow-2xl sm:border-l overflow-hidden">
-            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
+        <Transition name="fade">
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
+        </Transition>
+    
+        <Transition name="scale">
+          <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
+            
+            <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
+              
+              <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
                 <div>
-                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Transfer Stok' : 'Detail Transfer' }}</h3>
-                <p class="text-xs text-muted-foreground mt-0.5">Atur mutasi barang antar lokasi bisnis.</p>
+                  <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Transfer Stok' : 'Detail Transfer' }}</h3>
+                  <p class="text-xs text-muted-foreground mt-0.5">Atur mutasi barang antar lokasi bisnis.</p>
                 </div>
                 <Button variant="ghost" size="icon" @click="showDrawer = false">
-                <X class="h-4 w-4" />
+                  <X class="h-4 w-4" />
                 </Button>
-            </div>
-    
-            <template v-if="drawerMode === 'create'">
+              </div>
+      
+              <template v-if="drawerMode === 'create'">
                 <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-                <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-                
-                <div class="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-5">
+                  <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+                  
+                  <div class="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-5">
                     <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                    <ArrowRight class="h-3 w-3" /> Rute Mutasi
+                      <ArrowRight class="h-3 w-3" /> Rute Mutasi
                     </h4>
                     
                     <div class="grid grid-cols-1 gap-4">
-                    <div class="space-y-2">
+                      <div class="space-y-2">
                         <Label class="text-xs font-bold">Dari (Asal Sumber Barang) <span class="text-destructive">*</span></Label>
                         <div class="grid grid-cols-2 gap-2 mb-2">
-                        <button type="button" @click="form.fromLocationType = 'warehouse'; form.fromLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
+                          <button type="button" @click="form.fromLocationType = 'warehouse'; form.fromLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
                             <Warehouse class="h-3 w-3" /> WAREHOUSE
-                        </button>
-                        <button type="button" @click="form.fromLocationType = 'branch'; form.fromLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
+                          </button>
+                          <button type="button" @click="form.fromLocationType = 'branch'; form.fromLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
                             <Building2 class="h-3 w-3" /> BRANCH
-                        </button>
+                          </button>
                         </div>
                         
                         <select 
-                        :key="form.fromLocationType + locations.length"
-                        v-model="form.fromLocationId" 
-                        class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                          :key="form.fromLocationType + locations.length"
+                          v-model="form.fromLocationId" 
+                          class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                         >
-                        <option value="" disabled>Pilih lokasi asal sumber barang...</option>
-                        <option v-for="l in locations.filter(x => x.type === form.fromLocationType)" :key="l.id" :value="l.id">{{ l.name }}</option>
+                          <option value="" disabled>Pilih lokasi asal sumber barang...</option>
+                          <option v-for="l in locations.filter(x => x.type === form.fromLocationType)" :key="l.id" :value="l.id">{{ l.name }}</option>
                         </select>
-                    </div>
-    
-                    <div class="flex justify-center -my-2 relative z-10">
+                      </div>
+      
+                      <div class="flex justify-center -my-2 relative z-10">
                         <div class="bg-white dark:bg-zinc-900 p-1.5 rounded-full border border-zinc-200 dark:border-zinc-800">
-                        <Repeat2 class="h-4 w-4 text-primary animate-pulse" />
+                          <Repeat2 class="h-4 w-4 text-primary animate-pulse" />
                         </div>
-                    </div>
-    
-                    <div class="space-y-2">
+                      </div>
+      
+                      <div class="space-y-2">
                         <Label class="text-xs font-bold">Ke (Tujuan Meminta) <span class="text-destructive">*</span></Label>
                         
                         <div v-if="isStaff" class="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm">
-                        <div class="p-2 rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-500">
-                            <Building2 v-if="authStore.user?.branchId" class="h-4 w-4" />
-                            <Warehouse v-else class="h-4 w-4" />
-                        </div>
-                        <div class="flex flex-col">
+                          <div class="p-2 rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-500">
+                            <Building2 class="h-4 w-4" />
+                          </div>
+                          <div class="flex flex-col">
                             <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ userLocationName }}</span>
                             <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Lokasi Anda (Tujuan Permintaan)</span>
+                          </div>
                         </div>
-                        </div>
-    
+      
                         <div v-else>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
+                          <div class="grid grid-cols-2 gap-2 mb-2">
                             <button type="button" @click="form.toLocationType = 'warehouse'; form.toLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Warehouse class="h-3 w-3" /> WAREHOUSE
+                              <Warehouse class="h-3 w-3" /> WAREHOUSE
                             </button>
                             <button type="button" @click="form.toLocationType = 'branch'; form.toLocationId = ''" :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Building2 class="h-3 w-3" /> BRANCH
+                              <Building2 class="h-3 w-3" /> BRANCH
                             </button>
-                        </div>
-                        
-                        <select 
+                          </div>
+                          
+                          <select 
                             :key="form.toLocationType + locations.length"
                             v-model="form.toLocationId" 
                             class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                        >
+                          >
                             <option value="" disabled>Pilih lokasi tujuan permintaan...</option>
                             <option v-for="l in locations.filter(x => x.type === form.toLocationType)" :key="l.id" :value="l.id">{{ l.name }}</option>
-                        </select>
+                          </select>
                         </div>
+                      </div>
                     </div>
-                    </div>
-                </div>
-    
-                <div class="space-y-4">
+                  </div>
+      
+                  <div class="space-y-4">
                     <div class="flex items-center justify-between">
-                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                      <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
                         <Package class="h-3 w-3" /> Item Transfer
-                    </h4>
-                    <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
+                      </h4>
+                      <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
                         <Plus class="h-3 w-3 mr-1" /> Tambah Item
-                    </Button>
+                      </Button>
                     </div>
-    
+      
                     <div class="space-y-3">
-                    <div v-for="(item, i) in form.items" :key="i" class="relative p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group">
+                      <div v-for="(item, i) in form.items" :key="i" class="relative p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group">
                         <Button v-if="form.items.length > 1" variant="ghost" size="icon" class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" @click="removeItem(i)">
-                        <Trash2 class="h-3 w-3" />
+                          <Trash2 class="h-3 w-3" />
                         </Button>
                         
-                        <div class="grid grid-cols-3 gap-3">
-                        <div class="col-span-2 space-y-1">
+                        <div class="grid grid-cols-4 gap-3">
+                          <div class="col-span-3 space-y-1">
                             <Label class="text-[10px] text-zinc-500">Produk</Label>
                             <select v-model="item.productId" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none">
-                            <option value="" disabled>Pilih produk...</option>
-                            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
+                              <option value="" disabled>Pilih produk...</option>
+                              <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
                             </select>
-                        </div>
-                        <div class="space-y-1">
+                          </div>
+                          <div class="col-span-1 space-y-1">
                             <Label class="text-[10px] text-zinc-500">Qty</Label>
-                            <Input v-model.number="item.qtyRequested" type="number" min="1" class="h-8 text-xs" />
+                            <Input v-model.number="item.qtyRequested" type="number" min="1" class="h-8 text-xs text-center" />
+                          </div>
                         </div>
-                        </div>
+                      </div>
                     </div>
-                    </div>
-                </div>
-    
-                <div class="space-y-1.5">
+                  </div>
+      
+                  <div class="space-y-1.5">
                     <Label>Catatan</Label>
-                    <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none" placeholder="Alasan transfer atau instruksi..." />
+                    <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Alasan transfer atau instruksi..." />
+                  </div>
                 </div>
-                </div>
-    
-                <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50">
-                <div class="flex gap-3">
+      
+                <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+                  <div class="flex gap-3">
                     <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
                     <Button class="flex-1" @click="saveTR" :disabled="saving">
-                    <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                    Kirim Permintaan
+                      <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                      Kirim Permintaan
                     </Button>
+                  </div>
                 </div>
-                </div>
-            </template>
-    
-            <template v-else-if="selectedTR">
+              </template>
+      
+              <template v-else-if="selectedTR">
                 <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-                <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
+                  <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
                     <div class="flex items-center gap-3">
-                    <div class="flex flex-col items-center">
-                        <Badge variant="outline" class="text-[9px] h-4 mb-1">{{ selectedTR.fromLocationType }}</Badge>
-                        <span class="text-xs font-bold truncate max-w-[100px]">{{ selectedTR.fromLocationName }}</span>
-                    </div>
-                    <ArrowRight class="h-4 w-4 text-primary shrink-0" />
-                    <div class="flex flex-col items-center">
-                        <Badge variant="outline" class="text-[9px] h-4 mb-1">{{ selectedTR.toLocationType }}</Badge>
-                        <span class="text-xs font-bold truncate max-w-[100px]">{{ selectedTR.toLocationName }}</span>
-                    </div>
+                      <div class="flex flex-col items-center">
+                        <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase">{{ selectedTR.fromLocationType }}</Badge>
+                        <span class="text-xs font-bold truncate max-w-[120px]">{{ selectedTR.fromLocationName }}</span>
+                      </div>
+                      <ArrowRight class="h-4 w-4 text-primary shrink-0" />
+                      <div class="flex flex-col items-center">
+                        <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase">{{ selectedTR.toLocationType }}</Badge>
+                        <span class="text-xs font-bold truncate max-w-[120px]">{{ selectedTR.toLocationName }}</span>
+                      </div>
                     </div>
                     <Badge :class="['text-[9px] uppercase tracking-widest font-bold px-2 py-1', statusColor(selectedTR.status)]" variant="outline">
-                    {{ statusLabel(selectedTR.status) }}
+                      {{ statusLabel(selectedTR.status) }}
                     </Badge>
-                </div>
-    
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Diajukan Oleh</p>
-                    <p class="font-medium">{{ selectedTR.requestedBy?.username || '-' }}</p>
+                  </div>
+      
+                  <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
+                      <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Diajukan Oleh</p>
+                      <p class="font-medium text-xs">{{ selectedTR.requestedBy?.username || '-' }}</p>
                     </div>
-                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Tanggal</p>
-                    <p class="font-medium">{{ formatDate(selectedTR.createdAt) }}</p>
+                    <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
+                      <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Tanggal</p>
+                      <p class="font-medium text-xs">{{ formatDate(selectedTR.createdAt) }}</p>
                     </div>
-                </div>
-    
-                <div class="space-y-3">
+                  </div>
+      
+                  <div class="space-y-3">
                     <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Daftar Barang</h4>
                     <div class="space-y-2">
-                    <div v-for="(item, i) in selectedTR.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
+                      <div v-for="(item, i) in selectedTR.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
                         <div class="flex items-center gap-3">
-                        <Package class="h-4 w-4 text-zinc-400" />
-                        <div>
-                            <p class="text-sm font-semibold">{{ item.product?.name || `Produk #${item.productId}` }}</p>
-                            <p class="text-[10px] text-muted-foreground">SKU: {{ item.product?.sku || '-' }}</p>
-                        </div>
+                          <Package class="h-4 w-4 text-zinc-400" />
+                          <div>
+                            <p class="text-xs font-semibold">{{ item.product?.name || `Produk #${item.productId}` }}</p>
+                            <p class="text-[9px] text-muted-foreground">SKU: {{ item.product?.sku || '-' }}</p>
+                          </div>
                         </div>
                         <div class="text-right">
-                        <p class="text-sm font-bold">{{ item.qtyRequested }} <span class="text-[10px] text-muted-foreground font-normal">PCS</span></p>
-                        <p v-if="item.qtyReceived != null" class="text-[10px] text-emerald-600 font-bold">Diterima: {{ item.qtyReceived }}</p>
+                          <p class="text-xs font-bold">{{ item.qtyRequested }} <span class="text-[9px] text-muted-foreground font-normal">PCS</span></p>
+                          <p v-if="item.qtyReceived != null" class="text-[9px] text-emerald-600 font-bold">Diterima: {{ item.qtyReceived }}</p>
                         </div>
+                      </div>
                     </div>
-                    </div>
-                </div>
-    
-                <div v-if="selectedTR.notes" class="space-y-1 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                  </div>
+      
+                  <div v-if="selectedTR.notes" class="space-y-1 bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
                     <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Catatan</p>
                     <p class="text-xs italic">{{ selectedTR.notes }}</p>
+                  </div>
                 </div>
-                </div>
-    
-                <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto">
-                <div class="flex flex-col gap-2">
+      
+                <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+                  <div class="flex flex-col gap-2">
                     <div class="flex gap-2 w-full">
-                    
-                    <Button 
+                      
+                      <Button 
                         v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin"
                         class="flex-1 bg-primary text-primary-foreground font-bold"
                         :disabled="updatingStatus"
                         @click="updateTRStatus(selectedTR.id, 'approved')"
-                    >
+                      >
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />
                         Setujui Transfer (Owner)
-                    </Button>
-                
-                    <Button 
+                      </Button>
+                    
+                      <Button 
                         v-if="selectedTR.status === 'approved' && isStaff && isSourceSender && can('transfer_request.update') && !isSuperAdmin"
                         class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold"
                         :disabled="updatingStatus"
                         @click="updateTRStatus(selectedTR.id, 'in_transit')"
-                    >
+                      >
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Send v-else class="h-4 w-4 mr-2" />
                         Kirim Barang
-                    </Button>
-                
-                    <Button 
+                      </Button>
+                    
+                      <Button 
                         v-if="selectedTR.status === 'in_transit' && isStaff && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin"
                         class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                         :disabled="updatingStatus"
                         @click="updateTRStatus(selectedTR.id, 'RECEIVED')"
-                    >
+                      >
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />
                         Terima Barang (Received)
-                    </Button>
-                
-                    <Button variant="outline" :class="[ (selectedTR.status === 'pending' && !isStaff) || (selectedTR.status === 'approved' && isStaff && isSourceSender) || (selectedTR.status === 'in_transit' && isStaff && isTargetReceiver) ? 'w-24' : 'w-full' ]" @click="showDrawer = false">
+                      </Button>
+                    
+                      <Button variant="outline" :class="[ (selectedTR.status === 'pending' && !isStaff) || (selectedTR.status === 'approved' && isStaff && isSourceSender) || (selectedTR.status === 'in_transit' && isStaff && isTargetReceiver) ? 'w-24' : 'w-full' ]" @click="showDrawer = false">
                         Tutup
-                    </Button>
+                      </Button>
                     </div>
-                
-                    <div 
-                    v-if="selectedTR.status === 'pending' && isStaff" 
-                    class="w-full text-center py-2.5 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50 mt-1"
-                    >
-                    ⌛ Menunggu Dokumen Disetujui Oleh Owner Pusat...
+                  
+                    <div v-if="selectedTR.status === 'pending' && isStaff" class="w-full text-center py-2.5 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50 mt-1">
+                      ⌛ Menunggu Dokumen Disetujui Oleh Owner Pusat...
                     </div>
                     
-                    <div 
-                    v-if="selectedTR.status === 'approved' && isStaff && isTargetReceiver" 
-                    class="w-full text-center py-2.5 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50 mt-1"
-                    >
-                    📦 Dokumen Disetujui! Menunggu lokasi asal mengirim barang...
+                    <div v-if="selectedTR.status === 'approved' && isStaff && isTargetReceiver" class="w-full text-center py-2.5 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50 mt-1">
+                      📦 Dokumen Disetujui! Menunggu lokasi asal mengirim barang...
                     </div>
-                
-                    <div 
-                    v-if="selectedTR.status === 'approved' && isStaff && isSourceSender" 
-                    class="w-full text-center py-2.5 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50 mt-1"
-                    >
-                    🚚 Dokumen Disetujui! Harap proses & klik tombol Kirim Barang di atas...
+                  
+                    <div v-if="selectedTR.status === 'approved' && isStaff && isSourceSender" class="w-full text-center py-2.5 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50 mt-1">
+                      🚚 Dokumen Disetujui! Harap proses & klik tombol Kirim Barang di atas...
                     </div>
-                
-                    <div 
-                    v-if="selectedTR.status === 'in_transit' && isStaff && !isTargetReceiver" 
-                    class="w-full text-center py-2.5 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50 mt-1"
-                    >
-                    🚚 Barang Sedang Dalam Perjalanan ke Lokasi Tujuan...
+                  
+                    <div v-if="selectedTR.status === 'in_transit' && isStaff && !isTargetReceiver" class="w-full text-center py-2.5 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50 mt-1">
+                      🚚 Barang Sedang Dalam Perjalanan ke Lokasi Tujuan...
                     </div>
-                
-                    <div 
-                    v-if="selectedTR.status === 'cancelled'" 
-                    class="w-full text-center py-2.5 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50 mt-1"
-                    >
-                    ❌ Permintaan transfer ini telah dibatalkan.
+                  
+                    <div v-if="selectedTR.status === 'cancelled'" class="w-full text-center py-2.5 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50 mt-1">
+                      ❌ Permintaan transfer ini telah dibatalkan.
                     </div>
+                  </div>
                 </div>
-                </div>
-            </template>
-            </div>
+              </template>
+              </div> 
+            </div> 
         </Transition>
-    </Teleport>
+      </Teleport>
 </AppLayout>
 </template>
 
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.slide-right-enter-active, .slide-right-leave-active { transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-.slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
 </style>

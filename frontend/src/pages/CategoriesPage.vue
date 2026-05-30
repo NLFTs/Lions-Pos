@@ -409,31 +409,34 @@ function formatDate(dt) {
       </Transition>
 
       <!-- Panel -->
-      <Transition name="slide-right">
+      <Transition name="scale">
         <div
-          v-if="showDrawer"
-          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+        v-if="showDrawer"
+        class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none"
         >
           <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div>
-              <h3 class="font-semibold text-base">
-                {{ modalMode === 'create' ? 'Tambah Kategori' : 'Edit Kategori' }}
-              </h3>
-              <p class="text-xs text-muted-foreground mt-0.5">
-                {{ modalMode === 'create' ? 'Isi detail kategori baru.' : 'Perbarui informasi kategori.' }}
-              </p>
+            <div 
+                class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto"
+            >            
+            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+                <div>
+                    <h3 class="font-semibold text-base">
+                      {{ modalMode === 'create' ? 'Tambah Kategori' : 'Edit Kategori' }}
+                    </h3>
+                    <p class="text-xs text-muted-foreground mt-0.5">
+                      {{ modalMode === 'create' ? 'Isi detail kategori baru.' : 'Perbarui informasi kategori.' }}
+                    </p>
+                </div>
+                <Button variant="ghost" size="icon" @click="closeDrawer">
+                <X class="h-4 w-5" />
+                </Button>
             </div>
-            <Button variant="ghost" size="icon" @click="closeDrawer">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
 
-          <!-- Body (scrollable) -->
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <Alert v-if="formError" variant="destructive">
-              <p class="text-sm">{{ formError }}</p>
-            </Alert>
+            <!-- Body (scrollable) -->
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <Alert v-if="formError" variant="destructive">
+                <p class="text-sm">{{ formError }}</p>
+              </Alert>
 
             <div class="space-y-1.5">
               <Label for="c-name">Nama Kategori <span class="text-destructive">*</span></Label>
@@ -473,6 +476,7 @@ function formatDate(dt) {
             </Button>
           </div>
         </div>
+        </div>
       </Transition>
     </Teleport>
   </AppLayout>
@@ -481,19 +485,20 @@ function formatDate(dt) {
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
 }
 
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.slide-right-enter-from,
-.slide-right-leave-to {
-  transform: translateX(100%);
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
 }
 </style>

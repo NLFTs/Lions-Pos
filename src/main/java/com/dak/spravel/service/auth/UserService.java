@@ -10,12 +10,12 @@ import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
-import com.dak.spravel.model.inventory.Warehouses; // 💡 Pastiin import ini ada
+import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
-import com.dak.spravel.repository.inventory.WarehousesRepository; // 💡 Pastiin import ini ada
+import com.dak.spravel.repository.inventory.WarehousesRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,7 +42,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final PermissionCacheService permissionCacheService;
     private final BranchesRepository branchesRepository;
-    private final WarehousesRepository warehousesRepository; // 💡 FIX: Inject repo gudang Mip
+    private final WarehousesRepository warehousesRepository;
     private final PartnerRepository partnerRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
@@ -91,15 +91,18 @@ public class UserService {
         }
     }
 
-    private Set<Role> resolveRoles(List<Long> roleIds, Partners partner) {
+    // 🚨 KUNCI UTAMA: Validasi Role Sekarang Bersifat Global Khusus Buat Master Pusat
+    private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
         Set<Role> roles = new HashSet<>();
         for (Long roleId : roleIds) {
             Role role = roleRepository.findById(roleId)
                     .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
             
-            if (partner != null && role.getPartner() != null) {
-                if (!role.getPartner().getId().equals(partner.getId())) {
-                    throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            // 🔥 PROTEKSI 1: Partner dilarang keras memakai atau menembak role master 'admin' atau 'super-admin'
+            if (currentUser.getPartner() != null) {
+                String roleSlug = role.getSlug().toLowerCase();
+                if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
+                    throw new RuntimeException("Akses Ditolak: Hak istimewa ilegal! Anda tidak diizinkan menggunakan role pusat '" + role.getName() + "'.");
                 }
             }
             roles.add(role);
@@ -183,12 +186,14 @@ public class UserService {
 
         Partners targetPartner;
 
+        // Validasi penentuan partner & penyematan role global
         if (currentUser.getPartner() != null) {
             targetPartner = currentUser.getPartner();
             user.setPartner(targetPartner);
 
             if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                user.setRoles(resolveRoles(request.getRoleIds(), targetPartner));
+                // 🔥 Diubah: Kirim objek `currentUser` untuk mendeteksi pembatasan role
+                user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             } else {
                 throw new IllegalArgumentException("Pilih satu role untuk user ini.");
             }
@@ -203,10 +208,10 @@ public class UserService {
             if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
                 throw new IllegalArgumentException("Super Admin wajib melampirkan minimal satu target roleId.");
             }
-            user.setRoles(resolveRoles(request.getRoleIds(), targetPartner));
+            user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         }
 
-        // 🛡️ BRANCH GUARD (Penempatan Cabang)
+        // ─── 🛡️ BRANCH GUARD ───
         if (request.getBranchId() != null) {
             Branches branch = branchesRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
@@ -214,10 +219,10 @@ public class UserService {
                 throw new RuntimeException("Akses Ditolak: Cabang tidak sinkron dengan perusahaan target.");
             }
             user.setBranch(branch);
-            user.setWarehouse(null); // Biar gak double role lokasi
+            user.setWarehouse(null);
         }
 
-        // 🛡️ WAREHOUSE GUARD (💡 FIX: Tambah Penempatan Gudang)
+        // ─── 🛡️ WAREHOUSE GUARD ───
         if (request.getWarehouseId() != null) {
             Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
@@ -225,7 +230,7 @@ public class UserService {
                 throw new RuntimeException("Akses Ditolak: Gudang tidak sinkron dengan perusahaan target.");
             }
             user.setWarehouse(warehouse);
-            user.setBranch(null); // Biar gak double role lokasi
+            user.setBranch(null);
         }
 
         return toResponse(userRepository.save(user));
@@ -274,7 +279,6 @@ public class UserService {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        // 💡 FIX: Logika Mutasi Lokasi Kerja Karyawan pas di-update
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
         
         // Update Cabang Kerja
@@ -285,7 +289,7 @@ public class UserService {
                 throw new RuntimeException("Cabang tidak cocok dengan tenant.");
             }
             user.setBranch(branch);
-            user.setWarehouse(null); // Pindah ke cabang, otomatis lepas dari gudang
+            user.setWarehouse(null);
         }
 
         // Update Gudang Kerja
@@ -296,14 +300,15 @@ public class UserService {
                 throw new RuntimeException("Gudang tidak cocok dengan tenant.");
             }
             user.setWarehouse(warehouse);
-            user.setBranch(null); // Pindah ke gudang, otomatis lepas dari cabang
+            user.setBranch(null);
         }
 
         if (request.getRoleIds() != null) {
             if (isSelfUpdate) {
                 throw new RuntimeException("Akses Ditolak: Demi keamanan, Anda tidak bisa memanipulasi Role Anda sendiri.");
             }
-            user.setRoles(resolveRoles(request.getRoleIds(), partnerContext));
+            // 🔥 Diubah: Kirim objek `currentUser` untuk mencegah suntikan role pusat
+            user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             permissionCacheService.evict(user.getUsername());
         }
 
@@ -373,7 +378,6 @@ public class UserService {
             res.setBranchName(user.getBranch().getName());
         }
 
-        // 💡 FIX: Lempar data gudang biar frontend/authStore lu bisa baca lokasinya dinamis!
         if (user.getWarehouse() != null) {
             res.setWarehouseId(user.getWarehouse().getId());
             res.setWarehouseName(user.getWarehouse().getName());

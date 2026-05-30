@@ -800,64 +800,47 @@ function productAvatarStyle(name = '') {
 
     <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <!-- Backdrop -->
-      <Transition name="fade">
-        <div
-          v-if="showDrawer"
-          class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
-          @click="closeDrawer"
-        />
-      </Transition>
-
-      <!-- Panel -->
-      <Transition name="slide-right">
-        <div
-          v-if="showDrawer"
-          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[420px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
-        >
-          <!-- Header -->
-          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
-            <div>
-              <h3 class="font-semibold text-base">
-                {{ modalMode === 'create' ? 'Tambah Produk' : 'Edit Produk' }}
-              </h3>
-              <p class="text-xs text-muted-foreground mt-0.5">
-                {{ modalMode === 'create' ? 'Isi detail produk baru.' : 'Perbarui informasi produk.' }}
-              </p>
-            </div>
-            <Button variant="ghost" size="icon" @click="closeDrawer">
-              <X class="h-4 w-4" />
-            </Button>
-          </div>
-
-          <!-- Body (scrollable) -->
-          <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-            <Alert v-if="formError" variant="destructive">
-              <p class="text-sm">{{ formError }}</p>
-            </Alert>
-
-            <!-- Foto Produk -->
-            <div class="space-y-1.5">
-              <Label>Foto Produk</Label>
-              <div class="flex items-center gap-4">
-                <div class="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center relative">
-                  <img v-if="form.imagePreview" :src="form.imagePreview" alt="Preview" class="h-full w-full object-cover" />
-                  <Package v-else class="h-8 w-8 text-zinc-400" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    @change="handleImageUpload"
-                    :disabled="saving"
-                  />
+        <Transition name="fade">
+          <div
+            v-if="showDrawer"
+            class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm"
+            @click="closeDrawer"
+          />
+        </Transition>
+    
+        <Transition name="scale">
+          <div
+            v-if="showDrawer"
+            class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none"
+          >
+            <div 
+            class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto"
+            >
+              <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
+                <div>
+                  <h3 class="font-semibold text-base">
+                    {{ modalMode === 'create' ? 'Tambah Profil Produk' : 'Edit Produk' }}
+                  </h3>
+                  <p class="text-xs text-muted-foreground mt-0.5">
+                    {{ modalMode === 'create' ? 'Isi detail produk baru.' : 'Perbarui informasi produk.' }}
+                  </p>
                 </div>
-                <div class="flex flex-col gap-2">
-                  <div class="flex items-center gap-2">
-                    <div class="relative">
-                      <Button type="button" variant="outline" size="sm">
-                        <Upload class="h-3.5 w-3.5 mr-2" />
-                        Pilih Foto
-                      </Button>
+                <Button variant="ghost" size="icon" @click="closeDrawer">
+                  <X class="h-4 w-4" />
+                </Button>
+              </div>
+    
+              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+                <Alert v-if="formError" variant="destructive">
+                  <p class="text-sm">{{ formError }}</p>
+                </Alert>
+    
+                <div class="space-y-1.5">
+                  <Label>Foto Produk</Label>
+                  <div class="flex items-center gap-4">
+                    <div class="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center relative">
+                      <img v-if="form.imagePreview" :src="form.imagePreview" alt="Preview" class="h-full w-full object-cover" />
+                      <Package v-else class="h-8 w-8 text-zinc-400" />
                       <input
                         type="file"
                         accept="image/*"
@@ -866,175 +849,191 @@ function productAvatarStyle(name = '') {
                         :disabled="saving"
                       />
                     </div>
-                    <Button
-                      v-if="form.imagePreview"
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      class="text-destructive hover:bg-destructive/10"
-                      @click="removeProductImage"
-                    >
-                      Hapus Foto
-                    </Button>
+                    <div class="flex flex-col gap-2">
+                      <div class="flex items-center gap-2">
+                        <div class="relative">
+                          <Button type="button" variant="outline" size="sm">
+                            <Upload class="h-3.5 w-3.5 mr-2" />
+                            Pilih Foto
+                          </Button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            @change="handleImageUpload"
+                            :disabled="saving"
+                          />
+                        </div>
+                        <Button
+                          v-if="form.imagePreview"
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="text-destructive hover:bg-destructive/10"
+                          @click="removeProductImage"
+                        >
+                          Hapus Foto
+                        </Button>
+                      </div>
+                      <p class="text-[10px] text-muted-foreground">Format: JPG, PNG. Maks 2MB.</p>
+                    </div>
                   </div>
-                  <p class="text-[10px] text-muted-foreground">Format: JPG, PNG. Maks 2MB.</p>
+                </div>
+    
+                <div class="space-y-1.5">
+                  <Label for="f-name">Nama Produk <span class="text-destructive">*</span></Label>
+                  <Input 
+                    id="f-name" 
+                    v-model="form.name" 
+                    placeholder="Contoh: Kaos Polos Putih" 
+                    :disabled="saving"
+                    :class="{ 'border-destructive ring-destructive/20': formErrors.name }"
+                  />
+                  <p v-if="formErrors.name" class="text-xs text-destructive form-error">{{ formErrors.name }}</p>
+                </div>
+    
+                <div class="space-y-1.5">
+                  <Label for="f-sku">SKU <span class="text-muted-foreground text-xs">(opsional)</span></Label>
+                  <Input 
+                    id="f-sku" 
+                    v-model="form.sku" 
+                    placeholder="Contoh: KPP-001" 
+                    :disabled="saving"
+                    :class="{ 'border-destructive ring-destructive/20': formErrors.sku }"
+                  />
+                  <p v-if="formErrors.sku" class="text-xs text-destructive form-error">{{ formErrors.sku }}</p>
+                </div>
+    
+                <div class="space-y-1.5">
+                  <Label for="f-price">Harga <span class="text-destructive">*</span></Label>
+                  <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+                    <Input
+                      id="f-price"
+                      v-model="form.price"
+                      type="number"
+                      min="0"
+                      step="100"
+                      placeholder="0"
+                      :disabled="saving"
+                      class="pl-9"
+                      :class="{ 'border-destructive ring-destructive/20': formErrors.price }"
+                    />
+                  </div>
+                  <p v-if="formErrors.price" class="text-xs text-destructive form-error">{{ formErrors.price }}</p>
+                </div>
+    
+                <div class="space-y-1.5">
+                  <Label for="f-category">Kategori <span class="text-muted-foreground text-xs">(opsional)</span></Label>
+                  <select
+                    id="f-category"
+                    v-model="form.categoryId"
+                    :disabled="saving"
+                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                  >
+                    <option :value="null">— Pilih kategori —</option>
+                    <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                  </select>
+                </div>
+    
+                <div class="flex items-center justify-between rounded-lg border p-4">
+                  <div class="space-y-0.5">
+                    <Label class="text-sm font-medium cursor-pointer" for="f-track-stock">Lacak Stok</Label>
+                    <p class="text-xs text-muted-foreground">Nonaktifkan untuk produk layanan.</p>
+                  </div>
+                  <button
+                    id="f-track-stock"
+                    type="button"
+                    role="switch"
+                    :aria-checked="form.trackStock"
+                    :disabled="saving"
+                    class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    :class="form.trackStock ? 'bg-primary' : 'bg-input'"
+                    @click="form.trackStock = !form.trackStock"
+                  >
+                    <span
+                      class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform"
+                      :class="form.trackStock ? 'translate-x-5' : 'translate-x-0'"
+                    />
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <!-- Nama Produk -->
-          <div class="space-y-1.5">
-            <Label for="f-name">Nama Produk <span class="text-destructive">*</span></Label>
-            <Input 
-              id="f-name" 
-              v-model="form.name" 
-              placeholder="Contoh: Kaos Polos Putih" 
-              :disabled="saving"
-              :class="{ 'border-destructive ring-destructive/20': formErrors.name }"
-            />
-            <p v-if="formErrors.name" class="text-xs text-destructive form-error">{{ formErrors.name }}</p>
-          </div>
-
-            <!-- SKU -->
-            <div class="space-y-1.5">
-              <Label for="f-sku">SKU <span class="text-muted-foreground text-xs">(opsional)</span></Label>
-              <Input 
-                id="f-sku" 
-                v-model="form.sku" 
-                placeholder="Contoh: KPP-001" 
-                :disabled="saving"
-                :class="{ 'border-destructive ring-destructive/20': formErrors.sku }"
-              />
-              <p v-if="formErrors.sku" class="text-xs text-destructive form-error">{{ formErrors.sku }}</p>
-            </div>
-
-            <!-- Harga -->
-            <div class="space-y-1.5">
-              <Label for="f-price">Harga <span class="text-destructive">*</span></Label>
-              <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
-                <Input
-                  id="f-price"
-                  v-model="form.price"
-                  type="number"
-                  min="0"
-                  step="100"
-                  placeholder="0"
-                  :disabled="saving"
-                  class="pl-9"
-                  :class="{ 'border-destructive ring-destructive/20': formErrors.price }"
-                />
-              </div>
-              <p v-if="formErrors.price" class="text-xs text-destructive form-error">{{ formErrors.price }}</p>
-            </div>
-
-            <!-- Kategori -->
-            <div class="space-y-1.5">
-              <Label for="f-category">Kategori <span class="text-muted-foreground text-xs">(opsional)</span></Label>
-              <select
-                id="f-category"
-                v-model="form.categoryId"
-                :disabled="saving"
-                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              >
-                <option :value="null">— Pilih kategori —</option>
-                <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-              </select>
-            </div>
-
-            <!-- Lacak Stok -->
-            <div class="flex items-center justify-between rounded-lg border p-4">
-              <div class="space-y-0.5">
-                <Label class="text-sm font-medium cursor-pointer" for="f-track-stock">Lacak Stok</Label>
-                <p class="text-xs text-muted-foreground">Nonaktifkan untuk produk layanan.</p>
-              </div>
-              <button
-                id="f-track-stock"
-                type="button"
-                role="switch"
-                :aria-checked="form.trackStock"
-                :disabled="saving"
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :class="form.trackStock ? 'bg-primary' : 'bg-input'"
-                @click="form.trackStock = !form.trackStock"
-              >
-                <span
-                  class="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform"
-                  :class="form.trackStock ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </button>
-            </div>
-
-          </div>
-
-          <!-- Footer -->
-          <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
-            <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
-            <Button @click="saveProduct" :disabled="saving">
-              <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-              {{ modalMode === 'create' ? 'Simpan Produk' : 'Perbarui' }}
-            </Button>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- Delete Confirmation Modal -->
-      <!-- Backdrop -->
-      <Transition name="fade">
-        <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal"></div>
-      </Transition>
-      
-      <!-- Modal Content -->
-      <Transition name="scale">
-        <div v-if="deleteModal.show" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-          <div class="relative bg-card rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-border pointer-events-auto">
-            <div class="p-6">
-              <h3 class="text-lg font-semibold text-destructive flex items-center gap-2">
-                <Trash2 class="h-5 w-5" />
-                Hapus Produk
-              </h3>
-              <p class="text-sm text-muted-foreground mt-2">
-                Tindakan ini tidak dapat dibatalkan. Hal ini akan menghapus produk 
-                <span class="font-semibold text-foreground">{{ deleteModal.product?.name }}</span> secara permanen.
-              </p>
-              
-              <div class="mt-4">
-                <Label class="text-sm font-medium">
-                  Ketik <span class="font-bold select-all bg-muted px-1.5 py-0.5 rounded text-foreground">{{ deleteModal.product?.name }}</span> untuk mengonfirmasi.
-                </Label>
-                <Input
-                  v-model="deleteModal.confirmText"
-                  class="mt-2"
-                  placeholder="Masukkan nama produk"
-                />
+    
+              <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
+                <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
+                <Button @click="saveProduct" :disabled="saving">
+                  <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                  {{ modalMode === 'create' ? 'Simpan Produk' : 'Perbarui' }}
+                </Button>
               </div>
             </div>
-            <div class="flex items-center justify-end gap-3 px-6 py-4 bg-muted/30 border-t">
-              <Button variant="outline" @click="closeDeleteModal">Batal</Button>
-              <Button
-                variant="destructive"
-                :disabled="deleteModal.confirmText !== deleteModal.product?.name || deleting"
-                @click="confirmDelete"
-              >
-                <Loader2 v-if="deleting" class="h-4 w-4 mr-2 animate-spin" />
-                Hapus Sekarang
-              </Button>
+          </div>
+        </Transition>
+    
+        <Transition name="fade">
+          <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal"></div>
+        </Transition>
+        
+        <Transition name="scale">
+          <div v-if="deleteModal.show" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+            <div class="relative bg-card rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-border pointer-events-auto">
+              <div class="p-6">
+                <h3 class="text-lg font-semibold text-destructive flex items-center gap-2">
+                  <Trash2 class="h-5 w-5" />
+                  Hapus Produk
+                </h3>
+                <p class="text-sm text-muted-foreground mt-2">
+                  Tindakan ini tidak dapat dibatalkan. Hal ini akan menghapus produk 
+                  <span class="font-semibold text-foreground">{{ deleteModal.product?.name }}</span> secara permanen.
+                </p>
+                
+                <div class="mt-4">
+                  <Label class="text-sm font-medium">
+                    Ketik <span class="font-bold select-all bg-muted px-1.5 py-0.5 rounded text-foreground">{{ deleteModal.product?.name }}</span> untuk mengonfirmasi.
+                  </Label>
+                  <Input
+                    v-model="deleteModal.confirmText"
+                    class="mt-2"
+                    placeholder="Masukkan nama produk"
+                  />
+                </div>
+              </div>
+              <div class="flex items-center justify-end gap-3 px-6 py-4 bg-muted/30 border-t">
+                <Button variant="outline" @click="closeDeleteModal">Batal</Button>
+                <Button
+                  variant="destructive"
+                  :disabled="deleteModal.confirmText !== deleteModal.product?.name || deleting"
+                  @click="confirmDelete"
+                >
+                  <Loader2 v-if="deleting" class="h-4 w-4 mr-2 animate-spin" />
+                  Hapus Sekarang
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      </Transition>
-    </Teleport>
+        </Transition>
+      </Teleport>
   </AppLayout>
 </template>
 
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
 }
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.scale-enter-active,
+.scale-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
 }
 
 .slide-right-enter-active,
@@ -1044,15 +1043,5 @@ function productAvatarStyle(name = '') {
 .slide-right-enter-from,
 .slide-right-leave-to {
   transform: translateX(100%);
-}
-
-.scale-enter-active,
-.scale-leave-active {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.scale-enter-from,
-.scale-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
 }
 </style>

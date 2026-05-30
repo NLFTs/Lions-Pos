@@ -139,7 +139,7 @@ public class PartnerSeeder {
         // ── 4b. Role Cabang (per-partner) — gunakan template yang sudah di-seed ──
         final Partners partnerForRole = partner;
         final User adminForRole = adminPartner;
-        Role roleCabang = roleRepository.findBySlugAndPartnerId("pengelola-cabang", partner.getId())
+        Role roleCabang = roleRepository.findBySlug("pengelola-cabang")
             .orElseGet(() -> {
                 log.warn("[PartnerSeeder] Template role 'pengelola-cabang' belum ada, buat manual.");
                 return createPartnerRoleIfNotExists(
@@ -147,8 +147,10 @@ public class PartnerSeeder {
                     new String[]{
                         "produk.index", "produk.show",
                         "category.index", "category.show",
+                        "warehouse.index", "warehouse.show",
+                        "branch.index", "branch.show",
+                        "branch_warehouse.index", "branch_warehouse.show",
                         "stock_balance.index", "stock_balance.show",
-                        "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
                         "stock_mutation.index", "stock_mutation.show",
                         "transfer_request.index", "transfer_request.show",
                         "transfer_request.store", "transfer_request.update",
@@ -167,7 +169,7 @@ public class PartnerSeeder {
             });
 
         // ── 4c. Role Gudang (per-partner) — gunakan template yang sudah di-seed ──
-        Role roleGudang = roleRepository.findBySlugAndPartnerId("pengelola-gudang", partner.getId())
+        Role roleGudang = roleRepository.findBySlug("pengelola-gudang")
             .orElseGet(() -> {
                 log.warn("[PartnerSeeder] Template role 'pengelola-gudang' belum ada, buat manual.");
                 return createPartnerRoleIfNotExists(
@@ -175,6 +177,9 @@ public class PartnerSeeder {
                     new String[]{
                         "produk.index", "produk.show",
                         "category.index", "category.show",
+                        "warehouse.index", "warehouse.show",
+                        "branch.index", "branch.show",
+                        "branch_warehouse.index", "branch_warehouse.show",
                         "stock_balance.index", "stock_balance.show",
                         "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
                         "stock_mutation.index", "stock_mutation.show",
@@ -450,11 +455,9 @@ public class PartnerSeeder {
         }
         
         // Cari role global (partner_id = null) dengan slug yang sesuai
-        Role role = roleRepository.findAll().stream()
-                .filter(r -> r.getSlug().equals(roleSlug) && r.getPartner() == null)
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' global tidak ditemukan. Pastikan PermissionSeeder sudah dijalankan."));
-
+        Role role = roleRepository.findBySlug(roleSlug)
+            .orElseThrow(() -> new RuntimeException("[PartnerSeeder] Role '" + roleSlug + "' global tidak ditemukan. Pastikan PermissionSeeder sudah dijalankan."));
+        
         User user = new User();
         user.setUsername(username);
         user.setFullname(fullname);
@@ -522,7 +525,7 @@ public class PartnerSeeder {
     private Role createPartnerRoleIfNotExists(String slug, String name, Partners partner,
             User createdBy, String[] permissionSlugs) {
         // Cek apakah role sudah ada untuk partner ini
-        Optional<Role> existing = roleRepository.findBySlugAndPartnerId(slug, partner.getId());
+        Optional<Role> existing = roleRepository.findBySlug(slug);
         if (existing.isPresent()) {
             log.info("[PartnerSeeder] Role '{}' untuk partner '{}' sudah ada, skip.", slug, partner.getName());
             return existing.get();
@@ -531,7 +534,6 @@ public class PartnerSeeder {
         Role role = new Role();
         role.setSlug(slug);
         role.setName(name);
-        role.setPartner(partner);
         role.setType(Role.Type.EXTERNAL);
         role.setCreatedBy(createdBy);
         role.setCreatedAt(java.time.LocalDateTime.now());

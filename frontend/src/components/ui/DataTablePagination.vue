@@ -44,11 +44,10 @@ function toggleDropdown() {
 function updatePosition() {
   if (triggerRef.value) {
     const rect = triggerRef.value.getBoundingClientRect()
-    const dropdownHeight = 160 // Estimasi tinggi kotak menu (5 pilihan ukuran)
+    const dropdownHeight = 160 
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
 
-    // Buka ke atas hanya jika ruang bawah tidak cukup DAN ruang atas lebih lega
     if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
       isUpwards.value = true
       dropdownStyle.value = {
@@ -56,17 +55,16 @@ function updatePosition() {
         bottom: `${window.innerHeight - rect.top + 6}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
-        zIndex: '99999'
+        zIndex: '35' // 💡 GANTI INI (Dari 99999 -> 35)
       }
     } else {
-      // Default: buka ke bawah
       isUpwards.value = false
       dropdownStyle.value = {
         position: 'fixed',
         top: `${rect.bottom + 6}px`,
         left: `${rect.left}px`,
         width: `${rect.width}px`,
-        zIndex: '99999'
+        zIndex: '35' // 💡 GANTI INI (Dari 99999 -> 35)
       }
     }
   }
@@ -118,15 +116,15 @@ const pageNumbers = computed(() => {
           ref="triggerRef"
           type="button"
           @click="toggleDropdown"
-          class="flex h-9 w-[74px] items-center justify-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 relative z-50"
+          class="flex h-9 w-[74px] items-center justify-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-zinc-950 dark:focus:ring-zinc-300 relative z-30"
         >
           <span>{{ pageSize }}</span>
           <ChevronDown class="h-3.5 w-3.5 text-zinc-500 transition-transform duration-200" :class="{ 'rotate-180': isOpen }" />
         </button>
 
         <Teleport to="body">
-          <div v-if="isOpen" class="fixed inset-0 z-[99998]">
-            <div class="absolute inset-0" @click="closeDropdown" />
+          <div v-if="isOpen" class="fixed inset-0 z-[30]">
+            <div class="absolute inset-0 bg-transparent" @click="closeDropdown" />
             
             <div 
               :style="dropdownStyle"
@@ -179,6 +177,7 @@ const pageNumbers = computed(() => {
         </Button>
       </div>
     </div>
+
   </div>
 </template>
 

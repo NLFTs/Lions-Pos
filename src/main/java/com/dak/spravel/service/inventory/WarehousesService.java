@@ -7,7 +7,6 @@ import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
-import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
@@ -161,7 +160,7 @@ public class WarehousesService {
 
     public List<WarehouseResponse> findAllByPartner() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "warehouse.index"); // 💡 Cek via permission index
+        checkPermission(currentUser, "warehouse.index"); 
 
         if (currentUser.getPartner() == null) {
             return warehousesRepository.findAll().stream().map(this::mapToResponse).toList();
@@ -193,7 +192,7 @@ public class WarehousesService {
     @Transactional
     public WarehouseResponse create(WarehousesRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "warehouse.store"); // 💡 Siapapun boleh buat asal diberi izin Owner
+        checkPermission(currentUser, "warehouse.store"); 
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("Akses Ditolak: Super Admin tidak diperbolehkan membuat gudang tanpa scope partner.");
@@ -238,7 +237,9 @@ public class WarehousesService {
             warehouseUser.setPassword(passwordEncoder.encode(request.getPassword()));
             warehouseUser.setPartner(currentUser.getPartner());
             warehouseUser.setWarehouse(saved);
-            warehouseUser.setRoles(resolveRoles(request.getRoleIds(), currentUser.getPartner()));
+            
+            // 💡 FIX: Oper currentUser ke dalam fungsi resolveRoles
+            warehouseUser.setRoles(resolveRoles(request.getRoleIds(), currentUser));
 
             userRepository.save(warehouseUser);
         }
@@ -255,6 +256,7 @@ public class WarehousesService {
             sb.setCreatedAt(LocalDateTime.now());
             sb.setCreatedBy(currentUser);
             sb.setUpdatedBy(currentUser);
+            sb.setUpdatedAt(LocalDateTime.now()); // Menambahkan updatedAt yang ketinggalan
 
             stockBalanceRepository.save(sb);
         }
@@ -262,9 +264,9 @@ public class WarehousesService {
         return mapToResponse(saved);
     }
 
-    // ─── HELPER: Resolve roles dengan validasi kepemilikan tenant ────────────
+    // ─── 🛡️ HELPER FIX: Resolve roles murni global dengan context currentUser ────────────
 
-    private Set<Role> resolveRoles(List<Long> roleIds, Partners targetPartner) {
+    private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
         List<Role> roles = roleRepository.findAllById(roleIds);
 
         if (roles.size() != roleIds.size()) {
@@ -272,8 +274,12 @@ public class WarehousesService {
         }
 
         for (Role role : roles) {
-            if (role.getPartner() != null && !role.getPartner().getId().equals(targetPartner.getId())) {
-                throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            // 🔥 PROTEKSI GLOBAL: Cegat suntikan role 'admin' atau 'super-admin' pusat ke level staff gudang
+            if (currentUser.getPartner() != null) {
+                String roleSlug = role.getSlug().toLowerCase();
+                if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
+                    throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff gudang.");
+                }
             }
         }
 

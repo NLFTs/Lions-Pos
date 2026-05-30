@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -20,6 +21,14 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
+const authStore = useAuthStore()
+
+// ─── 🛡️ GUARD CONFIGURATION DIRECT SLUG CHECK ────────────────────────────────
+const isCentralAdmin = computed(() => {
+  const userRoles = authStore.user?.roles || []
+  // Jika slug-nya adalah admin atau super-admin, maka dia berhak penuh (Central Pusat)
+  return userRoles.includes('admin') || userRoles.includes('super-admin')
+})
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const roles            = ref([])
@@ -102,7 +111,9 @@ function isChecked(module, action) {
   return p ? selectedPermIds.value.has(p.id) : false
 }
 
+// Hanya izinkan klik matriks permission kalau dia Central Admin Pusat
 function togglePerm(module, action) {
+  if (!isCentralAdmin.value) return
   const p = getPermission(module, action)
   if (!p) return
   const next = new Set(selectedPermIds.value)
@@ -115,6 +126,7 @@ function togglePerm(module, action) {
 }
 
 function toggleAllInModule(module) {
+  if (!isCentralAdmin.value) return
   const list = permissionsMap.value[module] || []
   const allChecked = list.every((p) => selectedPermIds.value.has(p.id))
   const next = new Set(selectedPermIds.value)
@@ -248,7 +260,8 @@ async function doDelete(role) {
             <span>Customize Columns</span>
             <ChevronDown class="h-3 w-3 text-zinc-400" />
           </Button>
-          <Button v-if="can('role.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
+          <!-- 🚨 SAFETY GUARD: Hanya tampil jika dia admin/super-admin pusat -->
+          <Button v-if="can('role.store') && isCentralAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Add Role</span>
           </Button>
@@ -290,8 +303,9 @@ async function doDelete(role) {
                 </div>
                 
                 <div class="flex items-center gap-1 shrink-0">
+                  <!-- 🚨 SAFETY GUARD MOBILE: Edit -->
                   <Button
-                    v-if="can('role.update')"
+                    v-if="can('role.update') && isCentralAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
@@ -299,8 +313,9 @@ async function doDelete(role) {
                   >
                     <Pencil class="h-3.5 w-3.5" />
                   </Button>
+                  <!-- 🚨 SAFETY GUARD MOBILE: Delete -->
                   <Button
-                    v-if="can('role.delete')"
+                    v-if="can('role.delete') && isCentralAdmin"
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
@@ -347,11 +362,13 @@ async function doDelete(role) {
                   </td>
                   <td class="px-5 py-3 text-right">
                     <div class="flex justify-end gap-1">
-                      <Button v-if="can('role.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(role)">
+                      <!-- 🚨 SAFETY GUARD DESKTOP: Edit -->
+                      <Button v-if="can('role.update') && isCentralAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(role)">
                         <Pencil class="h-3.5 w-3.5" />
                       </Button>
+                      <!-- 🚨 SAFETY GUARD DESKTOP: Delete -->
                       <Button
-                        v-if="can('role.delete')"
+                        v-if="can('role.delete') && isCentralAdmin"
                         variant="ghost"
                         size="icon"
                         class="h-8 w-8 text-zinc-400 hover:text-destructive"
@@ -375,7 +392,7 @@ async function doDelete(role) {
           @update:page-size="pageSize = $event; page = 1"
         />
       </CardContent>
-      </Card>
+    </Card>
     </div>
 
     <!-- ─── Right-side Drawer ─── -->
@@ -419,11 +436,11 @@ async function doDelete(role) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <Label for="roleName">Nama Role <span class="text-destructive">*</span></Label>
-                <Input id="roleName" v-model="form.name" placeholder="Contoh: Editor" @input="onNameInput" :disabled="saving" />
+                <Input id="roleName" v-model="form.name" placeholder="Contoh: Editor" @input="onNameInput" :disabled="saving || !isCentralAdmin" />
               </div>
               <div class="space-y-1.5">
                 <Label for="roleSlug">Slug</Label>
-                <Input id="roleSlug" v-model="form.slug" placeholder="contoh-role" class="font-mono text-xs" :disabled="saving" />
+                <Input id="roleSlug" v-model="form.slug" placeholder="contoh-role" class="font-mono text-xs" :disabled="saving || !isCentralAdmin" />
               </div>
             </div>
 
@@ -461,6 +478,7 @@ async function doDelete(role) {
                             <button 
                               type="button"
                               @click="togglePerm(module, action)"
+                              :disabled="!isCentralAdmin"
                               class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
                               :class="isChecked(module, action) 
                                 ? 'bg-primary/10 border-primary shadow-sm' 
@@ -481,6 +499,7 @@ async function doDelete(role) {
                             <button 
                               type="button"
                               @click="toggleAllInModule(module)"
+                              :disabled="!isCentralAdmin"
                               class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
                               :class="isModuleAllChecked(module) 
                                 ? 'bg-primary/10 border-primary shadow-sm' 
@@ -506,7 +525,8 @@ async function doDelete(role) {
           <!-- Footer -->
           <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
             <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
-            <Button @click="saveRole" :disabled="saving">
+            <!-- Sembunyikan/Disable Simpan Perubahan jika dia bukan Central Admin Pusat -->
+            <Button v-if="isCentralAdmin" @click="saveRole" :disabled="saving">
               <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
               {{ modalMode === 'create' ? 'Simpan Role' : 'Simpan Perubahan' }}
             </Button>

@@ -189,9 +189,9 @@ public class BranchesService {
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
     
-            // 💡 FIX DINAMIS: Resolve role dari request (bukan hardcoded!)
+            // 💡 FIX DINAMIS: Mengirim objek currentUser untuk pengecekan proteksi role
             if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                branchUser.setRoles(resolveRoles(request.getRoleIds(), partner));
+                branchUser.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             } else {
                 throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user ini.");
             }
@@ -217,18 +217,20 @@ public class BranchesService {
         return mapToResponse(savedBranch);
     }
     
-    // ── HELPER: Pastikan method ini ada di bawah dalam class BranchService ──
-    private Set<Role> resolveRoles(List<Long> roleIds, Partners targetPartner) {
+    // ── 🛡️ HELPER FIX: Resolusi Role Bersifat Global Tanpa Dependensi Partner Scope ──
+    private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
         List<Role> roles = roleRepository.findAllById(roleIds);
         
         if (roles.size() != roleIds.size()) {
             throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
         }
     
-        // 🛡️ SECURITY GUARD: Pastikan role belong to partner yang sama
         for (Role role : roles) {
-            if (role.getPartner() != null && !role.getPartner().getId().equals(targetPartner.getId())) {
-                throw new RuntimeException("Akses Ditolak: Role '" + role.getName() + "' bukan milik partner Anda.");
+            if (currentUser.getPartner() != null) {
+                String roleSlug = role.getSlug().toLowerCase();
+                if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
+                    throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff cabang.");
+                }
             }
         }
         
@@ -252,7 +254,7 @@ public class BranchesService {
     @Transactional
     public BranchResponse softDelete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "branch.delete"); // 💡 Diubah ke permission delete
+        checkPermission(currentUser, "branch.delete");
 
         Branches branch = getValidatedBranch(id, currentUser);
         branch.setIsActive(false);
