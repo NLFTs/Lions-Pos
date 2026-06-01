@@ -12,7 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -204,7 +203,7 @@ public class PartnerRoleTemplateSeeder {
     @Transactional
     public void seedForPartner(Partners partner) {
         for (RoleTemplate template : TEMPLATES) {
-            if (roleRepository.existsBySlugAndPartnerId(template.slug(), partner.getId())) {
+            if (roleRepository.existsBySlug(template.slug())) {
                 log.debug("[RoleTemplate] Role '{}' sudah ada untuk partner '{}', skip.",
                     template.slug(), partner.getName());
                 continue;
@@ -213,7 +212,6 @@ public class PartnerRoleTemplateSeeder {
             Role role = new Role();
             role.setSlug(template.slug());
             role.setName(template.name());
-            role.setPartner(partner);
             role.setType(Role.Type.EXTERNAL);
             role.setCreatedAt(LocalDateTime.now());
 

@@ -32,4 +32,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByPartnerId(Long partnerId);
     Page<User> findByPartnerId(Long partnerId, Pageable pageable);
+
+    
 }

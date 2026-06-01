@@ -17,4 +17,6 @@ public class MeResponse {
     private List<String> permissions;
     private Long branchId;
     private String branchName;
+    private Long warehouseId;
+    private String warehouseName;
 }

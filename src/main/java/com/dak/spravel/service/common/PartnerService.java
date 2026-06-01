@@ -11,7 +11,6 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
-import com.dak.spravel.seeder.PartnerRoleTemplateSeeder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,11 +31,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PartnerService {
 
-    private final PartnerRepository         partnerRepository;
-    private final UserRepository            userRepository;
-    private final RoleRepository            roleRepository;
-    private final PasswordEncoder           passwordEncoder;
-    private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
+    private final PartnerRepository partnerRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -132,12 +130,11 @@ public class PartnerService {
         partner.setIsActive(true);
         Partners savedPartner = partnerRepository.save(partner);
 
-        // 2. Ambil role global template 'owner' (untuk admin utama partner baru)
-        Role adminPartnerRole = roleRepository.findAll().stream()
-                .filter(r -> r.getSlug().equalsIgnoreCase("owner") && r.getPartner() == null)
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Role template 'owner' global tidak ditemukan di database."));
-
+        // 2. 🔥 FIX: Ambil role global master 'admin-partner' atau 'owner' dari database pusat
+        //    (Karena sekarang tidak buat role baru per partner, kita cari role global yang sudah ada)
+        Role adminPartnerRole = roleRepository.findBySlug("admin-partner")
+                .orElseThrow(() -> new ResourceNotFoundException("Role Master Global 'admin-partner' belum dibuat di database pusat. Harap lakukan seed awal.", 0L));
+        
         // 3. Daftarkan akun User Admin Utama milik Partner tersebut
         User adminUser = new User();
         adminUser.setUsername(request.getAdmin().getUsername());
@@ -151,9 +148,8 @@ public class PartnerService {
         adminUser.setRoles(roles);
         userRepository.save(adminUser);
 
-        // 4. Seed 4 template role untuk partner baru ini
-        //    (admin-partner, pengelola-gudang, pengelola-cabang, kasir)
-        partnerRoleTemplateSeeder.seedForPartner(savedPartner);
+        // 🚨 4. FIX: partnerRoleTemplateSeeder.seedForPartner(savedPartner) DIHAPUS TOTAL!
+        // Karena semua partner sekarang sharing/berbagi master role global pusat yang sama.
 
         return mapToResponse(savedPartner);
     }

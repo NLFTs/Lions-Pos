@@ -50,9 +50,7 @@ public class RoleMigrationSeeder {
      * (jika belum punya) dan hapus role oldSlug.
      */
     private void migrateRoleSlug(String oldSlug, String newSlug) {
-        Optional<Role> newRoleOpt = roleRepository.findAll().stream()
-                .filter(r -> r.getSlug().equals(newSlug) && r.getPartner() == null)
-                .findFirst();
+        Optional<Role> newRoleOpt = roleRepository.findBySlug(newSlug);
 
         if (newRoleOpt.isEmpty()) {
             log.warn("[RoleMigrationSeeder] Role '{}' tidak ditemukan, skip migrasi dari '{}'.", newSlug, oldSlug);
