@@ -184,6 +184,21 @@ function increaseQty(item) {
   item.qty++
 }
 function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
+
+function setQty(item, value) {
+  const num = parseInt(value, 10)
+  if (isNaN(num) || num < 1) {
+    item.qty = 1
+    return
+  }
+  const stock = getStock(item.id)
+  if (stock !== null && num > stock) {
+    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+    item.qty = stock
+    return
+  }
+  item.qty = num
+}
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
   if (idx !== -1) cart.value.splice(idx, 1)
@@ -599,7 +614,15 @@ function avatarStyle(name = '') {
                 <div class="flex items-center justify-between">
                   <div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="decreaseQty(item)"><Minus class="h-3 w-3" /></button>
-                    <span class="w-8 text-center text-[13px] font-black">{{ item.qty }}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      :max="getStock(item.id) ?? undefined"
+                      :value="item.qty"
+                      @change="e => setQty(item, e.target.value)"
+                      @focus="e => e.target.select()"
+                      class="w-10 text-center text-[13px] font-black bg-transparent border-none outline-none focus:ring-0 [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
                   </div>
                   <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency((item.base_price || item.basePrice || item.price) * item.qty) }}</span>
