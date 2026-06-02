@@ -71,6 +71,13 @@ public class Orders  {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Field untuk retur
+    @Column(name = "returned_at")
+    private LocalDateTime returnedAt;
+
+    @Column(name = "return_notes", columnDefinition = "TEXT")
+    private String returnNotes;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
     

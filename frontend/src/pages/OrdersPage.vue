@@ -131,6 +131,7 @@ function closeReturnModal() { showReturnModal.value = false }
 async function submitReturn() {
   const toReturn = returnItems.value.filter(i => i.returnQty > 0)
   if (!toReturn.length) { toast.error('Pilih minimal satu item untuk diretur.'); return }
+  if (!returnReason.value?.trim()) { toast.error('Alasan retur wajib diisi.'); return }
   submittingReturn.value = true
   try {
     await api.post(`/api/v1/orders/${detailDrawer.value.order.id}/return`, {
@@ -408,6 +409,37 @@ onMounted(fetchOrders)
               <p class="text-xs font-medium">{{ detailDrawer.order.notes }}</p>
             </div>
 
+            <!-- Info Retur -->
+            <div v-if="detailDrawer.order.returnInfo" class="space-y-3">
+              <h4 class="text-[10px] font-bold uppercase tracking-widest text-violet-500 border-b border-violet-100 dark:border-violet-900/40 pb-2 flex items-center gap-1.5">
+                <RotateCcw class="h-3.5 w-3.5" /> Detail Retur
+              </h4>
+              <div class="bg-violet-50/60 dark:bg-violet-950/20 rounded-xl border border-violet-100 dark:border-violet-900/40 p-4 space-y-3">
+                <div class="flex justify-between text-xs">
+                  <span class="text-muted-foreground font-medium">Waktu Retur</span>
+                  <span class="font-semibold">{{ formatDate(detailDrawer.order.returnInfo.returnedAt) }}</span>
+                </div>
+                <div class="space-y-2">
+                  <p class="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">Item Diretur</p>
+                  <div v-for="(item, idx) in detailDrawer.order.returnInfo.items" :key="idx"
+                    class="flex items-start justify-between p-2.5 rounded-lg border border-violet-100 dark:border-violet-900/30 bg-white/60 dark:bg-zinc-900/40 gap-2">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ item.productName }}</p>
+                      <p class="text-[11px] text-muted-foreground mt-0.5">Qty: {{ item.qtyReturn }} pcs</p>
+                      <p v-if="item.reason" class="text-[11px] text-violet-600 dark:text-violet-400 mt-1 italic">
+                        Alasan: {{ item.reason }}
+                      </p>
+                    </div>
+                    <span class="text-sm font-black text-violet-700 dark:text-violet-300 shrink-0">{{ formatCurrency(item.refundAmount) }}</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-center pt-2 border-t border-violet-100 dark:border-violet-900/40">
+                  <span class="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider">Total Refund</span>
+                  <span class="text-base font-black text-violet-700 dark:text-violet-300">{{ formatCurrency(detailDrawer.order.returnInfo.totalRefund) }}</span>
+                </div>
+              </div>
+            </div>
+
             <!-- Action Buttons -->
             <div class="flex flex-col gap-2 pt-1">
               <!-- Cetak Struk -->
@@ -476,9 +508,10 @@ onMounted(fetchOrders)
                 </div>
               </div>
               <div class="space-y-2">
-                <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Alasan (opsional)</p>
-                <textarea v-model="returnReason" rows="3" placeholder="Contoh: Barang rusak, salah produk..."
+                <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Alasan Retur <span class="text-destructive normal-case">*</span></p>
+                <textarea v-model="returnReason" rows="3" placeholder="Contoh: Expired, Barang rusak, Salah produk, Kemasan bocor..."
                   class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" />
+                <p class="text-[10px] text-muted-foreground">Keterangan alasan retur wajib diisi agar tercatat di riwayat order.</p>
               </div>
             </div>
             <div class="px-6 py-4 border-t shrink-0 flex gap-2.5">

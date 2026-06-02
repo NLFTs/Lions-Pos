@@ -442,6 +442,11 @@ public class OrdersService {
                     currentUser
             );
 
+            // Simpan returnQty dan returnReason ke OrderItems untuk riwayat
+            orderItem.setReturnQty(itemReq.getQtyReturn());
+            orderItem.setReturnReason(itemReq.getReason());
+            orderItemsRepository.save(orderItem);
+
             BigDecimal refundAmount = orderItem.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQtyReturn()));
             totalRefund = totalRefund.add(refundAmount);
 
@@ -455,8 +460,10 @@ public class OrdersService {
                     .build());
         }
 
+        LocalDateTime returnedAt = LocalDateTime.now();
         order.setStatus(Orders.PaymentStatus.RETURN);
-        order.setUpdatedAt(LocalDateTime.now());
+        order.setReturnedAt(returnedAt);
+        order.setUpdatedAt(returnedAt);
         order.setUpdatedBy(currentUser);
         ordersRepository.save(order);
 
@@ -466,7 +473,7 @@ public class OrdersService {
                 .orderStatus(order.getStatus().name())
                 .returnedItems(returnedItems)
                 .totalRefund(totalRefund)
-                .returnedAt(LocalDateTime.now())
+                .returnedAt(returnedAt)
                 .build();
     }
 
@@ -491,6 +498,8 @@ public class OrdersService {
                         .qty(item.getQty())
                         .unitPrice(item.getUnitPrice())
                         .subtotal(item.getSubtotal())
+                        .returnQty(item.getReturnQty())
+                        .returnReason(item.getReturnReason())
                         .build()
         ).toList() : new ArrayList<>();
 
@@ -511,6 +520,37 @@ public class OrdersService {
                         .build()
         ).toList() : new ArrayList<>();
 
+        // Build ReturnInfo jika order berstatus RETURN dan ada item yang diretur
+        OrdersResponse.ReturnInfo returnInfo = null;
+        if (order.getStatus() == Orders.PaymentStatus.RETURN && order.getItems() != null) {
+            List<OrdersResponse.ReturnInfo.ReturnItemDetail> returnedItemDetails = order.getItems().stream()
+                    .filter(item -> item.getReturnQty() != null && item.getReturnQty() > 0)
+                    .map(item -> {
+                        BigDecimal refund = item.getUnitPrice() != null
+                                ? item.getUnitPrice().multiply(BigDecimal.valueOf(item.getReturnQty()))
+                                : BigDecimal.ZERO;
+                        return OrdersResponse.ReturnInfo.ReturnItemDetail.builder()
+                                .productName(item.getProductName())
+                                .qtyReturn(item.getReturnQty())
+                                .reason(item.getReturnReason())
+                                .refundAmount(refund)
+                                .build();
+                    })
+                    .toList();
+
+            BigDecimal totalRefund = returnedItemDetails.stream()
+                    .map(OrdersResponse.ReturnInfo.ReturnItemDetail::getRefundAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            if (!returnedItemDetails.isEmpty()) {
+                returnInfo = OrdersResponse.ReturnInfo.builder()
+                        .returnedAt(order.getReturnedAt())
+                        .totalRefund(totalRefund)
+                        .items(returnedItemDetails)
+                        .build();
+            }
+        }
+
         return OrdersResponse.builder()
                 .id(order.getId())
                 .orderNumber(order.getOrderNumber())
@@ -526,6 +566,7 @@ public class OrdersService {
                 .createdAt(order.getCreatedAt())
                 .items(itemResponses)
                 .payments(paymentResponses)
+                .returnInfo(returnInfo)
                 .build();
     }
 }

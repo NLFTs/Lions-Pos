@@ -152,6 +152,34 @@ function openEdit(v) {
 async function saveVoucher() {
   saving.value = true
   formError.value = null
+
+  // Validasi field wajib
+  if (!form.value.code?.trim()) {
+    formError.value = 'Kode voucer wajib diisi.'
+    saving.value = false
+    return
+  }
+  if (!form.value.name?.trim()) {
+    formError.value = 'Nama voucer wajib diisi.'
+    saving.value = false
+    return
+  }
+  if (!form.value.discountValue || Number(form.value.discountValue) <= 0) {
+    formError.value = 'Nilai diskon harus lebih dari 0.'
+    saving.value = false
+    return
+  }
+
+  // Cek duplikat kode di data lokal (untuk create saja)
+  if (modalMode.value === 'create') {
+    const exists = vouchers.value.some(v => v.code?.toUpperCase() === form.value.code.trim().toUpperCase())
+    if (exists) {
+      formError.value = `Kode voucer "${form.value.code.toUpperCase()}" sudah digunakan. Gunakan kode lain.`
+      saving.value = false
+      return
+    }
+  }
+
   try {
     // Map camelCase form ke snake_case yang diharapkan backend
     const payload = {
@@ -177,7 +205,10 @@ async function saveVoucher() {
     showDrawer.value = false
     fetchVouchers()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Gagal menyimpan voucer.'
+    formError.value = err.response?.data?.data?.message
+      || err.response?.data?.message
+      || err.message
+      || 'Gagal menyimpan voucer.'
   } finally {
     saving.value = false
   }

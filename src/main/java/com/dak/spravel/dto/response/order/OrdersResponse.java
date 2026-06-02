@@ -30,4 +30,26 @@ public class OrdersResponse {
 
     private List<OrderItemResponse> items;
     private List<PaymentResponse> payments;
+    private ReturnInfo returnInfo;
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class ReturnInfo {
+        private java.time.LocalDateTime returnedAt;
+        private java.math.BigDecimal totalRefund;
+        private List<ReturnItemDetail> items;
+
+        @Data
+        @Builder
+        @AllArgsConstructor
+        @NoArgsConstructor
+        public static class ReturnItemDetail {
+            private String productName;
+            private Long qtyReturn;
+            private String reason;
+            private java.math.BigDecimal refundAmount;
+        }
+    }
 }

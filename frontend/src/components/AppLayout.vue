@@ -123,7 +123,7 @@ const MENU_GROUPS = [
       { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
       { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'branch.index' },
-      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
+      { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
