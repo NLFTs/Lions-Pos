@@ -124,7 +124,7 @@ public class ProductService {
     @Transactional
     public ProductResponse create(ProductRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        checkPermission(currentUser, "produk.store");
         
         Partners partner = currentUser.getPartner();
         if (partner == null) {
