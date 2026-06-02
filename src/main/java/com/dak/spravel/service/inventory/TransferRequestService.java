@@ -256,6 +256,31 @@ public class TransferRequestService {
                     }
                 }
             }
+
+            // ───  PROSES POTONG STOK DI LOKASI ASAL SAAT KIRIM (IN_TRANSIT) ───
+            List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
+            for (TransferRequestItem item : trItems) {
+                var stockAsalOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                        item.getProductId(),
+                        tr.getFromLocationType().name().toUpperCase(),
+                        tr.getFromLocationId()
+                );
+
+                if (stockAsalOpt.isEmpty()) {
+                    throw new RuntimeException("Gagal Kirim: Stok produk di lokasi asal tidak ditemukan/belum di-inisialisasi.");
+                }
+
+                var stockAsal = stockAsalOpt.get();
+                long qtyToSend = item.getQtyRequested(); // Default pakai qty yang direquest awal
+
+                if (stockAsal.getQty() < qtyToSend) {
+                    throw new RuntimeException("Gagal Kirim: Stok barang di lokasi asal tidak mencukupi untuk ditransfer.");
+                }
+
+                // Potong stok asal langsung di sini
+                stockAsal.setQty(stockAsal.getQty() - qtyToSend);
+                stockBalanceRepository.save(stockAsal);
+            }
         } 
         else {
             if (currentUser.getBranch() != null || currentUser.getWarehouse() != null) {
@@ -296,7 +321,7 @@ public class TransferRequestService {
 
         List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
 
-        // 🛡️ VALIDASI STOK ASAL DAN KESIAPAN TUJUAN
+        // 🛡️ VALIDASI KESIAPAN LOKASI TUJUAN
         for (TransferRequestItem item : trItems) {
             var currentStockOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                     item.getProductId(),
@@ -314,40 +339,41 @@ public class TransferRequestService {
         tr.setReceivedByUser(currentUser);
 
         for (TransferRequestItem item : trItems) {
-            Long qty = items.stream()
+            // Cek apakah ada adjustment jumlah barang asli yang diterima dibanding request awal
+            Long qtyReceived = items.stream()
                     .filter(i -> i.getProductId().equals(item.getProductId()))
                     .map(i -> i.getQtyRequested().longValue())
                     .findFirst()
                     .orElse(item.getQtyRequested());
 
-            item.setQtyReceived(qty);
+            item.setQtyReceived(qtyReceived);
 
-            // 🔄 MANIPULASI STOK FISIK DI DATABASE SECARA NYATA
-            // 1. Kurangi stok lokasi asal
-            var stockAsalOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
-                    item.getProductId(),
-                    tr.getFromLocationType().name().toUpperCase(),
-                    tr.getFromLocationId()
-            );
-            if (stockAsalOpt.isPresent()) {
-                var stockAsal = stockAsalOpt.get();
-                if (stockAsal.getQty() < qty) {
-                    throw new RuntimeException("Gagal Terima: Stok barang di lokasi asal tidak mencukupi untuk ditransfer.");
-                }
-                stockAsal.setQty(stockAsal.getQty() - qty);
-                stockBalanceRepository.save(stockAsal);
-            }
-
-            // 2. Tambah stok lokasi tujuan
+            // TAMBAH STOK FISIK DI LOKASI TUJUAN SECARA NYATA
             var stockTujuanOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                     item.getProductId(),
                     tr.getToLocationType().name().toUpperCase(),
                     tr.getToLocationId()
             );
+            
             if (stockTujuanOpt.isPresent()) {
                 var stockTujuan = stockTujuanOpt.get();
-                stockTujuan.setQty(stockTujuan.getQty() + qty);
+                stockTujuan.setQty(stockTujuan.getQty() + qtyReceived);
                 stockBalanceRepository.save(stockTujuan);
+            }
+
+            // Optional Handling: Balikin sisa stok ke lokasi asal kalau ternyata qtyReceived < qtyRequested
+            long selisih = item.getQtyRequested() - qtyReceived;
+            if (selisih > 0) {
+                var stockAsalOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                        item.getProductId(),
+                        tr.getFromLocationType().name().toUpperCase(),
+                        tr.getFromLocationId()
+                );
+                if (stockAsalOpt.isPresent()) {
+                    var stockAsal = stockAsalOpt.get();
+                    stockAsal.setQty(stockAsal.getQty() + selisih);
+                    stockBalanceRepository.save(stockAsal);
+                }
             }
 
             com.dak.spravel.model.catalog.Product product = item.getProduct();
@@ -357,6 +383,7 @@ public class TransferRequestService {
                 product.setPartner(tr.getPartner());
             }
 
+            // Catat mutasi stok
             stockMutationService.recordMutation(
                     product,
                     tr.getPartner(),
@@ -365,7 +392,7 @@ public class TransferRequestService {
                     tr.getFromLocationId(),
                     tr.getToLocationType().name().toUpperCase(),
                     tr.getToLocationId(),
-                    qty,
+                    qtyReceived,
                     "TRANSFER_REQUEST",
                     tr.getId(),
                     "Transfer request dikonfirmasi selesai oleh " + currentUser.getUsername(),
