@@ -51,6 +51,9 @@ const cart = ref([])
 async function fetchData() {
   loading.value = true
   try {
+    console.log('[DEBUG POS] Data User Aktif:', authStore.user)
+    console.log('[DEBUG POS] Data Branch User:', authStore.user?.branch)
+    
     const isAdmin = authStore.isAdmin
     const branchUrl = isAdmin ? '/api/v1/branches/admin' : '/api/v1/branches'
     const [resP, resC, resB] = await Promise.all([
@@ -68,21 +71,34 @@ async function fetchData() {
     const cData = resC.data?.data
     categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
-    // Branches: ResData<List> — deduplikasi berdasarkan nama
+    // Branches: ResData<List> — ambil data mentah & deduplikasi dulu ke variabel lokal
     const bData = resB.data?.data
     const bArr = Array.isArray(bData) ? bData : (bData?.content || [])
-    // Hapus duplikat nama, pertahankan yang ID-nya terkecil (paling lama dibuat)
+    
     const seen = new Set()
-    branches.value = bArr.filter(b => {
+    const uniqueBranches = bArr.filter(b => {
       if (seen.has(b.name)) return false
       seen.add(b.name)
       return true
     })
-    if (branches.value.length > 0) {
-      selectedBranchId.value = branches.value[0].id
-      await fetchStockBalances(branches.value[0].id)
+
+    // ─── 🔒 LOCK & FILTER DATA DROPDOWN ───
+    const userBranch = authStore.user?.branch
+
+    if (userBranch && userBranch.id) {
+      // Kasir cabang -> isinya dikunci cuma punya dia sendiri
+      branches.value = uniqueBranches.filter(b => b.id === userBranch.id)
+      selectedBranchId.value = userBranch.id
+      await fetchStockBalances(userBranch.id)
+    } else {
+      // Admin / Owner -> load semua list cabang biar bisa switch-switch gudang
+      branches.value = uniqueBranches
+      if (uniqueBranches.length > 0) {
+        selectedBranchId.value = uniqueBranches[0].id
+        await fetchStockBalances(uniqueBranches[0].id)
+      }
     }
-    // Super admin mungkin tidak punya branch — tetap lanjut tanpa stok
+    
   } catch (err) {
     console.error('[POS] fetchData error:', err.response?.data || err.message)
     toast.error('Gagal memuat data POS')
@@ -90,7 +106,7 @@ async function fetchData() {
     loading.value = false
   }
 
-  // Voucher dimuat terpisah — tidak semua role bisa akses, tapi kasir tetap bisa jalan
+  // Voucher dimuat terpisah
   try {
     const resV = await api.get('/api/v1/vouchers')
     vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
@@ -102,6 +118,10 @@ async function fetchData() {
 onMounted(() => {
   fetchData()
   document.addEventListener('click', handleBranchOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleBranchOutsideClick)
 })
 
 // Reload stok saat branch berubah
@@ -129,7 +149,6 @@ function getStock(productId) {
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const uniqueCategories = computed(() => {
-  // CategoryProductResponse: field 'name' ada langsung
   const names = categories.value.map(c => c.name).filter(Boolean).sort()
   return ['Semua', ...new Set(names)]
 })
@@ -141,7 +160,6 @@ const filteredProducts = computed(() => {
     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
   }
   if (activeCategory.value !== 'Semua') {
-    // ProductResponse: category_id.name (snake_case dari @JsonProperty)
     result = result.filter(p => {
       const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
       return catName === activeCategory.value
@@ -153,11 +171,9 @@ const filteredProducts = computed(() => {
 // ─── Cart Logic ──────────────────────────────────────────────────────────────
 function addToCart(product) {
   const stock = getStock(product.id)
-  // Hitung total qty produk ini yang sudah ada di cart
   const existing = cart.value.find(item => item.id === product.id)
   const currentQty = existing ? existing.qty : 0
 
-  // Validasi stok jika data stok tersedia
   if (stock !== null && currentQty >= stock) {
     toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
     return
@@ -175,6 +191,7 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
+// ... logic qty modifier, format currency tetap utuh ...
 function increaseQty(item) {
   const stock = getStock(item.id)
   if (stock !== null && item.qty >= stock) {
@@ -213,13 +230,11 @@ function applyVoucher() {
     appliedVoucher.value = null
     return
   }
-  // Cek status aktif
   const isActive = v.isActive ?? v.is_active ?? true
   if (!isActive) {
     toast.error('Voucher ini sudah tidak aktif.')
     return
   }
-  // Cek kuota
   const quota = v.quota ?? null
   const usedCount = v.usedCount ?? v.used_count ?? 0
   if (quota !== null && quota > 0 && usedCount >= quota) {
@@ -244,23 +259,21 @@ const discountAmount = computed(() => {
   const value = Number(rawValue)
   const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
 
-  // Validasi min purchase
   if (minPurchase > 0 && subtotal.value < minPurchase) return 0
 
   let d = 0
   if (type === 'PERCENT') {
-    // discountValue = 10 berarti 10%, bukan 0.1
     d = subtotal.value * value / 100
     const maxDiscount = Number(v.maxDiscount ?? v.max_discount ?? 0)
     if (maxDiscount > 0) d = Math.min(d, maxDiscount)
   } else {
     d = value
   }
-  return Math.round(d) // bulatkan ke rupiah
+  return Math.round(d)
 })
 const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 
-// ─── Payment Logic ───────────────────────────────────────────────────────────
+// ... checkout logic tetep aman di bawah ...
 const showPayment = ref(false)
 const payMethod = ref('cash')
 const cashTendered = ref('')
@@ -289,7 +302,6 @@ function closeReceipt() {
   showReceipt.value = false
   lastOrder.value = null
   confirmingTransfer.value = false
-  // Sync stok dari server setelah modal ditutup
   if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
 }
 
@@ -304,7 +316,6 @@ async function confirmTransferFromReceipt() {
   confirmingTransfer.value = true
   try {
     await api.patch(`/api/v1/payments/${paymentId}/verify`)
-    // Update lastOrder agar status berubah di UI
     if (lastOrder.value?.payments?.[0]) {
       lastOrder.value.payments[0].status = 'VERIFIED'
     }
@@ -358,7 +369,6 @@ async function checkout() {
     return 
   }
 
-  // Validasi stok sebelum checkout
   for (const item of cart.value) {
     const stock = getStock(item.id)
     if (stock !== null && item.qty > stock) {
@@ -395,7 +405,6 @@ async function checkout() {
 
     const response = await api.post('/api/v1/orders', payload)
 
-    // Simpan data order untuk struk
     lastOrder.value = response.data?.data || {
       orderNumber: payload.orderNumber,
       total: total.value,
@@ -408,7 +417,6 @@ async function checkout() {
     showPayment.value = false
     showReceipt.value = true
 
-    // Kurangi stok lokal langsung agar kartu produk langsung reflect tanpa tunggu server
     payload.items.forEach(item => {
       const key = String(item.productId)
       const current = stockBalances.value[key]
@@ -416,20 +424,15 @@ async function checkout() {
         stockBalances.value[key] = Math.max(0, Number(current) - item.qty)
       }
     })
-    // Tidak fetch dari server di sini — fetch dilakukan saat modal struk ditutup
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
-    const msg = err.response?.data?.data?.message
-      || err.response?.data?.message
-      || err.message
-      || 'Gagal memproses transaksi.'
+    const msg = err.response?.data?.data?.message || err.response?.data?.message || err.message || 'Gagal memproses transaksi.'
     toast.error(msg)
   } finally {
     processingCheckout.value = false
   }
 }
 
-// ─── UI Helpers ──────────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
   { bg: '#ede9fe', color: '#6d28d9' }, { bg: '#dbeafe', color: '#1d4ed8' },
   { bg: '#d1fae5', color: '#065f46' }, { bg: '#fef3c7', color: '#92400e' },
@@ -446,10 +449,8 @@ function avatarStyle(name = '') {
   <AppLayout>
     <div class="pos-root">
       
-      <!-- ── Product panel ── -->
       <div class="flex flex-col bg-white dark:bg-[#09090b] flex-1 min-w-0 min-h-0">
         
-        <!-- Header -->
         <div class="px-3 pt-3 lg:px-5 lg:pt-5 shrink-0 z-10">
           <div class="flex items-center justify-between mb-4">
             <div class="hidden lg:block">
@@ -457,23 +458,33 @@ function avatarStyle(name = '') {
               <p class="text-xs text-zinc-500 font-medium mt-0.5">Point of Sale System v2.0</p>
             </div>
             
-            <!-- Branch Selector -->
             <div ref="branchDropdownRef" class="relative">
+              
+              <div 
+                v-if="authStore.user?.branch"
+                class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 px-3.5 py-2 rounded-xl border border-emerald-200/50 dark:border-emerald-800/30"
+              >
+                <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
+                <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                  📍 {{ selectedBranch?.name || 'Cabang Aktif' }}
+                </span>
+              </div>
+
               <button
+                v-else
                 @click.stop="showBranchDropdown = !showBranchDropdown"
                 class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 px-3 py-2 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors min-w-[160px]"
               >
-                <MapPin class="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-                <span class="text-[12px] font-bold text-zinc-700 dark:text-zinc-200 flex-1 text-left truncate">
+                <MapPin class="h-3.5 w-3.5 text-primary shrink-0" />
+                <span class="text-[12px] font-black text-zinc-700 dark:text-zinc-200 flex-1 text-left truncate">
                   {{ selectedBranch?.name || 'Pilih Cabang' }}
                 </span>
                 <ChevronDown class="h-3.5 w-3.5 text-zinc-400 shrink-0 transition-transform duration-200" :class="showBranchDropdown ? 'rotate-180' : ''" />
               </button>
 
-              <!-- Dropdown Panel -->
               <Transition name="dropdown">
                 <div
-                  v-if="showBranchDropdown"
+                  v-if="showBranchDropdown && !authStore.user?.branch"
                   class="absolute top-full right-0 mt-1.5 z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
                 >
                   <div class="p-1">
@@ -494,6 +505,7 @@ function avatarStyle(name = '') {
                 </div>
               </Transition>
             </div>
+            
           </div>
           
           <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
@@ -517,7 +529,6 @@ function avatarStyle(name = '') {
           </div>
         </div>
 
-        <!-- Grid -->
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
           <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
              <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3 text-primary" />
@@ -568,7 +579,6 @@ function avatarStyle(name = '') {
         </div>
       </div>
 
-      <!-- ── Cart panel ── -->
       <div class="flex flex-col bg-white dark:bg-[#09090b] border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 max-h-[42vh] lg:max-h-none lg:w-[380px] shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] lg:shadow-none z-20 rounded-t-[24px] lg:rounded-none">
         
         <div class="flex items-center justify-between px-4 py-3.5 lg:p-5 border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">
@@ -624,29 +634,24 @@ function avatarStyle(name = '') {
 
     </div>
 
-    <!-- Payment Dialog -->
     <Teleport to="body">
       <Transition name="fade"><div v-if="showPayment" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closePayment" /></Transition>
       <Transition name="scale">
         <div v-if="showPayment" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
           <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-md border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
             
-            <!-- Modal Header -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
               <h3 class="font-black text-[15px]">Detail Pembayaran</h3>
               <button @click="closePayment" class="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"><X class="h-4 w-4" /></button>
             </div>
             
             <div class="px-6 py-5 flex flex-col gap-5 overflow-y-auto max-h-[70vh] no-scrollbar">
-              
-              <!-- Bill Summary & Voucher -->
               <div class="flex flex-col gap-3">
                 <div class="flex items-center justify-between text-[14px] font-bold text-zinc-700 dark:text-zinc-300">
                   <span>Subtotal Pesanan</span>
                   <span>{{ formatCurrency(subtotal) }}</span>
                 </div>
                 
-                <!-- Voucher Block -->
                 <div class="bg-zinc-50 dark:bg-zinc-800/60 rounded-[16px] p-3 border border-zinc-200/60 dark:border-zinc-700/50">
                   <div v-if="appliedVoucher" class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -661,7 +666,7 @@ function avatarStyle(name = '') {
                       <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
                     </div>
                   </div>
-                  <div v-else class="flex gap-2">
+                  <div class="flex gap-2">
                     <Input v-model="voucherCode" placeholder="Masukkan kode voucher..." class="h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" @keyup.enter="applyVoucher" />
                     <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm" @click="applyVoucher">Pakai</Button>
                   </div>
@@ -673,7 +678,6 @@ function avatarStyle(name = '') {
                 </div>
               </div>
 
-              <!-- Payment Methods -->
               <div class="flex flex-col gap-2">
                 <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>
                 <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
@@ -731,14 +735,13 @@ function avatarStyle(name = '') {
         </div>
       </Transition>
     </Teleport>
-    <!-- Receipt Modal -->
+
     <Teleport to="body">
       <Transition name="fade"><div v-if="showReceipt" class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" @click="closeReceipt" /></Transition>
       <Transition name="scale">
         <div v-if="showReceipt && lastOrder" class="fixed inset-0 z-[70] flex items-center justify-center p-4 pointer-events-none">
           <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col relative">
             <div class="flex flex-col items-center px-6 pt-8 pb-5 border-b border-dashed border-zinc-200 dark:border-zinc-700">
-              <!-- Tombol X di pojok kanan -->
               <div class="absolute top-4 right-4">
                 <button @click="closeReceipt" class="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 transition-colors">
                   <X class="h-4 w-4" />
@@ -789,7 +792,6 @@ function avatarStyle(name = '') {
               </template>
             </div>
             <div class="px-6 pb-6 flex flex-col gap-2.5">
-              <!-- Tombol Konfirmasi Transfer — hanya muncul jika transfer & belum dikonfirmasi -->
               <button
                 v-if="lastOrder.payments?.[0]?.method === 'TRANSFER' && lastOrder.payments[0].status !== 'VERIFIED'"
                 @click="confirmTransferFromReceipt"

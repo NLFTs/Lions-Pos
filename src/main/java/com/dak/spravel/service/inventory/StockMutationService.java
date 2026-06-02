@@ -220,7 +220,7 @@ public class StockMutationService {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
         }
 
-        return stockMutationRepository.findByPartnerId(partnerId, PageRequest.of(0, 1000, Sort.by("id").descending()))
+        return stockMutationRepository.findByPartnerIdOrderByCreatedAtDesc(partnerId, PageRequest.of(0, 1000, Sort.by("id").descending()))
                 .getContent().stream()
                 .map(this::mapToResponse)
                 .toList();
