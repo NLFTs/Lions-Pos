@@ -7,6 +7,12 @@ import java.util.List;
 public class ReturnRequest {
 
     private List<ReturnItemRequest> items;
+    
+    // Lokasi tujuan return: "WAREHOUSE" atau "BRANCH"
+    private String returnLocationType;
+    
+    // ID gudang atau cabang tujuan
+    private Long returnLocationId;
 
     @Data
     public static class ReturnItemRequest {

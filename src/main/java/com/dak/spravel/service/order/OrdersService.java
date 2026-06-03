@@ -30,6 +30,7 @@ import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
+import com.dak.spravel.repository.inventory.WarehousesRepository;
 import com.dak.spravel.repository.order.OrderItemsRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.repository.order.PaymentsRepository;
@@ -45,6 +46,7 @@ public class OrdersService {
     private final PaymentsRepository paymentsRepository;
     private final OrderItemsRepository orderItemsRepository;
     private final BranchesRepository branchesRepository;
+    private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final VoucherRepository voucherRepository;
@@ -417,6 +419,38 @@ public class OrdersService {
         List<ReturnResponse.ReturnItemResponse> returnedItems = new ArrayList<>();
         BigDecimal totalRefund = BigDecimal.ZERO;
 
+        // ── Tentukan lokasi tujuan return ──────────────────────────────────────
+        // Default: kembalikan ke BRANCH asal order
+        String targetLocationType;
+        Long targetLocationId;
+
+        String reqLocationType = request.getReturnLocationType();
+        Long reqLocationId = request.getReturnLocationId();
+
+        if (reqLocationType != null && !reqLocationType.isBlank() && reqLocationId != null) {
+            String upperType = reqLocationType.toUpperCase();
+            if (!upperType.equals("BRANCH") && !upperType.equals("WAREHOUSE")) {
+                throw new RuntimeException("returnLocationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
+            }
+            if (upperType.equals("WAREHOUSE")) {
+                // Validasi warehouse milik partner yang sama
+                warehousesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
+            } else {
+                // Validasi branch milik partner yang sama
+                branchesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+            }
+            targetLocationType = upperType;
+            targetLocationId = reqLocationId;
+        } else {
+            // Fallback ke branch asal order
+            targetLocationType = "BRANCH";
+            targetLocationId = order.getBranch().getId();
+        }
+
+        String targetLocationLabel = targetLocationType.equals("WAREHOUSE") ? "Gudang" : "Cabang";
+
         for (ReturnRequest.ReturnItemRequest itemReq : request.getItems()) {
             OrderItems orderItem = order.getItems().stream()
                     .filter(i -> i.getId().equals(itemReq.getOrderItemId()))
@@ -431,14 +465,16 @@ public class OrdersService {
                         + orderItem.getQty() + ") untuk produk: " + orderItem.getProductName());
             }
 
-            // Kembalikan barang retur konsumen ke dalam inventory balance cabang
-            stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", order.getBranch().getId(), itemReq.getQtyReturn());
+            // Kembalikan barang retur konsumen ke lokasi yang dipilih (gudang atau cabang)
+            stockBalanceService.adjustStock(orderItem.getProduct().getId(), targetLocationType, targetLocationId, itemReq.getQtyReturn());
             
             stockMutationService.recordMutation(
                     orderItem.getProduct(), order.getPartner(), "RETURN", 
-                    null, null, "BRANCH", order.getBranch().getId(),
+                    null, null, targetLocationType, targetLocationId,
                     itemReq.getQtyReturn(), "ORDER", order.getId(),
-                    "Retur Barang Penjualan Order #" + order.getOrderNumber() + (itemReq.getReason() != null ? " - Reason: " + itemReq.getReason() : ""), 
+                    "Retur Barang Penjualan Order #" + order.getOrderNumber()
+                            + " ke " + targetLocationLabel + " (id=" + targetLocationId + ")"
+                            + (itemReq.getReason() != null ? " - Alasan: " + itemReq.getReason() : ""), 
                     currentUser
             );
 
@@ -474,6 +510,8 @@ public class OrdersService {
                 .returnedItems(returnedItems)
                 .totalRefund(totalRefund)
                 .returnedAt(returnedAt)
+                .returnLocationType(targetLocationType)
+                .returnLocationId(targetLocationId)
                 .build();
     }
 
