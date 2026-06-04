@@ -48,5 +48,12 @@ public class OrderItems {
 
     @Column(nullable = false)
     private BigDecimal subtotal;
+
+    // Field retur
+    @Column(name = "return_qty")
+    private Long returnQty;
+
+    @Column(name = "return_reason", columnDefinition = "TEXT")
+    private String returnReason;
 }
 

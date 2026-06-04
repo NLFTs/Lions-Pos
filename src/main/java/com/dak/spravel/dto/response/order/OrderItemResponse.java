@@ -18,4 +18,6 @@ public class OrderItemResponse {
     private Long qty;
     private BigDecimal unitPrice;
     private BigDecimal subtotal;
+    private Long returnQty;
+    private String returnReason;
 }

@@ -20,6 +20,9 @@ public class ReturnResponse {
     private List<ReturnItemResponse> returnedItems;
     private BigDecimal totalRefund;
     private LocalDateTime returnedAt;
+    // Informasi lokasi tujuan return
+    private String returnLocationType;
+    private Long returnLocationId;
 
     @Data
     @Builder
