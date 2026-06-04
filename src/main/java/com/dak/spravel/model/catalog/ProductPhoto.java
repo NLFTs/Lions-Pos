@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import com.dak.spravel.model.auth.User;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDateTime;
 
@@ -22,6 +23,7 @@ public class ProductPhoto {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id", referencedColumnName = "id", nullable = false)
+    @JsonIgnore
     private Product product;
 
     @Column(name = "profile_url", columnDefinition = "TEXT")
@@ -39,6 +41,6 @@ public class ProductPhoto {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
-    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    @JsonIgnore
     private User createdBy;
 }

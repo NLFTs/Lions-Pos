@@ -244,14 +244,18 @@ public class ProductService {
             if (request.getImageUrl().trim().isEmpty()) {
                 if (primaryPhoto != null) {
                     if (primaryPhoto.getUrl() != null) {
-                        deleteFileDisk(primaryPhoto.getUrl());
+                        if (productPhotoRepository.countByUrl(primaryPhoto.getUrl()) <= 1) {
+                            deleteFileDisk(primaryPhoto.getUrl());
+                        }
                     }
                     productPhotoRepository.delete(primaryPhoto);
                 }
             } else {
                 if (primaryPhoto != null) {
                     if (primaryPhoto.getUrl() != null && !primaryPhoto.getUrl().equals(request.getImageUrl().trim())) {
-                        deleteFileDisk(primaryPhoto.getUrl());
+                        if (productPhotoRepository.countByUrl(primaryPhoto.getUrl()) <= 1) {
+                            deleteFileDisk(primaryPhoto.getUrl());
+                        }
                     }
                     primaryPhoto.setUrl(request.getImageUrl().trim());
                     productPhotoRepository.save(primaryPhoto);
@@ -335,7 +339,9 @@ public class ProductService {
         List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
         for (com.dak.spravel.model.catalog.ProductPhoto photo : photos) {
             if (photo.getUrl() != null) {
-                deleteFileDisk(photo.getUrl());
+                if (productPhotoRepository.countByUrl(photo.getUrl()) <= 1) {
+                    deleteFileDisk(photo.getUrl());
+                }
             }
         }
 
