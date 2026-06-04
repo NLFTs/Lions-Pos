@@ -217,6 +217,25 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
+
+// ─── IDR Price Formatting ─────────────────────────────────────────────────────
+const priceDisplay = ref('')
+
+function formatPriceDisplay(val) {
+  if (val === '' || val === null || val === undefined) return ''
+  // Strip non-digits
+  const digits = String(val).replace(/\D/g, '')
+  if (!digits) return ''
+  // Add thousand separators (dots for IDR)
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+function onPriceInput(e) {
+  const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '')
+  priceDisplay.value = raw ? raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''
+  form.value.price = raw ? raw : ''
+}
+
 // ─── Validasi frontend ───────────────────────────────────────────────────────
 const formErrors = ref({
   name: '',
@@ -290,6 +309,7 @@ onBeforeUnmount(() => {
 // ─── Create / Edit Drawer ─────────────────────────────────────────────────────
 function openCreate() {
   form.value = emptyForm()
+  priceDisplay.value = ''
   formErrors.value = { name: '', price: '', sku: '', images: '' }
   deletedPhotoIds.value = []
   formError.value = null
@@ -308,6 +328,7 @@ async function openEdit(product) {
     isActive: product.is_active ?? true,
     images: []
   }
+  priceDisplay.value = formatPriceDisplay(product.base_price)
   formErrors.value = { name: '', price: '', sku: '', images: '' }
   deletedPhotoIds.value = []
   formError.value = null
@@ -1238,16 +1259,16 @@ function productAvatarStyle(name = '') {
                       <Label for="f-price" class="text-xs font-semibold">Harga Jual <span class="text-destructive">*</span></Label>
                       <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground select-none font-medium">Rp</span>
-                        <Input
+                        <input
                           id="f-price"
-                          v-model="form.price"
-                          type="number"
-                          min="0"
-                          step="100"
+                          type="text"
+                          inputmode="numeric"
+                          :value="priceDisplay"
+                          @input="onPriceInput"
                           placeholder="0"
                           :disabled="saving"
-                          class="pl-9 h-10 rounded-lg font-semibold text-zinc-800 dark:text-zinc-200"
-                          :class="{ 'border-destructive ring-destructive/20': formErrors.price }"
+                          class="flex h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                          :class="{ 'border-destructive ring-destructive/20 focus-visible:ring-destructive/30': formErrors.price }"
                         />
                       </div>
                       <p v-if="formErrors.price" class="text-xs text-destructive form-error font-semibold">{{ formErrors.price }}</p>
