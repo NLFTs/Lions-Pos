@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
@@ -19,7 +19,7 @@ import TableRow from '@/components/ui/TableRow.vue'
 import TableHead from '@/components/ui/TableHead.vue'
 import TableCell from '@/components/ui/TableCell.vue'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, Loader2, X, Filter, Package, Upload, ChevronDown, Check } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, Loader2, X, Filter, Package, Upload, ChevronDown, Check, PowerOff } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -27,6 +27,94 @@ const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
 const authStore = useAuthStore()
+
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = filteredProducts.value
+  if (visible.length === 0) return false
+  return visible.every(p => selectedIds.value.includes(p.id))
+})
+
+function toggleSelectAll() {
+  const visible = filteredProducts.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(p => p.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(p => {
+      if (!selectedIds.value.includes(p.id)) {
+        selectedIds.value.push(p.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Produk Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} produk terpilih secara permanen?`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/products/${id}`))
+    )
+    toast.success(`${count} produk berhasil dihapus!`)
+    selectedIds.value = []
+    fetchProducts(pagination.value.page)
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa produk.')
+    fetchProducts(pagination.value.page)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function bulkDeactivate() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Nonaktifkan Produk Terpilih',
+    description: `Apakah Anda yakin ingin menonaktifkan ${count} produk terpilih?`,
+    confirmLabel: 'Nonaktifkan',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.patch(`/api/v1/products/${id}`, { is_active: false }))
+    )
+    toast.success(`${count} produk berhasil dinonaktifkan!`)
+    selectedIds.value = []
+    fetchProducts(pagination.value.page)
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menonaktifkan beberapa produk.')
+    fetchProducts(pagination.value.page)
+  } finally {
+    loading.value = false
+  }
+}
 
 const isAdmin = computed(() => authStore.isAdmin)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
@@ -183,6 +271,10 @@ async function fetchCategories() {
     // non-critical
   }
 }
+
+watch([searchQuery, filterStatus, filterStock, sortBy], () => {
+  selectedIds.value = []
+})
 
 onMounted(() => {
   fetchProducts()
@@ -657,11 +749,53 @@ function productAvatarStyle(name = '') {
             </div>
 
             <!-- ─── Desktop Table ─── -->
-            <div class="hidden md:block overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto relative">
+              <!-- Selection Banner -->
+              <Transition name="fade">
+                <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      {{ selectedIds.length }} Terpilih
+                    </span>
+                    <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      v-if="can('produk.update') && !isSuperAdmin"
+                      size="sm"
+                      variant="outline"
+                      class="h-8 text-xs gap-1 border-primary/20 hover:bg-primary/10"
+                      @click="bulkDeactivate"
+                    >
+                      <PowerOff class="h-3.5 w-3.5" />
+                      Nonaktifkan
+                    </Button>
+                    <Button
+                      v-if="can('produk.delete') && !isSuperAdmin"
+                      size="sm"
+                      variant="destructive"
+                      class="h-8 text-xs gap-1"
+                      @click="bulkDelete"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Transition>
+
               <Table>
                 <TableHeader>
                   <TableRow class="hover:bg-transparent border-b border-zinc-100 dark:border-zinc-800">
-                    <TableHead class="pl-5 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 w-[260px]">Produk</TableHead>
+                    <TableHead class="w-12 pl-5 py-3">
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="isAllSelected"
+                        @change="toggleSelectAll"
+                      />
+                    </TableHead>
+                    <TableHead class="pl-2 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 w-[260px]">Produk</TableHead>
                     <TableHead class="py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">SKU</TableHead>
                     <TableHead class="py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Harga</TableHead>
                     <TableHead class="py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Kategori</TableHead>
@@ -675,10 +809,21 @@ function productAvatarStyle(name = '') {
                   <TableRow
                     v-for="product in filteredProducts"
                     :key="product.id"
-                    class="group border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+                    class="group table-lift-row border-b border-zinc-100 dark:border-zinc-800/60 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    @click="can('produk.update') && !isSuperAdmin && openEdit(product)"
                   >
+                    <!-- Checkbox cell -->
+                    <TableCell class="w-12 pl-5 py-3" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="selectedIds.includes(product.id)"
+                        @change="toggleSelect(product.id)"
+                      />
+                    </TableCell>
+
                     <!-- Produk: Avatar/Gambar + Nama -->
-                    <TableCell class="pl-5 py-3">
+                    <TableCell class="pl-2 py-3">
                       <div class="flex items-center gap-3">
                         <img v-if="product.imageUrl" :src="product.imageUrl" class="w-8 h-8 rounded-lg object-cover border border-zinc-200 dark:border-zinc-700" />
                         <div
@@ -730,7 +875,7 @@ function productAvatarStyle(name = '') {
                     </TableCell>
 
                     <!-- Status Aktif -->
-                    <TableCell class="py-3 text-center">
+                    <TableCell class="py-3 text-center" @click.stop>
                       <button
                         type="button"
                         role="switch"
@@ -738,7 +883,7 @@ function productAvatarStyle(name = '') {
                         :disabled="togglingStatus === product.id"
                         class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mx-auto"
                         :class="product.is_active ? 'bg-primary' : 'bg-zinc-200 dark:bg-zinc-700'"
-                        @click.stop="toggleStatus(product)"
+                        @click="toggleStatus(product)"
                       >
                           <span
                             class="pointer-events-none h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform flex items-center justify-center"
@@ -755,23 +900,13 @@ function productAvatarStyle(name = '') {
                     </TableCell>
 
                     <!-- Aksi -->
-                    <TableCell class="pr-4 py-3 text-right">
-                      <div class="flex justify-end gap-1 transition-opacity">
-                        <Button
-                          v-if="can('produk.update') && !isSuperAdmin"
-                          variant="ghost"
-                          size="icon"
-                          class="h-7 w-7 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md"
-                          title="Edit"
-                          @click="openEdit(product)"
-                        >
-                          <Pencil class="h-3.5 w-3.5" />
-                        </Button>
+                    <TableCell class="pr-4 py-3 text-right" @click.stop>
+                      <div class="flex justify-end gap-1">
                         <Button
                           v-if="can('produk.delete') && !isSuperAdmin"
                           variant="ghost"
                           size="icon"
-                          class="h-7 w-7 text-zinc-400 hover:text-destructive hover:bg-destructive/10 rounded-md"
+                          class="h-7 w-7 text-zinc-400 hover:text-destructive hover:bg-destructive/10 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                           title="Hapus"
                           @click="doDelete(product)"
                         >

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -20,6 +21,71 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
 const { can } = usePermission()
 const { toast } = useToast()
+const { confirm } = useConfirm()
+
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedPartners.value
+  if (visible.length === 0) return false
+  return visible.every(p => selectedIds.value.includes(p.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedPartners.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(p => p.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(p => {
+      if (!selectedIds.value.includes(p.id)) {
+        selectedIds.value.push(p.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Partner Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} partner terpilih secara permanen?`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/partners/${id}`))
+    )
+    toast.success(`${count} partner berhasil dihapus!`)
+    selectedIds.value = []
+    fetchPartners()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa partner.')
+    fetchPartners()
+  } finally {
+    loading.value = false
+  }
+}
+
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
+})
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const partners = ref([])
@@ -290,11 +356,43 @@ onMounted(fetchPartners)
             </div>
 
             <!-- Desktop Table -->
-            <div class="hidden md:block overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto relative">
+              <!-- Selection Banner -->
+              <Transition name="fade">
+                <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      {{ selectedIds.length }} Terpilih
+                    </span>
+                    <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      v-if="can('partner.delete')"
+                      size="sm"
+                      variant="destructive"
+                      class="h-8 text-xs gap-1"
+                      @click="bulkDelete"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Transition>
+
               <table class="w-full text-sm">
                 <thead>
                   <tr class="bg-muted/40 border-b">
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Partner</th>
+                    <th class="w-12 pl-5 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="isAllSelected"
+                        @change="toggleSelectAll"
+                      />
+                    </th>
+                    <th class="pl-2 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Partner</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Plan</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Status</th>
@@ -303,8 +401,21 @@ onMounted(fetchPartners)
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="p in paginatedPartners" :key="p.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td class="px-5 py-3">
+                  <tr
+                    v-for="p in paginatedPartners"
+                    :key="p.id"
+                    class="group table-lift-row border-b last:border-0 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    @click="can('partner.update') && openEdit(p)"
+                  >
+                    <td class="w-12 pl-5 py-3 text-left" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="selectedIds.includes(p.id)"
+                        @change="toggleSelect(p.id)"
+                      />
+                    </td>
+                    <td class="pl-2 py-3">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-300 font-bold text-sm border border-zinc-200 dark:border-zinc-700 shrink-0">
                           {{ p.name?.charAt(0).toUpperCase() }}
@@ -332,12 +443,15 @@ onMounted(fetchPartners)
                     <td class="px-5 py-3">
                       <span class="text-xs text-muted-foreground">{{ p.created_by?.username || '-' }}</span>
                     </td>
-                    <td class="px-5 py-3 text-right">
+                    <td class="px-5 py-3 text-right" @click.stop>
                       <div class="flex justify-end gap-1">
-                        <Button v-if="can('partner.update')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(p)">
-                          <Pencil class="h-3.5 w-3.5" />
-                        </Button>
-                        <Button v-if="can('partner.delete')" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(p)">
+                        <Button
+                          v-if="can('partner.delete')"
+                          variant="ghost"
+                          size="icon"
+                          class="h-8 w-8 text-zinc-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          @click="doDelete(p)"
+                        >
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>

@@ -40,7 +40,7 @@ const props = defineProps({
 })
 
 const dismissed = ref(false)
-const collapsed = ref(false)
+const collapsed = ref(true)
 const expandedTask = ref(null)
 
 // ─── Data real dari API ───────────────────────────────────────────────────────

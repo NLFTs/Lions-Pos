@@ -51,6 +51,70 @@ watch(searchQuery, () => {
   page.value = 1
 })
 
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedCategories.value
+  if (visible.length === 0) return false
+  return visible.every(c => selectedIds.value.includes(c.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedCategories.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(c => c.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(c => {
+      if (!selectedIds.value.includes(c.id)) {
+        selectedIds.value.push(c.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Kategori Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} kategori terpilih? Produk dalam kategori tersebut akan menjadi tidak berkategori.`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/categories/${id}`))
+    )
+    toast.success(`${count} kategori berhasil dihapus!`)
+    selectedIds.value = []
+    fetchCategories()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa kategori.')
+    fetchCategories()
+  } finally {
+    loading.value = false
+  }
+}
+
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
+})
+
 // Drawer
 const showDrawer = ref(false)
 const modalMode = ref('create')
@@ -349,10 +413,42 @@ function formatDate(dt) {
           </div>
 
           <!-- ─── Desktop Table ─── -->
-          <div class="hidden md:block overflow-x-auto">
+          <div class="hidden md:block overflow-x-auto relative">
+            <!-- Selection Banner -->
+            <Transition name="fade">
+              <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                    {{ selectedIds.length }} Terpilih
+                  </span>
+                  <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <Button
+                    v-if="can('category.delete') && !isSuperAdmin"
+                    size="sm"
+                    variant="destructive"
+                    class="h-8 text-xs gap-1"
+                    @click="bulkDelete"
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                    Hapus
+                  </Button>
+                </div>
+              </div>
+            </Transition>
+
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b bg-muted/40">
+                  <th class="w-12 pl-5 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      :checked="isAllSelected"
+                      @change="toggleSelectAll"
+                    />
+                  </th>
                   <th v-if="isColumnVisible('id')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px] w-16">#</th>
                   <th v-if="isColumnVisible('name')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Kategori</th>
                   <th v-if="isColumnVisible('description')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Deskripsi</th>
@@ -364,18 +460,30 @@ function formatDate(dt) {
                 <tr
                   v-for="cat in paginatedCategories"
                   :key="cat.id"
-                  class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                  class="group table-lift-row border-b last:border-0 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                  @click="can('category.update') && !isSuperAdmin && openEdit(cat)"
                 >
+                  <td class="w-12 pl-5 py-3 text-left" @click.stop>
+                    <input
+                      type="checkbox"
+                      class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      :checked="selectedIds.includes(cat.id)"
+                      @change="toggleSelect(cat.id)"
+                    />
+                  </td>
                   <td v-if="isColumnVisible('id')" class="px-5 py-3 text-muted-foreground font-mono text-xs">{{ cat.id }}</td>
                   <td v-if="isColumnVisible('name')" class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ cat.name }}</td>
                   <td v-if="isColumnVisible('description')" class="px-5 py-3 text-muted-foreground max-w-[400px] truncate">{{ cat.description || '-' }}</td>
                   <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-muted-foreground text-xs">{{ formatDate(cat.createdAt) }}</td>
-                  <td class="px-5 py-3 text-right">
+                  <td class="px-5 py-3 text-right" @click.stop>
                     <div class="flex justify-end gap-1">
-                      <Button v-if="can('category.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(cat)">
-                        <Pencil class="h-3.5 w-3.5" />
-                      </Button>
-                      <Button v-if="can('category.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(cat)">
+                      <Button
+                        v-if="can('category.delete') && !isSuperAdmin"
+                        variant="ghost"
+                        size="icon"
+                        class="h-8 w-8 text-zinc-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        @click="doDelete(cat)"
+                      >
                         <Trash2 class="h-3.5 w-3.5" />
                       </Button>
                     </div>

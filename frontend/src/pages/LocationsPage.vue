@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
@@ -21,6 +21,77 @@ const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
 const authStore = useAuthStore()
+
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedLocations.value
+  if (visible.length === 0) return false
+  return visible.every(l => selectedIds.value.includes(l.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedLocations.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(l => l.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(l => {
+      if (!selectedIds.value.includes(l.id)) {
+        selectedIds.value.push(l.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Lokasi Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} lokasi terpilih? Data stok pada lokasi ini mungkin akan terpengaruh secara permanen.`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    const branchIds = selectedIds.value.filter(id => {
+      const loc = allLocations.value.find(l => l.id === id)
+      return loc && loc.type === 'branch'
+    })
+    const warehouseIds = selectedIds.value.filter(id => {
+      const loc = allLocations.value.find(l => l.id === id)
+      return loc && loc.type === 'warehouse'
+    })
+
+    await Promise.all([
+      ...branchIds.map(id => api.delete(`/api/v1/branches/${id}`)),
+      ...warehouseIds.map(id => api.delete(`/api/v1/warehouses/${id}`))
+    ])
+
+    toast.success(`${count} lokasi berhasil dihapus!`)
+    selectedIds.value = []
+    fetchLocations()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa lokasi.')
+    fetchLocations()
+  } finally {
+    loading.value = false
+  }
+}
 
 const isAdmin = computed(() => authStore.isAdmin)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
@@ -55,6 +126,11 @@ const filteredLocations = computed(() => {
 const paginatedLocations = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredLocations.value.slice(start, start + pageSize.value)
+})
+
+// Watch SETELAH deklarasi state (penting! jangan pindah ke atas)
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
 })
 
 // ─── Form State ───────────────────────────────────────────────────────────────
@@ -308,19 +384,65 @@ onMounted(fetchLocations)
               </div>
             </div>
 
-            <div class="hidden md:block overflow-x-auto">
+            <!-- ─── Desktop Table ─── -->
+            <div class="hidden md:block overflow-x-auto relative">
+              <!-- Selection Banner -->
+              <Transition name="fade">
+                <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      {{ selectedIds.length }} Terpilih
+                    </span>
+                    <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      v-if="can('branch.delete') || can('warehouse.delete')"
+                      size="sm"
+                      variant="destructive"
+                      class="h-8 text-xs gap-1"
+                      @click="bulkDelete"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Transition>
+
               <table class="w-full text-sm">
                 <thead>
-                  <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Lokasi</th>
+                  <tr class="border-b border-zinc-100 dark:border-zinc-800 bg-muted/40">
+                    <th class="w-12 pl-5 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="isAllSelected"
+                        @change="toggleSelectAll"
+                      />
+                    </th>
+                    <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Lokasi</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tipe</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alamat</th>
                     <th class="pr-5 py-3 text-right"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="l in paginatedLocations" :key="l.type + l.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
-                    <td class="pl-5 py-3">
+                  <tr
+                    v-for="l in paginatedLocations"
+                    :key="l.type + l.id"
+                    class="group table-lift-row border-b border-zinc-100 dark:border-zinc-800/60 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    @click="((l.type === 'branch' ? can('branch.update') : can('warehouse.update')) && !isSuperAdmin) && openEdit(l)"
+                  >
+                    <td class="w-12 pl-5 py-3 text-left" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="selectedIds.includes(l.id)"
+                        @change="toggleSelect(l.id)"
+                      />
+                    </td>
+                    <td class="pl-2 py-3">
                       <div class="flex items-center gap-3">
                         <div :class="['w-8 h-8 rounded flex items-center justify-center shrink-0', l.type === 'warehouse' ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20']">
                           <Warehouse v-if="l.type === 'warehouse'" class="h-4 w-4" />
@@ -337,12 +459,15 @@ onMounted(fetchLocations)
                     <td class="py-3 max-w-[300px] truncate text-xs text-zinc-500">
                       {{ l.address || '-' }}
                     </td>
-                    <td class="pr-5 py-3 text-right">
+                    <td class="pr-5 py-3 text-right" @click.stop>
                       <div class="flex justify-end gap-1">
-                        <Button v-if="(l.type === 'branch' ? can('branch.update') : can('warehouse.update')) && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(l)">
-                          <Pencil class="h-3.5 w-3.5" />
-                        </Button>
-                        <Button v-if="(l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')) && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(l)">
+                        <Button
+                          v-if="(l.type === 'branch' ? can('branch.delete') : can('warehouse.delete')) && !isSuperAdmin"
+                          variant="ghost"
+                          size="icon"
+                          class="h-7 w-7 text-zinc-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          @click="doDelete(l)"
+                        >
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>

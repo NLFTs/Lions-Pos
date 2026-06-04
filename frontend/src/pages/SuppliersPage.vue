@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
@@ -17,8 +18,69 @@ import { Plus, Pencil, Trash2, Loader2, X, Truck, Phone, Mail } from 'lucide-vue
 
 const { can } = usePermission()
 const { toast } = useToast()
+const { confirm } = useConfirm()
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
+
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedSuppliers.value
+  if (visible.length === 0) return false
+  return visible.every(s => selectedIds.value.includes(s.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedSuppliers.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(s => s.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(s => {
+      if (!selectedIds.value.includes(s.id)) {
+        selectedIds.value.push(s.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Supplier Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} supplier terpilih secara permanen?`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/suppliers/${id}`))
+    )
+    toast.success(`${count} supplier berhasil dihapus!`)
+    selectedIds.value = []
+    fetchSuppliers()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa supplier.')
+    fetchSuppliers()
+  } finally {
+    loading.value = false
+  }
+}
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const suppliers = ref([])
@@ -40,6 +102,11 @@ const filteredSuppliers = computed(() => {
 const paginatedSuppliers = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredSuppliers.value.slice(start, start + pageSize.value)
+})
+
+// Watch SETELAH deklarasi state (penting! jangan pindah ke atas)
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
 })
 
 // ─── Form State ───────────────────────────────────────────────────────────────
@@ -219,11 +286,43 @@ onMounted(fetchSuppliers)
             </div>
 
             <!-- Desktop Table -->
-            <div class="hidden md:block overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto relative">
+              <!-- Selection Banner -->
+              <Transition name="fade">
+                <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      {{ selectedIds.length }} Terpilih
+                    </span>
+                    <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      v-if="can('supplier.delete') && !isSuperAdmin"
+                      size="sm"
+                      variant="destructive"
+                      class="h-8 text-xs gap-1"
+                      @click="bulkDelete"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Transition>
+
               <table class="w-full text-sm">
                 <thead>
-                  <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Supplier</th>
+                  <tr class="border-b border-zinc-100 dark:border-zinc-800 bg-muted/40">
+                    <th class="w-12 pl-5 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="isAllSelected"
+                        @change="toggleSelectAll"
+                      />
+                    </th>
+                    <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Supplier</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Kontak</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alamat</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Catatan</th>
@@ -231,8 +330,21 @@ onMounted(fetchSuppliers)
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="s in paginatedSuppliers" :key="s.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
-                    <td class="pl-5 py-3">
+                  <tr
+                    v-for="s in paginatedSuppliers"
+                    :key="s.id"
+                    class="group table-lift-row border-b border-zinc-100 dark:border-zinc-800/60 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    @click="can('supplier.update') && !isSuperAdmin && openEdit(s)"
+                  >
+                    <td class="w-12 pl-5 py-3 text-left" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="selectedIds.includes(s.id)"
+                        @change="toggleSelect(s.id)"
+                      />
+                    </td>
+                    <td class="pl-2 py-3">
                       <div class="flex items-center gap-3">
                         <div class="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-500 shrink-0">
                           {{ s.name?.charAt(0).toUpperCase() }}
@@ -253,12 +365,15 @@ onMounted(fetchSuppliers)
                     <td class="py-3 max-w-[150px] truncate text-[11px] text-zinc-400 italic">
                       {{ s.notes || '' }}
                     </td>
-                    <td class="pr-5 py-3 text-right">
+                    <td class="pr-5 py-3 text-right" @click.stop>
                       <div class="flex justify-end gap-1">
-                        <Button v-if="can('supplier.update') && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-zinc-700" @click="openEdit(s)">
-                          <Pencil class="h-3.5 w-3.5" />
-                        </Button>
-                        <Button v-if="can('supplier.delete') && !isSuperAdmin" variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-destructive" @click="doDelete(s)">
+                        <Button
+                          v-if="can('supplier.delete') && !isSuperAdmin"
+                          variant="ghost"
+                          size="icon"
+                          class="h-7 w-7 text-zinc-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          @click="doDelete(s)"
+                        >
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>

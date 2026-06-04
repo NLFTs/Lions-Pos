@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -19,6 +19,66 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
+
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedVouchers.value
+  if (visible.length === 0) return false
+  return visible.every(v => selectedIds.value.includes(v.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedVouchers.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(v => v.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(v => {
+      if (!selectedIds.value.includes(v.id)) {
+        selectedIds.value.push(v.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Voucher Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} voucher terpilih secara permanen?`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/vouchers/${id}`))
+    )
+    toast.success(`${count} voucher berhasil dihapus!`)
+    selectedIds.value = []
+    fetchVouchers()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa voucher.')
+    fetchVouchers()
+  } finally {
+    loading.value = false
+  }
+}
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const vouchers = ref([])
@@ -40,6 +100,11 @@ const filteredVouchers = computed(() => {
 const paginatedVouchers = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return filteredVouchers.value.slice(start, start + pageSize.value)
+})
+
+// Watch SETELAH deklarasi state (penting! jangan pindah ke atas)
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
 })
 
 // ─── Form State ───────────────────────────────────────────────────────────────
@@ -348,11 +413,43 @@ onMounted(() => {
             </div>
 
             <!-- ─── Desktop Table ─── -->
-            <div class="hidden md:block overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto relative">
+              <!-- Selection Banner -->
+              <Transition name="fade">
+                <div v-if="selectedIds.length > 0" class="flex items-center justify-between px-5 py-3 bg-primary/5 dark:bg-primary/10 border-b border-border transition-all duration-200">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+                      {{ selectedIds.length }} Terpilih
+                    </span>
+                    <span class="text-xs text-muted-foreground">Baris terpilih dalam tabel ini.</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      v-if="can('voucher.delete')"
+                      size="sm"
+                      variant="destructive"
+                      class="h-8 text-xs gap-1"
+                      @click="bulkDelete"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Transition>
+
               <table class="w-full text-sm">
                 <thead>
                   <tr class="bg-muted/40 border-b">
-                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Voucer</th>
+                    <th class="w-12 pl-5 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="isAllSelected"
+                        @change="toggleSelectAll"
+                      />
+                    </th>
+                    <th class="pl-2 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Voucer</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Diskon</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Kuota / Terpakai</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Masa Berlaku</th>
@@ -361,8 +458,21 @@ onMounted(() => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="v in paginatedVouchers" :key="v.id" class="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                    <td class="px-5 py-3">
+                  <tr
+                    v-for="v in paginatedVouchers"
+                    :key="v.id"
+                    class="group table-lift-row border-b last:border-0 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
+                    @click="can('voucher.update') && openEdit(v)"
+                  >
+                    <td class="w-12 pl-5 py-3 text-left" @click.stop>
+                      <input
+                        type="checkbox"
+                        class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                        :checked="selectedIds.includes(v.id)"
+                        @change="toggleSelect(v.id)"
+                      />
+                    </td>
+                    <td class="pl-2 py-3">
                       <div class="flex flex-col">
                         <span class="font-mono text-xs font-bold text-primary">{{ v.code }}</span>
                         <span class="font-medium text-zinc-900 dark:text-zinc-100">{{ v.name }}</span>
@@ -406,12 +516,15 @@ onMounted(() => {
                         {{ getIsActive(v) ? 'Aktif' : 'Nonaktif' }}
                       </Badge>
                     </td>
-                    <td class="px-5 py-3 text-right">
+                    <td class="px-5 py-3 text-right" @click.stop>
                       <div class="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(v)">
-                          <Pencil class="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-destructive" @click="doDelete(v)">
+                        <Button
+                          v-if="can('voucher.delete')"
+                          variant="ghost"
+                          size="icon"
+                          class="h-8 w-8 text-zinc-400 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                          @click="doDelete(v)"
+                        >
                           <Trash2 class="h-3.5 w-3.5" />
                         </Button>
                       </div>

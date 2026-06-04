@@ -29,23 +29,28 @@ onMounted(() => {
   handleLenis(route.path)
 })
 
-// Scroll to top on route change (Lenis way for landing, native way for dashboard)
-watch(() => route.fullPath, (newPath) => {
+// Handle lenis on route change (scroll library for landing pages)
+watch(() => route.path, (newPath) => {
   handleLenis(newPath)
-  
+
   const lenis = getLenis()
   if (lenis) {
     lenis.scrollTo(0, { immediate: true })
   } else {
-    // For dashboard, we might need to scroll the main element
-    const mainEl = document.querySelector('main.overflow-y-auto')
-    if (mainEl) mainEl.scrollTop = 0
+    // For dashboard pages, scroll the main content area
+    requestAnimationFrame(() => {
+      const mainEl = document.querySelector('main.overflow-y-auto')
+      if (mainEl) mainEl.scrollTop = 0
+    })
   }
 })
 </script>
 
 <template>
   <LoadingBar />
-  <RouterView :key="$route.fullPath" />
+  <!-- PENTING: Jangan gunakan :key="$route.fullPath" di sini karena akan
+       menyebabkan seluruh komponen halaman di-destroy & recreate setiap
+       navigasi → layar hitam / blank setiap pindah menu. -->
+  <RouterView />
   <NotificationProvider />
 </template>
