@@ -12,6 +12,7 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class ProductService {
     private final CategoryProductRepository categoryRepository;
     private final UserRepository userRepository;
     private final com.dak.spravel.repository.catalog.ProductPhotoRepository productPhotoRepository;
+    private final StockBalanceRepository stockBalanceRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -336,6 +338,20 @@ public class ProductService {
         checkPermission(currentUser, "produk.delete");
 
         Product product = getValidatedProduct(id, currentUser);
+
+        // 🛡️ GUARD: Cek apakah masih ada stok aktif di lokasi manapun
+        List<com.dak.spravel.model.inventory.StockBalance> stockBalances = stockBalanceRepository.findByProductId(product.getId());
+        long nonZeroStocks = stockBalances.stream()
+                .filter(sb -> sb.getQty() != null && sb.getQty() > 0)
+                .count();
+        if (nonZeroStocks > 0) {
+            throw new RuntimeException(
+                "Produk '" + product.getName() + "' tidak dapat dihapus karena masih memiliki stok di " +
+                nonZeroStocks + " lokasi. Kosongkan semua stok terlebih dahulu."
+            );
+        }
+
+        // 🧹 Hapus semua foto produk terlebih dahulu
         List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
         for (com.dak.spravel.model.catalog.ProductPhoto photo : photos) {
             if (photo.getUrl() != null) {
@@ -343,6 +359,12 @@ public class ProductService {
                     deleteFileDisk(photo.getUrl());
                 }
             }
+        }
+        productPhotoRepository.deleteAll(photos);
+
+        // 🧹 Hapus semua stock balance (qty 0) yang terkait produk ini
+        if (!stockBalances.isEmpty()) {
+            stockBalanceRepository.deleteAll(stockBalances);
         }
 
         productRepository.delete(product);

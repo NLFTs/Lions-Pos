@@ -77,7 +77,6 @@ const activeSidebar = ref('main')
 // Inventory Sub-Sidebar Menu
 const INVENTORY_MENU = [
   { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory' },
-  { label: 'Stock Overview',      icon: TrendingUp,      to: '/dashboard/stock-balances' },
   { label: 'Stock Movements',     icon: ArrowLeftRight,  to: '/dashboard/stock-mutations' },
   { label: 'Stock Adjustments',   icon: PackageSearch,   to: '/dashboard/stock-opname' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests' },
@@ -113,7 +112,8 @@ const MENU_GROUPS = [
     items: [
       {
         label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null
-      }
+      },
+      { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
     ]
   },
   {
@@ -127,7 +127,7 @@ const MENU_GROUPS = [
     label: 'Inventaris',
     items: [
       { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
-      { label: 'Inventory', icon: Warehouse, subSidebar: 'inventory', permission: null },
+      { label: 'Inventory', icon: Warehouse, to: '/dashboard/inventory', subSidebar: 'inventory', permission: null },
       { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
     ],
   },
@@ -142,7 +142,6 @@ const MENU_GROUPS = [
     label: 'Management',
     items: [
       { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
-      { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
       { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
@@ -337,12 +336,27 @@ const searchableMenuItems = computed(() => {
           id: item.to || item.label,
           label: item.label,
           subtitle: group.label,
-          to: item.to,
+          to: item.to || (item.subSidebar ? '/dashboard/inventory' : null),
           icon: item.icon
         })
       }
     })
   })
+
+  // Tambahkan semua item dari inventory sub-sidebar agar bisa ditemukan di search
+  INVENTORY_MENU.forEach(item => {
+    const alreadyAdded = items.some(i => i.to === item.to)
+    if (!alreadyAdded) {
+      items.push({
+        id: item.to,
+        label: item.label,
+        subtitle: 'Inventaris / Inventory',
+        to: item.to,
+        icon: item.icon
+      })
+    }
+  })
+
   return items
 })
 
@@ -609,8 +623,11 @@ function isLocationActive(type, id) {
                 <!-- Sub-sidebar trigger (e.g. Inventory) -->
                 <button
                   v-if="item.subSidebar"
-                  @click="activeSidebar = item.subSidebar"
-                  class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200"
+                  @click="activeSidebar = item.subSidebar; item.to && router.push(item.to)"
+                  class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all"
+                  :class="isItemActive(item)
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
                 >
                   <component :is="item.icon" class="w-4 h-4 shrink-0" />
                   <span class="flex-1 text-left">{{ item.label }}</span>

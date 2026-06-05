@@ -10,6 +10,7 @@ import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
+import com.dak.spravel.repository.catalog.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +29,7 @@ public class CategoryProductService {
 
     private final CategoryProductRepository categoryProductRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -203,6 +205,16 @@ public class CategoryProductService {
         checkPermission(currentUser, "category.delete");
 
         CategoryProduct c = getValidatedCategory(id, currentUser);
+
+        // 🛡️ GUARD: Cek apakah masih ada produk yang menggunakan kategori ini
+        long productCount = productRepository.countByCategoryId(id);
+        if (productCount > 0) {
+            throw new RuntimeException(
+                "Kategori '" + c.getName() + "' tidak dapat dihapus karena masih digunakan oleh " +
+                productCount + " produk. Pindahkan atau ubah kategori produk tersebut terlebih dahulu."
+            );
+        }
+
         categoryProductRepository.delete(c);
     }
 
@@ -230,6 +242,10 @@ public class CategoryProductService {
             parent.setName(c.getParent().getName());
             response.setParent(parent);
         }
+
+        response.setCreatedAt(c.getCreatedAt());
+        response.setUpdatedAt(c.getUpdatedAt());
+        response.setDeletedAt(c.getDeletedAt());
 
         response.setCreatedBy(mapUserToDto(c.getCreatedBy()));
         response.setUpdatedBy(mapUserToDto(c.getUpdatedBy()));

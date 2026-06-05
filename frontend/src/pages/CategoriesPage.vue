@@ -329,7 +329,7 @@ async function doDelete(cat) {
     toast.success('Kategori berhasil dihapus!')
     fetchCategories()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menghapus kategori.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal menghapus kategori.')
   }
 }
 
@@ -473,8 +473,8 @@ function categoryAvatarStyle(name = '') {
                             </span>
                           </div>
                           <p class="text-xs text-zinc-500 line-clamp-1 mt-0.5">{{ cat.description || '-' }}</p>
-                          <p v-if="cat.created_by?.username" class="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1">
-                            <User class="h-2.5 w-2.5" />{{ cat.created_by.username }}
+                          <p v-if="(cat.createdBy || cat.created_by)?.username" class="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1">
+                            <User class="h-2.5 w-2.5" />{{ (cat.createdBy || cat.created_by).username }}
                           </p>
                         </div>
                       </div>
@@ -501,7 +501,7 @@ function categoryAvatarStyle(name = '') {
                     </div>
                     <div class="flex items-center justify-between mt-1">
                       <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">ID: {{ cat.id }}</span>
-                      <span class="text-[10px] text-zinc-400">{{ formatDate(cat.createdAt) }}</span>
+                      <span class="text-[10px] text-zinc-400">{{ formatDate(cat.createdAt || cat.created_at) }}</span>
                     </div>
                   </div>
                 </div>
@@ -593,15 +593,15 @@ function categoryAvatarStyle(name = '') {
                         </td>
                         <td v-if="isColumnVisible('description')" class="px-5 py-3 text-muted-foreground max-w-[360px] truncate text-sm">{{ cat.description || '—' }}</td>
                         <td v-if="isColumnVisible('createdBy')" class="px-5 py-3">
-                          <div v-if="cat.created_by?.username" class="flex items-center gap-1.5">
+                          <div v-if="(cat.createdBy || cat.created_by)?.username" class="flex items-center gap-1.5">
                             <div class="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
                               <User class="h-3 w-3 text-zinc-500" />
                             </div>
-                            <span class="text-xs text-zinc-700 dark:text-zinc-300 font-medium">{{ cat.created_by.username }}</span>
+                            <span class="text-xs text-zinc-700 dark:text-zinc-300 font-medium">{{ (cat.createdBy || cat.created_by).username }}</span>
                           </div>
                           <span v-else class="text-zinc-300 dark:text-zinc-600 text-sm">—</span>
                         </td>
-                        <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-xs text-zinc-400 dark:text-zinc-500">{{ formatDate(cat.createdAt) }}</td>
+                        <td v-if="isColumnVisible('createdAt')" class="px-5 py-3 text-xs text-zinc-400 dark:text-zinc-500">{{ formatDate(cat.createdAt || cat.created_at) }}</td>
                         <td class="px-5 py-3 text-right" @click.stop>
                           <div class="flex justify-end gap-1">
                             <Button

@@ -62,6 +62,10 @@ const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 
+// Filter state (dipindahkan dari StockBalancesPage)
+const locationFilter = ref('all')
+const typeFilter = ref('all')
+
 // Resolved Page Title
 const dashboardTitle = computed(() => {
   const type = route.query.locationType
@@ -75,6 +79,18 @@ const dashboardTitle = computed(() => {
 // ─── Computed: Filter & Paginate Table ──────────────────────────────────────
 const filteredBalances = computed(() => {
   let r = balances.value
+
+  // Filter by location type
+  if (locationFilter.value !== 'all') {
+    r = r.filter(b => (b.locationType || '').toUpperCase() === locationFilter.value.toUpperCase())
+  }
+
+  // Filter by specific location id (if typeFilter used as locationId)
+  if (typeFilter.value !== 'all') {
+    r = r.filter(b => String(b.locationId) === String(typeFilter.value))
+  }
+
+  // Filter by search query
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     r = r.filter(b => 
@@ -286,6 +302,8 @@ watch(
   () => [route.query.locationType, route.query.locationId],
   () => {
     page.value = 1
+    locationFilter.value = 'all'
+    typeFilter.value = 'all'
     fetchDashboardData()
   }
 )
@@ -422,14 +440,40 @@ onMounted(async () => {
         <!-- Tabel Saldo Stok Realtime -->
         <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
           <CardContent class="p-0">
-            <!-- Search & Refresh -->
-            <div class="p-4 flex items-center gap-4 justify-between border-b border-zinc-100 dark:border-zinc-800">
-              <div class="w-72">
+            <!-- Search, Filter & Refresh -->
+            <div class="p-4 flex flex-wrap items-center gap-3 justify-between border-b border-zinc-100 dark:border-zinc-800">
+              <div class="w-64">
                 <DataTableSearch v-model="searchQuery" placeholder="Cari nama produk atau SKU..." />
               </div>
-              <button @click="fetchDashboardData" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
-                <History class="w-3.5 h-3.5" /> Segarkan
-              </button>
+              <div class="flex items-center gap-2 flex-wrap">
+                <!-- Filter Tipe Lokasi -->
+                <select
+                  v-model="locationFilter"
+                  class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <option value="all">Semua Tipe</option>
+                  <option value="BRANCH">Cabang</option>
+                  <option value="WAREHOUSE">Gudang</option>
+                </select>
+
+                <!-- Filter Lokasi Spesifik -->
+                <select
+                  v-model="typeFilter"
+                  class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <option value="all">Semua Lokasi</option>
+                  <optgroup label="Cabang" v-if="locations.filter(l => l.type === 'branch').length">
+                    <option v-for="loc in locations.filter(l => l.type === 'branch')" :key="'br-' + loc.id" :value="loc.id">{{ loc.name }}</option>
+                  </optgroup>
+                  <optgroup label="Gudang" v-if="locations.filter(l => l.type === 'warehouse').length">
+                    <option v-for="loc in locations.filter(l => l.type === 'warehouse')" :key="'wh-' + loc.id" :value="loc.id">{{ loc.name }}</option>
+                  </optgroup>
+                </select>
+
+                <button @click="fetchDashboardData" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
+                  <History class="w-3.5 h-3.5" /> Segarkan
+                </button>
+              </div>
             </div>
 
             <!-- Table -->

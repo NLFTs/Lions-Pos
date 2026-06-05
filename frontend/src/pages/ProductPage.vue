@@ -500,38 +500,24 @@ async function saveProduct() {
       deletedPhotoIds.value = []
     }
 
-    const currentPhotosRes = await api.get(`/api/v1/product-photos/product/${productId}`)
-    const currentPhotos = currentPhotosRes.data || []
-    
-    const frontendUrls = form.value.images.map(img => img.url)
-    const frontendPrimaryImg = form.value.images.find(img => img.isPrimary) || form.value.images[0]
-    
-    for (const dbPhoto of currentPhotos) {
-      if (dbPhoto.isPrimary) continue
-      if (!frontendUrls.includes(dbPhoto.url) || dbPhoto.url === frontendPrimaryImg.url) {
-        await api.delete(`/api/v1/product-photos/${dbPhoto.id}`)
-      }
-    }
-    
-    const nonPrimaryFrontendImages = form.value.images.filter(img => img.url !== frontendPrimaryImg.url)
-    
-    for (let i = 0; i < nonPrimaryFrontendImages.length; i++) {
-      const img = nonPrimaryFrontendImages[i]
-      const alreadyInDb = currentPhotos.find(p => p.url === img.url && !p.isPrimary)
-      
-      if (!alreadyInDb) {
+    // ── Sinkronisasi foto: update isPrimary untuk semua foto existing, tambah foto baru ──
+    for (let i = 0; i < form.value.images.length; i++) {
+      const img = form.value.images[i]
+      if (img.isExisting && img.id) {
+        // Update foto yang sudah ada — set isPrimary dan sortOrder
+        await api.put(`/api/v1/product-photos/${img.id}`, {
+          product_id: productId,
+          url: img.url,
+          is_primary: img.isPrimary,
+          sort_order: i
+        })
+      } else if (!img.isExisting && img.url) {
+        // Tambah foto baru yang belum ada di DB
         await api.post('/api/v1/product-photos', {
           product_id: productId,
           url: img.url,
-          is_primary: false,
-          sort_order: i + 1
-        })
-      } else {
-        await api.put(`/api/v1/product-photos/${alreadyInDb.id}`, {
-          product_id: productId,
-          url: img.url,
-          is_primary: false,
-          sort_order: i + 1
+          is_primary: img.isPrimary,
+          sort_order: i
         })
       }
     }
@@ -624,7 +610,7 @@ async function confirmDelete() {
     fetchProducts(pagination.value.page)
     closeDeleteModal()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menghapus produk.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal menghapus produk.')
   } finally {
     deleting.value = false
   }
