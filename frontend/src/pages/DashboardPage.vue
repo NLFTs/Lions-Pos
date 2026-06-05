@@ -26,6 +26,8 @@ import {
   Handshake,
   MapPin,
   Ticket,
+  Building2,
+  Warehouse,
   ShoppingBag,
   BarChart3,
   ChevronDown,
@@ -342,7 +344,8 @@ const createMenuItems = computed(() => {
     { label: 'Supplier',        icon: Handshake,      to: '/dashboard/suppliers',         permission: 'supplier.index' },
     { label: 'User Management', icon: Users,          to: '/dashboard/users',             permission: 'user.index' },
     { label: 'Partner',         icon: Handshake,      to: '/dashboard/partners',          permission: 'partner.index' },
-    { label: 'Lokasi',          icon: MapPin,         to: '/dashboard/locations',         permission: 'branch.index' },
+    { label: 'Cabang',          icon: Building2,      to: '/dashboard/branches',          permission: 'branch.index' },
+    { label: 'Gudang',          icon: Warehouse,      to: '/dashboard/warehouses',        permission: 'warehouse.index' },
     { label: 'Voucher',         icon: Ticket,         to: '/dashboard/vouchers',          permission: 'voucher.index' },
     { label: 'Modul',           icon: Zap,            to: '/dashboard/modules',           permission: 'module.index' },
   ]

@@ -19,4 +19,6 @@ public class MeResponse {
     private String branchName;
     private Long warehouseId;
     private String warehouseName;
+    private Long partnerId;
+    private String partnerName;
 }

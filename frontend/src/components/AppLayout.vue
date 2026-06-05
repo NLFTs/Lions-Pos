@@ -30,12 +30,15 @@ import {
   Palette,
   Check,
   ArrowLeftRight,
-  MapPin,
   ShoppingCart,
   Search,
   Ticket,
   BarChart3,
   Package,
+  Warehouse,
+  ChevronLeft,
+  TrendingUp,
+  Building2,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -67,6 +70,27 @@ const confirmStore = useConfirmStore()
 
 // Sidebar state (mobile only)
 const sidebarOpen = ref(false)
+
+// Sub-sidebar state: 'main' | 'inventory'
+const activeSidebar = ref('main')
+
+// Inventory Sub-Sidebar Menu
+const INVENTORY_MENU = [
+  { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory' },
+  { label: 'Stock Overview',      icon: TrendingUp,      to: '/dashboard/stock-balances' },
+  { label: 'Stock Movements',     icon: ArrowLeftRight,  to: '/dashboard/stock-mutations' },
+  { label: 'Stock Adjustments',   icon: PackageSearch,   to: '/dashboard/stock-opname' },
+  { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests' },
+]
+
+// Routes yang termasuk inventory → auto-switch sidebar ke 'inventory'
+const INVENTORY_ROUTES = [
+  '/dashboard/inventory',
+  '/dashboard/stock-balances',
+  '/dashboard/stock-mutations',
+  '/dashboard/transfer-requests',
+  '/dashboard/stock-opname',
+]
 
 // About Modal state
 const isAboutModalOpen = ref(false)
@@ -103,11 +127,8 @@ const MENU_GROUPS = [
     label: 'Inventaris',
     items: [
       { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
-      { label: 'Saldo Stok', icon: Package, to: '/dashboard/stock-balances', permission: 'stock_balance.index' },
+      { label: 'Inventory', icon: Warehouse, subSidebar: 'inventory', permission: null },
       { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
-      { label: 'Mutasi Stok', icon: ArrowLeftRight, to: '/dashboard/stock-mutations', permission: 'stock_mutation.index' },
-      { label: 'Transfer Stok', icon: Repeat2, to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
-      { label: 'Stock Opname', icon: PackageSearch, to: '/dashboard/stock-opname', permission: 'stock_opname.index' },
     ],
   },
   {
@@ -122,7 +143,8 @@ const MENU_GROUPS = [
     items: [
       { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
-      { label: 'Lokasi', icon: MapPin, to: '/dashboard/locations', permission: 'branch.index' },
+      { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
+      { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
       { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
@@ -217,8 +239,14 @@ function expandActiveParents() {
   expandedMenus.value = s
 }
 
-// Watch route changes and expand active parents
-watch(() => route.path, () => {
+// Watch route changes: auto-switch sidebar + expand active parents
+watch(() => route.path, (path) => {
+  // Jika route termasuk inventory routes → buka inventory sidebar
+  const isInventoryRoute = INVENTORY_ROUTES.some(
+    r => path === r || path.startsWith(r + '/')
+  )
+  activeSidebar.value = isInventoryRoute ? 'inventory' : 'main'
+
   expandActiveParents()
   sidebarOpen.value = false
 }, { immediate: true })
@@ -397,20 +425,68 @@ function handleGlobalKeydown(e) {
   }
 }
 
+import api from '@/lib/api'
+
+// ─── Role Helpers ─────────────────────────────────────────────────────────
+// Super Admin Pusat: role slug "admin" atau "super-admin", TANPA partnerId
+// Owner/Admin Mitra: role slug "owner" atau "admin-partner", DENGAN partnerId
+
+function hasRole(roleSlug) {
+  const roles = user.value?.roles || []
+  return roles.some(r => {
+    const name = (typeof r === 'string' ? r : (r.name || r.slug || '')).toLowerCase()
+    return name === roleSlug.toLowerCase()
+  })
+}
+
+// isOwnerPartner: pemilik mitra — role "owner" atau "admin-partner" dengan partnerId
+const isOwnerPartner = computed(() => {
+  if (!user.value?.partnerId) return false
+  return hasRole('owner') || hasRole('admin-partner')
+})
+
+// Tampilkan section Akumulatif untuk: super admin (isAdmin) ATAU pemilik mitra (isOwnerPartner)
+const showAccumulativeSection = computed(() => auth.isAdmin || isOwnerPartner.value)
+
+const partnerBranches = ref([])
+const partnerWarehouses = ref([])
+
+async function fetchPartnerLocations() {
+  if (!showAccumulativeSection.value) return
+  try {
+    const [resBr, resWh] = await Promise.all([
+      api.get('/api/v1/branches'),
+      api.get('/api/v1/warehouses')
+    ])
+    const brRaw = resBr.data?.data
+    partnerBranches.value = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
+    const whRaw = resWh.data?.data
+    partnerWarehouses.value = Array.isArray(whRaw) ? whRaw : (whRaw?.content || [])
+  } catch (err) {
+    console.error('Failed to fetch branches/warehouses', err)
+  }
+}
+
 onMounted(() => {
   expandActiveParents()
   window.addEventListener('keydown', handleGlobalKeydown)
-  // Refresh user data dari server agar avatar & info terbaru selalu tampil
   auth.fetchMe()
+  fetchPartnerLocations()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
+
+function isLocationActive(type, id) {
+  return route.path === '/dashboard/inventory' && 
+         route.query.locationType === type && 
+         Number(route.query.locationId) === id
+}
 </script>
 
 <template>
-  <div class="flex h-screen bg-background text-foreground transition-colors duration-200 overflow-hidden">
+  <div class="flex h-screen bg-white dark:bg-zinc-950 text-foreground transition-colors duration-200 overflow-hidden">
     <Toast />
 
     <ConfirmDialog
@@ -437,14 +513,14 @@ onBeforeUnmount(() => {
 
     <!-- ═══════════════════════════════════════════════════════════ SIDEBAR ═══ -->
     <aside
-      class="flex flex-col bg-white dark:bg-zinc-950 border-r border-border shrink-0 transition-transform duration-300 ease-in-out w-[280px]"
+      class="flex flex-col bg-white dark:bg-zinc-950 shrink-0 transition-transform duration-300 ease-in-out w-[280px]"
       :class="[
         'fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       ]"
     >
       <!-- ─── HEADER: Logo ─────────────────────────────────────────────────── -->
-      <div class="flex h-12 items-center px-4 border-b border-border shrink-0">
+      <div class="flex h-12 items-center px-4 shrink-0">
         <div class="flex items-center gap-2.5 overflow-hidden">
           <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
             <Zap class="w-5 h-5 text-primary-foreground" />
@@ -461,7 +537,7 @@ onBeforeUnmount(() => {
         <button
           v-if="!isSearchOpen"
           @click="openSearch"
-          class="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-zinc-500 bg-zinc-100 dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors outline-none border border-transparent"
+          class="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-zinc-500 bg-zinc-100 dark:bg-zinc-900/70 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors outline-none border border-transparent"
         >
           <Search class="w-4 h-4 shrink-0 text-zinc-400" />
           <span class="flex-1 text-left font-medium">Find...</span>
@@ -512,71 +588,187 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- ─── BODY: Menu dengan Groups ─────────────────────────────────────── -->
-      <nav class="flex-1 overflow-y-auto py-2 px-3 custom-scrollbar">
-        <template v-for="group in filteredMenuGroups" :key="group.label">
+      <!-- ─── BODY: Sidebar Panels (Fade+Blur, no unmount = no scroll reset) ── -->
+      <nav class="flex-1 overflow-hidden relative">
+
+        <!-- ══════════ PANEL 1: Main Sidebar ══════════ -->
+        <div
+          class="sidebar-panel absolute inset-0 overflow-y-auto py-2 px-3 custom-scrollbar"
+          :class="activeSidebar === 'main' ? 'sidebar-panel--active' : 'sidebar-panel--hidden'"
+        >
+          <template v-for="group in filteredMenuGroups" :key="group.label">
             <div class="mb-2 mt-4 px-3">
-            <p class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+              <p class="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                 {{ group.label }}
-            </p>
+              </p>
             </div>
 
             <div class="space-y-0.5">
-            <template v-for="item in group.items" :key="item.label">
-                <template v-if="!item.children">
-                <RouterLink
+              <template v-for="item in group.items" :key="item.label">
+
+                <!-- Sub-sidebar trigger (e.g. Inventory) -->
+                <button
+                  v-if="item.subSidebar"
+                  @click="activeSidebar = item.subSidebar"
+                  class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200"
+                >
+                  <component :is="item.icon" class="w-4 h-4 shrink-0" />
+                  <span class="flex-1 text-left">{{ item.label }}</span>
+                  <ChevronRight class="w-3.5 h-3.5 text-zinc-400" />
+                </button>
+
+                <!-- Regular item (no children) -->
+                <template v-else-if="!item.children">
+                  <RouterLink
                     :to="item.to || '#'"
                     class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all"
                     :class="isItemActive(item)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
-                >
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
+                  >
                     <component :is="item.icon" class="w-4 h-4 shrink-0" />
                     <span>{{ item.label }}</span>
-                </RouterLink>
+                  </RouterLink>
                 </template>
 
+                <!-- Expandable item (with children) -->
                 <template v-else>
-                <button
+                  <button
                     @click="toggleExpand(item.label)"
                     class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all"
                     :class="isItemActive(item)
-                    ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
-                >
+                      ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-200'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
+                  >
                     <component :is="item.icon" class="w-4 h-4 shrink-0" />
                     <span class="flex-1 text-left">{{ item.label }}</span>
                     <ChevronRight
-                    class="w-3.5 h-3.5 transition-transform duration-200 text-zinc-400"
-                    :class="isItemExpanded(item) ? 'rotate-90' : ''"
+                      class="w-3.5 h-3.5 transition-transform duration-200 text-zinc-400"
+                      :class="isItemExpanded(item) ? 'rotate-90' : ''"
                     />
-                </button>
+                  </button>
 
-                <div
+                  <div
                     v-if="isItemExpanded(item)"
                     class="ml-3 mt-0.5 space-y-0.5 pl-3 border-l border-zinc-200 dark:border-zinc-800"
-                >
+                  >
                     <RouterLink
-                    v-for="child in item.children"
-                    :key="child.to || child.label"
-                    :to="child.to || '#'"
-                    class="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all"
-                    :class="isItemActive(child)
+                      v-for="child in item.children"
+                      :key="child.to || child.label"
+                      :to="child.to || '#'"
+                      class="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all"
+                      :class="isItemActive(child)
                         ? 'bg-primary/10 text-primary'
                         : 'text-zinc-500 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-300'"
                     >
-                    <component :is="child.icon" class="w-3.5 h-3.5 shrink-0" />
-                    <span>{{ child.label }}</span>
+                      <component :is="child.icon" class="w-3.5 h-3.5 shrink-0" />
+                      <span>{{ child.label }}</span>
                     </RouterLink>
-                </div>
+                  </div>
                 </template>
-            </template>
+
+              </template>
             </div>
-        </template>
-    </nav>
+          </template>
+        </div>
+
+        <!-- ══════════ PANEL 2: Inventory Sub-Sidebar ══════════ -->
+        <div
+          class="sidebar-panel absolute inset-0 overflow-y-auto py-2 px-3 custom-scrollbar"
+          :class="activeSidebar === 'inventory' ? 'sidebar-panel--active' : 'sidebar-panel--hidden'"
+        >
+          <!-- Back button -->
+          <div class="mt-3 mb-4">
+            <button
+              @click="activeSidebar = 'main'"
+              class="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <ChevronLeft class="w-4 h-4 shrink-0" />
+              <span>Inventory</span>
+            </button>
+            <div class="mx-3 mt-3 mb-1 border-t border-zinc-200 dark:border-zinc-800"></div>
+          </div>
+
+          <!-- Inventory menu items -->
+          <div class="space-y-0.5">
+            <RouterLink
+              v-for="item in INVENTORY_MENU"
+              :key="item.label"
+              :to="item.to"
+              class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all"
+              :class="isItemActive(item)
+                ? 'bg-primary/10 text-primary'
+                : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
+            >
+              <component :is="item.icon" class="w-4 h-4 shrink-0" />
+              <span>{{ item.label }}</span>
+            </RouterLink>
+
+            <!-- Separator & Stock Akumulatif -->
+            <template v-if="showAccumulativeSection">
+              <!-- Section Header -->
+              <div class="px-3 mt-4 mb-1 flex items-center justify-between">
+                <span class="text-[11px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Akumulatif</span>
+              </div>
+              <div class="mx-3 mb-3 border-t border-zinc-200 dark:border-zinc-800"></div>
+              
+              <div class="mb-4">
+                <!-- Stock Cabang -->
+                <div class="mb-3">
+                  <div class="px-3 py-1 flex items-center gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                    <Building2 class="w-3.5 h-3.5 opacity-60" />
+                    <span>Cabang</span>
+                  </div>
+                  <div class="ml-3 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5">
+                    <RouterLink
+                      v-for="branch in partnerBranches"
+                      :key="branch.id"
+                      :to="`/dashboard/inventory?locationType=BRANCH&locationId=${branch.id}`"
+                      class="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-all"
+                      :class="isLocationActive('BRANCH', branch.id)
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
+                    >
+                      <span>{{ branch.name }}</span>
+                    </RouterLink>
+                    <div v-if="partnerBranches.length === 0" class="px-3 py-1 text-[11px] text-zinc-400 dark:text-zinc-600 italic">
+                      Tidak ada cabang.
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Stock Gudang -->
+                <div>
+                  <div class="px-3 py-1 flex items-center gap-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                    <Warehouse class="w-3.5 h-3.5 opacity-60" />
+                    <span>Gudang</span>
+                  </div>
+                  <div class="ml-3 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5">
+                    <RouterLink
+                      v-for="wh in partnerWarehouses"
+                      :key="wh.id"
+                      :to="`/dashboard/inventory?locationType=WAREHOUSE&locationId=${wh.id}`"
+                      class="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-all"
+                      :class="isLocationActive('WAREHOUSE', wh.id)
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-200'"
+                    >
+                      <span>{{ wh.name }}</span>
+                    </RouterLink>
+                    <div v-if="partnerWarehouses.length === 0" class="px-3 py-1 text-[11px] text-zinc-400 dark:text-zinc-600 italic">
+                      Tidak ada gudang.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </nav>
 
       <!-- ─── FOOTER: Profile Button ───────────────────────────────────────── -->
-      <div class="p-2 border-t border-border shrink-0 relative z-30">
+      <div class="p-2 shrink-0 relative z-30">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <button
@@ -710,7 +902,8 @@ onBeforeUnmount(() => {
     <!-- ═══════════════════════════════════════════════════════════ MAIN ════════ -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <!-- ─── CLEAN TOP BAR ─────────────────────────────────────────────────────── -->
-      <header class="relative flex h-12 shrink-0 items-center justify-between bg-white dark:bg-zinc-950 border-b border-border px-4">
+      <!-- Header: warna SAMA dengan sidebar (zinc-950) → menyatu jadi satu zona gelap -->
+      <header class="relative flex h-12 shrink-0 items-center justify-between bg-white dark:bg-zinc-950 px-4">
         <!-- Left: Toggle Sidebar -->
         <div class="flex items-center gap-4 w-1/3">
           <button
@@ -741,7 +934,8 @@ onBeforeUnmount(() => {
       </header>
 
       <!-- ─── PAGE CONTENT ────────────────────────────────────────────────── -->
-        <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-50/50 dark:bg-zinc-950 scroll-smooth overscroll-contain">
+      <!-- Main: sedikit lebih terang + rounded-tl-2xl → kurva melengkung di perbatasan header↔content -->
+      <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-100 dark:bg-zinc-900 rounded-tl-2xl scroll-smooth overscroll-contain shadow-[inset_1px_1px_0_rgba(255,255,255,0.04)]">
         <!-- Page content wrapper -->
         <div class="p-5">
           <slot />
@@ -758,6 +952,23 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
+/* Sidebar panel – fade+blur via CSS class (v-show, no unmount = no scroll reset) */
+.sidebar-panel {
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+.sidebar-panel--active {
+  opacity: 1;
+  filter: blur(0px);
+  pointer-events: auto;
+  visibility: visible;
+}
+.sidebar-panel--hidden {
+  opacity: 0;
+  filter: blur(5px);
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;

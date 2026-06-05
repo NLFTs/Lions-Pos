@@ -84,14 +84,25 @@ export const routes = [
     },
   },
   {
-    path: '/dashboard/locations',
-    name: 'locations',
-    component: () => import('@/pages/LocationsPage.vue'),
+    path: '/dashboard/branches',
+    name: 'branches',
+    component: () => import('@/pages/BranchesPage.vue'),
     meta: {
       requiresAuth: true,
       permission: 'branch.index',
-      pageTitle: 'Manajemen Lokasi',
-      pageSubtitle: 'Atur data gudang dan cabang.',
+      pageTitle: 'Manajemen Cabang',
+      pageSubtitle: 'Kelola data cabang mitra.',
+    },
+  },
+  {
+    path: '/dashboard/warehouses',
+    name: 'warehouses',
+    component: () => import('@/pages/WarehousesPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'warehouse.index',
+      pageTitle: 'Manajemen Gudang',
+      pageSubtitle: 'Kelola data gudang mitra.',
     },
   },
   {
@@ -244,6 +255,17 @@ export const routes = [
       permission: 'stock_balance.index',
       pageTitle: 'Saldo Stok',
       pageSubtitle: 'Pantau ketersediaan barang di seluruh lokasi.',
+    },
+  },
+  {
+    path: '/dashboard/inventory',
+    name: 'inventory',
+    component: () => import('@/pages/DashboardInventory.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'stock_balance.index',
+      pageTitle: 'Inventory Dashboard',
+      pageSubtitle: 'Ringkasan dan pengelolaan stok inventaris.',
     },
   },
 

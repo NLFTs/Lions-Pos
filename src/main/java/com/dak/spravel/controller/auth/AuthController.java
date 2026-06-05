@@ -89,6 +89,11 @@ public class AuthController {
             me.setWarehouseName(user.getWarehouse().getName());
         }
 
+        if (user.getPartner() != null) {
+            me.setPartnerId(user.getPartner().getId());
+            me.setPartnerName(user.getPartner().getName());
+        }
+
         log.info(
             "[AUTH] User '{}' has permissions: {}",
             user.getUsername(),
