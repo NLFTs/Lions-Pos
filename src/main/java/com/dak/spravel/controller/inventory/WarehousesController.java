@@ -1,6 +1,7 @@
 package com.dak.spravel.controller.inventory;
 
 import java.util.List;
+import com.dak.spravel.dto.response.UserResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -66,6 +67,31 @@ public class WarehousesController {
             @Valid @RequestBody WarehousesRequestDTO request) {
         log.info("[PUT] /api/v1/warehouses/{}", id);
         return ResponseBuilder.ok(warehousesService.update(id, request));
+    }
+
+    /**
+     * GET /api/v1/warehouses/{id}/users
+     * Returns all users assigned to this warehouse.
+     */
+    @GetMapping("/{id}/users")
+    @PreAuthorize("hasAuthority('warehouse.index')")
+    public ResponseEntity<ResData<List<com.dak.spravel.dto.response.UserResponse>>> getUsersByWarehouse(@PathVariable Long id) {
+        log.info("[GET] /api/v1/warehouses/{}/users", id);
+        return ResponseBuilder.ok(warehousesService.getUsersByWarehouse(id));
+    }
+
+    /**
+     * PUT /api/v1/warehouses/{id}/manager
+     * Transfer warehouse manager to another user.
+     */
+    @PutMapping("/{id}/manager")
+    @PreAuthorize("hasAuthority('warehouse.update')")
+    public ResponseEntity<ResData<WarehouseResponse>> transferManager(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Long> body) {
+        Long newManagerId = body.get("userId");
+        log.info("[PUT] /api/v1/warehouses/{}/manager userId={}", id, newManagerId);
+        return ResponseBuilder.ok(warehousesService.transferManager(id, newManagerId));
     }
 
     @GetMapping("/page")

@@ -197,15 +197,14 @@ public class PartnerRoleTemplateSeeder {
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * Seed template roles untuk satu partner tertentu.
-     * Aman dipanggil berkali-kali — idempotent.
+     * Pastikan 4 role template global (admin-partner, pengelola-gudang, dll) ada di database.
+     * Tidak bergantung pada partner — aman dipanggil berkali-kali (idempotent).
      */
     @Transactional
-    public void seedForPartner(Partners partner) {
+    public void ensureGlobalTemplates() {
+        int created = 0;
         for (RoleTemplate template : TEMPLATES) {
             if (roleRepository.existsBySlug(template.slug())) {
-                log.debug("[RoleTemplate] Role '{}' sudah ada untuk partner '{}', skip.",
-                    template.slug(), partner.getName());
                 continue;
             }
 
@@ -214,33 +213,33 @@ public class PartnerRoleTemplateSeeder {
             role.setName(template.name());
             role.setType(Role.Type.EXTERNAL);
             role.setCreatedAt(LocalDateTime.now());
-
-            Set<Permission> perms = resolvePermissions(template.perms());
-            role.setPermissions(perms);
-
+            role.setPermissions(resolvePermissions(template.perms()));
             roleRepository.save(role);
-            log.info("[RoleTemplate] Role '{}' dibuat untuk partner '{}' dengan {} permissions.",
-                template.slug(), partner.getName(), perms.size());
+            created++;
+            log.info("[RoleTemplate] Role global '{}' dibuat dengan {} permissions.",
+                template.slug(), role.getPermissions().size());
+        }
+        if (created > 0) {
+            log.info("[RoleTemplate] ✅ {} role template global baru dibuat.", created);
         }
     }
 
     /**
-     * Seed template roles untuk SEMUA partner yang belum punya template.
+     * Alias idempotent — dipanggil saat partner baru dibuat lewat API.
+     */
+    @Transactional
+    public void seedForPartner(Partners partner) {
+        ensureGlobalTemplates();
+        log.debug("[RoleTemplate] Template roles dipastikan untuk partner '{}'.", partner.getName());
+    }
+
+    /**
      * Dipanggil saat startup oleh MainSeeder.
      */
     @Transactional
     public void run() {
-        List<Partners> allPartners = partnerRepository.findAll();
-        if (allPartners.isEmpty()) {
-            log.info("[RoleTemplate] Tidak ada partner, skip seeding template roles.");
-            return;
-        }
-
-        for (Partners partner : allPartners) {
-            seedForPartner(partner);
-        }
-
-        log.info("[RoleTemplate] ✅ Template roles selesai di-seed untuk {} partner.", allPartners.size());
+        ensureGlobalTemplates();
+        log.info("[RoleTemplate] ✅ Template roles global siap.");
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

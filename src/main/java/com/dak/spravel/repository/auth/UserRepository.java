@@ -33,5 +33,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByPartnerId(Long partnerId);
     Page<User> findByPartnerId(Long partnerId, Pageable pageable);
 
-    
+    List<User> findByBranchId(Long branchId);
+    List<User> findByWarehouseId(Long warehouseId);
+    boolean existsByBranchId(Long branchId);
+    boolean existsByWarehouseId(Long warehouseId);
 }

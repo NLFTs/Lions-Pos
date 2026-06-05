@@ -6,10 +6,10 @@ import { useConfirm } from '@/composables/useConfirm'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
-import Button from '@/components/ui/Button.vue'
+import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
-import Badge from '@/components/ui/Badge.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 import Alert from '@/components/ui/Alert.vue'
 import api from '@/lib/api'
 import {
@@ -23,13 +23,37 @@ const { can } = usePermission()
 const { toast } = useToast()
 const { confirm } = useConfirm()
 
-// ─── Selection State ──────────────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────────────────────
+const partners = ref([])
+const loading = ref(false)
+const searchQuery = ref('')
+const page = ref(1)
+const pageSize = ref(10)
 const selectedIds = ref([])
+
+const filteredPartners = computed(() => {
+  if (!searchQuery.value) return partners.value
+  const q = searchQuery.value.toLowerCase()
+  return partners.value.filter(p =>
+    p.name?.toLowerCase().includes(q) ||
+    p.slug?.toLowerCase().includes(q) ||
+    (p.plan && String(p.plan).toLowerCase().includes(q))
+  )
+})
+
+const paginatedPartners = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredPartners.value.slice(start, start + pageSize.value)
+})
 
 const isAllSelected = computed(() => {
   const visible = paginatedPartners.value
   if (visible.length === 0) return false
   return visible.every(p => selectedIds.value.includes(p.id))
+})
+
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
 })
 
 function toggleSelectAll() {
@@ -82,32 +106,6 @@ async function bulkDelete() {
     loading.value = false
   }
 }
-
-watch([searchQuery, page, pageSize], () => {
-  selectedIds.value = []
-})
-
-// ─── State ────────────────────────────────────────────────────────────────────
-const partners = ref([])
-const loading = ref(false)
-const searchQuery = ref('')
-const page = ref(1)
-const pageSize = ref(10)
-
-const filteredPartners = computed(() => {
-  if (!searchQuery.value) return partners.value
-  const q = searchQuery.value.toLowerCase()
-  return partners.value.filter(p =>
-    p.name?.toLowerCase().includes(q) ||
-    p.slug?.toLowerCase().includes(q) ||
-    p.plan?.toLowerCase().includes(q)
-  )
-})
-
-const paginatedPartners = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return filteredPartners.value.slice(start, start + pageSize.value)
-})
 
 // ─── Form State ───────────────────────────────────────────────────────────────
 const showDrawer = ref(false)
@@ -477,10 +475,10 @@ onMounted(fetchPartners)
     <!-- ─── DRAWER ─────────────────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm" @click="closeDrawer" />
+        <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="closeDrawer" />
       </Transition>
       <Transition name="slide-right">
-        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[101] flex flex-col w-full sm:max-w-[460px] h-full bg-card shadow-2xl sm:border-l overflow-hidden">
+        <div v-if="showDrawer" class="fixed inset-y-0 right-0 z-[51] flex flex-col w-full sm:max-w-[460px] h-full bg-card text-foreground shadow-2xl sm:border-l border-border overflow-hidden">
           <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
             <div>
@@ -630,10 +628,10 @@ onMounted(fetchPartners)
     <!-- ─── DELETE MODAL ───────────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="deleteModal.show" class="fixed inset-0 z-[110] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
+        <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
       </Transition>
       <Transition name="scale">
-        <div v-if="deleteModal.show" class="fixed inset-0 z-[111] flex items-center justify-center p-4 pointer-events-none">
+        <div v-if="deleteModal.show" class="fixed inset-0 z-[61] flex items-center justify-center p-4 pointer-events-none">
           <div class="relative bg-card rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-border pointer-events-auto">
             <div class="p-6">
               <h3 class="text-lg font-semibold text-destructive flex items-center gap-2">

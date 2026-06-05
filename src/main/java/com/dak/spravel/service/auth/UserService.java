@@ -12,6 +12,7 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
 import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.RoleRepository;
+import com.dak.spravel.repository.auth.TokenRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
@@ -44,6 +45,7 @@ public class UserService {
     private final BranchesRepository branchesRepository;
     private final WarehousesRepository warehousesRepository;
     private final PartnerRepository partnerRepository;
+    private final TokenRepository tokenRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -183,6 +185,7 @@ public class UserService {
         }
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setCreatedAt(LocalDateTime.now());
+        user.setIsActive(true);
 
         Partners targetPartner;
 
@@ -192,11 +195,9 @@ public class UserService {
             user.setPartner(targetPartner);
 
             if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                // 🔥 Diubah: Kirim objek `currentUser` untuk mendeteksi pembatasan role
                 user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
-            } else {
-                throw new IllegalArgumentException("Pilih satu role untuk user ini.");
             }
+            // Role boleh kosong — user bisa dibuat tanpa role dulu
         } else {
             if (request.getPartnerId() == null) {
                 throw new IllegalArgumentException("Super Admin wajib melampirkan target partnerId.");
@@ -280,6 +281,13 @@ public class UserService {
         }
 
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
+
+        if (Boolean.TRUE.equals(request.getClearBranch())) {
+            user.setBranch(null);
+        }
+        if (Boolean.TRUE.equals(request.getClearWarehouse())) {
+            user.setWarehouse(null);
+        }
         
         // Update Cabang Kerja
         if (request.getBranchId() != null) {
@@ -310,6 +318,17 @@ public class UserService {
             // 🔥 Diubah: Kirim objek `currentUser` untuk mencegah suntikan role pusat
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             permissionCacheService.evict(user.getUsername());
+        }
+
+        if (request.getIsActive() != null) {
+            if (isSelfUpdate) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak bisa menonaktifkan akun sendiri.");
+            }
+            user.setIsActive(request.getIsActive());
+            if (!request.getIsActive()) {
+                permissionCacheService.evict(user.getUsername());
+                tokenRepository.deleteAllByUsername(user.getUsername());
+            }
         }
 
         return toResponse(userRepository.save(user));
@@ -365,6 +384,7 @@ public class UserService {
         res.setEmail(user.getEmail());
         res.setAvatar(user.getAvatar());
         res.setCreatedAt(user.getCreatedAt());
+        res.setIsActive(user.getIsActive() == null || user.getIsActive());
 
         if (user.getPartner() != null) {
             PartnerSimpleDto partnerDto = new PartnerSimpleDto();

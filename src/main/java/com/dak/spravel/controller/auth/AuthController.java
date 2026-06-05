@@ -125,6 +125,10 @@ public class AuthController {
             throw new IllegalArgumentException("Username atau password salah");
         }
 
+        if (user.getIsActive() != null && !user.getIsActive()) {
+            throw new IllegalArgumentException("Akun Anda ditangguhkan. Hubungi pemilik mitra.");
+        }
+
         boolean isAdmin = user
             .getRoles()
             .stream()
@@ -203,6 +207,13 @@ public class AuthController {
             .orElseThrow(() ->
                 new ResourceNotFoundException("Pengguna tidak ditemukan")
             );
+
+        if (freshUser.getIsActive() != null && !freshUser.getIsActive()) {
+            tokenEntity.setRevoked(true);
+            tokenRepository.save(tokenEntity);
+            permissionCacheService.evict(freshUser.getUsername());
+            throw new IllegalArgumentException("Akun Anda ditangguhkan. Hubungi pemilik mitra.");
+        }
 
         // Reload roles and permissions from DB and refresh the cache
         Set<String> auths = new java.util.HashSet<>();

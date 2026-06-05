@@ -1,6 +1,7 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.partner.BranchRequest;
+import com.dak.spravel.dto.response.UserResponse;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
@@ -30,6 +31,7 @@ import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.util.UserRoleUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Set;
 import java.util.HashSet;
@@ -189,12 +191,10 @@ public class BranchesService {
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
     
-            // 💡 FIX DINAMIS: Mengirim objek currentUser untuk pengecekan proteksi role
-            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                branchUser.setRoles(resolveRoles(request.getRoleIds(), currentUser));
-            } else {
-                throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user ini.");
-            }
+            // 💡 AUTO-ASSIGN: Role pengelola-cabang diberikan otomatis berdasarkan konteks cabang
+            Role pengelolaCabangRole = roleRepository.findBySlug("pengelola-cabang")
+                .orElseThrow(() -> new RuntimeException("Role pengelola-cabang tidak ditemukan. Pastikan seeder sudah berjalan."));
+            branchUser.setRoles(new HashSet<>(Set.of(pengelolaCabangRole)));
     
             userRepository.save(branchUser);
         }
@@ -284,6 +284,106 @@ public class BranchesService {
 
         Branches branch = getValidatedBranch(id, currentUser);
         branchesRepository.delete(branch);
+    }
+
+    // ─── GET USERS BY BRANCH ───────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getUsersByBranch(Long branchId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.show");
+        getValidatedBranch(branchId, currentUser); // validate access
+        return userRepository.findByBranchId(branchId)
+                .stream().map(this::mapUserToResponse).toList();
+    }
+
+    // ─── TRANSFER MANAGER ─────────────────────────────────────────────────────
+
+    @Transactional
+    public BranchResponse transferManager(Long branchId, Long newManagerUserId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "branch.update");
+
+        Branches branch = getValidatedBranch(branchId, currentUser);
+
+        User newManager = userRepository.findById(newManagerUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", newManagerUserId));
+
+        // Guard: user harus di partner yang sama
+        if (currentUser.getPartner() != null) {
+            if (newManager.getPartner() == null ||
+                    !newManager.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
+            }
+        }
+
+        // Guard: user tidak boleh sudah jadi pengelola cabang/gudang lain
+        if (newManager.getBranch() != null && !newManager.getBranch().getId().equals(branchId)) {
+            throw new RuntimeException("User ini sudah menjadi pengelola cabang lain: " + newManager.getBranch().getName());
+        }
+        if (newManager.getWarehouse() != null) {
+            throw new RuntimeException("User ini sudah menjadi pengelola gudang: " + newManager.getWarehouse().getName());
+        }
+
+        // Guard: hanya karyawan biasa yang boleh ditunjuk (bukan owner/admin/pengelola lain)
+        if (UserRoleUtil.isIneligibleManagerCandidate(newManager)) {
+            throw new RuntimeException("Akses Ditolak: Hanya karyawan biasa yang bisa ditunjuk sebagai pengelola cabang.");
+        }
+
+        Role managerRole = roleRepository.findBySlug("pengelola-cabang")
+                .orElseThrow(() -> new RuntimeException("Role pengelola-cabang tidak ditemukan."));
+
+        // Lepas pengelola lama dari cabang ini
+        List<User> oldManagers = userRepository.findByBranchId(branchId);
+        for (User old : oldManagers) {
+            if (!old.getId().equals(newManagerUserId)) {
+                old.setBranch(null);
+                Set<Role> stripped = old.getRoles().stream()
+                        .filter(r -> !"pengelola-cabang".equalsIgnoreCase(r.getSlug()))
+                        .collect(Collectors.toSet());
+                old.setRoles(stripped);
+                userRepository.save(old);
+            }
+        }
+
+        // Assign pengelola baru + role pengelola-cabang
+        Set<Role> newRoles = new HashSet<>(newManager.getRoles());
+        newRoles.add(managerRole);
+        newManager.setRoles(newRoles);
+        newManager.setBranch(branch);
+        newManager.setWarehouse(null);
+        userRepository.save(newManager);
+
+        branch.setUpdatedBy(currentUser);
+        branch.setUpdatedAt(LocalDateTime.now());
+        return mapToResponse(branchesRepository.save(branch));
+    }
+
+    private UserResponse mapUserToResponse(User user) {
+        UserResponse res = new UserResponse();
+        res.setId(user.getId());
+        res.setUsername(user.getUsername());
+        res.setFullname(user.getFullname());
+        res.setEmail(user.getEmail());
+        res.setAvatar(user.getAvatar());
+        res.setCreatedAt(user.getCreatedAt());
+        if (user.getBranch() != null) {
+            res.setBranchId(user.getBranch().getId());
+            res.setBranchName(user.getBranch().getName());
+        }
+        if (user.getWarehouse() != null) {
+            res.setWarehouseId(user.getWarehouse().getId());
+            res.setWarehouseName(user.getWarehouse().getName());
+        }
+        List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
+            UserResponse.RoleData rd = new UserResponse.RoleData();
+            rd.setId(role.getId());
+            rd.setSlug(role.getSlug());
+            rd.setName(role.getName());
+            return rd;
+        }).toList();
+        res.setRoles(roleDataList);
+        return res;
     }
 
     // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
