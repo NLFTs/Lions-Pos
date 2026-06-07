@@ -187,6 +187,7 @@ export const routes = [
     component: () => import('@/pages/KasirPage.vue'),
     meta: {
       requiresAuth: true,
+      permission: 'pos.index',
       pageTitle: 'Kasir',
       pageSubtitle: 'Sistem Point of Sale',
     },
@@ -197,7 +198,7 @@ export const routes = [
     component: () => import('@/pages/OrdersPage.vue'),
     meta: {
       requiresAuth: true,
-      permission: null,
+      permission: 'order.index',
       pageTitle: 'Riwayat Order',
       pageSubtitle: 'Lihat riwayat transaksi penjualan.',
     },

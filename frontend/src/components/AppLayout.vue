@@ -74,13 +74,21 @@ const sidebarOpen = ref(false)
 // Sub-sidebar state: 'main' | 'inventory'
 const activeSidebar = ref('main')
 
-// Inventory Sub-Sidebar Menu
-const INVENTORY_MENU = [
-  { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory' },
-  { label: 'Stock Movements',     icon: ArrowLeftRight,  to: '/dashboard/stock-mutations' },
-  { label: 'Stock Adjustments',   icon: PackageSearch,   to: '/dashboard/stock-opname' },
-  { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests' },
+// Inventory Sub-Sidebar Menu — dengan permission filter
+const INVENTORY_MENU_RAW = [
+  { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
+  { label: 'Stock Movements',     icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
+  { label: 'Stock Adjustments',   icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
+  { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
+
+// Filter inventory menu berdasarkan permission user saat ini
+const INVENTORY_MENU = computed(() => {
+  return INVENTORY_MENU_RAW.filter(item => {
+    if (!item.permission) return true
+    return auth.isAdmin || can(item.permission)
+  })
+})
 
 // Routes yang termasuk inventory → auto-switch sidebar ke 'inventory'
 const INVENTORY_ROUTES = [
@@ -119,8 +127,8 @@ const MENU_GROUPS = [
   {
     label: 'Transaksi',
     items: [
-      { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: null },
-      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: null },
+      { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: 'pos.index' },
+      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
     ],
   },
   {
@@ -344,7 +352,7 @@ const searchableMenuItems = computed(() => {
   })
 
   // Tambahkan semua item dari inventory sub-sidebar agar bisa ditemukan di search
-  INVENTORY_MENU.forEach(item => {
+  INVENTORY_MENU.value.forEach(item => {
     const alreadyAdded = items.some(i => i.to === item.to)
     if (!alreadyAdded) {
       items.push({

@@ -66,14 +66,14 @@ const isAllSelected = computed(() => {
 function isWarehouseManager(u) {
   return (u?.roles || []).some(r => {
     const slug = r.slug?.toLowerCase() || ''
-    return slug === 'pengelola-gudang' || slug === 'warehouse-manager' || slug.includes('gudang')
+    return slug === 'pengelola-gudang' || slug === 'warehouse-manager'
   })
 }
 
 const currentManager = computed(() => {
   if (!selectedWarehouse.value) return null
   return warehouseUsers.value.find(u =>
-    u.warehouseId === selectedWarehouse.value.id && isWarehouseManager(u)
+    Number(u.warehouseId) === Number(selectedWarehouse.value.id) && isWarehouseManager(u)
   ) || null
 })
 function isPrivilegedUser(u) {
@@ -86,8 +86,8 @@ function isPrivilegedUser(u) {
 function isManagerRoleUser(u) {
   return (u?.roles || []).some(r => {
     const s = (r.slug || '').toLowerCase()
-    return s === 'pengelola-cabang' || s === 'branch-manager' || s === 'pengelola-gudang'
-      || s === 'warehouse-manager' || s.includes('pengelola-cabang') || s.includes('pengelola-gudang')
+    return s === 'pengelola-cabang' || s === 'branch-manager'
+        || s === 'pengelola-gudang' || s === 'warehouse-manager'
   })
 }
 
@@ -122,7 +122,13 @@ async function fetchAllUsers() {
   try { const res = await api.get('/api/v1/users'); allUsers.value = res.data?.data || [] } catch (_) {}
 }
 async function fetchWarehouseUsers(whId) {
-  try { const res = await api.get(`/api/v1/warehouses/${whId}/users`); warehouseUsers.value = res.data?.data || [] } catch (_) { warehouseUsers.value = [] }
+  try {
+    const res = await api.get(`/api/v1/warehouses/${whId}/users`)
+    warehouseUsers.value = res.data?.data || []
+  } catch (err) {
+    console.error('[Warehouse] gagal fetch users:', err.response?.data || err.message)
+    warehouseUsers.value = []
+  }
 }
 
 // ─── Selection ────────────────────────────────────────────────────────────────
@@ -273,21 +279,30 @@ async function saveWarehouse() {
 }
 
 // ─── Add Staff to Warehouse ───────────────────────────────────────────────────
+// User tersedia untuk ditambahkan ke gudang:
+// - Bukan owner/admin
+// - Belum di gudang manapun dan belum di cabang manapun
+// - Karyawan cabang (punya role karyawan-cabang) tidak bisa masuk gudang
 const staffAvailable = computed(() => {
   return allUsers.value.filter(u => {
     const isOwner = (u.roles || []).some(r =>
       ['owner', 'admin-partner', 'admin', 'super-admin'].includes(r.slug?.toLowerCase())
     )
     if (isOwner) return false
-    if (u.warehouseId === selectedWarehouse.value?.id) return false
-    if (u.branchId || u.warehouseId) return false
+    if (u.warehouseId === selectedWarehouse.value?.id) return false // sudah di sini
+    if (u.branchId || u.warehouseId) return false // di lokasi lain
+    // Karyawan cabang tidak bisa ditambah ke gudang
+    const hasBranchRole = (u.roles || []).some(r =>
+      ['karyawan-cabang', 'pengelola-cabang', 'branch-manager', 'kasir'].includes(r.slug?.toLowerCase())
+    )
+    if (hasBranchRole) return false
     return true
   })
 })
 
 const warehouseStaff = computed(() =>
   warehouseUsers.value.filter(u =>
-    u.warehouseId === selectedWarehouse.value?.id && !isWarehouseManager(u)
+    Number(u.warehouseId) === Number(selectedWarehouse.value?.id) && !isWarehouseManager(u)
   )
 )
 
@@ -314,7 +329,7 @@ async function doAddStaff() {
 async function removeStaff(userId) {
   const ok = await confirm({
     title: 'Lepas Karyawan',
-    description: 'Karyawan akan dilepas dari gudang ini. Role tidak diubah.',
+    description: 'Karyawan akan dilepas dari gudang ini. Role karyawan gudang juga akan dihapus.',
     confirmLabel: 'Lepas',
     cancelLabel: 'Batal',
   })
@@ -326,6 +341,26 @@ async function removeStaff(userId) {
     await fetchAllUsers()
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal melepas karyawan.')
+  }
+}
+
+// Lepas pengelola aktif dari gudang (tanpa transfer ke orang lain)
+async function releaseManager() {
+  if (!currentManager.value) return
+  const ok = await confirm({
+    title: 'Lepas Pengelola',
+    description: `"${currentManager.value.fullname || currentManager.value.username}" akan dilepas dari jabatan pengelola gudang ini. Role pengelola-gudang akan dihapus.`,
+    confirmLabel: 'Lepas Jabatan',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+  try {
+    await api.put(`/api/v1/users/${currentManager.value.id}`, { clearWarehouse: true })
+    toast.success('Pengelola berhasil dilepas dari gudang.')
+    await fetchWarehouseUsers(selectedWarehouse.value.id)
+    await fetchAllUsers()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal melepas pengelola.')
   }
 }
 
@@ -590,6 +625,9 @@ onMounted(fetchWarehouses)
                     <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                       <UserCheck class="h-3 w-3" /> Pengelola
                     </span>
+                    <Button variant="ghost" size="sm" class="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/5 shrink-0" @click="releaseManager">
+                      <UserX class="h-3.5 w-3.5 mr-1" /> Lepas
+                    </Button>
                   </div>
                   <div v-else class="flex items-center gap-2 text-zinc-400"><UserX class="h-4 w-4" /><p class="text-sm">Belum ada pengelola aktif</p></div>
                 </CardContent>

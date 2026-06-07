@@ -7,8 +7,11 @@ import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.BranchResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
+import com.dak.spravel.model.inventory.StockBalance;
+import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
 import com.dak.spravel.util.AuditHelper;
@@ -25,9 +28,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.dak.spravel.model.auth.Role;
-import com.dak.spravel.model.inventory.StockBalance;
-import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.service.auth.PermissionCacheService;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
@@ -46,6 +47,7 @@ public class BranchesService {
     private final PasswordEncoder passwordEncoder;
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
+    private final PermissionCacheService permissionCacheService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -338,21 +340,27 @@ public class BranchesService {
         for (User old : oldManagers) {
             if (!old.getId().equals(newManagerUserId)) {
                 old.setBranch(null);
+                // Hapus role pengelola-cabang dari pengelola lama (kembalikan ke karyawan biasa)
                 Set<Role> stripped = old.getRoles().stream()
                         .filter(r -> !"pengelola-cabang".equalsIgnoreCase(r.getSlug()))
                         .collect(Collectors.toSet());
                 old.setRoles(stripped);
                 userRepository.save(old);
+                permissionCacheService.evict(old.getUsername());
             }
         }
 
         // Assign pengelola baru + role pengelola-cabang
         Set<Role> newRoles = new HashSet<>(newManager.getRoles());
         newRoles.add(managerRole);
+        // Hapus role karyawan-cabang jika ada (pengelola lebih tinggi dari karyawan)
+        newRoles.removeIf(r -> "karyawan-cabang".equalsIgnoreCase(r.getSlug())
+                            || "staff-branch".equalsIgnoreCase(r.getSlug()));
         newManager.setRoles(newRoles);
         newManager.setBranch(branch);
         newManager.setWarehouse(null);
         userRepository.save(newManager);
+        permissionCacheService.evict(newManager.getUsername());
 
         branch.setUpdatedBy(currentUser);
         branch.setUpdatedAt(LocalDateTime.now());

@@ -183,6 +183,62 @@ public class PartnerRoleTemplateSeeder {
         "dashboard.index",
     };
 
+    /**
+     * Karyawan Cabang:
+     * - Bisa akses POS & kasir (karena cabang = toko/outlet)
+     * - Lihat stok cabangnya (read-only)
+     * - Lihat produk & kategori (read-only)
+     * - Buat order / transaksi
+     * - Lihat laporan (read-only)
+     * - TIDAK bisa kelola gudang, PO, supplier, transfer stok
+     */
+    private static final String[] KARYAWAN_CABANG_PERMS = {
+        // Produk & Kategori — read-only
+        "produk.index", "produk.show",
+        "category.index", "category.show",
+        // Stok — read-only
+        "stock_balance.index", "stock_balance.show",
+        "stock_mutation.index", "stock_mutation.show",
+        // POS — full (karyawan cabang bisa jadi kasir)
+        "pos.index",
+        // Order — bisa buat & lihat
+        "order.index", "order.show", "order.store", "order.update",
+        "order_item.index", "order_item.show", "order_item.store",
+        // Voucher — read-only
+        "voucher.index", "voucher.show",
+        // Dashboard
+        "dashboard.index",
+    };
+
+    /**
+     * Karyawan Gudang:
+     * - Fokus ke operasional gudang: stok, transfer, penerimaan barang
+     * - Lihat produk & kategori (read-only)
+     * - Bisa bantu input stock opname
+     * - TIDAK bisa akses POS / kasir
+     * - TIDAK bisa akses order penjualan
+     */
+    private static final String[] KARYAWAN_GUDANG_PERMS = {
+        // Produk & Kategori — read-only
+        "produk.index", "produk.show",
+        "category.index", "category.show",
+        // Stok — bisa lihat dan bantu transfer
+        "stock_balance.index", "stock_balance.show",
+        "stock_mutation.index", "stock_mutation.show",
+        // Transfer Request — bisa lihat & update status (terima/tolak)
+        "transfer_request.index", "transfer_request.show", "transfer_request.update",
+        // Stock Opname — bisa input opname
+        "stock_opname.index", "stock_opname.show", "stock_opname.store",
+        // Purchase Order — read-only (lihat PO masuk)
+        "purchase_order.index", "purchase_order.show",
+        // Purchase Receipt — bisa terima barang
+        "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
+        // Supplier — read-only
+        "supplier.index", "supplier.show",
+        // Dashboard
+        "dashboard.index",
+    };
+
     // ─── Template definitions ─────────────────────────────────────────────────
 
     private record RoleTemplate(String slug, String name, String[] perms) {}
@@ -191,7 +247,9 @@ public class PartnerRoleTemplateSeeder {
         new RoleTemplate("admin-partner",      "Admin Partner",      ADMIN_PARTNER_PERMS),
         new RoleTemplate("pengelola-gudang",   "Pengelola Gudang",   PENGELOLA_GUDANG_PERMS),
         new RoleTemplate("pengelola-cabang",   "Pengelola Cabang",   PENGELOLA_CABANG_PERMS),
-        new RoleTemplate("kasir",              "Kasir",              KASIR_PERMS)
+        new RoleTemplate("kasir",              "Kasir",              KASIR_PERMS),
+        new RoleTemplate("karyawan-cabang",    "Karyawan Cabang",    KARYAWAN_CABANG_PERMS),
+        new RoleTemplate("karyawan-gudang",    "Karyawan Gudang",    KARYAWAN_GUDANG_PERMS)
     );
 
     // ─── Public API ───────────────────────────────────────────────────────────

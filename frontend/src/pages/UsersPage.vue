@@ -125,14 +125,19 @@ const ROLE_BADGE = {
     dot: 'bg-violet-400',
   },
   'staff-branch': {
-    label: 'Karyawan',
+    label: 'Karyawan Cabang',
     class: 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-700/50',
     dot: 'bg-sky-400',
   },
   'staff-warehouse': {
-    label: 'Karyawan',
+    label: 'Karyawan Gudang',
     class: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700/50',
     dot: 'bg-indigo-400',
+  },
+  'kasir': {
+    label: 'Kasir',
+    class: 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-700/50',
+    dot: 'bg-teal-400',
   },
   role: {
     label: '',
@@ -155,6 +160,15 @@ function getUserRoleBadge(u) {
     return { ...ROLE_BADGE['branch-manager'], sub: u.branchName || null }
   if (isWarehouseManagerRole(u))
     return { ...ROLE_BADGE['warehouse-manager'], sub: u.warehouseName || null }
+  // Karyawan cabang (termasuk kasir)
+  if (slugs.includes('kasir'))
+    return { ...ROLE_BADGE['kasir'], sub: u.branchName || null }
+  if (slugs.some(s => s === 'karyawan-cabang' || s === 'staff-branch'))
+    return { ...ROLE_BADGE['staff-branch'], sub: u.branchName || null }
+  // Karyawan gudang
+  if (slugs.some(s => s === 'karyawan-gudang' || s === 'staff-warehouse'))
+    return { ...ROLE_BADGE['staff-warehouse'], sub: u.warehouseName || null }
+  // Fallback: ada di cabang tapi tanpa role spesifik
   if (u.branchId && u.branchName)
     return { ...ROLE_BADGE['staff-branch'], sub: u.branchName }
   if (u.warehouseId && u.warehouseName)

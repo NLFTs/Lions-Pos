@@ -17,6 +17,7 @@ import com.dak.spravel.repository.inventory.WarehousesRepository;
 import com.dak.spravel.util.UserRoleUtil;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.service.auth.PermissionCacheService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,6 +47,7 @@ public class WarehousesService {
     private final PasswordEncoder passwordEncoder;
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
+    private final PermissionCacheService permissionCacheService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -384,16 +386,23 @@ public class WarehousesService {
                         .collect(Collectors.toSet());
                 old.setRoles(stripped);
                 userRepository.save(old);
+                permissionCacheService.evict(old.getUsername());
             }
         }
 
         // Assign pengelola baru + role pengelola-gudang
         Set<Role> newRoles = new HashSet<>(newManager.getRoles());
         newRoles.add(managerRole);
+        // Hapus role karyawan-gudang jika ada (pengelola lebih tinggi dari karyawan)
+        newRoles.removeIf(r -> "karyawan-gudang".equalsIgnoreCase(r.getSlug())
+                            || "staff-warehouse".equalsIgnoreCase(r.getSlug()));
         newManager.setRoles(newRoles);
         newManager.setWarehouse(warehouse);
         newManager.setBranch(null);
         userRepository.save(newManager);
+        
+        // Evict cache agar permission baru langsung aktif
+        permissionCacheService.evict(newManager.getUsername());
 
         warehouse.setUpdatedAt(LocalDateTime.now());
         warehouse.setUpdatedBy(currentUser);

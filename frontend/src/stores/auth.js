@@ -87,7 +87,10 @@ export const useAuthStore = defineStore('auth', () => {
         plan: me.plan ?? 'basic',
         branchId: me.branchId ?? null,
         branchName: me.branchName ?? null,
+        warehouseId: me.warehouseId ?? null,
+        warehouseName: me.warehouseName ?? null,
         partnerId: me.partnerId ?? null,
+        partnerName: me.partnerName ?? null,
       }
       permissions.value = me.permissions ?? []
       localStorage.setItem('auth_user', JSON.stringify(user.value))

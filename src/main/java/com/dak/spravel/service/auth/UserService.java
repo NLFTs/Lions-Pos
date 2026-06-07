@@ -31,7 +31,9 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import com.dak.spravel.util.UserRoleUtil;
 
 @lombok.extern.slf4j.Slf4j
 @Service
@@ -283,13 +285,37 @@ public class UserService {
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
 
         if (Boolean.TRUE.equals(request.getClearBranch())) {
+            // Lepas dari cabang dan hapus semua role yang berhubungan dengan cabang
             user.setBranch(null);
+            Set<Role> stripped = user.getRoles().stream()
+                    .filter(r -> {
+                        String slug = r.getSlug().toLowerCase();
+                        return !slug.equals("karyawan-cabang")
+                            && !slug.equals("staff-branch")
+                            && !slug.equals("pengelola-cabang")
+                            && !slug.equals("branch-manager");
+                    })
+                    .collect(java.util.stream.Collectors.toSet());
+            user.setRoles(stripped);
+            permissionCacheService.evict(user.getUsername());
         }
         if (Boolean.TRUE.equals(request.getClearWarehouse())) {
+            // Lepas dari gudang dan hapus semua role yang berhubungan dengan gudang
             user.setWarehouse(null);
+            Set<Role> stripped = user.getRoles().stream()
+                    .filter(r -> {
+                        String slug = r.getSlug().toLowerCase();
+                        return !slug.equals("karyawan-gudang")
+                            && !slug.equals("staff-warehouse")
+                            && !slug.equals("pengelola-gudang")
+                            && !slug.equals("warehouse-manager");
+                    })
+                    .collect(java.util.stream.Collectors.toSet());
+            user.setRoles(stripped);
+            permissionCacheService.evict(user.getUsername());
         }
         
-        // Update Cabang Kerja
+        // Update Cabang Kerja — otomatis assign role karyawan-cabang
         if (request.getBranchId() != null) {
             Branches branch = branchesRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
@@ -298,9 +324,24 @@ public class UserService {
             }
             user.setBranch(branch);
             user.setWarehouse(null);
+
+            // 💡 Auto-assign role karyawan-cabang jika belum punya role apapun atau belum punya role cabang
+            boolean alreadyHasBranchRole = user.getRoles().stream().anyMatch(r -> {
+                String s = r.getSlug().toLowerCase();
+                return s.equals("karyawan-cabang") || s.equals("pengelola-cabang")
+                    || s.equals("kasir") || s.equals("staff-branch");
+            });
+            if (!alreadyHasBranchRole && !UserRoleUtil.hasPrivilegedRole(user)) {
+                roleRepository.findBySlug("karyawan-cabang").ifPresent(staffRole -> {
+                    Set<Role> newRoles = new HashSet<>(user.getRoles());
+                    newRoles.add(staffRole);
+                    user.setRoles(newRoles);
+                });
+            }
+            permissionCacheService.evict(user.getUsername());
         }
 
-        // Update Gudang Kerja
+        // Update Gudang Kerja — otomatis assign role karyawan-gudang
         if (request.getWarehouseId() != null) {
             Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
@@ -309,6 +350,21 @@ public class UserService {
             }
             user.setWarehouse(warehouse);
             user.setBranch(null);
+
+            // 💡 Auto-assign role karyawan-gudang jika belum punya role gudang
+            boolean alreadyHasWarehouseRole = user.getRoles().stream().anyMatch(r -> {
+                String s = r.getSlug().toLowerCase();
+                return s.equals("karyawan-gudang") || s.equals("pengelola-gudang")
+                    || s.equals("staff-warehouse");
+            });
+            if (!alreadyHasWarehouseRole && !UserRoleUtil.hasPrivilegedRole(user)) {
+                roleRepository.findBySlug("karyawan-gudang").ifPresent(staffRole -> {
+                    Set<Role> newRoles = new HashSet<>(user.getRoles());
+                    newRoles.add(staffRole);
+                    user.setRoles(newRoles);
+                });
+            }
+            permissionCacheService.evict(user.getUsername());
         }
 
         if (request.getRoleIds() != null) {
