@@ -6,6 +6,7 @@ import com.dak.spravel.dto.request.inventory.StockBalanceInitRequest;
 import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
 import com.dak.spravel.dto.request.inventory.StockTransferRequest;
 import com.dak.spravel.dto.response.ResData;
+import com.dak.spravel.dto.response.inventoryresponse.InventoryDashboardResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
 import com.dak.spravel.service.inventory.StockBalanceService;
@@ -26,6 +27,15 @@ import java.util.List;
 public class StockBalanceController {
 
     private final StockBalanceService stockBalanceService;
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('stock_balance.index')")
+    public ResponseEntity<ResData<InventoryDashboardResponse>> getStats(
+            @RequestParam(required = false) String locationType,
+            @RequestParam(required = false) Long locationId) {
+        log.info("[GET] /api/v1/stock-balances/stats locationType={} locationId={}", locationType, locationId);
+        return ResponseBuilder.ok(stockBalanceService.getInventoryStats(locationType, locationId));
+    }
 
     // SUPER ADMIN ONLY
     @GetMapping("/admin")

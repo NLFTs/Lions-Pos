@@ -7,6 +7,7 @@ import com.dak.spravel.dto.request.inventory.StockBalanceRequestDTO;
 import com.dak.spravel.dto.request.inventory.StockTransferRequest;
 import com.dak.spravel.dto.request.inventory.WarehouseStockInRequest;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
+import com.dak.spravel.dto.response.inventoryresponse.InventoryDashboardResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockBalanceResponse;
 import com.dak.spravel.dto.response.inventoryresponse.StockLocationSummaryResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
@@ -546,5 +547,109 @@ public class StockBalanceService {
         stockMutationRepository.save(stockMutation);
 
         return mapToResponse(savedDestStock);
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryDashboardResponse getInventoryStats(String locationType, Long locationId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        List<Product> products;
+        List<StockMutation> mutations;
+
+        if (currentUser.getPartner() == null) {
+            products = productRepository.findAll();
+            mutations = stockMutationRepository.findAll();
+        } else {
+            products = productRepository.findAllByPartner(currentUser.getPartner());
+            mutations = stockMutationRepository.findByPartner(currentUser.getPartner());
+        }
+
+        long totalProducts;
+        long damagedProducts = 10L; // mock as requested
+        long incoming = 0;
+        long outgoing = 0;
+
+        if (locationType == null || locationId == null || "all".equalsIgnoreCase(locationType)) {
+            totalProducts = products.size();
+            incoming = mutations.stream()
+                .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+            outgoing = mutations.stream()
+                .filter(m -> m.getType() == StockMutation.Type.SALE_OUT)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+        } else {
+            String locTypeUpper = locationType.toUpperCase();
+            List<StockBalance> balances = stockBalanceRepository.findByLocationTypeAndLocationId(locTypeUpper, locationId);
+            totalProducts = balances.stream()
+                .filter(sb -> sb.getProduct() != null && (currentUser.getPartner() == null || (sb.getProduct().getPartner() != null && sb.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))))
+                .map(sb -> sb.getProduct().getId())
+                .distinct()
+                .count();
+
+            incoming = mutations.stream()
+                .filter(m -> m.getToLocationType() != null && m.getToLocationType().name().equals(locTypeUpper) && locationId.equals(m.getToLocationId()))
+                .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN || m.getType() == StockMutation.Type.TRANSFER)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+
+            outgoing = mutations.stream()
+                .filter(m -> m.getFromLocationType() != null && m.getFromLocationType().name().equals(locTypeUpper) && locationId.equals(m.getFromLocationId()))
+                .filter(m -> m.getType() == StockMutation.Type.SALE_OUT || m.getType() == StockMutation.Type.TRANSFER)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+        }
+
+        List<InventoryDashboardResponse.DailyMovementDto> chartData = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 14; i >= 0; i--) {
+            LocalDateTime dayStart = now.minusDays(i).withHour(0).withMinute(0).withSecond(0).withNano(0);
+            LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
+
+            List<StockMutation> dayMutations = mutations.stream()
+                .filter(m -> m.getCreatedAt() != null && !m.getCreatedAt().isBefore(dayStart) && m.getCreatedAt().isBefore(dayEnd))
+                .toList();
+
+            long dayIncoming = 0;
+            long dayOutgoing = 0;
+
+            if (locationType == null || locationId == null || "all".equalsIgnoreCase(locationType)) {
+                dayIncoming = dayMutations.stream()
+                    .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+                dayOutgoing = dayMutations.stream()
+                    .filter(m -> m.getType() == StockMutation.Type.SALE_OUT)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+            } else {
+                String locTypeUpper = locationType.toUpperCase();
+                dayIncoming = dayMutations.stream()
+                    .filter(m -> m.getToLocationType() != null && m.getToLocationType().name().equals(locTypeUpper) && locationId.equals(m.getToLocationId()))
+                    .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN || m.getType() == StockMutation.Type.TRANSFER)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+                dayOutgoing = dayMutations.stream()
+                    .filter(m -> m.getFromLocationType() != null && m.getFromLocationType().name().equals(locTypeUpper) && locationId.equals(m.getFromLocationId()))
+                    .filter(m -> m.getType() == StockMutation.Type.SALE_OUT || m.getType() == StockMutation.Type.TRANSFER)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+            }
+
+            String monthName = dayStart.getMonth().name().substring(0, 3);
+            monthName = monthName.charAt(0) + monthName.substring(1).toLowerCase();
+            String dateStr = dayStart.getDayOfMonth() + " " + monthName;
+            chartData.add(new InventoryDashboardResponse.DailyMovementDto(dateStr, dayIncoming, dayOutgoing));
+        }
+
+        return InventoryDashboardResponse.builder()
+            .totalProducts(totalProducts)
+            .damagedProducts(damagedProducts)
+            .incomingProducts(incoming)
+            .outgoingProducts(outgoing)
+            .chartData(chartData)
+            .build();
     }
 }

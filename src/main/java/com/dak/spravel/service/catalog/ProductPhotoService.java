@@ -98,7 +98,7 @@ public class ProductPhotoService {
     // GET / View foto produk berdasarkan ID produk
     public List<ProductPhoto> findByProductId(Long productId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.show"); // 💡 Ikut ke permission show produk
+        checkPermission(currentUser, "produk.show"); // 💡 Ikut ke permission show produk
         
         // Handling aman super admin / partner user scope
         Product product;
@@ -121,7 +121,7 @@ public class ProductPhotoService {
     @Transactional
     public ProductPhoto create(ProductPhotoRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update"); // 💡 Menambahkan foto dihitung sebagai modifikasi/update produk
+        checkPermission(currentUser, "produk.update"); // 💡 Menambahkan foto dihitung sebagai modifikasi/update produk
         
         Partners partner = currentUser.getPartner();
         Product product;
@@ -151,13 +151,15 @@ public class ProductPhotoService {
     @Transactional
     public ProductPhoto update(Long id, ProductPhotoRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.update");
+        checkPermission(currentUser, "produk.update");
 
         ProductPhoto photo = getValidatedPhoto(id, currentUser);
 
         if (request.getUrl() != null) {
             if (photo.getUrl() != null && !photo.getUrl().equals(request.getUrl())) {
-                deleteFileDisk(photo.getUrl());
+                if (productPhotoRepository.countByUrl(photo.getUrl()) <= 1) {
+                    deleteFileDisk(photo.getUrl());
+                }
             }
             photo.setUrl(request.getUrl());
         }
@@ -173,11 +175,13 @@ public class ProductPhotoService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "product.delete"); // 💡 Sikat pake permission delete produk
+        checkPermission(currentUser, "produk.delete"); // 💡 Sikat pake permission delete produk
 
         ProductPhoto photo = getValidatedPhoto(id, currentUser);
         if (photo.getUrl() != null) {
-            deleteFileDisk(photo.getUrl());
+            if (productPhotoRepository.countByUrl(photo.getUrl()) <= 1) {
+                deleteFileDisk(photo.getUrl());
+            }
         }
         productPhotoRepository.delete(photo);
     }

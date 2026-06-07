@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
+import com.dak.spravel.dto.response.UserResponse;
 
 @Slf4j
 @RestController
@@ -65,6 +66,31 @@ public class BranchesController {
     public ResponseEntity<ResData<BranchResponse>> show(@PathVariable Long id) {
         log.info("[GET] /api/v1/branches/{}", id);
         return ResponseBuilder.ok(branchesService.findById(id));
+    }
+
+    /**
+     * GET /api/v1/branches/{id}/users
+     * Returns all users assigned to this branch.
+     */
+    @GetMapping("/{id}/users")
+    @PreAuthorize("hasAuthority('branch.show')")
+    public ResponseEntity<ResData<List<com.dak.spravel.dto.response.UserResponse>>> getUsersByBranch(@PathVariable Long id) {
+        log.info("[GET] /api/v1/branches/{}/users", id);
+        return ResponseBuilder.ok(branchesService.getUsersByBranch(id));
+    }
+
+    /**
+     * PUT /api/v1/branches/{id}/manager
+     * Transfer branch manager to another user (userId in body).
+     */
+    @PutMapping("/{id}/manager")
+    @PreAuthorize("hasAuthority('branch.update')")
+    public ResponseEntity<ResData<BranchResponse>> transferManager(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Long> body) {
+        Long newManagerId = body.get("userId");
+        log.info("[PUT] /api/v1/branches/{}/manager userId={}", id, newManagerId);
+        return ResponseBuilder.ok(branchesService.transferManager(id, newManagerId));
     }
 
     @PostMapping

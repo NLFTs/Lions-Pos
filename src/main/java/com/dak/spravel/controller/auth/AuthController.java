@@ -89,6 +89,11 @@ public class AuthController {
             me.setWarehouseName(user.getWarehouse().getName());
         }
 
+        if (user.getPartner() != null) {
+            me.setPartnerId(user.getPartner().getId());
+            me.setPartnerName(user.getPartner().getName());
+        }
+
         log.info(
             "[AUTH] User '{}' has permissions: {}",
             user.getUsername(),
@@ -118,6 +123,10 @@ public class AuthController {
             !passwordEncoder.matches(request.getPassword(), user.getPassword())
         ) {
             throw new IllegalArgumentException("Username atau password salah");
+        }
+
+        if (user.getIsActive() != null && !user.getIsActive()) {
+            throw new IllegalArgumentException("Akun Anda ditangguhkan. Hubungi pemilik mitra.");
         }
 
         boolean isAdmin = user
@@ -198,6 +207,13 @@ public class AuthController {
             .orElseThrow(() ->
                 new ResourceNotFoundException("Pengguna tidak ditemukan")
             );
+
+        if (freshUser.getIsActive() != null && !freshUser.getIsActive()) {
+            tokenEntity.setRevoked(true);
+            tokenRepository.save(tokenEntity);
+            permissionCacheService.evict(freshUser.getUsername());
+            throw new IllegalArgumentException("Akun Anda ditangguhkan. Hubungi pemilik mitra.");
+        }
 
         // Reload roles and permissions from DB and refresh the cache
         Set<String> auths = new java.util.HashSet<>();

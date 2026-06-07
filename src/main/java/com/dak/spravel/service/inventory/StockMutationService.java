@@ -88,6 +88,32 @@ public class StockMutationService {
             response.setToLocationType(stockMutation.getToLocationType().name());
         }
 
+        // ✅ Set product
+        if (stockMutation.getProduct() != null) {
+            StockMutationResponse.ProductSimpleDto p = new StockMutationResponse.ProductSimpleDto();
+            p.setId(stockMutation.getProduct().getId());
+            p.setName(stockMutation.getProduct().getName());
+            p.setSku(stockMutation.getProduct().getSku());
+            response.setProduct(p);
+        }
+
+        // ✅ Set partner
+        if (stockMutation.getPartner() != null) {
+            com.dak.spravel.dto.response.components.PartnerSimpleDto pDto = new com.dak.spravel.dto.response.components.PartnerSimpleDto();
+            pDto.setId(stockMutation.getPartner().getId());
+            pDto.setName(stockMutation.getPartner().getName());
+            response.setPartner(pDto);
+        }
+
+        // ✅ Set createdAt & createdBy
+        response.setCreatedAt(stockMutation.getCreatedAt());
+        if (stockMutation.getCreatedBy() != null) {
+            com.dak.spravel.dto.response.components.UserSimpleDto u = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            u.setId(stockMutation.getCreatedBy().getId());
+            u.setUsername(stockMutation.getCreatedBy().getUsername());
+            response.setCreatedBy(u);
+        }
+
         return response;
     }
 

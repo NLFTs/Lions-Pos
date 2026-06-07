@@ -11,6 +11,7 @@ import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
+import com.dak.spravel.seeder.PartnerRoleTemplateSeeder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -35,6 +36,7 @@ public class PartnerService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -130,26 +132,28 @@ public class PartnerService {
         partner.setIsActive(true);
         Partners savedPartner = partnerRepository.save(partner);
 
-        // 2. 🔥 FIX: Ambil role global master 'admin-partner' atau 'owner' dari database pusat
-        //    (Karena sekarang tidak buat role baru per partner, kita cari role global yang sudah ada)
+        // 2. Pastikan role template global (admin-partner, pengelola-gudang, dll) tersedia
+        partnerRoleTemplateSeeder.seedForPartner(savedPartner);
+
+        // 3. Role admin utama: admin-partner (utama) atau owner (fallback dari seed lama)
         Role adminPartnerRole = roleRepository.findBySlug("admin-partner")
-                .orElseThrow(() -> new ResourceNotFoundException("Role Master Global 'admin-partner' belum dibuat di database pusat. Harap lakukan seed awal.", 0L));
-        
-        // 3. Daftarkan akun User Admin Utama milik Partner tersebut
+                .or(() -> roleRepository.findBySlug("owner"))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Role admin partner tidak ditemukan. Restart aplikasi agar seeder berjalan.", 0L));
+
+        // 4. Daftarkan akun User Admin Utama milik Partner tersebut
         User adminUser = new User();
         adminUser.setUsername(request.getAdmin().getUsername());
         adminUser.setEmail(request.getAdmin().getEmail());
         adminUser.setFullname("Admin " + savedPartner.getName());
         adminUser.setPassword(passwordEncoder.encode(request.getAdmin().getPassword()));
         adminUser.setPartner(savedPartner);
+        adminUser.setIsActive(true);
         
         Set<Role> roles = new HashSet<>();
         roles.add(adminPartnerRole);
         adminUser.setRoles(roles);
         userRepository.save(adminUser);
-
-        // 🚨 4. FIX: partnerRoleTemplateSeeder.seedForPartner(savedPartner) DIHAPUS TOTAL!
-        // Karena semua partner sekarang sharing/berbagi master role global pusat yang sama.
 
         return mapToResponse(savedPartner);
     }

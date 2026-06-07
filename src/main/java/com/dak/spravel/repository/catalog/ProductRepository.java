@@ -22,5 +22,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Product findByIdAndPartner(Long id, Partners partner);
     boolean existsBySkuAndPartnerId(String sku, Long partnerId);
     boolean existsBySkuAndPartner(String sku, Partners partner);
+    long countByCategoryId(Long categoryId);
 
 }

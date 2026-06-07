@@ -27,4 +27,12 @@ public class UpdateUserRequest {
     private Long branchId;
 
     private Long warehouseId;
+
+    /** Set true untuk melepas penempatan cabang user. */
+    private Boolean clearBranch;
+
+    /** Set true untuk melepas penempatan gudang user. */
+    private Boolean clearWarehouse;
+
+    private Boolean isActive;
 }

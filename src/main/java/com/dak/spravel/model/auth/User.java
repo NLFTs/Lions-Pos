@@ -81,4 +81,7 @@ public class User {
     @Column(name = "deleted_at")
     @JsonIgnore
     private LocalDateTime deletedAt;
+
+    @Column(name = "is_active")
+    private Boolean isActive = true;
 }

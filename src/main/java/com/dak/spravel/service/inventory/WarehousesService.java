@@ -1,6 +1,7 @@
 package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.WarehousesRequestDTO;
+import com.dak.spravel.dto.response.UserResponse;
 import com.dak.spravel.dto.response.components.PartnerSimpleDto;
 import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.WarehouseResponse;
@@ -13,8 +14,10 @@ import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
+import com.dak.spravel.util.UserRoleUtil;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
+import com.dak.spravel.service.auth.PermissionCacheService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +47,7 @@ public class WarehousesService {
     private final PasswordEncoder passwordEncoder;
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
+    private final PermissionCacheService permissionCacheService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -322,5 +327,112 @@ public class WarehousesService {
         w.setDeletedBy(currentUser);
 
         warehousesRepository.save(w);
+    }
+
+    // ─── GET USERS BY WAREHOUSE ───────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getUsersByWarehouse(Long warehouseId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.index");
+        getValidatedWarehouse(warehouseId, currentUser); // validate access
+        return userRepository.findByWarehouseId(warehouseId)
+                .stream().map(this::mapUserToResponse).toList();
+    }
+
+    // ─── TRANSFER MANAGER ─────────────────────────────────────────────────────
+
+    @Transactional
+    public WarehouseResponse transferManager(Long warehouseId, Long newManagerUserId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "warehouse.update");
+
+        Warehouses warehouse = getValidatedWarehouse(warehouseId, currentUser);
+
+        User newManager = userRepository.findById(newManagerUserId)
+                .orElseThrow(() -> new com.dak.spravel.handler.ResourceNotFoundException("User", newManagerUserId));
+
+        // Guard: user harus di partner yang sama
+        if (currentUser.getPartner() != null) {
+            if (newManager.getPartner() == null ||
+                    !newManager.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: User bukan bagian dari partner Anda.");
+            }
+        }
+
+        // Guard: user tidak boleh sudah jadi pengelola gudang/cabang lain
+        if (newManager.getWarehouse() != null && !newManager.getWarehouse().getId().equals(warehouseId)) {
+            throw new RuntimeException("User ini sudah menjadi pengelola gudang lain: " + newManager.getWarehouse().getName());
+        }
+        if (newManager.getBranch() != null) {
+            throw new RuntimeException("User ini sudah menjadi pengelola cabang: " + newManager.getBranch().getName());
+        }
+
+        // Guard: hanya karyawan biasa yang boleh ditunjuk (bukan owner/admin/pengelola lain)
+        if (UserRoleUtil.isIneligibleManagerCandidate(newManager)) {
+            throw new RuntimeException("Akses Ditolak: Hanya karyawan biasa yang bisa ditunjuk sebagai pengelola gudang.");
+        }
+
+        Role managerRole = roleRepository.findBySlug("pengelola-gudang")
+                .orElseThrow(() -> new RuntimeException("Role pengelola-gudang tidak ditemukan."));
+
+        // Lepas pengelola lama dari gudang ini
+        List<User> oldManagers = userRepository.findByWarehouseId(warehouseId);
+        for (User old : oldManagers) {
+            if (!old.getId().equals(newManagerUserId)) {
+                old.setWarehouse(null);
+                Set<Role> stripped = old.getRoles().stream()
+                        .filter(r -> !"pengelola-gudang".equalsIgnoreCase(r.getSlug()))
+                        .collect(Collectors.toSet());
+                old.setRoles(stripped);
+                userRepository.save(old);
+                permissionCacheService.evict(old.getUsername());
+            }
+        }
+
+        // Assign pengelola baru + role pengelola-gudang
+        Set<Role> newRoles = new HashSet<>(newManager.getRoles());
+        newRoles.add(managerRole);
+        // Hapus role karyawan-gudang jika ada (pengelola lebih tinggi dari karyawan)
+        newRoles.removeIf(r -> "karyawan-gudang".equalsIgnoreCase(r.getSlug())
+                            || "staff-warehouse".equalsIgnoreCase(r.getSlug()));
+        newManager.setRoles(newRoles);
+        newManager.setWarehouse(warehouse);
+        newManager.setBranch(null);
+        userRepository.save(newManager);
+        
+        // Evict cache agar permission baru langsung aktif
+        permissionCacheService.evict(newManager.getUsername());
+
+        warehouse.setUpdatedAt(LocalDateTime.now());
+        warehouse.setUpdatedBy(currentUser);
+        return mapToResponse(warehousesRepository.save(warehouse));
+    }
+
+    private UserResponse mapUserToResponse(User user) {
+        UserResponse res = new UserResponse();
+        res.setId(user.getId());
+        res.setUsername(user.getUsername());
+        res.setFullname(user.getFullname());
+        res.setEmail(user.getEmail());
+        res.setAvatar(user.getAvatar());
+        res.setCreatedAt(user.getCreatedAt());
+        if (user.getBranch() != null) {
+            res.setBranchId(user.getBranch().getId());
+            res.setBranchName(user.getBranch().getName());
+        }
+        if (user.getWarehouse() != null) {
+            res.setWarehouseId(user.getWarehouse().getId());
+            res.setWarehouseName(user.getWarehouse().getName());
+        }
+        List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
+            UserResponse.RoleData rd = new UserResponse.RoleData();
+            rd.setId(role.getId());
+            rd.setSlug(role.getSlug());
+            rd.setName(role.getName());
+            return rd;
+        }).toList();
+        res.setRoles(roleDataList);
+        return res;
     }
 }

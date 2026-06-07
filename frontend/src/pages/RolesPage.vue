@@ -30,6 +30,70 @@ const isCentralAdmin = computed(() => {
   return userRoles.includes('admin') || userRoles.includes('super-admin')
 })
 
+// ─── Selection State ──────────────────────────────────────────────────────────
+const selectedIds = ref([])
+
+const isAllSelected = computed(() => {
+  const visible = paginatedRoles.value
+  if (visible.length === 0) return false
+  return visible.every(r => selectedIds.value.includes(r.id))
+})
+
+function toggleSelectAll() {
+  const visible = paginatedRoles.value
+  if (isAllSelected.value) {
+    const visibleIds = visible.map(r => r.id)
+    selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
+  } else {
+    visible.forEach(r => {
+      if (!selectedIds.value.includes(r.id)) {
+        selectedIds.value.push(r.id)
+      }
+    })
+  }
+}
+
+function toggleSelect(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index === -1) {
+    selectedIds.value.push(id)
+  } else {
+    selectedIds.value.splice(index, 1)
+  }
+}
+
+async function bulkDelete() {
+  const count = selectedIds.value.length
+  if (count === 0) return
+
+  const ok = await confirm({
+    title: 'Hapus Role Terpilih',
+    description: `Apakah Anda yakin ingin menghapus ${count} role terpilih secara permanen?`,
+    confirmLabel: 'Hapus',
+    cancelLabel: 'Batal',
+  })
+  if (!ok) return
+
+  loading.value = true
+  try {
+    await Promise.all(
+      selectedIds.value.map(id => api.delete(`/api/v1/roles/${id}`))
+    )
+    toast.success(`${count} role berhasil dihapus!`)
+    selectedIds.value = []
+    fetchRoles()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal menghapus beberapa role.')
+    fetchRoles()
+  } finally {
+    loading.value = false
+  }
+}
+
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
+})
+
 // ─── State ────────────────────────────────────────────────────────────────────
 const roles            = ref([])
 const permissionsMap   = ref({})   // { module: [PermissionResponse, ...] }

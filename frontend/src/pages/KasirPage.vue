@@ -51,51 +51,50 @@ const cart = ref([])
 async function fetchData() {
   loading.value = true
   try {
-    console.log('[DEBUG POS] Data User Aktif:', authStore.user)
-    console.log('[DEBUG POS] Data Branch User:', authStore.user?.branch)
-    
     const isAdmin = authStore.isAdmin
-    const branchUrl = isAdmin ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const [resP, resC, resB] = await Promise.all([
-      api.get('/api/v1/products?page=0&size=500'),  // muat semua produk untuk kasir
-      api.get('/api/v1/categories'),
-      api.get(branchUrl)
-    ])
+    const userBranchId = authStore.user?.branchId
 
-    // Product: ResData<Page> — ambil content dari page
+    // Kalau karyawan cabang, skip fetch /branches — pakai branchId dari store langsung
+    const shouldFetchBranches = isAdmin || !userBranchId
+
+    const requests = [
+      api.get('/api/v1/products?page=0&size=500'),
+      api.get('/api/v1/categories'),
+      shouldFetchBranches
+        ? api.get(isAdmin ? '/api/v1/branches/admin' : '/api/v1/branches')
+        : Promise.resolve(null),
+    ]
+
+    const [resP, resC, resB] = await Promise.all(requests)
+
+    // Products
     const pData = resP.data?.data
     const pArr = pData?.content ? pData.content : (Array.isArray(pData) ? pData : [])
     products.value = pArr.filter(p => p.is_active !== false)
 
-    // Categories: ResData<List>
+    // Categories
     const cData = resC.data?.data
     categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
-    // Branches: ResData<List> — ambil data mentah & deduplikasi dulu ke variabel lokal
-    const bData = resB.data?.data
-    const bArr = Array.isArray(bData) ? bData : (bData?.content || [])
-    
-    const seen = new Set()
-    const uniqueBranches = bArr.filter(b => {
-      if (seen.has(b.name)) return false
-      seen.add(b.name)
-      return true
-    })
-
-    // ─── 🔒 LOCK & FILTER DATA DROPDOWN ───
-    const userBranch = authStore.user?.branch
-
-    if (userBranch && userBranch.id) {
-      // Kasir cabang -> isinya dikunci cuma punya dia sendiri
-      branches.value = uniqueBranches.filter(b => b.id === userBranch.id)
-      selectedBranchId.value = userBranch.id
-      await fetchStockBalances(userBranch.id)
+    // Branches
+    if (userBranchId) {
+      // Karyawan cabang — kunci ke cabangnya sendiri, tidak perlu data dari server
+      branches.value = [{ id: userBranchId, name: authStore.user?.branchName || 'Cabang Aktif' }]
+      selectedBranchId.value = userBranchId
+      await fetchStockBalances(userBranchId)
     } else {
-      // Admin / Owner -> load semua list cabang biar bisa switch-switch gudang
-      branches.value = uniqueBranches
-      if (uniqueBranches.length > 0) {
-        selectedBranchId.value = uniqueBranches[0].id
-        await fetchStockBalances(uniqueBranches[0].id)
+      // Admin / Owner — load semua cabang
+      const bData = resB?.data?.data
+      const bArr = Array.isArray(bData) ? bData : (bData?.content || [])
+      const seen = new Set()
+      branches.value = bArr.filter(b => {
+        if (seen.has(b.name)) return false
+        seen.add(b.name)
+        return true
+      })
+      if (branches.value.length > 0) {
+        selectedBranchId.value = branches.value[0].id
+        await fetchStockBalances(branches.value[0].id)
       }
     }
     
@@ -476,12 +475,12 @@ function avatarStyle(name = '') {
             <div ref="branchDropdownRef" class="relative">
               
               <div 
-                v-if="authStore.user?.branch"
+                v-if="authStore.user?.branchId"
                 class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 px-3.5 py-2 rounded-xl border border-emerald-200/50 dark:border-emerald-800/30"
               >
                 <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
                 <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                  📍 {{ selectedBranch?.name || 'Cabang Aktif' }}
+                  📍 {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
                 </span>
               </div>
 
