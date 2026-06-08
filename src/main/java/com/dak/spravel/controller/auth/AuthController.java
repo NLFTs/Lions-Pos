@@ -92,6 +92,9 @@ public class AuthController {
         if (user.getPartner() != null) {
             me.setPartnerId(user.getPartner().getId());
             me.setPartnerName(user.getPartner().getName());
+            if (user.getPartner().getPlan() != null) {
+                me.setPlan(user.getPartner().getPlan().name().toLowerCase());
+            }
         }
 
         log.info(

@@ -613,7 +613,7 @@ onMounted(fetchBranches)
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
                     <Label>Username <span class="text-destructive">*</span></Label>
-                    <Input v-model="createForm.username" placeholder="username_cabang" :disabled="createSaving" autocomplete="off" />
+                    <Input v-model="createForm.username" placeholder="nairha" :disabled="createSaving" autocomplete="off" />
                     <p v-if="createErrors.username" class="text-xs text-destructive">{{ createErrors.username }}</p>
                   </div>
                   <div class="space-y-1.5">

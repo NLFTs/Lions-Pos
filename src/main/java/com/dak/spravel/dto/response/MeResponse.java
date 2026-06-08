@@ -21,4 +21,5 @@ public class MeResponse {
     private String warehouseName;
     private Long partnerId;
     private String partnerName;
+    private String plan;
 }

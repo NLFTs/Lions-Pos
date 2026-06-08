@@ -31,7 +31,7 @@ public class JwtUtilImpl implements JwtUtil {
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpirationMs))
                 .signWith(getSigningKey())
-                .compact();
+                .compact();/*  */
     }
 
     @Override

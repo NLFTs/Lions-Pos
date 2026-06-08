@@ -121,7 +121,7 @@ public class ProductPhotoService {
     @Transactional
     public ProductPhoto create(ProductPhotoRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update"); // 💡 Menambahkan foto dihitung sebagai modifikasi/update produk
+        checkPermission(currentUser, "produk.update");
         
         Partners partner = currentUser.getPartner();
         Product product;
@@ -134,6 +134,18 @@ public class ProductPhotoService {
             if (product == null) {
                 throw new ResourceNotFoundException("Product", request.getProductId());
             }
+        }
+
+        // Guard: jangan simpan duplikat URL untuk produk yang sama
+        boolean alreadyExists = productPhotoRepository.findByProductId(product.getId())
+                .stream().anyMatch(p -> p.getUrl() != null && p.getUrl().equals(request.getUrl()));
+        if (alreadyExists) {
+            // Return foto yang sudah ada daripada buat baru (idempotent)
+            return productPhotoRepository.findByProductId(product.getId())
+                    .stream()
+                    .filter(p -> p.getUrl().equals(request.getUrl()))
+                    .findFirst()
+                    .orElseThrow();
         }
 
         ProductPhoto photo = new ProductPhoto();
