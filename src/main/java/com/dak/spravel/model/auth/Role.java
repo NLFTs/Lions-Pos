@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,7 +38,7 @@ public class Role {
     public enum Type {
         INTERNAL, EXTERNAL
     }
-
+    
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "role_permissions",

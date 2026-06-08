@@ -26,8 +26,10 @@ const authStore = useAuthStore()
 // ─── 🛡️ GUARD CONFIGURATION DIRECT SLUG CHECK ────────────────────────────────
 const isCentralAdmin = computed(() => {
   const userRoles = authStore.user?.roles || []
-  // Jika slug-nya adalah admin atau super-admin, maka dia berhak penuh (Central Pusat)
-  return userRoles.includes('admin') || userRoles.includes('super-admin')
+  return userRoles.some(role => {
+    const slug = typeof role === 'object' ? role.slug : role
+    return slug === 'admin' || slug === 'super-admin'
+  })
 })
 
 // ─── Selection State ──────────────────────────────────────────────────────────
@@ -90,10 +92,6 @@ async function bulkDelete() {
   }
 }
 
-watch([searchQuery, page, pageSize], () => {
-  selectedIds.value = []
-})
-
 // ─── State ────────────────────────────────────────────────────────────────────
 const roles            = ref([])
 const permissionsMap   = ref({})   // { module: [PermissionResponse, ...] }
@@ -117,8 +115,10 @@ const paginatedRoles = computed(() => {
   return filteredRoles.value.slice(start, start + pageSize.value)
 })
 
+// 💡 PERBAIKAN: Bersihkan selectedIds di sini agar tidak balapan dengan rendering table
 watch(searchQuery, () => {
   page.value = 1
+  selectedIds.value = []
 })
 
 // Drawer state
@@ -145,6 +145,7 @@ async function fetchRoles() {
     roles.value = res.data.data
   } catch (err) {
     error.value = err.response?.data?.message || 'Failed to load roles.'
+    toast.error(error.value)
   } finally {
     loading.value = false
   }
@@ -170,12 +171,12 @@ function getPermission(module, action) {
   return list.find((p) => p.slug === `${module}.${action}`) || null
 }
 
+// Menangani sinkronisasi checklist checkbox agar aman di UI
 function isChecked(module, action) {
   const p = getPermission(module, action)
   return p ? selectedPermIds.value.has(p.id) : false
 }
 
-// Hanya izinkan klik matriks permission kalau dia Central Admin Pusat
 function togglePerm(module, action) {
   if (!isCentralAdmin.value) return
   const p = getPermission(module, action)
@@ -302,7 +303,6 @@ async function doDelete(role) {
 <template>
   <AppLayout>
     <div class="pb-6">
-      <!-- Page Header -->
       <div class="mb-6">
         <h1 class="text-xl font-bold tracking-tight text-zinc-900">Role Management</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
@@ -310,7 +310,6 @@ async function doDelete(role) {
         </p>
       </div>
 
-      <!-- Table Controls -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <DataTableSearch
           v-model="searchQuery"
@@ -324,7 +323,6 @@ async function doDelete(role) {
             <span>Customize Columns</span>
             <ChevronDown class="h-3 w-3 text-zinc-400" />
           </Button>
-          <!-- 🚨 SAFETY GUARD: Hanya tampil jika dia admin/super-admin pusat -->
           <Button v-if="can('role.store') && isCentralAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Add Role</span>
@@ -332,10 +330,8 @@ async function doDelete(role) {
         </div>
       </div>
 
-      <!-- Error -->
       <Alert v-if="error" variant="destructive" class="mb-4">{{ error }}</Alert>
 
-    <!-- Roles table -->
     <Card>
       <CardContent class="p-0">
         <div v-if="loading" class="flex items-center justify-center py-20">
@@ -348,7 +344,6 @@ async function doDelete(role) {
         </div>
 
         <div v-else>
-          <!-- ─── Mobile List View ─── -->
           <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
             <div
               v-for="role in paginatedRoles"
@@ -367,7 +362,6 @@ async function doDelete(role) {
                 </div>
                 
                 <div class="flex items-center gap-1 shrink-0">
-                  <!-- 🚨 SAFETY GUARD MOBILE: Edit -->
                   <Button
                     v-if="can('role.update') && isCentralAdmin"
                     variant="ghost"
@@ -377,7 +371,6 @@ async function doDelete(role) {
                   >
                     <Pencil class="h-3.5 w-3.5" />
                   </Button>
-                  <!-- 🚨 SAFETY GUARD MOBILE: Delete -->
                   <Button
                     v-if="can('role.delete') && isCentralAdmin"
                     variant="ghost"
@@ -399,7 +392,6 @@ async function doDelete(role) {
             </div>
           </div>
 
-          <!-- ─── Desktop Table ─── -->
           <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
@@ -426,11 +418,9 @@ async function doDelete(role) {
                   </td>
                   <td class="px-5 py-3 text-right">
                     <div class="flex justify-end gap-1">
-                      <!-- 🚨 SAFETY GUARD DESKTOP: Edit -->
                       <Button v-if="can('role.update') && isCentralAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(role)">
                         <Pencil class="h-3.5 w-3.5" />
                       </Button>
-                      <!-- 🚨 SAFETY GUARD DESKTOP: Delete -->
                       <Button
                         v-if="can('role.delete') && isCentralAdmin"
                         variant="ghost"
@@ -447,21 +437,20 @@ async function doDelete(role) {
             </table>
           </div>
         </div>
+        
         <DataTablePagination
           v-if="filteredRoles.length > 0 && !loading"
           :page="page"
           :page-size="pageSize"
           :total="filteredRoles.length"
-          @update:page="page = $event"
-          @update:page-size="pageSize = $event; page = 1"
+          @update:page="page = $event; selectedIds = []"
+          @update:page-size="pageSize = $event; page = 1; selectedIds = []"
         />
       </CardContent>
     </Card>
     </div>
 
-    <!-- ─── Right-side Drawer ─── -->
     <Teleport to="body">
-      <!-- Backdrop -->
       <Transition name="fade">
         <div
           v-if="showDrawer"
@@ -470,13 +459,11 @@ async function doDelete(role) {
         />
       </Transition>
 
-      <!-- Panel -->
       <Transition name="slide-right">
         <div
           v-if="showDrawer"
           class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[500px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
         >
-          <!-- Header -->
           <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
             <div>
               <h3 class="font-semibold text-base">
@@ -491,7 +478,6 @@ async function doDelete(role) {
             </Button>
           </div>
 
-          <!-- Body (scrollable) -->
           <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
             <Alert v-if="formError" variant="destructive">
               <p class="text-sm">{{ formError }}</p>
@@ -508,7 +494,6 @@ async function doDelete(role) {
               </div>
             </div>
 
-            <!-- Permission Matrix -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
                 <Label class="text-sm font-semibold">Hak Akses (Permissions)</Label>
@@ -586,10 +571,8 @@ async function doDelete(role) {
             </div>
           </div>
 
-          <!-- Footer -->
           <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
             <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
-            <!-- Sembunyikan/Disable Simpan Perubahan jika dia bukan Central Admin Pusat -->
             <Button v-if="isCentralAdmin" @click="saveRole" :disabled="saving">
               <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
               {{ modalMode === 'create' ? 'Simpan Role' : 'Simpan Perubahan' }}
