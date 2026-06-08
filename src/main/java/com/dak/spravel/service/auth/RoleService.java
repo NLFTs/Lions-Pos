@@ -82,6 +82,16 @@ public class RoleService {
         return toResponse(role);
     }
 
+    public RoleResponse forOwnerOrAdminPartner(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "role.show");
+
+        Role role = roleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", id));
+        
+        return toResponse(role);
+    }
+
     // CREATE ROLE
     @Transactional
     public RoleResponse create(CreateRoleRequest request) {

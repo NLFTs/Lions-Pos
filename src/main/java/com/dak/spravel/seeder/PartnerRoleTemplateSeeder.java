@@ -5,7 +5,6 @@ import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.PermissionRepository;
 import com.dak.spravel.repository.auth.RoleRepository;
-import com.dak.spravel.repository.common.PartnerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -37,7 +36,6 @@ public class PartnerRoleTemplateSeeder {
 
     private final RoleRepository       roleRepository;
     private final PermissionRepository permissionRepository;
-    private final PartnerRepository    partnerRepository;
 
     // ─── Definisi template role ───────────────────────────────────────────────
 
