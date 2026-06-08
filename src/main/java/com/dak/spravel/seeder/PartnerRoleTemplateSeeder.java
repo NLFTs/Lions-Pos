@@ -47,7 +47,7 @@ public class PartnerRoleTemplateSeeder {
         // User management
         "user.index", "user.show", "user.store", "user.update", "user.delete",
         // Role (per-partner)
-        "role.index", "role.show", "role.store", "role.update", "role.delete",
+        "role.index", "role.show",
         // Kategori
         "category.index", "category.show", "category.store", "category.update", "category.delete",
         // Produk

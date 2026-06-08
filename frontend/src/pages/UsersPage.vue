@@ -611,51 +611,6 @@ function initials(u) {
             </CardContent>
           </Card>
 
-          <!-- Role Assignment -->
-          <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <CardContent class="p-6 space-y-3">
-              <div class="flex items-center gap-2">
-                <Shield class="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p class="text-sm font-semibold">Assign Role</p>
-                  <p class="text-xs text-muted-foreground">Opsional — bisa ditambahkan kemudian saat user ditempatkan di cabang/gudang.</p>
-                </div>
-              </div>
-
-              <div class="rounded-lg border border-input overflow-hidden">
-                <div class="max-h-52 overflow-y-auto divide-y divide-border">
-                  <button v-for="role in roles" :key="role.id" type="button" @click="toggleRole(role.id)" :disabled="saving"
-                    class="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors outline-none text-left"
-                    :class="form.roleIds.includes(role.id) ? 'bg-primary/5' : ''">
-                    <div class="flex items-center gap-3">
-                      <div class="w-7 h-7 rounded-md flex items-center justify-center" :class="form.roleIds.includes(role.id) ? 'bg-primary/10' : 'bg-muted'">
-                        <Shield class="h-3.5 w-3.5" :class="form.roleIds.includes(role.id) ? 'text-primary' : 'text-muted-foreground'" />
-                      </div>
-                      <div>
-                        <p class="font-medium text-sm">{{ role.name }}</p>
-                        <p class="text-[10px] text-muted-foreground font-mono">{{ role.slug }}</p>
-                      </div>
-                    </div>
-                    <div class="h-4 w-4 rounded border flex items-center justify-center transition-all"
-                      :class="form.roleIds.includes(role.id) ? 'bg-primary border-primary' : 'border-zinc-300 dark:border-zinc-600'">
-                      <Check v-if="form.roleIds.includes(role.id)" class="h-2.5 w-2.5 text-white" />
-                    </div>
-                  </button>
-                  <div v-if="roles.length === 0" class="p-4 text-xs text-muted-foreground italic text-center">Tidak ada role tersedia.</div>
-                </div>
-              </div>
-
-              <!-- Jabatan preview -->
-              <div v-if="form.roleIds.length > 0" class="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>Preview jabatan:</span>
-                <span :class="['inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold', getUserRoleBadge({ roles: roles.filter(r => form.roleIds.includes(r.id)) }).class]">
-                  <span :class="['w-1.5 h-1.5 rounded-full', getUserRoleBadge({ roles: roles.filter(r => form.roleIds.includes(r.id)) }).dot]" />
-                  {{ getUserRoleBadge({ roles: roles.filter(r => form.roleIds.includes(r.id)) }).label }}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
           <!-- Actions -->
           <div class="flex justify-end gap-3">
             <Button variant="outline" @click="view = 'list'" :disabled="saving">Batal</Button>
