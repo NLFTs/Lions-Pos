@@ -129,6 +129,10 @@ public class AuthController {
             throw new IllegalArgumentException("Akun Anda ditangguhkan. Hubungi pemilik mitra.");
         }
 
+        if (user.getRoles() == null || user.getRoles().isEmpty()) {
+            throw new ResourceNotFoundException("User tidak mempunyai role");
+        }
+
         boolean isAdmin = user
             .getRoles()
             .stream()

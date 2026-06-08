@@ -220,24 +220,24 @@ public class BranchesService {
     }
     
     // ── 🛡️ HELPER FIX: Resolusi Role Bersifat Global Tanpa Dependensi Partner Scope ──
-    private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
-        List<Role> roles = roleRepository.findAllById(roleIds);
+    // private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
+    //     List<Role> roles = roleRepository.findAllById(roleIds);
         
-        if (roles.size() != roleIds.size()) {
-            throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
-        }
+    //     if (roles.size() != roleIds.size()) {
+    //         throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
+    //     }
     
-        for (Role role : roles) {
-            if (currentUser.getPartner() != null) {
-                String roleSlug = role.getSlug().toLowerCase();
-                if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
-                    throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff cabang.");
-                }
-            }
-        }
+    //     for (Role role : roles) {
+    //         if (currentUser.getPartner() != null) {
+    //             String roleSlug = role.getSlug().toLowerCase();
+    //             if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
+    //                 throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff cabang.");
+    //             }
+    //         }
+    //     }
         
-        return new HashSet<>(roles);
-    }
+    //     return new HashSet<>(roles);
+    // }
 
     @Transactional
     public BranchResponse update(Long id, BranchRequest request) {
