@@ -252,7 +252,7 @@ async function deleteAccount() {
                 <div class="flex items-center gap-2">
                   <Input
                     v-model="nameEdit.value"
-                    placeholder="Full name"
+                    placeholder="Nairha"
                     class="h-9 text-sm flex-1"
                     :disabled="nameEdit.saving"
                     @keyup.enter="saveEdit('name')"
@@ -295,7 +295,7 @@ async function deleteAccount() {
                   <Input
                     v-model="emailEdit.value"
                     type="email"
-                    placeholder="email@example.com"
+                    placeholder="nairha@nlfts.dev"
                     class="h-9 text-sm flex-1"
                     :disabled="emailEdit.saving"
                     @keyup.enter="saveEdit('email')"

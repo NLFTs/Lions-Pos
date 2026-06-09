@@ -289,13 +289,23 @@ const avatarStyle = computed(() => {
 
 // ─── Plan / Upgrade ───────────────────────────────────────────────────
 const userPlan = computed(() => (user.value?.plan || 'basic').toLowerCase())
-const upgradeLabel = computed(() => {
-  if (userPlan.value === 'pro') return 'Upgrade to Enterprise'
-  return 'Upgrade to Pro'
+
+// Label & warna badge plan
+const planConfig = computed(() => {
+  switch (userPlan.value) {
+    case 'enterprise': return { label: 'Enterprise', dotClass: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]' }
+    case 'pro':        return { label: 'Pro',        dotClass: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' }
+    default:           return { label: 'Basic',      dotClass: 'bg-zinc-400' }
+  }
 })
-const upgradeTo = computed(() => {
-  if (userPlan.value === 'pro') return '/pricing?plan=enterprise'
-  return '/pricing?plan=pro'
+
+// Upgrade button — null berarti tidak perlu ditampilkan (enterprise)
+const upgradeConfig = computed(() => {
+  switch (userPlan.value) {
+    case 'basic':      return { label: 'Upgrade to Pro',        to: '/pricing?plan=pro' }
+    case 'pro':        return { label: 'Upgrade to Enterprise', to: '/pricing?plan=enterprise' }
+    default:           return null  // enterprise — tidak perlu upgrade
+  }
 })
 
 // ─── Language Switcher ────────────────────────────────────────────────
@@ -903,21 +913,21 @@ function isLocationActive(type, id) {
               </DropdownMenuItem>
             </div>
 
-            <!-- Upgrade Button -->
-            <div class="px-3 pb-3">
-              <router-link :to="upgradeTo">
+            <!-- Upgrade Button — hanya tampil kalau bukan enterprise -->
+            <div v-if="upgradeConfig" class="px-3 pb-3">
+              <router-link :to="upgradeConfig.to">
                 <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
-                  {{ upgradeLabel }}
+                  {{ upgradeConfig.label }}
                 </Button>
               </router-link>
             </div>
 
             <div class="border-t border-border bg-zinc-50/50 dark:bg-zinc-900/50 px-3 py-2.5 flex items-center justify-between rounded-b-md">
               <div class="flex flex-col">
-                <span class="text-xs font-medium text-zinc-500">Platform Status</span>
-                <span class="text-[13px] text-zinc-900 dark:text-zinc-100">All systems normal.</span>
+                <span class="text-xs font-medium text-zinc-500">Plan Saat Ini</span>
+                <span class="text-[13px] text-zinc-900 dark:text-zinc-100 font-semibold capitalize">{{ planConfig.label }}</span>
               </div>
-              <div class="h-2.5 w-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+              <div :class="['h-2.5 w-2.5 rounded-full', planConfig.dotClass]"></div>
             </div>
           </DropdownMenuContent>
         </DropdownMenu>

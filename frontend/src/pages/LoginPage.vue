@@ -190,7 +190,7 @@ async function handleLogin() {
                 v-model="form.username"
                 type="text"
                 autocomplete="username"
-                placeholder="Masukkan username"
+                placeholder="masukan username"
                 :disabled="loading"
                 required
                 class="h-11 pl-10 border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:bg-white dark:focus:bg-zinc-950 text-zinc-900 dark:text-zinc-100 text-sm shadow-sm transition-all focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary"

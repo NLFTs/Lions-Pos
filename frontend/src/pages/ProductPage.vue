@@ -339,22 +339,51 @@ async function openEdit(product) {
     const res = await api.get(`/api/v1/product-photos/product/${product.id}`)
     const photos = res.data
     if (photos && photos.length > 0) {
-      form.value.images = photos.map(p => ({
-        id: p.id,
-        url: p.url,
-        file: null,
-        preview: p.url,
-        isPrimary: p.isPrimary ?? false,
-        isExisting: true
-      }))
+      // Deduplicate: kalau ada foto dengan URL yang sama, ambil yang punya id terkecil saja
+      const seen = new Map() // url → foto pertama
+      for (const p of photos) {
+        if (!seen.has(p.url)) {
+          seen.set(p.url, p)
+        }
+        // foto duplikat (URL sama) akan diabaikan — akan dihapus saat save
+      }
+      const uniquePhotos = Array.from(seen.values())
+
+      // Tandai duplikat untuk dihapus saat save
+      const uniqueIds = new Set(uniquePhotos.map(p => p.id))
+      for (const p of photos) {
+        if (!uniqueIds.has(p.id)) {
+          deletedPhotoIds.value.push(p.id)
+        }
+      }
+
+      let primarySet = false
+      form.value.images = uniquePhotos.map(p => {
+        const rawPrimary = p.isPrimary ?? p.is_primary ?? false
+        const isPrimary = rawPrimary && !primarySet
+        if (isPrimary) primarySet = true
+        return {
+          id: p.id,
+          url: p.url,
+          file: null,
+          preview: p.url,
+          isPrimary,
+          isExisting: true
+        }
+      })
+      if (!primarySet && form.value.images.length > 0) {
+        form.value.images[0].isPrimary = true
+      }
     } else if (product.imageUrl) {
+      // Tidak ada record di product_photos tapi ada imageUrl —
+      // tampilkan tapi id = null agar saat save dibuat record baru
       form.value.images = [{
         id: null,
         url: product.imageUrl,
         file: null,
         preview: product.imageUrl,
         isPrimary: true,
-        isExisting: true
+        isExisting: false
       }]
     }
   } catch (err) {
@@ -366,7 +395,7 @@ async function openEdit(product) {
         file: null,
         preview: product.imageUrl,
         isPrimary: true,
-        isExisting: true
+        isExisting: false
       }]
     }
   }
@@ -390,6 +419,10 @@ function handleImagesUpload(event) {
     return
   }
   
+  // Cek apakah sudah ada primary sebelum loop
+  const alreadyHasPrimary = form.value.images.some(img => img.isPrimary)
+  let firstNew = true
+
   for (const file of files) {
     if (file.size > 2 * 1024 * 1024) {
       toast.error(`File ${file.name} melebihi batas 2MB.`)
@@ -397,12 +430,16 @@ function handleImagesUpload(event) {
     }
     
     const preview = URL.createObjectURL(file)
+    // Gambar baru jadi primary hanya jika belum ada primary DAN ini yang pertama ditambahkan
+    const shouldBePrimary = !alreadyHasPrimary && firstNew
+    firstNew = false
+
     form.value.images.push({
       id: null,
       url: '',
       file: file,
       preview: preview,
-      isPrimary: form.value.images.length === 0,
+      isPrimary: shouldBePrimary,
       isExisting: false
     })
   }
@@ -410,7 +447,8 @@ function handleImagesUpload(event) {
 
 function removeImage(index) {
   const img = form.value.images[index]
-  if (img.isExisting && img.id) {
+  // Kalau punya id berarti sudah ada record di DB — tandai untuk dihapus
+  if (img.id) {
     deletedPhotoIds.value.push(img.id)
   }
   form.value.images.splice(index, 1)
@@ -454,16 +492,16 @@ async function saveProduct() {
   }
   saving.value = true
   try {
+    // ── Upload semua file baru ke storage terlebih dahulu ──
     await Promise.all(
       form.value.images.map(async (img) => {
-        if (!img.isExisting && img.file) {
+        if (!img.id && img.file) {
           const formData = new FormData()
           formData.append('file', img.file)
           const uploadRes = await api.post('/api/v1/upload/product', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           })
           img.url = uploadRes.data.data.url
-          img.isExisting = true
           img.file = null
         }
       })
@@ -479,7 +517,10 @@ async function saveProduct() {
       category_id: form.value.categoryId || undefined,
       track_stock: form.value.trackStock,
       is_active: form.value.isActive,
-      image_url: primaryUrl
+      // Saat create: TIDAK kirim image_url agar backend tidak auto-buat ProductPhoto record
+      // (semua foto diurus oleh loop di bawah secara konsisten)
+      // Saat edit: kirim image_url agar flag isPrimary di DB ikut diupdate
+      image_url: modalMode.value === 'edit' ? primaryUrl : undefined
     }
     
     let savedProduct;
@@ -493,6 +534,7 @@ async function saveProduct() {
     
     const productId = savedProduct.id
 
+    // ── Hapus foto yang ditandai untuk dihapus (mode edit) ──
     if (modalMode.value === 'edit' && deletedPhotoIds.value.length > 0) {
       await Promise.all(
         deletedPhotoIds.value.map(id => api.delete(`/api/v1/product-photos/${id}`))
@@ -500,19 +542,27 @@ async function saveProduct() {
       deletedPhotoIds.value = []
     }
 
-    // ── Sinkronisasi foto: update isPrimary untuk semua foto existing, tambah foto baru ──
+    // ── Sinkronisasi foto ke DB ──
+    // img.id ada   → record sudah ada di DB → PUT (update isPrimary/sortOrder)
+    // img.id null  → record belum ada di DB → POST (buat baru)
+    // img.url kosong → skip (file gagal upload atau tidak valid)
+    console.log('[DEBUG] images to sync:', form.value.images.map(img => ({ id: img.id, url: img.url?.slice(-20), isPrimary: img.isPrimary })))
     for (let i = 0; i < form.value.images.length; i++) {
       const img = form.value.images[i]
-      if (img.isExisting && img.id) {
-        // Update foto yang sudah ada — set isPrimary dan sortOrder
+      if (!img.url) continue  // skip gambar yang tidak punya URL
+
+      if (img.id) {
+        // Foto lama — update metadata saja
+        console.log(`[DEBUG] PUT photo id=${img.id}`)
         await api.put(`/api/v1/product-photos/${img.id}`, {
           product_id: productId,
           url: img.url,
           is_primary: img.isPrimary,
           sort_order: i
         })
-      } else if (!img.isExisting && img.url) {
-        // Tambah foto baru yang belum ada di DB
+      } else {
+        // Foto baru — buat record di DB
+        console.log(`[DEBUG] POST new photo url=${img.url?.slice(-20)}`)
         await api.post('/api/v1/product-photos', {
           product_id: productId,
           url: img.url,

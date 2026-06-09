@@ -578,18 +578,18 @@ function initials(u) {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                   <Label>Username <span class="text-destructive">*</span></Label>
-                  <Input v-model="form.username" placeholder="budi_santoso" :disabled="saving" autocomplete="off" />
+                  <Input v-model="form.username" placeholder="nairha" :disabled="saving" autocomplete="off" />
                   <p v-if="formErrors.username" class="text-xs text-destructive">{{ formErrors.username }}</p>
                 </div>
                 <div class="space-y-1.5">
                   <Label>Nama Lengkap</Label>
-                  <Input v-model="form.fullname" placeholder="Budi Santoso" :disabled="saving" />
+                  <Input v-model="form.fullname" placeholder="Nairha" :disabled="saving" />
                 </div>
               </div>
 
               <div class="space-y-1.5">
                 <Label>Email <span class="text-destructive">*</span></Label>
-                <Input v-model="form.email" placeholder="budi@example.com" :disabled="saving" />
+                <Input v-model="form.email" placeholder="nairha@nlfts.dev" :disabled="saving" />
                 <p v-if="formErrors.email" class="text-xs text-destructive">{{ formErrors.email }}</p>
               </div>
 

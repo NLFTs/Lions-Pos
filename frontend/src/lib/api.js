@@ -54,13 +54,17 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
-    // Skip refresh logic for login/refresh/logout to avoid loops
-    const isAuthPath = originalRequest.url.includes('/auth/login') || 
-                       originalRequest.url.includes('/auth/refresh') || 
-                       originalRequest.url.includes('/auth/logout')
+    // Skip refresh logic untuk auth endpoints agar tidak loop
+    const skipUrls = ['/auth/login', '/auth/refresh', '/auth/logout', '/auth/force-logout-all']
+    const isAuthPath = skipUrls.some(u => originalRequest?.url?.includes(u))
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthPath) {
+    // Cek apakah ini 401 yang bisa di-refresh
+    const is401 = error.response?.status === 401
+    const isTokenExpired = is401 || error.response?.data?.error === 'TOKEN_EXPIRED'
+
+    if (isTokenExpired && !originalRequest?._retry && !isAuthPath) {
       if (isRefreshing) {
+        // Antri request yang gagal, tunggu refresh selesai
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         })
@@ -74,52 +78,59 @@ api.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing = true
 
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (!refreshToken) {
+      const storedRefreshToken = localStorage.getItem('refresh_token')
+      if (!storedRefreshToken) {
+        isRefreshing = false
         useAuthStore().logout()
         return Promise.reject(error)
       }
 
       try {
-        console.log('[API] Attempting token refresh...')
-        
-        // Use a clean axios instance to avoid recursive interceptors
-        const refreshRes = await axios({
-          method: 'post',
-          url: `${api.defaults.baseURL}/api/v1/auth/refresh?refreshToken=${refreshToken}`,
-          headers: { 'Content-Type': 'application/json' }
-        })
-        
-        const newAccessToken = refreshRes.data.data.accessToken
-        console.log('[API] Token refresh successful.')
+        console.log('[API] Token expired, attempting refresh...')
 
-        // Sync new token to localStorage + store
+        // Pakai axios bersih — hindari interceptor recursive
+        const baseURL = import.meta.env.VITE_API_URL || window.location.origin
+        const refreshRes = await axios.post(
+          `${baseURL}/api/v1/auth/refresh?refreshToken=${encodeURIComponent(storedRefreshToken)}`
+        )
+
+        const newAccessToken = refreshRes.data?.data?.accessToken
+        if (!newAccessToken) throw new Error('No access token in refresh response')
+
+        console.log('[API] Token refresh successful, syncing session...')
+
+        // Simpan token baru
         localStorage.setItem('access_token', newAccessToken)
-        
         const auth = useAuthStore()
         auth.accessToken = newAccessToken
-        
-        // Decode permissions from new JWT
-        const newPerms = parseJwtPerms(newAccessToken)
-        auth.permissions = newPerms
-        localStorage.setItem('auth_permissions', JSON.stringify(newPerms))
+
+        // Sync ulang permissions dari server (lebih akurat dari JWT claim)
+        try {
+          await auth.fetchMe()
+        } catch (_) {
+          // fetchMe gagal tidak critical — pakai permissions dari JWT
+          const newPerms = parseJwtPerms(newAccessToken)
+          auth.permissions = newPerms
+          localStorage.setItem('auth_permissions', JSON.stringify(newPerms))
+        }
 
         processQueue(null, newAccessToken)
-        
-        // Update current request
+
+        // Retry original request dengan token baru
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
         return api(originalRequest)
-      } catch (err) {
-        processQueue(err, null)
+      } catch (refreshErr) {
+        console.warn('[API] Refresh token failed, logging out.', refreshErr.message)
+        processQueue(refreshErr, null)
         useAuthStore().logout()
-        return Promise.reject(err)
+        return Promise.reject(refreshErr)
       } finally {
         isRefreshing = false
       }
     }
 
     if (!error.response) {
-      console.warn('[API] Network Error / Backend unreachable. Entering offline shell mode.')
+      console.warn('[API] Network Error / Backend unreachable.')
       return Promise.reject({ ...error, isNetworkError: true })
     }
 

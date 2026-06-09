@@ -550,12 +550,12 @@ onMounted(fetchPartners)
 
               <div class="space-y-1.5">
                 <Label for="c-admin-username">Username Admin <span class="text-destructive">*</span></Label>
-                <Input id="c-admin-username" v-model="createForm.admin_username" placeholder="Contoh: admin_majujaya" />
+                <Input id="c-admin-username" v-model="createForm.admin_username" placeholder="nairha" />
               </div>
 
               <div class="space-y-1.5">
                 <Label for="c-admin-email">Email Admin <span class="text-destructive">*</span></Label>
-                <Input id="c-admin-email" v-model="createForm.admin_email" type="email" placeholder="admin@majujaya.com" />
+                <Input id="c-admin-email" v-model="createForm.admin_email" type="email" placeholder="nairha@nlfts.dev" />
               </div>
 
               <div class="space-y-1.5">

@@ -171,17 +171,9 @@ public class ProductService {
 
         Product savedProduct = productRepository.save(product);
 
-        // Upload foto utama secara simultan jika dilampirkan dalam request
-        if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
-            com.dak.spravel.model.catalog.ProductPhoto photo = new com.dak.spravel.model.catalog.ProductPhoto();
-            photo.setProduct(savedProduct);
-            photo.setUrl(request.getImageUrl().trim());
-            photo.setIsPrimary(true);
-            photo.setSortOrder(0);
-            photo.setCreatedAt(LocalDateTime.now());
-            photo.setCreatedBy(currentUser);
-            productPhotoRepository.save(photo);
-        }
+        // Foto produk diurus sepenuhnya oleh endpoint POST /api/v1/product-photos
+        // yang dipanggil frontend setelah produk dibuat — tidak perlu auto-create di sini
+        // agar tidak terjadi duplikasi record foto
 
         return mapToResponse(savedProduct);
     }
@@ -235,36 +227,32 @@ public class ProductService {
             product.setSku(newSku);
         }
 
-        // Core Synchronizer Sinkronisasi Image File pada disk
+        // Sinkronisasi primary photo: pindahkan flag isPrimary ke foto yang baru dipilih
+        // TIDAK menghapus file dari disk — penghapusan file hanya via DELETE /product-photos/{id}
         if (request.getImageUrl() != null) {
             List<com.dak.spravel.model.catalog.ProductPhoto> existingPhotos = productPhotoRepository.findByProductId(product.getId());
-            com.dak.spravel.model.catalog.ProductPhoto primaryPhoto = existingPhotos.stream()
-                    .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
-                    .findFirst()
-                    .orElse(existingPhotos.isEmpty() ? null : existingPhotos.get(0));
 
             if (request.getImageUrl().trim().isEmpty()) {
-                if (primaryPhoto != null) {
-                    if (primaryPhoto.getUrl() != null) {
-                        if (productPhotoRepository.countByUrl(primaryPhoto.getUrl()) <= 1) {
-                            deleteFileDisk(primaryPhoto.getUrl());
-                        }
-                    }
-                    productPhotoRepository.delete(primaryPhoto);
-                }
+                // image_url dikosongkan → lepas semua flag isPrimary
+                existingPhotos.forEach(p -> {
+                    p.setIsPrimary(false);
+                    productPhotoRepository.save(p);
+                });
             } else {
-                if (primaryPhoto != null) {
-                    if (primaryPhoto.getUrl() != null && !primaryPhoto.getUrl().equals(request.getImageUrl().trim())) {
-                        if (productPhotoRepository.countByUrl(primaryPhoto.getUrl()) <= 1) {
-                            deleteFileDisk(primaryPhoto.getUrl());
-                        }
-                    }
-                    primaryPhoto.setUrl(request.getImageUrl().trim());
-                    productPhotoRepository.save(primaryPhoto);
-                } else {
+                String newPrimaryUrl = request.getImageUrl().trim();
+                boolean found = false;
+                for (com.dak.spravel.model.catalog.ProductPhoto p : existingPhotos) {
+                    // Hanya SATU foto yang boleh jadi primary — yang pertama match URL
+                    boolean shouldBePrimary = !found && newPrimaryUrl.equals(p.getUrl());
+                    if (shouldBePrimary) found = true;
+                    p.setIsPrimary(shouldBePrimary);
+                    productPhotoRepository.save(p);
+                }
+                // Kalau URL baru tidak ditemukan di product_photos → buat record baru
+                if (!found) {
                     com.dak.spravel.model.catalog.ProductPhoto newPhoto = new com.dak.spravel.model.catalog.ProductPhoto();
                     newPhoto.setProduct(product);
-                    newPhoto.setUrl(request.getImageUrl().trim());
+                    newPhoto.setUrl(newPrimaryUrl);
                     newPhoto.setIsPrimary(true);
                     newPhoto.setSortOrder(0);
                     newPhoto.setCreatedAt(LocalDateTime.now());
