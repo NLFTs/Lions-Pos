@@ -3,6 +3,7 @@ package com.dak.spravel.model.auth;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import java.time.LocalDateTime;
@@ -35,6 +36,7 @@ public class Role {
     @Enumerated(EnumType.STRING)
     private Type type;
 
+    @Getter
     public enum Type {
         INTERNAL, EXTERNAL
     }
