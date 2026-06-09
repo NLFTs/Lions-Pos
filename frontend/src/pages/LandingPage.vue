@@ -31,11 +31,6 @@ const hideCookieBanner = () => {
   showCookieBanner.value = false
 }
 
-// GSAP Structure
-useGsap((gsap, ScrollTrigger) => {
-  // GSAP animations can be added here
-})
-
 // Configuration for Landing Page
 const brandName = 'gaptek'
 

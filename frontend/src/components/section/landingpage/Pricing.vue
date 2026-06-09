@@ -45,13 +45,14 @@ const plans = [
     highlight: false
   }
 ]
+
 </script>
 
 <template>
   <section id="pricing" class="py-24 px-6 bg-zinc-950/50">
     <div class="max-w-7xl mx-auto">
       <!-- Section Header -->
-      <div class="text-center mb-16">
+      <div class="pricing-header text-center mb-16">
         <h2 class="text-4xl md:text-5xl font-medium tracking-tight text-white mb-6">
           Pilih Paket yang <span class="text-primary italic">Tepat</span>
         </h2>
@@ -66,7 +67,7 @@ const plans = [
           v-for="(plan, index) in plans" 
           :key="index"
           :class="[
-            'relative p-8 rounded-[2.5rem] border transition-all duration-500 flex flex-col',
+            'pricing-card relative p-8 rounded-[2.5rem] border transition-all duration-500 flex flex-col',
             plan.highlight 
               ? 'bg-zinc-900 border-primary shadow-[0_0_40px_-15px_rgba(30,160,63,0.3)] scale-105 z-10' 
               : 'bg-zinc-900/40 border-white/5 hover:border-white/10'

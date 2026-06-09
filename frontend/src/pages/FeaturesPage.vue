@@ -6,6 +6,7 @@ import Features from '@/components/section/landingpage/Features.vue'
 import Footer from '@/components/section/landingpage/Footer.vue'
 import Button from '@/components/ui/Button.vue'
 import { Zap } from 'lucide-vue-next'
+import { useGsap } from '@/hooks/useGsap'
 
 const router = useRouter()
 
@@ -18,6 +19,24 @@ const navigationItems = [
 const handleNavigation = (path) => {
   router.push(path)
 }
+
+useGsap((gsap) => {
+  gsap.from('.features-header', {
+    y: 35,
+    opacity: 0,
+    duration: 1,
+    ease: 'power3.out'
+  })
+
+  gsap.from('.feature-card', {
+    y: 40,
+    opacity: 0,
+    duration: 0.8,
+    stagger: 0.06,
+    ease: 'power2.out',
+    delay: 0.1
+  })
+})
 </script>
 
 <template>

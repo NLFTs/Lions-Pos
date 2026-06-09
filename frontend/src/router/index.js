@@ -237,11 +237,6 @@ export const routes = [
   },
 
   {
-    path: '/about',
-    name: 'about',
-    component: () => import('@/pages/AboutPage.vue'),
-  },
-  {
     path: '/features',
     name: 'features',
     component: () => import('@/pages/FeaturesPage.vue'),
@@ -250,6 +245,11 @@ export const routes = [
     path: '/pricing',
     name: 'pricing',
     component: () => import('@/pages/PricingPage.vue'),
+  },
+  {
+    path: '/about',
+    name: 'about',
+    component: () => import('@/pages/AboutPage.vue'),
   },
   {
     path: '/:pathMatch(.*)*',
