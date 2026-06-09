@@ -538,7 +538,7 @@ onMounted(fetchWarehouses)
               <!-- Roles — hanya tampil jika username diisi -->
               <Transition name="fade">
                 <div v-if="createForm.username?.trim()" class="space-y-2">
-                  <div class="flex items-center gap-2"><Shield class="h-4 w-4 text-muted-foreground" /><Label class="text-sm font-semibold">Assign Role <span class="text-destructive">*</span></Label></div>
+                  <div class="flex items-center gap-2"><Shield class="h-4 w-4 text-muted-foreground" /><Label class="text-sm font-semibold">Tetapkan Role <span class="text-destructive">*</span></Label></div>
                   <div class="rounded-lg border border-input overflow-hidden">
                     <div class="max-h-52 overflow-y-auto divide-y divide-border">
                       <button v-for="role in roles" :key="role.id" type="button" @click="toggleRole(role.id)" :disabled="createSaving"

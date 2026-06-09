@@ -388,7 +388,7 @@ const barChartOptions = {
       <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
         <div class="flex items-center justify-between mb-8">
           <div>
-            <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5">BEST SELLERS</h3>
+            <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5">TERLARIS</h3>
             <h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-50">Produk Paling Laris</h2>
           </div>
           <button class="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">

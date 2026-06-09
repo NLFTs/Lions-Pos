@@ -4,10 +4,10 @@ import { Loader2 } from 'lucide-vue-next'
 
 // Vue 3.5+: destructuring props dengan default values
 const {
-  title = 'Are you sure?',
-  description = 'This action cannot be undone.',
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  title = 'Apakah Anda yakin?',
+  description = 'Tindakan ini tidak dapat dibatalkan.',
+  confirmLabel = 'Konfirmasi',
+  cancelLabel = 'Batal',
   variant = 'destructive',
   loading = false,
 } = defineProps({

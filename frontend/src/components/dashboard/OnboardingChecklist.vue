@@ -398,7 +398,7 @@ function navigate(to) {
             <button
               @click="fetchChecks"
               class="p-1 rounded hover:bg-muted transition-colors text-muted-foreground"
-              title="Refresh status"
+              title="Segarkan status"
             >
               <RefreshCw class="w-3 h-3" />
             </button>

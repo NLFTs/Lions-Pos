@@ -167,14 +167,14 @@ onMounted(fetchMasterData)
               @click="form.fromLocationType = 'WAREHOUSE'; form.fromLocationId = ''"
               :class="['flex items-center justify-center gap-2 h-8 rounded-md text-xs font-medium transition-all', form.fromLocationType === 'WAREHOUSE' ? 'bg-background dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 shadow-sm border border-zinc-200/50 dark:border-zinc-700' : 'text-zinc-500 hover:text-zinc-900']"
             >
-              <Warehouse class="h-3.5 w-3.5" /> Warehouse
+              <Warehouse class="h-3.5 w-3.5" /> Gudang
             </button>
             <button 
               type="button" 
               @click="form.fromLocationType = 'BRANCH'; form.fromLocationId = ''"
               :class="['flex items-center justify-center gap-2 h-8 rounded-md text-xs font-medium transition-all', form.fromLocationType === 'BRANCH' ? 'bg-background dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 shadow-sm border border-zinc-200/50 dark:border-zinc-700' : 'text-zinc-500 hover:text-zinc-900']"
             >
-              <Building2 class="h-3.5 w-3.5" /> Branch
+              <Building2 class="h-3.5 w-3.5" /> Cabang
             </button>
           </div>
 
@@ -206,14 +206,14 @@ onMounted(fetchMasterData)
               @click="form.toLocationType = 'WAREHOUSE'; form.toLocationId = ''"
               :class="['flex items-center justify-center gap-2 h-8 rounded-md text-xs font-medium transition-all', form.toLocationType === 'WAREHOUSE' ? 'bg-background dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 shadow-sm border border-zinc-200/50 dark:border-zinc-700' : 'text-zinc-500 hover:text-zinc-900']"
             >
-              <Warehouse class="h-3.5 w-3.5" /> Warehouse
+              <Warehouse class="h-3.5 w-3.5" /> Gudang
             </button>
             <button 
               type="button" 
               @click="form.toLocationType = 'BRANCH'; form.toLocationId = ''"
               :class="['flex items-center justify-center gap-2 h-8 rounded-md text-xs font-medium transition-all', form.toLocationType === 'BRANCH' ? 'bg-background dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50 shadow-sm border border-zinc-200/50 dark:border-zinc-700' : 'text-zinc-500 hover:text-zinc-900']"
             >
-              <Building2 class="h-3.5 w-3.5" /> Branch
+              <Building2 class="h-3.5 w-3.5" /> Cabang
             </button>
           </div>
 

@@ -6,7 +6,7 @@ import Input from '@/components/ui/Input.vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
-  placeholder: { type: String, default: 'Search...' },
+  placeholder: { type: String, default: 'Cari...' },
   debounce: { type: Number, default: 300 },
   class: { type: [String, Object, Array], default: '' },
   inputClass: { type: [String, Object, Array], default: '' },

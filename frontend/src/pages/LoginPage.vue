@@ -310,7 +310,7 @@ async function handleLogin() {
       <!-- FOOTER -->
       <p class="text-xs text-zinc-400 dark:text-zinc-600">
         &copy; {{ new Date().getFullYear() }} GapTek.
-        All rights reserved.
+        Hak cipta dilindungi.
       </p>
 
     </div>

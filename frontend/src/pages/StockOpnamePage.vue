@@ -36,10 +36,10 @@ const pageSize = ref(10)
 
 const statusOptions = [
   { value: 'all', label: 'Semua Status' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'counting', label: 'Counting' },
-  { value: 'reviewed', label: 'Reviewed' },
-  { value: 'approved', label: 'Approved' }
+  { value: 'draft', label: 'Draf' },
+  { value: 'counting', label: 'Menghitung' },
+  { value: 'reviewed', label: 'Ditinjau' },
+  { value: 'approved', label: 'Disetujui' }
 ]
 
 const locations = ref([])
@@ -194,7 +194,7 @@ function statusColor(s) {
 }
 
 function statusLabel(s) {
-  const m = { draft: 'Draft', counting: 'Counting', reviewed: 'Reviewed', approved: 'Approved' }
+  const m = { draft: 'Draf', counting: 'Menghitung', reviewed: 'Ditinjau', approved: 'Disetujui' }
   return m[s] || s
 }
 
@@ -215,7 +215,7 @@ onMounted(fetchData)
         <div v-if="!showForm" key="table-view" class="flex flex-col gap-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Stock Opname</h1>
+              <h1 class="text-2xl font-bold tracking-tight">Opname Stok</h1>
               <p class="text-muted-foreground text-sm mt-1">Audit dan rekonsiliasi stok barang secara berkala.</p>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
@@ -292,7 +292,7 @@ onMounted(fetchData)
                         </td>
                         <td class="py-4 text-xs text-muted-foreground">{{ formatDate(o.date) }}</td>
                         <td class="py-4 text-center">
-                          <div class="inline-flex items-center justify-center px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase">{{ o.items?.length || 0 }} Items</div>
+                          <div class="inline-flex items-center justify-center px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase">{{ o.items?.length || 0 }} Item</div>
                         </td>
                         <td class="py-4 text-center">
                           <Badge :class="['text-[9px] uppercase tracking-widest font-bold', statusColor(o.status)]" variant="outline">{{ statusLabel(o.status) }}</Badge>
@@ -362,11 +362,11 @@ onMounted(fetchData)
                     <div class="grid grid-cols-2 gap-2">
                       <button type="button" @click="form.location = 'warehouse'; form.locationId = ''; form.items = []"
                         :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
-                        <Warehouse class="h-3.5 w-3.5" />WAREHOUSE
+                        <Warehouse class="h-3.5 w-3.5" />GUDANG
                       </button>
                       <button type="button" @click="form.location = 'branch'; form.locationId = ''; form.items = []"
                         :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'branch' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
-                        <Building2 class="h-3.5 w-3.5" />BRANCH
+                        <Building2 class="h-3.5 w-3.5" />CABANG
                       </button>
                     </div>
                     <select v-model="form.locationId" @change="form.items = []" class="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">

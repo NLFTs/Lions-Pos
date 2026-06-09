@@ -89,7 +89,7 @@ async function fetchPermissions() {
     const res = await api.get('/api/v1/permissions')
     permissions.value = res.data.data
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to load permissions.'
+    error.value = err.response?.data?.message || 'Gagal memuat data permission.'
   } finally {
     loading.value = false
   }
@@ -152,18 +152,18 @@ async function savePermission() {
         name:     form.value.name,
         moduleId: form.value.moduleId,
       })
-      toast.success('Permission created!')
+      toast.success('Permission berhasil dibuat!')
     } else {
       await api.put(`/api/v1/permissions/${form.value.id}`, {
         name:     form.value.name,
         moduleId: form.value.moduleId,
       })
-      toast.success('Permission updated!')
+      toast.success('Permission berhasil diperbarui!')
     }
     showDrawer.value = false
     fetchPermissions()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Failed to save permission.'
+    formError.value = err.response?.data?.message || 'Gagal menyimpan permission.'
   } finally {
     saving.value = false
   }
@@ -172,17 +172,17 @@ async function savePermission() {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 async function doDelete(perm) {
   const ok = await confirm({
-    title: 'Delete Permission',
-    description: `Are you sure you want to delete "${perm.slug}"? Roles with this permission will lose it immediately.`,
+    title: 'Hapus Permission',
+    description: `Apakah Anda yakin ingin menghapus "${perm.slug}"? Role yang memiliki permission ini akan kehilangannya seketika.`,
   })
   if (!ok) return
 
   try {
     await api.delete(`/api/v1/permissions/${perm.id}`)
-    toast.success('Permission deleted!')
+    toast.success('Permission berhasil dihapus!')
     fetchPermissions()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Failed to delete permission.')
+    toast.error(err.response?.data?.message || 'Gagal menghapus permission.')
   }
 }
 </script>
@@ -192,9 +192,9 @@ async function doDelete(perm) {
     <div class="pb-6">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Permission Management</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Permission</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
-          Manage granular system permissions.
+          Kelola permission sistem secara granular.
         </p>
       </div>
 
@@ -202,7 +202,7 @@ async function doDelete(perm) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <DataTableSearch
           v-model="searchQuery"
-          placeholder="Search permissions..."
+          placeholder="Cari permission..."
           class="w-full max-w-sm"
           input-class="h-9 text-xs"
         />
@@ -235,7 +235,7 @@ async function doDelete(perm) {
                     v-if="activeFilterCount > 0"
                     @click="filterModule = ''"
                     class="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
-                  >Clear all</button>
+                  >Hapus semua</button>
                 </div>
 
                 <!-- Module Section -->
@@ -267,7 +267,7 @@ async function doDelete(perm) {
 
           <Button v-if="can('permission.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
-            <span>Add Permission</span>
+            <span>Tambah Permission</span>
           </Button>
         </div>
       </div>
@@ -283,7 +283,7 @@ async function doDelete(perm) {
 
         <div v-else-if="filtered.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <KeyRound class="h-10 w-10 mb-3 opacity-40" />
-          <p class="text-sm">No permissions found.</p>
+          <p class="text-sm">Tidak ada permission.</p>
         </div>
 
         <div v-else>

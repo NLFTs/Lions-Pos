@@ -52,15 +52,15 @@ const pageSize = ref(10)
 
 const statusOptions = [
   { value: 'all', label: 'Semua Status', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-zinc-100/70 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700 focus:bg-zinc-200/60 dark:focus:bg-zinc-800/80' },
-  { value: 'draft', label: 'Draft', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-orange-100/70 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/40 focus:bg-orange-200/50 dark:focus:bg-orange-950/55' },
+  { value: 'draft', label: 'Draf', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-orange-100/70 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/40 focus:bg-orange-200/50 dark:focus:bg-orange-950/55' },
   { value: 'ordered', label: 'Dipesan', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-emerald-100/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 focus:bg-emerald-200/50 dark:focus:bg-emerald-950/55' },
   { value: 'received', label: 'Diterima', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-teal-100/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900/40 focus:bg-teal-200/50 dark:focus:bg-teal-950/55' },
   { value: 'cancelled', label: 'Batal', class: 'my-0.5 text-zinc-900 dark:text-zinc-100 bg-red-100/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 focus:bg-red-200/50 dark:focus:bg-red-950/55' }
 ]
 
 const locationTypeOptions = [
-  { value: 'warehouse', label: 'Warehouse' },
-  { value: 'branch', label: 'Branch' }
+  { value: 'warehouse', label: 'Gudang' },
+  { value: 'branch', label: 'Cabang' }
 ]
 
 // ─── Form Data for Selects ───────────────────────────────────────────────────
@@ -323,7 +323,7 @@ function statusColor(s) {
 
 function statusLabel(s) {
   if (!s) return '-'
-  const m = { draft: 'Draft', ordered: 'Dipesan', partial: 'Sebagian', received: 'Diterima', cancelled: 'Batal' }
+  const m = { draft: 'Draf', ordered: 'Dipesan', partial: 'Sebagian', received: 'Diterima', cancelled: 'Batal' }
   return m[s.toLowerCase()] || s
 }
 

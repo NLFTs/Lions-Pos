@@ -60,7 +60,7 @@ async function fetchModules() {
     const res = await api.get('/api/v1/modules')
     modules.value = res.data.data
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to load modules.'
+    error.value = err.response?.data?.message || 'Gagal memuat data modul.'
   } finally {
     loading.value = false
   }
@@ -107,18 +107,18 @@ async function saveModule() {
         name:        form.value.name,
         description: form.value.description || null,
       })
-      toast.success('Module created!')
+      toast.success('Modul berhasil dibuat!')
     } else {
       await api.put(`/api/v1/modules/${form.value.id}`, {
         name:        form.value.name,
         description: form.value.description || null,
       })
-      toast.success('Module updated!')
+      toast.success('Modul berhasil diperbarui!')
     }
     showDrawer.value = false
     fetchModules()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Failed to save module.'
+    formError.value = err.response?.data?.message || 'Gagal menyimpan modul.'
   } finally {
     saving.value = false
   }
@@ -127,17 +127,17 @@ async function saveModule() {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 async function doDelete(mod) {
   const ok = await confirm({
-    title: 'Delete Module',
-    description: `Are you sure you want to delete "${mod.slug}"? All permissions in this module will lose their module reference.`,
+    title: 'Hapus Modul',
+    description: `Apakah Anda yakin ingin menghapus "${mod.slug}"? Semua permission dalam modul ini akan kehilangan referensi modulnya.`,
   })
   if (!ok) return
 
   try {
     await api.delete(`/api/v1/modules/${mod.id}`)
-    toast.success('Module deleted!')
+    toast.success('Modul berhasil dihapus!')
     fetchModules()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Failed to delete module.')
+    toast.error(err.response?.data?.message || 'Gagal menghapus modul.')
   }
 }
 </script>
@@ -147,9 +147,9 @@ async function doDelete(mod) {
     <div class="pb-6">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Module Management</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Modul</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
-          Manage system modules for access control.
+          Kelola modul sistem untuk kontrol akses.
         </p>
       </div>
 
@@ -157,19 +157,19 @@ async function doDelete(mod) {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <DataTableSearch
           v-model="searchQuery"
-          placeholder="Search modules..."
+          placeholder="Cari modul..."
           class="w-full max-sm"
           input-class="h-9 text-xs"
         />
         <div class="flex items-center gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 border-zinc-200">
             <LayoutGrid class="h-3.5 w-3.5" />
-            <span>Customize Columns</span>
+            <span>Sesuaikan Kolom</span>
             <ChevronDown class="h-3 w-3 text-zinc-400" />
           </Button>
           <Button v-if="can('module.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
-            <span>Add Module</span>
+            <span>Tambah Modul</span>
           </Button>
         </div>
       </div>
@@ -185,7 +185,7 @@ async function doDelete(mod) {
 
           <div v-else-if="filteredModules.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <Boxes class="h-10 w-10 mb-3 opacity-40" />
-          <p class="text-sm">No modules found.</p>
+          <p class="text-sm">Tidak ada modul.</p>
         </div>
 
         <div v-else>

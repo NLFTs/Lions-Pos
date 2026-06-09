@@ -16,9 +16,9 @@ const { confirm } = useConfirm()
 // ─── Active Tab ───────────────────────────────────────────────────────────────
 const activeTab = ref('general')
 const tabs = [
-  { key: 'general', label: 'General',  icon: User },
-  { key: 'style',   label: 'Style',    icon: Paintbrush },
-  { key: 'security',label: 'Security', icon: ShieldCheck },
+  { key: 'general', label: 'Umum',     icon: User },
+  { key: 'style',   label: 'Tampilan', icon: Paintbrush },
+  { key: 'security',label: 'Keamanan', icon: ShieldCheck },
 ]
 
 // ─── Avatar State ─────────────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ async function deleteAccount() {
 
       <!-- Page Title -->
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-foreground">Settings</h1>
+        <h1 class="text-2xl font-bold tracking-tight text-foreground">Pengaturan</h1>
       </div>
 
       <div class="flex flex-col sm:flex-row gap-8 items-start">
@@ -206,8 +206,8 @@ async function deleteAccount() {
             <!-- Avatar Row -->
             <div class="flex items-center justify-between px-5 py-4 bg-card hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
               <div>
-                <p class="text-sm font-semibold text-foreground">Avatar</p>
-                <p class="text-xs text-muted-foreground mt-0.5">Upload your public avatar</p>
+                <p class="text-sm font-semibold text-foreground">Foto Profil</p>
+                <p class="text-xs text-muted-foreground mt-0.5">Unggah foto profil publik Anda</p>
               </div>
               <div class="flex items-center gap-3">
                 <!-- Avatar Preview -->
@@ -232,8 +232,8 @@ async function deleteAccount() {
             <div class="px-5 py-4 bg-card">
               <div v-if="!nameEdit.editing" class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-semibold text-foreground">Name</p>
-                  <p class="text-xs text-muted-foreground mt-0.5">Change your name</p>
+                  <p class="text-sm font-semibold text-foreground">Nama</p>
+                  <p class="text-xs text-muted-foreground mt-0.5">Ubah nama Anda</p>
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ auth.user?.fullname || '—' }}</span>
@@ -275,7 +275,7 @@ async function deleteAccount() {
               <div v-if="!emailEdit.editing" class="flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-foreground">Email</p>
-                  <p class="text-xs text-muted-foreground mt-0.5">Change your email address</p>
+                  <p class="text-xs text-muted-foreground mt-0.5">Ubah alamat email Anda</p>
                 </div>
                 <div class="flex items-center gap-3">
                   <span class="text-sm text-zinc-500 dark:text-zinc-400">{{ auth.user?.email || auth.user?.username || '—' }}</span>
@@ -318,7 +318,7 @@ async function deleteAccount() {
               <div v-if="!pwEdit.editing" class="flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-foreground">Password</p>
-                  <p class="text-xs text-muted-foreground mt-0.5">Change your password</p>
+                  <p class="text-xs text-muted-foreground mt-0.5">Ubah password Anda</p>
                 </div>
                 <button @click="startPwEdit" class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
                   <Pencil class="w-4 h-4" />
@@ -397,8 +397,8 @@ async function deleteAccount() {
             <!-- Delete Account Row -->
             <div class="flex items-center justify-between px-5 py-4 bg-destructive/5 dark:bg-destructive/10">
               <div>
-                <p class="text-sm font-semibold text-foreground">Delete account</p>
-                <p class="text-xs text-destructive mt-0.5">Permanently delete your account</p>
+                <p class="text-sm font-semibold text-foreground">Hapus akun</p>
+                <p class="text-xs text-destructive mt-0.5">Hapus akun Anda secara permanen</p>
               </div>
               <button
                 @click="deleteAccount"
@@ -406,7 +406,7 @@ async function deleteAccount() {
                 class="flex items-center gap-2 px-4 py-2 rounded-lg bg-destructive text-white text-sm font-semibold hover:bg-destructive/90 transition-colors disabled:opacity-50"
               >
                 <Loader2 v-if="deletingAccount" class="w-4 h-4 animate-spin" />
-                <span>Delete</span>
+                <span>Hapus</span>
               </button>
             </div>
 
@@ -468,7 +468,7 @@ async function deleteAccount() {
 
             <!-- Roles -->
             <div class="px-5 py-4 bg-card">
-              <p class="text-sm font-semibold text-foreground mb-2">Roles</p>
+              <p class="text-sm font-semibold text-foreground mb-2">Peran (Roles)</p>
               <div class="flex flex-wrap gap-1.5">
                 <span
                   v-for="role in (auth.user?.roles || [])"
