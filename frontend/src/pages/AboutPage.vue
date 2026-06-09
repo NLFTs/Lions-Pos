@@ -10,21 +10,13 @@ import { useGsap } from '@/hooks/useGsap'
 const router = useRouter()
 
 const navigationItems = [
-  { name: 'Harga', path: '/#pricing' },
+  { name: 'Fitur', path: '/features' },
+  { name: 'Harga', path: '/pricing' },
   { name: 'Tentang Gaptek', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
-  if (path.startsWith('/#')) {
-    router.push('/').then(() => {
-      setTimeout(() => {
-        const el = document.querySelector(path.substring(1))
-        if (el) el.scrollIntoView({ behavior: 'smooth' })
-      }, 100)
-    })
-  } else {
-    router.push(path)
-  }
+  router.push(path)
 }
 
 const navigateBack = () => {

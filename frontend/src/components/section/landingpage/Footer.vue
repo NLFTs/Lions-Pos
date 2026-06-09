@@ -7,8 +7,8 @@ const footerLinks = [
   {
     title: 'Produk',
     links: [
-      { name: 'Fitur', href: '#features' },
-      { name: 'Harga', href: '#pricing' },
+      { name: 'Fitur', href: '/features' },
+      { name: 'Harga', href: '/pricing' },
       { name: 'Demo', href: '#' },
       { name: 'Integrasi', href: '#' }
     ]

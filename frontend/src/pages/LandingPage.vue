@@ -11,10 +11,7 @@ import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 
 // Async components for better performance
-const Features = defineAsyncComponent(() => import('@/components/section/landingpage/Features.vue'))
-
 const Steps = defineAsyncComponent(() => import('@/components/section/landingpage/Steps.vue'))
-const Pricing = defineAsyncComponent(() => import('@/components/section/landingpage/Pricing.vue'))
 const Footer = defineAsyncComponent(() => import('@/components/section/landingpage/Footer.vue'))
 
 const router = useRouter()
@@ -43,18 +40,13 @@ useGsap((gsap, ScrollTrigger) => {
 const brandName = 'gaptek'
 
 const navigationItems = [
-  { name: 'Fitur', path: '#features' },
-  { name: 'Harga', path: '#pricing' },
+  { name: 'Fitur', path: '/features' },
+  { name: 'Harga', path: '/pricing' },
   { name: 'Tentang Gaptek', path: '/about' }
 ]
 
 const handleNavigation = (path) => {
-  if (path.startsWith('#')) {
-    const el = document.querySelector(path)
-    if (el) el.scrollIntoView({ behavior: 'smooth' })
-  } else {
-    router.push(path)
-  }
+  router.push(path)
 }
 
 const navigateToLogin = () => {
@@ -138,9 +130,7 @@ const navigateToLogin = () => {
 
     <!-- Content Sections -->
 
-    <Features />
     <Steps />
-    <Pricing />
 
     <!-- Footer -->
     <Footer />

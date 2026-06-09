@@ -242,6 +242,16 @@ export const routes = [
     component: () => import('@/pages/AboutPage.vue'),
   },
   {
+    path: '/features',
+    name: 'features',
+    component: () => import('@/pages/FeaturesPage.vue'),
+  },
+  {
+    path: '/pricing',
+    name: 'pricing',
+    component: () => import('@/pages/PricingPage.vue'),
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/login',
   },
