@@ -205,6 +205,7 @@ public class OrdersService {
         order.setOrderNumber(request.getOrderNumber());
         order.setVoucher(voucher);
         order.setNotes(request.getNotes());
+        order.setBuyerName(request.getBuyerName());
         order.setStatus(Orders.PaymentStatus.DRAFT);
         order.setSubtotal(BigDecimal.ZERO);
         order.setDiscountAmount(discount);
@@ -597,6 +598,7 @@ public class OrdersService {
                 .discountAmount(order.getDiscountAmount())
                 .total(order.getTotal())
                 .notes(order.getNotes())
+                .buyerName(order.getBuyerName())
                 .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
                 .branchName(order.getBranch() != null ? order.getBranch().getName() : null)
                 .cashierId(order.getCashier() != null ? order.getCashier().getId() : null)
