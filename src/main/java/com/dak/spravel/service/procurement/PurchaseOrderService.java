@@ -118,7 +118,7 @@ public class PurchaseOrderService {
     public List<PurchaseOrder> findAllPurchaseOrders() {
         User currentUser = getAuthenticatedUser();
         checkSuperAdminOnly(currentUser);
-        return purchaseOrderRepository.findAll();
+        return purchaseOrderRepository.findAll(Sort.by("createdAt").descending());
     }
 
     // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
@@ -129,11 +129,11 @@ public class PurchaseOrderService {
 
         // 👑 Super Admin: lihat semua
         if (currentUser.getPartner() == null) {
-            return purchaseOrderRepository.findAll();
+            return purchaseOrderRepository.findAll(Sort.by("id").descending());
         }
 
         List<PurchaseOrder> partnerPOs = purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
-                currentUser.getPartner().getId());
+                currentUser.getPartner().getId(), Sort.by("id").descending());
 
         // 🏢 Branch isolation: user cabang hanya lihat PO untuk cabangnya
         if (currentUser.getBranch() != null) {

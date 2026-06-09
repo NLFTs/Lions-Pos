@@ -11,6 +11,8 @@ import java.util.List;
 @Repository
 public interface PurchaseReceiptRepository extends JpaRepository<PurchaseReceipt, Long> {
 
+    
+
     List<PurchaseReceipt> findByPurchaseOrderId(Long purchaseOrderId);
 
     // Untuk pagination di findAll(page, size) — filter by partner

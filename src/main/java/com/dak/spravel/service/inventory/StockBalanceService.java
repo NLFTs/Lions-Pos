@@ -559,10 +559,10 @@ public class StockBalanceService {
 
         if (currentUser.getPartner() == null) {
             products = productRepository.findAll();
-            mutations = stockMutationRepository.findAll();
+            mutations = stockMutationRepository.findAll(Sort.by("id").descending());
         } else {
             products = productRepository.findAllByPartner(currentUser.getPartner());
-            mutations = stockMutationRepository.findByPartner(currentUser.getPartner());
+            mutations = stockMutationRepository.findByPartner(currentUser.getPartner(), Sort.by("id").descending());
         }
 
         long totalProducts;
