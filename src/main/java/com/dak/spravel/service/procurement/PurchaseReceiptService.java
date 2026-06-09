@@ -1,5 +1,6 @@
 package com.dak.spravel.service.procurement;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -73,9 +74,9 @@ public class PurchaseReceiptService {
                 .flatMap(role -> role.getPermissions().stream())
                 .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
 
-        if (!hasPerm) {
-            throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
-        }
+        // if (!hasPerm) {
+        //     throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
+        // }
     }
 
     private void checkSuperAdminOnly(User user) {
@@ -123,7 +124,7 @@ public class PurchaseReceiptService {
     public List<PurchaseReceipt> findAllPurchaseReceipt() {
         User currentUser = getAuthenticatedUser();
         checkSuperAdminOnly(currentUser);
-        return purchaseReceiptRepository.findAll();
+        return purchaseReceiptRepository.findAll(Sort.by("id").ascending());
     }
 
     // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG BARU)
@@ -136,7 +137,7 @@ public class PurchaseReceiptService {
         }
 
         // Branch/Warehouse Isolation Guard
-        return purchaseReceiptRepository.findAll().stream()
+        return purchaseReceiptRepository.findAll(Sort.by("id").descending()).stream()
                 .filter(receipt -> receipt.getPurchaseOrder() != null
                         && receipt.getPurchaseOrder().getPartner() != null
                         && receipt.getPurchaseOrder().getPartner().getId().equals(currentUser.getPartner().getId()))
@@ -165,7 +166,7 @@ public class PurchaseReceiptService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "purchase_receipt.index"); // 💡 SINKRON: Menggunakan purchase_receipt.*
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("receivedDate").descending());
+        Pageable pageable = PageRequest.of(page, size, Sort.by("receivedDate").ascending());
 
         if (currentUser.getPartner() == null) {
             return purchaseReceiptRepository.findAll(pageable);
@@ -234,6 +235,10 @@ public class PurchaseReceiptService {
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
 
         // Branch/Warehouse Isolation Guard: strict — hanya bisa terima PO yang ditujukan ke lokasi sendiri
+        if (currentUser.getBranch() == null && currentUser.getWarehouse() == null) {
+            throw new RuntimeException("Tidak Bisa menerima PO yang ditujukan ke lokasi lain.");
+        }
+
         if (currentUser.getBranch() != null) {
             // User cabang: hanya bisa terima PO untuk cabangnya sendiri
             if (po.getLocationType() == null
@@ -356,13 +361,14 @@ public class PurchaseReceiptService {
     }
 
     private void updatePoStatus(PurchaseOrder po) {
+
         List<PurchaseOrderItems> poItems = purchaseOrderItemsRepository.findByPurchaseOrderId(po.getId());
 
         boolean allReceived = poItems.stream()
                 .allMatch(i -> i.getQtyReceived().compareTo(i.getQtyOrdered()) >= 0);
 
         boolean anyReceived = poItems.stream()
-                .anyMatch(i -> i.getQtyReceived().compareTo(java.math.BigDecimal.ZERO) > 0);
+                .anyMatch(i -> i.getQtyReceived().compareTo(BigDecimal.ZERO) > 0);
 
         if (allReceived) {
             po.setStatus(PurchaseOrder.Status.RECEIVED);

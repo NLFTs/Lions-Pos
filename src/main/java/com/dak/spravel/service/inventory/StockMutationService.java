@@ -140,7 +140,7 @@ public class StockMutationService {
             return stockMutationRepository.findAll().stream().map(this::mapToResponse).toList();
         }
 
-        List<StockMutation> data = stockMutationRepository.findByPartner(currentUser.getPartner());
+        List<StockMutation> data = stockMutationRepository.findByPartner(currentUser.getPartner(), Sort.by("id").descending());
 
         // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
         if (currentUser.getBranch() != null) {
@@ -172,7 +172,7 @@ public class StockMutationService {
         }
 
         // Ambil semua per partner, filter lokasi, lalu page manual
-        List<StockMutation> all = stockMutationRepository.findByPartner(currentUser.getPartner());
+        List<StockMutation> all = stockMutationRepository.findByPartner(currentUser.getPartner(), Sort.by("id").descending());
 
         if (currentUser.getBranch() != null) {
             Long branchId = currentUser.getBranch().getId();

@@ -6,6 +6,7 @@ import com.dak.spravel.model.inventory.StockMutation.ReferenceType;
 import com.dak.spravel.model.inventory.StockMutation.Type;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -16,7 +17,7 @@ public interface StockMutationRepository extends JpaRepository<StockMutation, Lo
 
     List<StockMutation> findByProductId(Long productId);
 
-    List<StockMutation> findByPartner(Partners partner);
+    List<StockMutation> findByPartner(Partners partner, Sort sort);
 
     Page<StockMutation> findByPartnerIdOrderByCreatedAtDesc(Long partnerId, Pageable pageable);
 

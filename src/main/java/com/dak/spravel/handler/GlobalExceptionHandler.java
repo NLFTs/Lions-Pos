@@ -78,4 +78,10 @@ public class GlobalExceptionHandler {
         ErrorData errorData = buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), request);
         return ResponseBuilder.error(HttpStatus.INTERNAL_SERVER_ERROR, ResponseConstant.MSG_SERVER_ERROR, errorData);
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ResData<ErrorData>> handleRuntimeException(RuntimeException ex, HttpServletRequest request) {
+        ErrorData errorData = buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+        return ResponseBuilder.error(HttpStatus.BAD_REQUEST, ex.getMessage(), errorData);
+    }
 }
