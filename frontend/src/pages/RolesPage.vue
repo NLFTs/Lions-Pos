@@ -304,9 +304,9 @@ async function doDelete(role) {
   <AppLayout>
     <div class="pb-6">
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Role</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Hak akses</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
-          Kelola role sistem dan hak aksesnya.
+          Kelola hak akses
         </p>
       </div>
 

@@ -259,7 +259,7 @@ const barChartOptions = {
       <!-- Header -->
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">INSIGHT & ANALITIK</h3>
+          <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">WAWASAN & ANALISIS DATA</h3>
           <h1 class="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">Laporan</h1>
           <p class="text-sm text-muted-foreground mt-1.5">
             Analisis performa bisnis berdasarkan data transaksi Terminal POS.

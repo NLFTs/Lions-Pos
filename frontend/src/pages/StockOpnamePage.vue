@@ -215,7 +215,7 @@ onMounted(fetchData)
         <div v-if="!showForm" key="table-view" class="flex flex-col gap-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Opname Stok</h1>
+              <h1 class="text-2xl font-bold tracking-tight">Opname stok</h1>
               <p class="text-muted-foreground text-sm mt-1">Audit dan rekonsiliasi stok barang secara berkala.</p>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">

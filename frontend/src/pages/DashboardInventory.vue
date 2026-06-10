@@ -71,9 +71,9 @@ const dashboardTitle = computed(() => {
   const type = route.query.locationType
   const id = route.query.locationId
   if (type && id) {
-    return `Dashboard Inventory - ${getLocationName(type, id)}`
+    return `Dashboard Inventaris- ${getLocationName(type, id)}`
   }
-  return 'Dashboard Inventory'
+  return 'Dashboard Inventaris'
 })
 
 // ─── Computed: Filter & Paginate Table ──────────────────────────────────────
@@ -337,7 +337,7 @@ onMounted(async () => {
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-blue-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Total Semua Product</span>
+                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Total Semua Produk</span>
                 <div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
                   <Package class="w-4 h-4" />
                 </div>
@@ -356,7 +356,7 @@ onMounted(async () => {
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-red-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Product Rusak</span>
+                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Produk Rusak</span>
                 <div class="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center">
                   <AlertTriangle class="w-4 h-4" />
                 </div>
@@ -375,7 +375,7 @@ onMounted(async () => {
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-emerald-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Product Masuk</span>
+                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Produk Masuk</span>
                 <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                   <TrendingUp class="w-4 h-4" />
                 </div>
@@ -394,7 +394,7 @@ onMounted(async () => {
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-rose-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Product Keluar</span>
+                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Produk Keluar</span>
                 <div class="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
                   <TrendingDown class="w-4 h-4" />
                 </div>

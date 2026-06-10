@@ -287,12 +287,12 @@ onMounted(fetchPartners)
     <div class="pb-6">
       <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manajemen Partner</h1>
+          <h1 class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Manajemen Mitra</h1>
           <p class="text-xs text-zinc-500 mt-0.5">Kelola data mitra bisnis & akun admin mereka.</p>
         </div>
         <Button v-if="can('partner.store')" @click="openCreate" class="bg-primary hover:bg-primary/90 flex items-center gap-2">
           <Plus class="h-4 w-4" />
-          <span>Tambah Partner</span>
+          <span>Tambah Mitra</span>
         </Button>
       </div>
 
@@ -390,7 +390,7 @@ onMounted(fetchPartners)
                         @change="toggleSelectAll"
                       />
                     </th>
-                    <th class="pl-2 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Partner</th>
+                    <th class="pl-2 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Mitra</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Plan</th>
                     <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Status</th>

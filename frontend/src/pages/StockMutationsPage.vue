@@ -130,7 +130,7 @@ onMounted(fetchData)
       <!-- Header -->
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Riwayat Mutasi</h1>
+          <h1 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Pergerakan Stok</h1>
           <p class="text-muted-foreground text-sm mt-1">Audit log pergerakan stok barang secara real-time.</p>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto">

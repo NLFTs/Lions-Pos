@@ -77,7 +77,7 @@ const activeSidebar = ref('main')
 
 // Inventory Sub-Sidebar Menu — dengan permission filter
 const INVENTORY_MENU_RAW = [
-  { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
+  { label: 'Dashboard Inventaris', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
   { label: 'Opname Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
@@ -141,26 +141,26 @@ const MENU_GROUPS = [
     ],
   },
   {
-    label: 'Procurement',
+    label: 'Pengadaan',
     items: [
       { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
       { label: 'Pembelian', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
   {
-    label: 'Management',
+    label: 'Manajemen',
     items: [
       { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
-      { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
+      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
     label: 'Kontrol Akses',
     items: [
-      { label: 'Role', icon: ShieldCheck, to: '/dashboard/roles', permission: 'role.index' },
-      { label: 'Permission', icon: KeyRound, to: '/dashboard/permissions', permission: 'permission.index' },
+      { label: 'Hak akses', icon: ShieldCheck, to: '/dashboard/roles', permission: 'role.index' },
+      { label: 'Perizinan', icon: KeyRound, to: '/dashboard/permissions', permission: 'permission.index' },
       { label: 'Modul', icon: Zap, to: '/dashboard/modules', permission: 'module.index' },
     ],
   },
@@ -389,7 +389,7 @@ const filteredSearchItems = computed(() => {
 })
 
 const currentPageTitle = computed(() => {
-  if (route.path === '/dashboard') return 'Dasbor'
+  if (route.path === '/dashboard') return 'Dashboard'
   
   const matchedItem = searchableMenuItems.value.find(item => item.to === route.path)
   if (matchedItem) return matchedItem.label
@@ -720,7 +720,7 @@ function isLocationActive(type, id) {
               class="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
             >
               <ChevronLeft class="w-4 h-4 shrink-0" />
-              <span>Inventory</span>
+              <span>Inventaris</span>
             </button>
             <div class="mx-3 mt-3 mb-1 border-t border-zinc-200 dark:border-zinc-800"></div>
           </div>
