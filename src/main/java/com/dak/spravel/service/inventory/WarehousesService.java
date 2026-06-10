@@ -101,7 +101,7 @@ public class WarehousesService {
         return w;
     }
 
-    // ─── 🔄 MAPPER SECTION ────────────────────────────────────────────────────
+    // ─── MAPPER SECTION ────────────────────────────────────────────────────
 
     private WarehouseResponse mapToResponse(Warehouses w) {
         if (w == null) return null;
@@ -231,10 +231,6 @@ public class WarehousesService {
                 throw new IllegalArgumentException("Password wajib diisi dan minimal 6 karakter.");
             }
 
-            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
-                throw new IllegalArgumentException("Wajib pilih minimal satu role untuk user gudang.");
-            }
-
             User warehouseUser = new User();
             warehouseUser.setUsername(username);
             warehouseUser.setFullname("Gudang " + saved.getName());
@@ -242,9 +238,11 @@ public class WarehousesService {
             warehouseUser.setPassword(passwordEncoder.encode(request.getPassword()));
             warehouseUser.setPartner(currentUser.getPartner());
             warehouseUser.setWarehouse(saved);
-            
-            // 💡 FIX: Oper currentUser ke dalam fungsi resolveRoles
-            warehouseUser.setRoles(resolveRoles(request.getRoleIds(), currentUser));
+
+            // AUTO-ASSIGN: Role gudang diberikan otomatis berdasarkan konteks gudang
+            Role pengelolaGudangRole = roleRepository.findBySlug("pengelola-gudang")
+                .orElseThrow(() -> new RuntimeException("Role gudang tidak ditemukan. Pastikan seeder sudah berjalan."));
+            warehouseUser.setRoles(new HashSet<>(Set.of(pengelolaGudangRole)));
 
             userRepository.save(warehouseUser);
         }
@@ -267,28 +265,6 @@ public class WarehousesService {
         }
 
         return mapToResponse(saved);
-    }
-
-    // ─── 🛡️ HELPER FIX: Resolve roles murni global dengan context currentUser ────────────
-
-    private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
-        List<Role> roles = roleRepository.findAllById(roleIds);
-
-        if (roles.size() != roleIds.size()) {
-            throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
-        }
-
-        for (Role role : roles) {
-            // 🔥 PROTEKSI GLOBAL: Cegat suntikan role 'admin' atau 'super-admin' pusat ke level staff gudang
-            if (currentUser.getPartner() != null) {
-                String roleSlug = role.getSlug().toLowerCase();
-                if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
-                    throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff gudang.");
-                }
-            }
-        }
-
-        return new HashSet<>(roles);
     }
 
     // ─── UPDATE WAREHOUSE ─────────────────────────────────────────────────────

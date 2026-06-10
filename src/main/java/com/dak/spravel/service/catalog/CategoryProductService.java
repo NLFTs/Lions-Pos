@@ -42,9 +42,9 @@ public class CategoryProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -65,13 +65,13 @@ public class CategoryProductService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER) ──────────────────────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER) ──────────────────────────
 
     private CategoryProduct getValidatedCategory(Long id, User currentUser) {
         CategoryProduct category = categoryProductRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("CategoryProduct", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        // Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return category;
         }
@@ -83,7 +83,7 @@ public class CategoryProductService {
         return category;
     }
 
-    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
+    // ─── MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -109,7 +109,7 @@ public class CategoryProductService {
 
     public List<CategoryProductResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "category.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "category.index"); // Saring via permission index
 
         if (currentUser.getPartner() == null) {
             return categoryProductRepository.findAll().stream().map(this::mapToResponse).toList();
@@ -141,7 +141,7 @@ public class CategoryProductService {
     @Transactional
     public CategoryProductResponse create(CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "category.store"); // 💡 Siapapun boleh input asal diberi izin
+        checkPermission(currentUser, "category.store"); // Siapapun boleh input asal diberi izin
 
         Partners partner = currentUser.getPartner();
         CategoryProduct parent = null;
@@ -218,7 +218,7 @@ public class CategoryProductService {
         categoryProductRepository.delete(c);
     }
 
-    // ─── 🔄 PRIVATE MAPPERS & UTILS ───────────────────────────────────────────
+    // ─── PRIVATE MAPPERS & UTILS ───────────────────────────────────────────
 
     private CategoryProductResponse mapToResponse(CategoryProduct c) {
         if (c == null) return null;

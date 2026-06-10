@@ -30,7 +30,7 @@ public class ProductPhotoService {
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
-    // ─── 💾 FILE SYSTEM UTILS ──────────────────────────────────────────────────
+    // ─── FILE SYSTEM UTILS ──────────────────────────────────────────────────
 
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
@@ -47,7 +47,7 @@ public class ProductPhotoService {
         }
     }
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -58,9 +58,9 @@ public class ProductPhotoService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -75,13 +75,13 @@ public class ProductPhotoService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER) ──────────────────────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER) ──────────────────────────
 
     private ProductPhoto getValidatedPhoto(Long id, User currentUser) {
         ProductPhoto photo = productPhotoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductPhoto", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        // Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return photo;
         }
@@ -93,12 +93,12 @@ public class ProductPhotoService {
         return photo;
     }
 
-    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
+    // ─── MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
 
     // GET / View foto produk berdasarkan ID produk
     public List<ProductPhoto> findByProductId(Long productId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.show"); // 💡 Ikut ke permission show produk
+        checkPermission(currentUser, "produk.show"); // Ikut ke permission show produk
         
         // Handling aman super admin / partner user scope
         Product product;
@@ -116,7 +116,7 @@ public class ProductPhotoService {
     }
 
     // ==========================================
-    // CREATE (🔒 Berbasis Permission)
+    // CREATE (Basis Permission)
     // ==========================================
     @Transactional
     public ProductPhoto create(ProductPhotoRequestDTO request) {
@@ -158,7 +158,7 @@ public class ProductPhotoService {
     }
 
     // ==========================================
-    // UPDATE (🔒 Berbasis Permission)
+    // UPDATE (Berbasis Permission)
     // ==========================================
     @Transactional
     public ProductPhoto update(Long id, ProductPhotoRequestDTO request) {
@@ -187,7 +187,7 @@ public class ProductPhotoService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.delete"); // 💡 Sikat pake permission delete produk
+        checkPermission(currentUser, "produk.delete"); // Sikat pake permission delete produk
 
         ProductPhoto photo = getValidatedPhoto(id, currentUser);
         if (photo.getUrl() != null) {

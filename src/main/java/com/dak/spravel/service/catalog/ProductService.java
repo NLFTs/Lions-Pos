@@ -8,9 +8,12 @@ import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.catalog.CategoryProduct;
 import com.dak.spravel.model.catalog.Product;
+import com.dak.spravel.model.catalog.ProductPhoto;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.CategoryProductRepository;
+import com.dak.spravel.repository.catalog.ProductPhotoRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.util.AuditHelper;
@@ -35,7 +38,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final CategoryProductRepository categoryRepository;
     private final UserRepository userRepository;
-    private final com.dak.spravel.repository.catalog.ProductPhotoRepository productPhotoRepository;
+    private final ProductPhotoRepository productPhotoRepository;
     private final StockBalanceRepository stockBalanceRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
@@ -328,7 +331,7 @@ public class ProductService {
         Product product = getValidatedProduct(id, currentUser);
 
         // 🛡️ GUARD: Cek apakah masih ada stok aktif di lokasi manapun
-        List<com.dak.spravel.model.inventory.StockBalance> stockBalances = stockBalanceRepository.findByProductId(product.getId());
+        List<StockBalance> stockBalances = stockBalanceRepository.findByProductId(product.getId());
         long nonZeroStocks = stockBalances.stream()
                 .filter(sb -> sb.getQty() != null && sb.getQty() > 0)
                 .count();
@@ -340,8 +343,8 @@ public class ProductService {
         }
 
         // 🧹 Hapus semua foto produk terlebih dahulu
-        List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
-        for (com.dak.spravel.model.catalog.ProductPhoto photo : photos) {
+        List<ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
+        for (ProductPhoto photo : photos) {
             if (photo.getUrl() != null) {
                 if (productPhotoRepository.countByUrl(photo.getUrl()) <= 1) {
                     deleteFileDisk(photo.getUrl());
@@ -399,8 +402,8 @@ public class ProductService {
             resp.setCategoryId(cDto);
         }
 
-        List<com.dak.spravel.model.catalog.ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
-        com.dak.spravel.model.catalog.ProductPhoto primaryPhoto = photos.stream()
+        List<ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
+        ProductPhoto primaryPhoto = photos.stream()
                 .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
                 .findFirst()
                 .orElse(photos.isEmpty() ? null : photos.get(0));

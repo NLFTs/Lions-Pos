@@ -51,7 +51,7 @@ public class UserService {
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
-    // ─── 💾 FILE SYSTEM UTILS ──────────────────────────────────────────────────
+    // ─── FILE SYSTEM UTILS ──────────────────────────────────────────────────
 
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
@@ -94,14 +94,14 @@ public class UserService {
         }
     }
 
-    // 🚨 KUNCI UTAMA: Validasi Role Sekarang Bersifat Global Khusus Buat Master Pusat
+    // KUNCI UTAMA: Validasi Role Sekarang Bersifat Global Khusus Buat Master Pusat
     private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
         Set<Role> roles = new HashSet<>();
         for (Long roleId : roleIds) {
             Role role = roleRepository.findById(roleId)
                     .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
             
-            // 🔥 PROTEKSI 1: Partner dilarang keras memakai atau menembak role master 'admin' atau 'super-admin'
+            // PROTEKSI 1: Partner dilarang keras memakai atau menembak role master 'admin' atau 'super-admin'
             if (currentUser.getPartner() != null) {
                 String roleSlug = role.getSlug().toLowerCase();
                 if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
@@ -113,7 +113,7 @@ public class UserService {
         return roles;
     }
 
-    // ─── 🚀 CORE METHODS MANAGEMENT USER ────────────────────────────────────────
+    // ─── CORE METHODS MANAGEMENT USER ────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAll() {
@@ -213,7 +213,7 @@ public class UserService {
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         }
 
-        // ─── 🛡️ BRANCH GUARD ───
+        // ─── BRANCH GUARD ───
         if (request.getBranchId() != null) {
             Branches branch = branchesRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
@@ -224,7 +224,7 @@ public class UserService {
             user.setWarehouse(null);
         }
 
-        // ─── 🛡️ WAREHOUSE GUARD ───
+        // ─── WAREHOUSE GUARD ───
         if (request.getWarehouseId() != null) {
             Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
@@ -324,7 +324,7 @@ public class UserService {
             user.setBranch(branch);
             user.setWarehouse(null);
 
-            // 💡 Auto-assign role karyawan-cabang jika belum punya role apapun atau belum punya role cabang
+            // Auto-assign role karyawan-cabang jika belum punya role apapun atau belum punya role cabang
             boolean alreadyHasBranchRole = user.getRoles().stream().anyMatch(r -> {
                 String s = r.getSlug().toLowerCase();
                 return s.equals("karyawan-cabang") || s.equals("pengelola-cabang")
@@ -350,7 +350,7 @@ public class UserService {
             user.setWarehouse(warehouse);
             user.setBranch(null);
 
-            // 💡 Auto-assign role karyawan-gudang jika belum punya role gudang
+            // Auto-assign role karyawan-gudang jika belum punya role gudang
             boolean alreadyHasWarehouseRole = user.getRoles().stream().anyMatch(r -> {
                 String s = r.getSlug().toLowerCase();
                 return s.equals("karyawan-gudang") || s.equals("pengelola-gudang")
@@ -370,7 +370,7 @@ public class UserService {
             if (isSelfUpdate) {
                 throw new RuntimeException("Akses Ditolak: Demi keamanan, Anda tidak bisa memanipulasi Role Anda sendiri.");
             }
-            // 🔥 Diubah: Kirim objek `currentUser` untuk mencegah suntikan role pusat
+            // Diubah: Kirim objek `currentUser` untuk mencegah suntikan role pusat
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             permissionCacheService.evict(user.getUsername());
         }
@@ -429,7 +429,7 @@ public class UserService {
         userRepository.save(currentUser);
     }
 
-    // ─── 🔄 PRIVATE MAPPERS & UTILS ───────────────────────────────────────────
+    // ─── PRIVATE MAPPERS & UTILS ───────────────────────────────────────────
 
     private UserResponse toResponse(User user) {
         UserResponse res = new UserResponse();

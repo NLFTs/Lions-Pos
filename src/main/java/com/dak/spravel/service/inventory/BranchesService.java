@@ -184,6 +184,10 @@ public class BranchesService {
             if (userRepository.findByUsername(username).isPresent()) {
                 throw new IllegalArgumentException("Username '" + username + "' sudah digunakan.");
             }
+
+            if (request.getPassword() == null || request.getPassword().length() < 6) {
+                throw new IllegalArgumentException("Password wajib diisi dan minimal 6 karakter.");
+            }
     
             User branchUser = new User();
             branchUser.setUsername(username);
@@ -193,7 +197,7 @@ public class BranchesService {
             branchUser.setPartner(partner);
             branchUser.setBranch(savedBranch);
     
-            // 💡 AUTO-ASSIGN: Role pengelola-cabang diberikan otomatis berdasarkan konteks cabang
+            // AUTO-ASSIGN: Role pengelola-cabang diberikan otomatis berdasarkan konteks cabang
             Role pengelolaCabangRole = roleRepository.findBySlug("pengelola-cabang")
                 .orElseThrow(() -> new RuntimeException("Role pengelola-cabang tidak ditemukan. Pastikan seeder sudah berjalan."));
             branchUser.setRoles(new HashSet<>(Set.of(pengelolaCabangRole)));
