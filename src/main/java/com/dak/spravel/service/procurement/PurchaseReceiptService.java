@@ -236,7 +236,7 @@ public class PurchaseReceiptService {
 
         // Branch/Warehouse Isolation Guard: strict — hanya bisa terima PO yang ditujukan ke lokasi sendiri
         if (currentUser.getBranch() == null && currentUser.getWarehouse() == null) {
-            throw new RuntimeException("Tidak Bisa menerima PO yang ditujukan ke lokasi lain.");
+            throw new RuntimeException("PO Hanya bisa diterima oleh penerima");
         }
 
         if (currentUser.getBranch() != null) {

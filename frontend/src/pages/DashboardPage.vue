@@ -511,7 +511,7 @@ function toggleAllOrders() {
         </div>
 
         <!-- New Project Button -->
-        <div class="relative shrink-0" ref="dropdownRef">
+        <!-- <div class="relative shrink-0" ref="dropdownRef">
           <button
             id="btn-new-project"
             @click.stop="dropdownOpen = !dropdownOpen"
@@ -535,7 +535,7 @@ function toggleAllOrders() {
               {{ item.label }}
             </RouterLink>
           </div>
-        </div>
+        </div> -->
       </div>
 
       <!-- ── Loading State ─────────────────────────────────────────────────── -->
