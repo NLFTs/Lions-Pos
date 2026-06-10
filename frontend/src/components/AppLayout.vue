@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   TrendingUp,
   Building2,
+  Handshake,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -121,7 +122,7 @@ const MENU_GROUPS = [
       {
         label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null
       },
-      { label: 'Partner', icon: Users, to: '/dashboard/partners', permission: 'partner.index' },
+      { label: 'Mitra', icon: Handshake, to: '/dashboard/partners', permission: 'partner.index' },
     ]
   },
   {
@@ -135,7 +136,7 @@ const MENU_GROUPS = [
     label: 'Inventaris',
     items: [
       { label: 'Produk', icon: ScrollText, to: '/dashboard/products', permission: 'produk.index' },
-      { label: 'Inventory', icon: Warehouse, to: '/dashboard/inventory', subSidebar: 'inventory', permission: null },
+      { label: 'Data Inventaris', icon: Warehouse, to: '/dashboard/inventory', subSidebar: 'inventory', permission: null },
       { label: 'Kategori', icon: FileText, to: '/dashboard/categories', permission: 'category.index' },
     ],
   },

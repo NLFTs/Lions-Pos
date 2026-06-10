@@ -23,7 +23,6 @@ public class TransferRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
