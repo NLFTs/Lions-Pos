@@ -293,6 +293,7 @@ const payMethod = ref('cash')
 const cashTendered = ref('')
 const bankName = ref('')
 const referenceNo = ref('')
+const buyerName = ref('')
 const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
 
 function openPayment() { 
@@ -305,7 +306,8 @@ function openPayment() {
   payMethod.value = 'cash'
   cashTendered.value = ''
   bankName.value = ''
-  referenceNo.value = '' 
+  referenceNo.value = ''
+  buyerName.value = ''
 }
 
 function closePayment() {
@@ -402,6 +404,7 @@ async function checkout() {
       orderNumber: `ORD-${Date.now()}`,
       voucherId: appliedVoucher.value?.id,
       notes: null,
+      buyerName: buyerName.value?.trim() || null,
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
@@ -700,9 +703,14 @@ function avatarStyle(name = '') {
                 </div>
               </div>
 
+              <!-- Nama Pembeli -->
               <div class="flex flex-col gap-2">
-                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>
-                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nama Pembeli <span class="normal-case font-normal">(opsional)</span></label>
+                <Input v-model="buyerName" placeholder="Contoh: Budi Santoso" class="h-11 rounded-[12px]" />
+              </div>
+
+              <div class="flex flex-col gap-2">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
                   <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'cash' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
                     <Banknote class="h-[14px] w-[14px]" />Tunai
                   </button>

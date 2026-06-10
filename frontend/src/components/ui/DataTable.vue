@@ -21,7 +21,7 @@ const props = defineProps({
   // Loading
   loading: { type: Boolean, default: false },
   // Empty state
-  emptyMessage: { type: String, default: 'No data available.' },
+  emptyMessage: { type: String, default: 'Tidak ada data.' },
   // Features
   sortable: { type: Boolean, default: true },
   selectable: { type: Boolean, default: false },
@@ -58,8 +58,7 @@ function getSortIcon(column) {
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="flex flex-col items-center gap-3">
           <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p class="text-sm text-muted-foreground">Loading data...</p>
-        </div>
+          <p class="text-sm text-muted-foreground">Memuat data...</p>        </div>
       </div>
 
       <template v-else>
@@ -95,7 +94,7 @@ function getSortIcon(column) {
                     </div>
                   </TableHead>
                 </template>
-                <TableHead v-if="$slots.actions" class="w-24 text-right pr-6">Actions</TableHead>
+                <TableHead v-if="$slots.actions" class="w-24 text-right pr-6">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

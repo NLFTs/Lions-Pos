@@ -109,8 +109,8 @@ async function copyLog() {
     
     isCopied.value = true
     notify({
-      title: 'Log copied',
-      message: 'Audit log details copied to clipboard.',
+      title: 'Log disalin',
+      message: 'Detail audit log berhasil disalin ke clipboard.',
       type: 'success',
       duration: 3000
     })
@@ -118,8 +118,8 @@ async function copyLog() {
   } catch (err) {
     console.error('Failed to copy log', err)
     notify({
-      title: 'Copy failed',
-      message: 'Could not copy log. Clipboard access denied.',
+      title: 'Gagal menyalin',
+      message: 'Tidak dapat menyalin log. Akses clipboard ditolak.',
       type: 'error',
       duration: 3000
     })
@@ -205,7 +205,7 @@ function getStatusTextColor(status) {
         <div class="flex items-center gap-2 ml-4 shrink-0">
           <Button variant="outline" size="sm" class="h-8 gap-2 bg-zinc-100 dark:bg-[#111111] border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-[#222]">
             <PlayCircle class="h-3.5 w-3.5" />
-            <span class="hidden sm:inline">Live</span>
+            <span class="hidden sm:inline">Langsung</span>
           </Button>
           <Button variant="outline" size="icon" class="h-8 w-8 bg-zinc-100 dark:bg-[#111111] border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-[#222]" @click="fetchLogs(0)">
             <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': loading }" />
@@ -221,11 +221,11 @@ function getStatusTextColor(status) {
         <table class="w-full text-left border-collapse min-w-[800px]">
           <thead class="sticky top-0 z-10 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-sm">
             <tr class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
-              <th class="px-6 py-2.5 font-medium w-[180px]">Time</th>
+              <th class="px-6 py-2.5 font-medium w-[180px]">Waktu</th>
               <th class="px-4 py-2.5 font-medium w-[120px]">Status</th>
               <th class="px-4 py-2.5 font-medium w-[180px]">Host</th>
               <th class="px-4 py-2.5 font-medium">Request</th>
-              <th class="px-4 py-2.5 font-medium">Messages</th>
+              <th class="px-4 py-2.5 font-medium">Pesan</th>
             </tr>
           </thead>
           <tbody class="font-mono text-[14px]">
@@ -233,7 +233,7 @@ function getStatusTextColor(status) {
                <td colspan="5" class="py-12 text-center"><Loader2 class="h-5 w-5 animate-spin text-zinc-500 mx-auto" /></td>
             </tr>
             <tr v-else-if="filteredLogs.length === 0" class="border-b border-zinc-100 dark:border-zinc-800/50">
-               <td colspan="5" class="py-12 text-center text-zinc-500 font-sans text-sm">No logs found matching your criteria.</td>
+               <td colspan="5" class="py-12 text-center text-zinc-500 font-sans text-sm">Tidak ada log yang sesuai dengan pencarian.</td>
             </tr>
             <tr
               v-else
@@ -318,7 +318,7 @@ function getStatusTextColor(status) {
             <div class="flex-1 min-w-0">
               <!-- Timeline Header -->
               <div class="flex justify-between items-start mb-3">
-                <span class="font-semibold text-zinc-900 dark:text-zinc-100">Request started</span>
+                <span class="font-semibold text-zinc-900 dark:text-zinc-100">Request dimulai</span>
                 <div class="text-right text-[11px] font-mono text-zinc-500">
                    <p>{{ formatVercelDateTop(detailLog.requestAt) }}</p>
                    <p>{{ formatVercelDateBottom(detailLog.requestAt) }}</p>
@@ -328,17 +328,17 @@ function getStatusTextColor(status) {
               <!-- Data Card -->
               <div class="bg-zinc-50 dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 space-y-3 font-mono text-[13px] text-zinc-700 dark:text-zinc-300">
                 <div class="flex items-start">
-                   <span class="w-[110px] shrink-0 text-zinc-500">Request ID</span>
+                   <span class="w-[110px] shrink-0 text-zinc-500">ID Request</span>
                    <span class="truncate text-zinc-900 dark:text-zinc-100">{{ detailLog.id }}</span>
                 </div>
                 <div class="h-px w-full bg-zinc-200 dark:bg-zinc-800/60 my-1"></div>
                 <div class="flex items-start">
-                   <span class="w-[110px] shrink-0 text-zinc-500">Path</span>
+                   <span class="w-[110px] shrink-0 text-zinc-500">Jalur</span>
                    <span class="truncate text-zinc-900 dark:text-zinc-100">{{ detailLog.url }}</span>
                 </div>
                 <div class="h-px w-full bg-zinc-200 dark:bg-zinc-800/60 my-1"></div>
                 <div class="flex items-start">
-                   <span class="w-[110px] shrink-0 text-zinc-500">Host</span>
+                   <span class="w-[110px] shrink-0 text-zinc-500">Pengguna</span>
                    <span class="truncate text-zinc-900 dark:text-zinc-100">{{ detailLog.userFullname || detailLog.userId || 'system' }}</span>
                 </div>
                 <div class="h-px w-full bg-zinc-200 dark:bg-zinc-800/60 my-1"></div>
@@ -348,7 +348,7 @@ function getStatusTextColor(status) {
                 </div>
                 <div class="h-px w-full bg-zinc-200 dark:bg-zinc-800/60 my-1"></div>
                 <div class="flex items-start">
-                   <span class="w-[110px] shrink-0 text-zinc-500">Duration</span>
+                   <span class="w-[110px] shrink-0 text-zinc-500">Durasi</span>
                    <span class="text-zinc-900 dark:text-zinc-100">{{ formatDuration(detailLog.durationMs) }}</span>
                 </div>
               </div>

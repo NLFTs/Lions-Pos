@@ -15,6 +15,7 @@ public class OrdersRequest {
 
     private Long voucherId;
     private String notes;
+    private String buyerName; 
 
     private List<OrderItemRequest> items;
     private PaymentRequest payment;

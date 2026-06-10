@@ -144,7 +144,7 @@ async function fetchRoles() {
     const res = await api.get('/api/v1/roles')
     roles.value = res.data.data
   } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to load roles.'
+    error.value = err.response?.data?.message || 'Gagal memuat data role.'
     toast.error(error.value)
   } finally {
     loading.value = false
@@ -261,7 +261,7 @@ async function saveRole() {
       }
       const res = await api.post('/api/v1/roles', payload)
       roleId = res.data.data.id
-      toast.success('Role created!')
+      toast.success('Role berhasil dibuat!')
     } else {
       await api.put(`/api/v1/roles/${roleId}`, {
         name: form.value.name,
@@ -270,13 +270,13 @@ async function saveRole() {
       await api.put(`/api/v1/roles/${roleId}/permissions`, {
         permissionIds: [...selectedPermIds.value],
       })
-      toast.success('Role updated!')
+      toast.success('Role berhasil diperbarui!')
     }
 
     showDrawer.value = false
     fetchRoles()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Failed to save role.'
+    formError.value = err.response?.data?.message || 'Gagal menyimpan role.'
   } finally {
     saving.value = false
   }
@@ -285,17 +285,17 @@ async function saveRole() {
 // ─── Delete ───────────────────────────────────────────────────────────────────
 async function doDelete(role) {
   const ok = await confirm({
-    title: 'Delete Role',
-    description: `Are you sure you want to delete "${role.name}"? This cannot be undone.`,
+    title: 'Hapus Role',
+    description: `Apakah Anda yakin ingin menghapus "${role.name}"? Tindakan ini tidak dapat dibatalkan.`,
   })
   if (!ok) return
 
   try {
     await api.delete(`/api/v1/roles/${role.id}`)
-    toast.success('Role deleted!')
+    toast.success('Role berhasil dihapus!')
     fetchRoles()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Failed to delete role.')
+    toast.error(err.response?.data?.message || 'Gagal menghapus role.')
   }
 }
 </script>
@@ -304,28 +304,28 @@ async function doDelete(role) {
   <AppLayout>
     <div class="pb-6">
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Role Management</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Role</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
-          Manage system roles and their permissions.
+          Kelola role sistem dan hak aksesnya.
         </p>
       </div>
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
         <DataTableSearch
           v-model="searchQuery"
-          placeholder="Search roles..."
+          placeholder="Cari role..."
           class="w-full max-w-sm"
           input-class="h-9 text-xs"
         />
         <div class="flex items-center gap-2 w-full sm:w-auto">
           <Button variant="outline" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 border-zinc-200">
             <LayoutGrid class="h-3.5 w-3.5" />
-            <span>Customize Columns</span>
+            <span>Sesuaikan Kolom</span>
             <ChevronDown class="h-3 w-3 text-zinc-400" />
           </Button>
           <Button v-if="can('role.store') && isCentralAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
-            <span>Add Role</span>
+            <span>Tambah Role</span>
           </Button>
         </div>
       </div>
@@ -340,7 +340,7 @@ async function doDelete(role) {
 
         <div v-else-if="filteredRoles.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
           <ShieldCheck class="h-10 w-10 mb-3 opacity-40" />
-          <p class="text-sm">No roles yet.</p>
+          <p class="text-sm">Belum ada role.</p>
         </div>
 
         <div v-else>
@@ -386,7 +386,7 @@ async function doDelete(role) {
                 <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Hak Akses</span>
                 <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-[10px] font-semibold border border-primary/10">
                   <ShieldCheck class="h-3 w-3" />
-                  {{ permCountFor(role) }} Permission
+                  {{ permCountFor(role) }} hak akses
                 </span>
               </div>
             </div>
@@ -398,7 +398,7 @@ async function doDelete(role) {
                 <tr class="border-b bg-muted/40">
                   <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Role</th>
                   <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Permissions</th>
+                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Hak Akses</th>
                   <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
                 </tr>
               </thead>
@@ -413,7 +413,7 @@ async function doDelete(role) {
                   <td class="px-5 py-3">
                     <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium border border-primary/10">
                       <ShieldCheck class="h-3 w-3" />
-                      {{ permCountFor(role) }} permission{{ permCountFor(role) !== 1 ? 's' : '' }}
+                      {{ permCountFor(role) }} hak akses
                     </span>
                   </td>
                   <td class="px-5 py-3 text-right">

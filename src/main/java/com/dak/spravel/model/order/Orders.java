@@ -71,6 +71,9 @@ public class Orders  {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "buyer_name", length = 255)
+    private String buyerName;
+
     // Field untuk retur
     @Column(name = "returned_at")
     private LocalDateTime returnedAt;

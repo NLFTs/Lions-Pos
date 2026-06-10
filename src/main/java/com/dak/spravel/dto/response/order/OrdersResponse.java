@@ -21,6 +21,7 @@ public class OrdersResponse {
     private BigDecimal discountAmount;
     private BigDecimal total;
     private String notes;
+    private String buyerName;
     private Long branchId;
     private String branchName;
     private Long cashierId;

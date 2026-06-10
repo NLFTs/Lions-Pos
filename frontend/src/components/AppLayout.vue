@@ -77,8 +77,8 @@ const activeSidebar = ref('main')
 // Inventory Sub-Sidebar Menu — dengan permission filter
 const INVENTORY_MENU_RAW = [
   { label: 'Dashboard Inventory', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
-  { label: 'Stock Movements',     icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
-  { label: 'Stock Adjustments',   icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
+  { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
+  { label: 'Opname Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
 
@@ -143,30 +143,30 @@ const MENU_GROUPS = [
     label: 'Procurement',
     items: [
       { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
-      { label: 'Purchase Order', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
+      { label: 'Pembelian', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
   {
     label: 'Management',
     items: [
-      { label: 'User Management', icon: Users, to: '/dashboard/users', permission: 'user.index' },
+      { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
       { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
-    label: 'Access Control',
+    label: 'Kontrol Akses',
     items: [
-      { label: 'Roles', icon: ShieldCheck, to: '/dashboard/roles', permission: 'role.index' },
-      { label: 'Permissions', icon: KeyRound, to: '/dashboard/permissions', permission: 'permission.index' },
+      { label: 'Role', icon: ShieldCheck, to: '/dashboard/roles', permission: 'role.index' },
+      { label: 'Permission', icon: KeyRound, to: '/dashboard/permissions', permission: 'permission.index' },
       { label: 'Modul', icon: Zap, to: '/dashboard/modules', permission: 'module.index' },
     ],
   },
   {
-    label: 'Master Data',
+    label: 'Data Master',
     items: [
-      { label: 'Audit Log', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
+      { label: 'Log Audit', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
     ],
   },
   {
@@ -302,8 +302,8 @@ const planConfig = computed(() => {
 // Upgrade button — null berarti tidak perlu ditampilkan (enterprise)
 const upgradeConfig = computed(() => {
   switch (userPlan.value) {
-    case 'basic':      return { label: 'Upgrade to Pro',        to: '/pricing?plan=pro' }
-    case 'pro':        return { label: 'Upgrade to Enterprise', to: '/pricing?plan=enterprise' }
+    case 'basic':      return { label: 'Upgrade ke Pro',        to: '/pricing?plan=pro' }
+    case 'pro':        return { label: 'Upgrade ke Enterprise', to: '/pricing?plan=enterprise' }
     default:           return null  // enterprise — tidak perlu upgrade
   }
 })
@@ -388,7 +388,7 @@ const filteredSearchItems = computed(() => {
 })
 
 const currentPageTitle = computed(() => {
-  if (route.path === '/dashboard') return 'Overview'
+  if (route.path === '/dashboard') return 'Dasbor'
   
   const matchedItem = searchableMenuItems.value.find(item => item.to === route.path)
   if (matchedItem) return matchedItem.label
@@ -399,7 +399,7 @@ const currentPageTitle = computed(() => {
     return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, ' ')
   }
   
-  return 'Overview'
+  return 'Dasbor'
 })
 
 watch(searchQuery, () => {
@@ -572,7 +572,7 @@ function isLocationActive(type, id) {
           class="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-zinc-500 bg-zinc-100 dark:bg-zinc-900/70 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors outline-none border border-transparent"
         >
           <Search class="w-4 h-4 shrink-0 text-zinc-400" />
-          <span class="flex-1 text-left font-medium">Find...</span>
+          <span class="flex-1 text-left font-medium">Cari...</span>
           <kbd class="hidden lg:inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-500 shadow-sm">F</kbd>
         </button>
         
@@ -585,7 +585,7 @@ function isLocationActive(type, id) {
               ref="searchInputRef"
               v-model="searchQuery"
               type="text"
-              placeholder="Find..."
+              placeholder="Cari..."
               class="flex-1 bg-transparent border-none outline-none focus:ring-0 focus:outline-none px-2.5 text-[14px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
               @keydown.down.prevent="navigateSearch(1)"
               @keydown.up.prevent="navigateSearch(-1)"
@@ -598,7 +598,7 @@ function isLocationActive(type, id) {
           <!-- Results List -->
           <div class="max-h-[350px] overflow-y-auto p-1.5 custom-scrollbar bg-white dark:bg-[#09090b]">
             <div v-if="filteredSearchItems.length === 0" class="py-6 text-center text-sm text-zinc-500">
-              No results found.
+              Tidak ada hasil.
             </div>
             <button
               v-for="(item, index) in filteredSearchItems"

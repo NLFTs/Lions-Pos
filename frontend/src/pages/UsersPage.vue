@@ -539,7 +539,7 @@ function initials(u) {
             <Button variant="ghost" size="icon" class="h-9 w-9 shrink-0" @click="view = 'list'"><ArrowLeft class="h-4 w-4" /></Button>
             <div>
               <h1 class="text-xl font-bold tracking-tight">{{ formMode === 'create' ? 'Tambah Pengguna' : 'Edit Pengguna' }}</h1>
-              <p class="text-muted-foreground text-sm mt-0.5">{{ formMode === 'create' ? 'Buat akun pengguna baru. Role bisa diassign kemudian.' : 'Perbarui informasi dan hak akses pengguna.' }}</p>
+              <p class="text-muted-foreground text-sm mt-0.5">{{ formMode === 'create' ? 'Buat akun pengguna baru. Role bisa ditetapkan kemudian.' : 'Perbarui informasi dan hak akses pengguna.' }}</p>
             </div>
             <Button v-if="formMode === 'edit' && can('user.delete')" variant="outline" size="sm" class="ml-auto text-destructive border-destructive/30 hover:bg-destructive/5 shrink-0"
               @click="doDelete(allUsers.find(u => u.id === form.id), $event)">

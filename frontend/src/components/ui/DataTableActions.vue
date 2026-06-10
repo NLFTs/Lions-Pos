@@ -8,7 +8,7 @@ import DropdownMenuSeparator from '@/components/ui/dropdown-menu/DropdownMenuSep
 import { MoreHorizontal } from 'lucide-vue-next'
 
 const props = defineProps({
-  label: { type: String, default: 'Actions' },
+  label: { type: String, default: 'Aksi' },
   items: { type: Array, required: true },
   class: { type: String, default: '' },
 })

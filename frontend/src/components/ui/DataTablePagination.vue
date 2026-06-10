@@ -146,12 +146,12 @@ const pageNumbers = computed(() => {
           </div>
         </Teleport>
       </div>
-      <span class="text-sm font-medium text-zinc-500">Rows per page</span>
+      <span class="text-sm font-medium text-zinc-500">Baris per halaman</span>
     </div>
 
     <div class="flex items-center gap-4 text-xs font-medium">
       <span class="text-zinc-500">
-        Page <span class="text-zinc-900 dark:text-zinc-100">{{ page }}</span> of <span class="text-zinc-900 dark:text-zinc-100">{{ totalPages }}</span>
+        Halaman <span class="text-zinc-900 dark:text-zinc-100">{{ page }}</span> dari <span class="text-zinc-900 dark:text-zinc-100">{{ totalPages }}</span>
       </span>
 
       <div class="flex items-center gap-1">

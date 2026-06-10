@@ -327,7 +327,8 @@ onMounted(fetchOrders)
                 <thead>
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
                     <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. Order</th>
-                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tanggal</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tgl &amp; Waktu</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Pembeli</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Cabang</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Subtotal</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Diskon</th>
@@ -339,7 +340,8 @@ onMounted(fetchOrders)
                 <tbody>
                   <tr v-for="o in paginatedOrders" :key="o.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
                     <td class="pl-5 py-3 font-mono text-xs font-bold text-primary">{{ o.orderNumber }}</td>
-                    <td class="py-3 text-xs text-muted-foreground">{{ formatDate(o.createdAt) }}</td>
+                    <td class="py-3 text-xs text-muted-foreground whitespace-nowrap">{{ formatDate(o.createdAt) }}</td>
+                    <td class="py-3 text-xs font-medium">{{ o.buyerName || '-' }}</td>
                     <td class="py-3 text-xs font-medium">{{ o.branchName || o.branch?.name || '-' }}</td>
                     <td class="py-3 text-xs">{{ formatCurrency(o.subtotal) }}</td>
                     <td class="py-3 text-xs text-red-500">{{ o.discountAmount > 0 ? '-' + formatCurrency(o.discountAmount) : '-' }}</td>
@@ -393,6 +395,14 @@ onMounted(fetchOrders)
               <div class="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
                 <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Lokasi Cabang</p>
                 <p class="text-sm font-semibold">{{ detailDrawer.order.branchName || detailDrawer.order.branch?.name || '-' }}</p>
+              </div>
+              <div class="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Nama Pembeli</p>
+                <p class="text-sm font-semibold">{{ detailDrawer.order.buyerName || '-' }}</p>
+              </div>
+              <div class="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Waktu Pembelian</p>
+                <p class="text-sm font-semibold">{{ formatDate(detailDrawer.order.createdAt) }}</p>
               </div>
             </div>
 

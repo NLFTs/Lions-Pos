@@ -84,8 +84,8 @@ const locationOptions = computed(() => {
 
 const typeOptions = [
   { value: 'all', label: 'Semua Tipe' },
-  { value: 'warehouse', label: 'Warehouse' },
-  { value: 'branch', label: 'Branch' }
+  { value: 'warehouse', label: 'Gudang' },
+  { value: 'branch', label: 'Cabang' }
 ]
 
 // ─── Actions: Fetch Master Data ───────────────────────────────────────────────
@@ -438,7 +438,7 @@ onMounted(fetchData)
                           : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
                       ]"
                     >
-                      <Warehouse class="h-4 w-4" /> Warehouse
+                      <Warehouse class="h-4 w-4" /> Gudang
                     </button>
                     <button 
                       type="button" 
@@ -450,7 +450,7 @@ onMounted(fetchData)
                           : 'bg-background border-zinc-200 text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-900'
                       ]"
                     >
-                      <Building2 class="h-4 w-4" /> Branch
+                      <Building2 class="h-4 w-4" /> Cabang
                     </button>
                   </div>
                 </div>

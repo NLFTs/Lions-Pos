@@ -75,7 +75,7 @@ const pageSize = ref(10)
 
 const statusOptions = [
   { value: 'all', label: 'Semua Status' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'pending', label: 'Menunggu' },
   { value: 'approved', label: 'Disetujui' },
   { value: 'in_transit', label: 'Dalam Kirim' },
   { value: 'received', label: 'Diterima' },
@@ -246,7 +246,7 @@ function statusColor(s) {
 }
 
 function statusLabel(s) {
-  const m = { pending: 'Pending', approved: 'Disetujui', in_transit: 'Dalam Kirim', received: 'Diterima', cancelled: 'Batal' }
+  const m = { pending: 'Menunggu', approved: 'Disetujui', in_transit: 'Dalam Kirim', received: 'Diterima', cancelled: 'Batal' }
   return m[s] || s
 }
 
