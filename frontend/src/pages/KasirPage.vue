@@ -238,8 +238,27 @@ const appliedVoucher = ref(null)
 
 // ─── Diskon Manual ───────────────────────────────────────────────────────────
 const manualDiscountType = ref('FLAT') // 'FLAT' | 'PERCENT'
-const manualDiscountValue = ref('')
+const manualDiscountValue = ref('')     // raw number string
 const manualDiscountNote = ref('')
+
+// Display value untuk mode FLAT — format ribuan tanpa Rp
+const manualDiscountDisplay = ref('')
+
+function onManualDiscountInput(e) {
+  const raw = e.target.value.replace(/\D/g, '') // hanya angka
+  manualDiscountValue.value = raw
+  manualDiscountDisplay.value = raw
+    ? Number(raw).toLocaleString('id-ID')
+    : ''
+  // Paksa value di elemen kembali ke format agar kursor tidak lompat
+  e.target.value = manualDiscountDisplay.value
+}
+
+function onManualDiscountTypeChange(type) {
+  manualDiscountType.value = type
+  manualDiscountValue.value = ''
+  manualDiscountDisplay.value = ''
+}
 
 const manualDiscountAmount = computed(() => {
   const val = Number(manualDiscountValue.value) || 0
@@ -330,6 +349,7 @@ function openPayment() {
   buyerName.value = ''
   manualDiscountType.value = 'FLAT'
   manualDiscountValue.value = ''
+  manualDiscountDisplay.value = ''
   manualDiscountNote.value = ''
 }
 
@@ -457,6 +477,7 @@ async function checkout() {
     appliedVoucher.value = null
     voucherCode.value = ''
     manualDiscountValue.value = ''
+    manualDiscountDisplay.value = ''
     manualDiscountNote.value = ''
     showPayment.value = false
     showReceipt.value = true
@@ -738,14 +759,14 @@ function avatarStyle(name = '') {
                 </div>
                 <!-- Toggle Nominal / Persen -->
                 <div class="flex rounded-[12px] bg-zinc-100 dark:bg-zinc-800/80 p-0.5">
-                  <button @click="manualDiscountType = 'FLAT'; manualDiscountValue = ''"
+                  <button @click="onManualDiscountTypeChange('FLAT')"
                     :class="['flex-1 py-1.5 text-[12px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all',
                       manualDiscountType === 'FLAT'
                         ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
                         : 'text-zinc-500 hover:text-zinc-700']">
                     <Tag class="h-[11px] w-[11px]" /> Nominal (Rp)
                   </button>
-                  <button @click="manualDiscountType = 'PERCENT'; manualDiscountValue = ''"
+                  <button @click="onManualDiscountTypeChange('PERCENT')"
                     :class="['flex-1 py-1.5 text-[12px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all',
                       manualDiscountType === 'PERCENT'
                         ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
@@ -758,13 +779,24 @@ function avatarStyle(name = '') {
                   <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-zinc-400 select-none">
                     {{ manualDiscountType === 'FLAT' ? 'Rp' : '%' }}
                   </span>
+                  <!-- Mode FLAT: input teks dengan format ribuan -->
+                  <input
+                    v-if="manualDiscountType === 'FLAT'"
+                    :value="manualDiscountDisplay"
+                    @input="onManualDiscountInput"
+                    inputmode="numeric"
+                    placeholder="0"
+                    class="pl-10 h-11 w-full text-base font-bold rounded-[12px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm outline-none focus:ring-2 focus:ring-primary/20 tracking-wide"
+                  />
+                  <!-- Mode PERCENT: input number biasa 0-100 -->
                   <Input
+                    v-else
                     v-model="manualDiscountValue"
                     type="number"
                     min="0"
-                    :max="manualDiscountType === 'PERCENT' ? 100 : undefined"
+                    max="100"
                     class="pl-10 h-11 text-base font-bold rounded-[12px] border-zinc-200 shadow-sm"
-                    :placeholder="manualDiscountType === 'FLAT' ? '0' : '0 — 100'"
+                    placeholder="0 — 100"
                   />
                 </div>
                 <!-- Preview nilai diskon yang akan dipotong -->
@@ -781,10 +813,6 @@ function avatarStyle(name = '') {
                   placeholder="Keterangan (opsional, cth: diskon pelanggan tetap)"
                   class="h-9 text-[12px] rounded-[10px] border-zinc-200"
                 />
-              </div>
-              <div class="flex flex-col gap-2">
-                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nama Pembeli <span class="normal-case font-normal">(opsional)</span></label>
-                <Input v-model="buyerName" placeholder="Contoh: Budi Santoso" class="h-11 rounded-[12px]" />
               </div>
 
               <!-- Nama Pembeli -->
