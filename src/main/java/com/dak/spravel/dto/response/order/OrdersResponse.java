@@ -22,6 +22,9 @@ public class OrdersResponse {
     private BigDecimal total;
     private String notes;
     private String buyerName;
+    private String manualDiscountType;
+    private java.math.BigDecimal manualDiscountValue;
+    private String manualDiscountNote;
     private Long branchId;
     private String branchName;
     private Long cashierId;

@@ -7,7 +7,7 @@ import Label from '@/components/ui/Label.vue'
 import { 
   Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
   Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
-  Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin
+  Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin, Tag, Percent
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -236,6 +236,21 @@ const subtotal = computed(() => {
 const voucherCode = ref('')
 const appliedVoucher = ref(null)
 
+// ─── Diskon Manual ───────────────────────────────────────────────────────────
+const manualDiscountType = ref('FLAT') // 'FLAT' | 'PERCENT'
+const manualDiscountValue = ref('')
+const manualDiscountNote = ref('')
+
+const manualDiscountAmount = computed(() => {
+  const val = Number(manualDiscountValue.value) || 0
+  if (val <= 0) return 0
+  if (manualDiscountType.value === 'PERCENT') {
+    const pct = Math.min(val, 100)
+    return Math.round(subtotal.value * pct / 100)
+  }
+  return Math.min(val, subtotal.value)
+})
+
 function applyVoucher() {
   if (!voucherCode.value) return
   const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
@@ -266,24 +281,29 @@ function applyVoucher() {
 function removeVoucher() { appliedVoucher.value = null; voucherCode.value = '' }
 
 const discountAmount = computed(() => {
-  if (!appliedVoucher.value) return 0
-  const v = appliedVoucher.value
-  const type = (v.discountType || v.discount_type || '').toString().toUpperCase()
-  const rawValue = v.discountValue ?? v.discount_value ?? 0
-  const value = Number(rawValue)
-  const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
-
-  if (minPurchase > 0 && subtotal.value < minPurchase) return 0
-
   let d = 0
-  if (type === 'PERCENT') {
-    d = subtotal.value * value / 100
-    const maxDiscount = Number(v.maxDiscount ?? v.max_discount ?? 0)
-    if (maxDiscount > 0) d = Math.min(d, maxDiscount)
-  } else {
-    d = value
+  // Diskon voucher
+  if (appliedVoucher.value) {
+    const v = appliedVoucher.value
+    const type = (v.discountType || v.discount_type || '').toString().toUpperCase()
+    const rawValue = v.discountValue ?? v.discount_value ?? 0
+    const value = Number(rawValue)
+    const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
+    if (!(minPurchase > 0 && subtotal.value < minPurchase)) {
+      if (type === 'PERCENT') {
+        d = subtotal.value * value / 100
+        const maxDiscount = Number(v.maxDiscount ?? v.max_discount ?? 0)
+        if (maxDiscount > 0) d = Math.min(d, maxDiscount)
+      } else {
+        d = value
+      }
+      d = Math.round(d)
+    }
   }
-  return Math.round(d)
+  // Diskon manual — ditambahkan di atas diskon voucher
+  d += manualDiscountAmount.value
+  // Tidak boleh melebihi subtotal
+  return Math.min(d, subtotal.value)
 })
 const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 
@@ -308,6 +328,9 @@ function openPayment() {
   bankName.value = ''
   referenceNo.value = ''
   buyerName.value = ''
+  manualDiscountType.value = 'FLAT'
+  manualDiscountValue.value = ''
+  manualDiscountNote.value = ''
 }
 
 function closePayment() {
@@ -362,8 +385,7 @@ function copyOrderSummary() {
     items || '  -',
     ``,
     `Subtotal  : ${formatCurrency(o.subtotal)}`,
-    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,
-    `Total     : ${formatCurrency(o.total)}`,
+    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,    `Total     : ${formatCurrency(o.total)}`,
     `Metode    : ${pay?.method === 'CASH' ? 'Tunai' : 'Transfer Bank'}`,
     pay?.method === 'CASH' ? `Kembalian : ${formatCurrency(pay.changeDue)}` : `Status    : Menunggu Konfirmasi`,
   ].filter(Boolean).join('\n')
@@ -405,6 +427,9 @@ async function checkout() {
       voucherId: appliedVoucher.value?.id,
       notes: null,
       buyerName: buyerName.value?.trim() || null,
+      manualDiscountType: manualDiscountValue.value && Number(manualDiscountValue.value) > 0 ? manualDiscountType.value : null,
+      manualDiscountValue: manualDiscountValue.value && Number(manualDiscountValue.value) > 0 ? Number(manualDiscountValue.value) : null,
+      manualDiscountNote: manualDiscountNote.value?.trim() || null,
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
@@ -431,6 +456,8 @@ async function checkout() {
     cart.value = []
     appliedVoucher.value = null
     voucherCode.value = ''
+    manualDiscountValue.value = ''
+    manualDiscountNote.value = ''
     showPayment.value = false
     showReceipt.value = true
 
@@ -701,6 +728,63 @@ function avatarStyle(name = '') {
                   <span>Total Tagihan</span>
                   <span class="text-primary">{{ formatCurrency(total) }}</span>
                 </div>
+              </div>
+
+              <!-- Diskon Manual -->
+              <div class="flex flex-col gap-2.5">
+                <div class="flex items-center gap-2">
+                  <Tag class="h-[13px] w-[13px] text-orange-500" />
+                  <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Diskon Manual <span class="normal-case font-normal">(opsional)</span></label>
+                </div>
+                <!-- Toggle Nominal / Persen -->
+                <div class="flex rounded-[12px] bg-zinc-100 dark:bg-zinc-800/80 p-0.5">
+                  <button @click="manualDiscountType = 'FLAT'; manualDiscountValue = ''"
+                    :class="['flex-1 py-1.5 text-[12px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all',
+                      manualDiscountType === 'FLAT'
+                        ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700']">
+                    <Tag class="h-[11px] w-[11px]" /> Nominal (Rp)
+                  </button>
+                  <button @click="manualDiscountType = 'PERCENT'; manualDiscountValue = ''"
+                    :class="['flex-1 py-1.5 text-[12px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all',
+                      manualDiscountType === 'PERCENT'
+                        ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700']">
+                    <Percent class="h-[11px] w-[11px]" /> Persentase (%)
+                  </button>
+                </div>
+                <!-- Input nilai diskon -->
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-zinc-400 select-none">
+                    {{ manualDiscountType === 'FLAT' ? 'Rp' : '%' }}
+                  </span>
+                  <Input
+                    v-model="manualDiscountValue"
+                    type="number"
+                    min="0"
+                    :max="manualDiscountType === 'PERCENT' ? 100 : undefined"
+                    class="pl-10 h-11 text-base font-bold rounded-[12px] border-zinc-200 shadow-sm"
+                    :placeholder="manualDiscountType === 'FLAT' ? '0' : '0 — 100'"
+                  />
+                </div>
+                <!-- Preview nilai diskon yang akan dipotong -->
+                <div v-if="manualDiscountAmount > 0"
+                  class="flex items-center justify-between px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/40">
+                  <span class="text-[12px] font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
+                    <Tag class="h-3.5 w-3.5" /> Potongan Diskon
+                  </span>
+                  <span class="text-[14px] font-black text-red-500">-{{ formatCurrency(manualDiscountAmount) }}</span>
+                </div>
+                <!-- Keterangan diskon opsional -->
+                <Input
+                  v-model="manualDiscountNote"
+                  placeholder="Keterangan (opsional, cth: diskon pelanggan tetap)"
+                  class="h-9 text-[12px] rounded-[10px] border-zinc-200"
+                />
+              </div>
+              <div class="flex flex-col gap-2">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nama Pembeli <span class="normal-case font-normal">(opsional)</span></label>
+                <Input v-model="buyerName" placeholder="Contoh: Budi Santoso" class="h-11 rounded-[12px]" />
               </div>
 
               <!-- Nama Pembeli -->

@@ -74,6 +74,16 @@ public class Orders  {
     @Column(name = "buyer_name", length = 255)
     private String buyerName;
 
+    // Diskon manual
+    @Column(name = "manual_discount_type", length = 10)
+    private String manualDiscountType;
+
+    @Column(name = "manual_discount_value", precision = 15, scale = 2)
+    private BigDecimal manualDiscountValue;
+
+    @Column(name = "manual_discount_note", length = 255)
+    private String manualDiscountNote;
+
     // Field untuk retur
     @Column(name = "returned_at")
     private LocalDateTime returnedAt;
