@@ -62,21 +62,12 @@ public class PurchaseReceiptService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek permission dinamis langsung dari database tanpa hardcode nama role kaku
+    // KUNCI DINAMIS: Cek permission dinamis langsung dari database tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
-
-        boolean hasPerm = user.getRoles().stream()
-                .filter(role -> role.getPermissions() != null)
-                .flatMap(role -> role.getPermissions().stream())
-                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
-
-        // if (!hasPerm) {
-        //     throw new RuntimeException("Akses Ditolak: Anda tidak memiliki hak akses '" + permissionSlug + "'!");
-        // }
     }
 
     private void checkSuperAdminOnly(User user) {

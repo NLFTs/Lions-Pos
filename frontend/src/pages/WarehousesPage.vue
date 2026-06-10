@@ -237,13 +237,13 @@ async function doTransfer() {
 }
 
 // ─── Create Form ──────────────────────────────────────────────────────────────
-const createForm   = ref({ name: '', address: '', username: '', password: '', roleIds: [] })
+const createForm   = ref({ name: '', address: '', username: '', password: ''})
 const createErrors = ref({})
 const createError  = ref(null)
 const createSaving = ref(false)
 
 function openCreate() {
-  createForm.value = { name: '', address: '', username: '', password: '', roleIds: [] }
+  createForm.value = { name: '', address: '', username: '', password: '' }
   createErrors.value = {}; createError.value = null
   view.value = 'create'; fetchRoles()
 }
@@ -253,29 +253,32 @@ function toggleRole(id) {
   else createForm.value.roleIds.splice(idx, 1)
 }
 function validateCreate() {
-  createErrors.value = {}; let ok = true
+  createErrors.value = {}
+  let ok = true
   if (!createForm.value.name.trim()) { createErrors.value.name = 'Nama gudang wajib diisi'; ok = false }
-  if (createForm.value.username.trim()) {
-    if (!createForm.value.password || createForm.value.password.length < 6) { createErrors.value.password = 'Password minimal 6 karakter'; ok = false }
-    if (createForm.value.roleIds.length === 0) { createErrors.value.roles = 'Pilih minimal satu role'; ok = false }
-  }
+  if (!createForm.value.username.trim()) { createErrors.value.username = 'Username pengelola wajib diisi'; ok = false }
+  if (!createForm.value.password || createForm.value.password.length < 6) { createErrors.value.password = 'Password minimal 6 karakter'; ok = false }
   return ok
 }
 async function saveWarehouse() {
   if (!validateCreate()) return
-  createSaving.value = true; createError.value = null
-  try {
-    const payload = { name: createForm.value.name, address: createForm.value.address }
-    if (createForm.value.username.trim()) {
-      payload.username = createForm.value.username
-      payload.password = createForm.value.password
-      payload.roleIds = createForm.value.roleIds
+    createSaving.value = true
+    createError.value = null
+    try {
+      await api.post('/api/v1/warehouses', {
+        name: createForm.value.name,
+        address: createForm.value.address,
+        username: createForm.value.username,
+        password: createForm.value.password,
+      })
+      toast.success('Gudang berhasil ditambahkan!')
+      view.value = 'list'
+      fetchWarehouses()
+    } catch (err) {
+      createError.value = err.response?.data?.message || 'Gagal menyimpan gudang.'
+    } finally {
+      createSaving.value = false
     }
-    await api.post('/api/v1/warehouses', payload)
-    toast.success('Gudang berhasil ditambahkan!')
-    view.value = 'list'; fetchWarehouses()
-  } catch (err) { createError.value = err.response?.data?.message || 'Gagal menyimpan gudang.' }
-  finally { createSaving.value = false }
 }
 
 // ─── Add Staff to Warehouse ───────────────────────────────────────────────────
@@ -498,7 +501,7 @@ onMounted(fetchWarehouses)
             <Button variant="ghost" size="icon" class="h-9 w-9 shrink-0" @click="view = 'list'"><ArrowLeft class="h-4 w-4" /></Button>
             <div>
               <h1 class="text-xl font-bold tracking-tight">Tambah Gudang</h1>
-              <p class="text-muted-foreground text-sm">Akun pengelola bersifat opsional.</p>
+              <p class="text-muted-foreground text-sm">Akun pengelola bersifat wajib.</p>
             </div>
           </div>
           <Alert v-if="createError" variant="destructive">{{ createError }}</Alert>
@@ -525,7 +528,7 @@ onMounted(fetchWarehouses)
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
                     <Label>Username</Label>
-                    <Input v-model="createForm.username" placeholder="nairha" :disabled="createSaving" autocomplete="off" />
+                    <Input v-model="createForm.username" placeholder="Masukan username" :disabled="createSaving" autocomplete="off" />
                   </div>
                   <div class="space-y-1.5">
                     <Label>Password</Label>
@@ -536,30 +539,12 @@ onMounted(fetchWarehouses)
               </div>
 
               <!-- Roles — hanya tampil jika username diisi -->
-              <Transition name="fade">
-                <div v-if="createForm.username?.trim()" class="space-y-2">
-                  <div class="flex items-center gap-2"><Shield class="h-4 w-4 text-muted-foreground" /><Label class="text-sm font-semibold">Tetapkan Role <span class="text-destructive">*</span></Label></div>
-                  <div class="rounded-lg border border-input overflow-hidden">
-                    <div class="max-h-52 overflow-y-auto divide-y divide-border">
-                      <button v-for="role in roles" :key="role.id" type="button" @click="toggleRole(role.id)" :disabled="createSaving"
-                        class="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors outline-none text-left"
-                        :class="createForm.roleIds.includes(role.id) ? 'bg-primary/5' : ''">
-                        <div class="flex items-center gap-3">
-                          <div class="w-7 h-7 rounded-md flex items-center justify-center" :class="createForm.roleIds.includes(role.id) ? 'bg-primary/10' : 'bg-muted'">
-                            <Shield class="h-3.5 w-3.5" :class="createForm.roleIds.includes(role.id) ? 'text-primary' : 'text-muted-foreground'" />
-                          </div>
-                          <div><p class="font-medium text-sm">{{ role.name }}</p><p class="text-[10px] text-muted-foreground font-mono">{{ role.slug }}</p></div>
-                        </div>
-                        <div class="h-4 w-4 rounded border flex items-center justify-center" :class="createForm.roleIds.includes(role.id) ? 'bg-primary border-primary' : 'border-zinc-300 dark:border-zinc-600'">
-                          <Check v-if="createForm.roleIds.includes(role.id)" class="h-2.5 w-2.5 text-white" />
-                        </div>
-                      </button>
-                      <div v-if="roles.length === 0" class="p-4 text-xs text-muted-foreground italic text-center">Tidak ada role.</div>
-                    </div>
+              <div class="mt-3 flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <svg class="h-3 w-3 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                   </div>
-                  <p v-if="createErrors.roles" class="text-xs text-destructive">{{ createErrors.roles }}</p>
-                </div>
-              </Transition>
+                <p class="text-xs text-primary font-medium">Role <span class="font-bold">Pengelola Gudang</span> akan diberikan otomatis ke akun ini.</p>
+              </div>
             </CardContent>
           </Card>
           <div class="flex justify-end gap-3">
