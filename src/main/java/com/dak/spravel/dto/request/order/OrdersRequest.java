@@ -15,7 +15,12 @@ public class OrdersRequest {
 
     private Long voucherId;
     private String notes;
-    private String buyerName; 
+    private String buyerName;
+
+    // Diskon manual tanpa voucher
+    private String manualDiscountType;
+    private BigDecimal manualDiscountValue;
+    private String manualDiscountNote;
 
     private List<OrderItemRequest> items;
     private PaymentRequest payment;

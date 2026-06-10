@@ -252,8 +252,30 @@ public class OrdersService {
                 discount = discountValue;
             }
         }
+
+        //  Diskon Manual
+        if (request.getManualDiscountValue() != null && request.getManualDiscountValue().compareTo(BigDecimal.ZERO) > 0) {
+            String discType = request.getManualDiscountType() != null
+                    ? request.getManualDiscountType().toUpperCase()
+                    : "FLAT";
+
+            BigDecimal manualDisc;
+            if ("PERCENT".equals(discType)) {
+                manualDisc = subtotal
+                        .multiply(request.getManualDiscountValue())
+                        .divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+                manualDisc = manualDisc.min(subtotal.subtract(discount));
+            } else {
+                manualDisc = request.getManualDiscountValue().min(subtotal.subtract(discount));
+            }
+            discount = discount.add(manualDisc);
+            savedOrder.setManualDiscountType(discType);
+            savedOrder.setManualDiscountValue(request.getManualDiscountValue());
+            savedOrder.setManualDiscountNote(request.getManualDiscountNote());
+        }
+
         savedOrder.setDiscountAmount(discount);
-        savedOrder.setTotal(subtotal.subtract(discount));
+        savedOrder.setTotal(subtotal.subtract(discount).max(BigDecimal.ZERO));
 
         // Increment used_count voucher jika dipakai
         if (voucher != null) {
@@ -599,6 +621,9 @@ public class OrdersService {
                 .total(order.getTotal())
                 .notes(order.getNotes())
                 .buyerName(order.getBuyerName())
+                .manualDiscountType(order.getManualDiscountType())
+                .manualDiscountValue(order.getManualDiscountValue())
+                .manualDiscountNote(order.getManualDiscountNote())
                 .branchId(order.getBranch() != null ? order.getBranch().getId() : null)
                 .branchName(order.getBranch() != null ? order.getBranch().getName() : null)
                 .cashierId(order.getCashier() != null ? order.getCashier().getId() : null)
