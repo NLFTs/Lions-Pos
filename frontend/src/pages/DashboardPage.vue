@@ -152,7 +152,7 @@ async function fetchStats() {
 const metricCards = computed(() => [
   {
     id: 'revenue',
-    label: 'Revenue',
+    label: 'Pendapatan',
     value: 'Rp ' + (stats.value.totalProducts * 245000).toLocaleString('id-ID'),
     change: '+12.5%',
     positive: true,
@@ -161,7 +161,7 @@ const metricCards = computed(() => [
   },
   {
     id: 'visitors',
-    label: 'Visitors',
+    label: 'Pengunjung',
     value: (stats.value.totalUsers * 47 + 2345).toLocaleString('id-ID'),
     change: '+8.3%',
     positive: true,
@@ -381,51 +381,51 @@ const animatedDashOffset = computed(() =>
 )
 
 // ── Project Status ────────────────────────────────────────────────────────────
-const projectFilter = ref('Monthly')
-const projectFilters = ['Weekly', 'Monthly', 'Yearly']
+const projectFilter = ref('Bulanan')
+const projectFilters = ['Mingguan', 'Bulanan', 'Tahunan']
 
 const projects = computed(() => [
-  { id: 1, name: 'Mobile App Development', icon: Code2,     status: 'At Risk',  risk: true },
-  { id: 2, name: 'Marketing Campaign',     icon: Settings2, status: 'On Track', risk: false },
-  { id: 3, name: 'Database Migration',     icon: Code2,     status: 'On Track', risk: false },
-  { id: 4, name: 'Website Redesign',       icon: Settings2, status: 'On Track', risk: false },
+  { id: 1, name: 'Pengembangan Aplikasi', icon: Code2,     status: 'Berisiko',  risk: true },
+  { id: 2, name: 'Kampanye Pemasaran',     icon: Settings2, status: 'Berjalan ', risk: false },
+  { id: 3, name: 'Migrasi Database',     icon: Code2,     status: 'Berjalan', risk: false },
+  { id: 4, name: 'Perancangan Ulang',       icon: Settings2, status: 'Berjalan', risk: false },
 ])
 
 // ── Recent Activity ───────────────────────────────────────────────────────────
 const recentActivities = [
   {
     id: 1,
-    text: 'Completed the',
-    highlight: 'Website Redesign',
-    suffix: 'task',
-    time: '2 hours ago',
+    text: 'Menyelesaikan',
+    highlight: 'Redesain Website',
+    suffix: 'tugas',
+    time: '2 jam yang lalu',
     icon: CheckCircle2,
     iconColor: 'text-emerald-600 dark:text-emerald-400',
   },
   {
     id: 2,
-    text: 'Commented on',
-    highlight: 'Mobile App Development',
+    text: 'Memberikan komentar di',
+    highlight: 'Pengembangan Aplikasi Mobile',
     suffix: '',
-    time: '4 hours ago',
+    time: '4 jam yang lalu',
     icon: MessageSquare,
     iconColor: 'text-blue-600 dark:text-blue-400',
   },
   {
     id: 3,
-    text: 'Created a new task in',
-    highlight: 'Marketing Campaign',
+    text: 'Membuat tugas baru dalam',
+    highlight: 'Kampanye Pemasaran',
     suffix: '',
-    time: 'Yesterday',
+    time: 'Kemarin',
     icon: PlusCircle,
     iconColor: 'text-violet-600 dark:text-violet-400',
   },
   {
     id: 4,
-    text: 'Completed 3 tasks in',
-    highlight: 'Product Launch',
+    text: 'Menyelesaikan 3 tugas di',
+    highlight: 'Peluncuran Produk',
     suffix: '',
-    time: 'Yesterday',
+    time: 'Kemarin',
     icon: CheckCircle2,
     iconColor: 'text-emerald-600 dark:text-emerald-400',
   },
@@ -437,16 +437,16 @@ const orderPage   = ref(1)
 const ordersPerPage = 5
 
 const allOrders = ref([
-  { id: '#1024', customer: 'Lorant', date: '2025-01-18', shipping: 'Shipped',    carrier: 'UPS Ground',   total: 'Rp 129.000', status: 'shipped' },
-  { id: '#1023', customer: 'Lorant', date: '2025-01-17', shipping: 'Processing', carrier: 'DHL Express',  total: 'Rp 349.000', status: 'processing' },
-  { id: '#1022', customer: 'Lorant', date: '2025-01-16', shipping: 'Delivered',  carrier: 'USPS',         total: 'Rp 79.000',  status: 'delivered' },
-  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Cancelled',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
-  { id: '#1020', customer: 'Lorant', date: '2025-01-14', shipping: 'Pending',    carrier: 'FedEx',        total: 'Rp 219.000', status: 'pending' },
-  { id: '#1019', customer: 'Budi',   date: '2025-01-13', shipping: 'Shipped',    carrier: 'JNE',          total: 'Rp 89.000',  status: 'shipped' },
-  { id: '#1018', customer: 'Sari',   date: '2025-01-12', shipping: 'Delivered',  carrier: 'SiCepat',      total: 'Rp 195.000', status: 'delivered' },
-  { id: '#1017', customer: 'Ahmad',  date: '2025-01-11', shipping: 'Processing', carrier: 'J&T',          total: 'Rp 430.000', status: 'processing' },
-  { id: '#1016', customer: 'Dewi',   date: '2025-01-10', shipping: 'Pending',    carrier: 'Anteraja',     total: 'Rp 67.000',  status: 'pending' },
-  { id: '#1015', customer: 'Riko',   date: '2025-01-09', shipping: 'Shipped',    carrier: 'Ninja Xpress', total: 'Rp 312.000', status: 'shipped' },
+  { id: '#1024', customer: 'Lorant', date: '2025-01-18', shipping: 'Sudah Dikirim',    carrier: 'UPS Ground',   total: 'Rp 129.000', status: 'shipped' },
+  { id: '#1023', customer: 'Lorant', date: '2025-01-17', shipping: 'Sedang Diproses', carrier: 'DHL Express',  total: 'Rp 349.000', status: 'processing' },
+  { id: '#1022', customer: 'Lorant', date: '2025-01-16', shipping: 'Terkirim',  carrier: 'USPS',         total: 'Rp 79.000',  status: 'delivered' },
+  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
+  { id: '#1020', customer: 'Lorant', date: '2025-01-14', shipping: 'Tertunda',    carrier: 'FedEx',        total: 'Rp 219.000', status: 'pending' },
+  { id: '#1019', customer: 'Budi',   date: '2025-01-13', shipping: 'Sudah Dikirim',    carrier: 'JNE',          total: 'Rp 89.000',  status: 'shipped' },
+  { id: '#1018', customer: 'Sari',   date: '2025-01-12', shipping: 'Terkirim',  carrier: 'SiCepat',      total: 'Rp 195.000', status: 'delivered' },
+  { id: '#1017', customer: 'Ahmad',  date: '2025-01-11', shipping: 'Sedang Diproses', carrier: 'J&T',          total: 'Rp 430.000', status: 'processing' },
+  { id: '#1016', customer: 'Dewi',   date: '2025-01-10', shipping: 'Tertunda',    carrier: 'Anteraja',     total: 'Rp 67.000',  status: 'pending' },
+  { id: '#1015', customer: 'Riko',   date: '2025-01-09', shipping: 'Sudah Dikirimgit ',    carrier: 'Ninja Xpress', total: 'Rp 312.000', status: 'shipped' },
 ])
 
 const selectedOrders = ref([])
@@ -588,7 +588,7 @@ function toggleAllOrders() {
             <!-- Chart Header -->
             <div class="flex items-start justify-between mb-1">
               <div>
-                <h2 class="text-sm font-bold text-foreground">Pertumbuhan Revenue</h2>
+                <h2 class="text-sm font-bold text-foreground">Pertumbuhan Pendapatan</h2>
                 <p class="text-xs text-muted-foreground mt-0.5">{{ chartPeriodLabel }}</p>
               </div>
               <button
@@ -707,7 +707,7 @@ function toggleAllOrders() {
               <Users class="w-4 h-4" />
             </div>
             <p class="text-lg font-bold text-foreground">{{ stats.totalUsers }}</p>
-            <p class="text-[11px] text-muted-foreground mt-0.5">Total User</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Total Pengguna</p>
           </RouterLink>
 
           <RouterLink
@@ -743,7 +743,7 @@ function toggleAllOrders() {
               <ShieldCheck class="w-4 h-4" />
             </div>
             <p class="text-lg font-bold text-foreground">{{ stats.totalRoles }}</p>
-            <p class="text-[11px] text-muted-foreground mt-0.5">Role</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Hak akses</p>
           </RouterLink>
 
           <RouterLink
@@ -779,7 +779,7 @@ function toggleAllOrders() {
         <!-- Project Status -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 class="text-sm font-bold text-foreground">Project status</h2>
+            <h2 class="text-sm font-bold text-foreground">Status Cabang</h2>
             <div class="flex items-center gap-1 bg-muted rounded-full p-0.5">
               <button
                 v-for="f in projectFilters" :key="f"
@@ -818,7 +818,7 @@ function toggleAllOrders() {
         <!-- Recent Activity -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 class="text-sm font-bold text-foreground">Recent activity</h2>
+            <h2 class="text-sm font-bold text-foreground">Aktivitas Terbaru</h2>
             <button class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
               View all <ExternalLink class="w-3 h-3" />
             </button>
@@ -853,7 +853,7 @@ function toggleAllOrders() {
 
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 class="text-sm font-bold text-foreground">Orders &amp; Shipping</h2>
+          <h2 class="text-sm font-bold text-foreground">Pesanan &amp; Pengiriman</h2>
           <div class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input
@@ -878,10 +878,10 @@ function toggleAllOrders() {
                     @change="toggleAllOrders"
                   />
                 </th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Order</th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Customer</th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Date</th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Shipping</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesanan</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pelanggan</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tanggal</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pengiriman</th>
                 <th class="text-right px-5 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
               </tr>
             </thead>

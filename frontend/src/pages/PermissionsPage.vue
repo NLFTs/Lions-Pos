@@ -192,7 +192,7 @@ async function doDelete(perm) {
     <div class="pb-6">
       <!-- Page Header -->
       <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Permission</h1>
+        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Perizinan</h1>
         <p class="text-xs text-zinc-500 mt-0.5">
           Kelola permission sistem secara granular.
         </p>

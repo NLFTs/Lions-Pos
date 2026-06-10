@@ -447,7 +447,7 @@ onMounted(async () => {
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Purchase Order</h1>
+          <h1 class="text-2xl font-bold tracking-tight">Pembelian</h1>
           <p class="text-muted-foreground text-sm mt-1">Kelola pesanan pembelian barang ke supplier.</p>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto">

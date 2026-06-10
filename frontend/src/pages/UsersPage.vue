@@ -375,7 +375,7 @@ function initials(u) {
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 class="text-2xl font-bold tracking-tight">Pengguna</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, role, dan penempatan lokasi.</p>
+              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, perizinan , dan penempatan lokasi.</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
@@ -413,7 +413,7 @@ function initials(u) {
               </div>
 
               <Button v-if="can('user.store')" @click="openCreate" size="sm" class="w-full sm:w-auto flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Plus class="h-4 w-4" /><span>Tambah User</span>
+                <Plus class="h-4 w-4" /><span>Tambah Pengguna</span>
               </Button>
             </div>
           </div>
