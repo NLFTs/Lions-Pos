@@ -60,9 +60,9 @@ public class WarehousesService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
+    // KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -83,13 +83,13 @@ public class WarehousesService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Warehouses getValidatedWarehouse(Long id, User currentUser) {
         Warehouses w = warehousesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return w;
         }

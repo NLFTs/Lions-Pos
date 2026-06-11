@@ -528,7 +528,7 @@ onMounted(fetchWarehouses)
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
                     <Label>Username</Label>
-                    <Input v-model="createForm.username" placeholder="Masukan username" :disabled="createSaving" autocomplete="off" />
+                    <Input v-model="createForm.username" placeholder="Masukan username,w" :disabled="createSaving" autocomplete="off" />
                   </div>
                   <div class="space-y-1.5">
                     <Label>Password</Label>
