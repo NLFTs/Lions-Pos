@@ -40,6 +40,7 @@ import {
   TrendingUp,
   Building2,
   Handshake,
+  Bell,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -964,7 +965,7 @@ function isLocationActive(type, id) {
             class="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
             title="Help"
           >
-            <HelpCircle class="w-4 h-4" />
+            <Bell class="w-4 h-4" />
           </button>
         </div>
       </header>
