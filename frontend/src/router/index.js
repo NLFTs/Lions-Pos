@@ -281,6 +281,18 @@ export const routes = [
     component: () => import('@/pages/PricingPage.vue'),
   },
   {
+    path: '/docs/:pathMatch(.*)*',
+    beforeEnter(to) {
+      if (typeof window !== 'undefined') {
+        let target = to.fullPath
+        if (!target.endsWith('/') && !target.includes('.')) {
+          target += '/'
+        }
+        window.location.href = target
+      }
+    }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/login',
   },

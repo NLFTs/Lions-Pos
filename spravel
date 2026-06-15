@@ -119,7 +119,7 @@ EOF
     DB_URL=${DB_URL:-localhost:5433}
 
     # ── Tampilkan Banner ────────────────────────────────────────────────────
-    echo -e "\e[32m  ▲ Spravel 2.1.0 (TwinTurbo)\e[0m"
+    echo -e "\e[32m  ▲ Spravel 2.1.0 (TwinTurbo + Vite Press)\e[0m"
     echo ""
     echo -e "  - Local:         \e[36mhttp://localhost:${VITE_PORT}\e[0m"
     echo -e "  - Network:       \e[36mhttp://${NETWORK_IP}:${VITE_PORT}\e[0m"
