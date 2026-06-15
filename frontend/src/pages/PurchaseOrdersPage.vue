@@ -452,7 +452,7 @@ onMounted(async () => {
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="w-full sm:w-72">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari No. PO atau Supplier..." />
+            <DataTableSearch v-model="searchQuery" placeholder="Cari No. Pembelian atau Supplier..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
           <Button v-if="can('purchase_order.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -541,7 +541,7 @@ onMounted(async () => {
                 <thead>
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
                     <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. PO</th>
-                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Supplier</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Distributor</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tujuan</th>
                     <th class="py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Total</th>
                     <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
@@ -744,7 +744,7 @@ onMounted(async () => {
                             <Input v-model.number="item.qtyOrdered" type="number" min="1" class="h-8 text-xs text-center" />
                           </div>
                           <div class="space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Harga Satuan (HPP)</Label>
+                            <Label class="text-[10px] text-zinc-500">Harga Satuan </Label>
                             <Input v-model.number="item.unitCost" type="number" min="0" class="h-8 text-xs" />
                           </div>
                         </div>

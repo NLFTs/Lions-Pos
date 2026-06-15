@@ -86,4 +86,5 @@ public class Voucher  {
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
+
 }

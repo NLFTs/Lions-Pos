@@ -219,12 +219,12 @@ onMounted(fetchSuppliers)
           <!-- Page Header -->
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Supplier</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola data supplier dan pemasok Anda.</p>
+              <h1 class="text-2xl font-bold tracking-tight">Agen/Distrbutor</h1>
+              <p class="text-muted-foreground text-sm mt-1">Kelola data Agen dan distributor Anda.</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
-                <DataTableSearch v-model="searchQuery" placeholder="Cari supplier..." />
+                <DataTableSearch v-model="searchQuery" placeholder="Cari Agen/Distributor..." />
               </div>
               <Button
                 v-if="can('supplier.store') && !isSuperAdmin"
@@ -319,7 +319,7 @@ onMounted(fetchSuppliers)
                         <th class="w-12 pl-5 py-3 text-left">
                           <input type="checkbox" class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer" :checked="isAllSelected" @change="toggleSelectAll" />
                         </th>
-                        <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Supplier</th>
+                        <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Distributor</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Kontak</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alamat</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Catatan</th>

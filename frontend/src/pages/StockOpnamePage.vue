@@ -215,7 +215,7 @@ onMounted(fetchData)
         <div v-if="!showForm" key="table-view" class="flex flex-col gap-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Opname stok</h1>
+              <h1 class="text-2xl font-bold tracking-tight">Pengecekan Stok</h1>
               <p class="text-muted-foreground text-sm mt-1">Audit dan rekonsiliasi stok barang secara berkala.</p>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
@@ -224,7 +224,7 @@ onMounted(fetchData)
               </div>
               <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
               <Button v-if="can('stock_opname.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Plus class="h-4 w-4" /><span>Buat Opname</span>
+                <Plus class="h-4 w-4" /><span>Buat Pengecekan</span>
               </Button>
             </div>
           </div>
@@ -238,7 +238,7 @@ onMounted(fetchData)
                 <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
                   <PackageSearch class="h-7 w-7 opacity-40" />
                 </div>
-                <p class="text-sm font-medium">Belum ada data Stock Opname.</p>
+                <p class="text-sm font-medium">Belum ada data Pengecekan Stock.</p>
                 <Button v-if="can('stock_opname.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
                   <Plus class="h-3.5 w-3.5 mr-1.5" />Mulai Opname Baru
                 </Button>
@@ -324,7 +324,7 @@ onMounted(fetchData)
               </Button>
               <div>
                 <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                  <span>{{ formMode === 'create' ? 'Input Hasil Opname' : 'Detail Stock Opname' }}</span>
+                  <span>{{ formMode === 'create' ? 'Input Hasil Pengecekan' : 'Detail Pengecekan Stok' }}</span>
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
                     {{ formMode === 'create' ? 'Baru' : 'Detail' }}
                   </span>
@@ -336,7 +336,7 @@ onMounted(fetchData)
               <Button variant="outline" @click="closeForm" :disabled="saving" class="flex-1 sm:flex-none">Batal</Button>
               <Button @click="saveOpname" :disabled="saving || form.items.length === 0" class="flex-1 sm:flex-none bg-primary text-primary-foreground hover:bg-primary/95 shadow-md shadow-primary/20">
                 <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                <span>Simpan Draft Opname</span>
+                <span>Simpan Draf Pengecekan</span>
               </Button>
             </div>
             <div v-else class="flex items-center gap-3 w-full sm:w-auto">

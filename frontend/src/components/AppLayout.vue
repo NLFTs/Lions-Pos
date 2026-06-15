@@ -80,7 +80,7 @@ const activeSidebar = ref('main')
 const INVENTORY_MENU_RAW = [
   { label: 'Dashboard Inventaris', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
-  { label: 'Opname Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
+  { label: 'Pengecekan Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
 
@@ -130,7 +130,7 @@ const MENU_GROUPS = [
     label: 'Transaksi',
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: 'pos.index' },
-      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
+      { label: 'Riwayat Pesanan', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
     ],
   },
   {
@@ -144,7 +144,7 @@ const MENU_GROUPS = [
   {
     label: 'Pengadaan',
     items: [
-      { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
+      { label: 'Distributor', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
       { label: 'Pembelian', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
@@ -154,7 +154,7 @@ const MENU_GROUPS = [
       { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
-      { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
+      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
@@ -855,13 +855,13 @@ function isLocationActive(type, id) {
             <!-- Main actions -->
             <div class="p-1">
               <DropdownMenuItem @click="router.push('/')" class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Home Page</span>
+                <span>Beranda</span>
                 <Home class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
 
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger class="flex w-full justify-between items-center px-2 py-2 text-sm cursor-pointer outline-none">
-                  <span>Theme Color</span>
+                  <span>Warna Tema</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent side="right" align="start" class="min-w-[140px]">
@@ -884,7 +884,7 @@ function isLocationActive(type, id) {
 
               <!-- Display Mode: Direct Icons -->
               <div class="px-2 py-2 flex items-center justify-between border-t border-border mt-1 pt-3">
-                <span class="text-sm">Display Mode</span>
+                <span class="text-sm">Mode Tampilan</span>
                 <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
                   <button 
                     @click="setThemePreference('light')" 
@@ -914,7 +914,7 @@ function isLocationActive(type, id) {
               </div>
 
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
-                <span>Log Out</span>
+                <span>Keluar</span>
                 <LogOut class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
             </div>
