@@ -47,14 +47,12 @@ public class Payments   {
     @Column(nullable = false , precision = 19, scale = 4)
     private BigDecimal amount;
 
-    // CASH ONLY
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal cashTendered;
 
     @Column(name = "change_due", precision = 19, scale = 4)
     private BigDecimal changeDue;
 
-    // TRANSFER ONLY
     @Column(name = "bank_name")
     private String bankName;
 
@@ -63,13 +61,6 @@ public class Payments   {
 
     @Column(name = "proof_url", columnDefinition = "TEXT")
     private String proofUrl;
-
-    // Jika ingin dengan bank transfer --Service
-    // if (paymentMethod == PaymentMethod.BANK_TRANSFER) {
-    // payment.setBankName(request.getBankName());
-    // payment.setReferenceNo(request.getReferenceNo());
-    // payment.setProofUrl(request.getProofUrl());
-    // }
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

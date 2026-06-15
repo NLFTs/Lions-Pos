@@ -11,7 +11,7 @@ import java.util.List;
 
 @Data
 public class PurchaseOrderRequestDTO {
-    private Long partnerId; // tidak perlu validasi, diambil dari user login
+    private Long partnerId;
 
     @NotNull(message = "Supplier ID tidak boleh kosong")
     private Long supplierId;
@@ -24,9 +24,9 @@ public class PurchaseOrderRequestDTO {
     @NotNull(message = "Location ID tidak boleh kosong")
     private Long locationId;
 
-    private Date orderDate;   // opsional
-    private Date expectedDate; // opsional
-    private String notes;      // opsional
+    private Date orderDate;   
+    private Date expectedDate; 
+    private String notes; 
 
     @NotNull(message = "Items tidak boleh kosong")
     @NotEmpty(message = "Minimal harus ada 1 item")

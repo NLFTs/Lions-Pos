@@ -81,7 +81,7 @@ public class ProductController {
         return ResponseBuilder.ok("Product deleted successfully");
     }
 
-    @PutMapping("/soft-delete/{id}") // Pake PATCH lebih tepat buat update partial
+    @PutMapping("/soft-delete/{id}")
     @PreAuthorize("hasAuthority('produk.update')")
     public ResponseEntity<ResData<ProductResponse>> softDelete(@PathVariable Long id) {
         log.info("[PATCH] /api/v1/products/soft-delete/{}", id);

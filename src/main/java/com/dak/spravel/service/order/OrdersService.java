@@ -53,7 +53,7 @@ public class OrdersService {
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -66,7 +66,7 @@ public class OrdersService {
 
     // KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -87,12 +87,12 @@ public class OrdersService {
         }
     }
 
-    // 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
     private Orders getValidatedOrder(Long id, User currentUser) {
         Orders order = ordersRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new RuntimeException("Order tidak ditemukan dengan ID: " + id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return order;
         }
@@ -104,7 +104,7 @@ public class OrdersService {
         return order;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN — Melihat seluruh order lintas perusahaan di Spravel
     public List<Orders> findAllOrders() {
@@ -116,16 +116,16 @@ public class OrdersService {
     // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
     public List<OrdersResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "order.index"); // 💡 Ambil hak akses index
+        checkPermission(currentUser, "order.index"); // Ambil hak akses index
 
-        // 👑 Handling Super Admin: Lihat data global
+        // Handling Super Admin: Lihat data global
         if (currentUser.getPartner() == null) {
             return ordersRepository.findAllWithDetails().stream()
                     .map(this::mapToResponse)
                     .toList();
         }
 
-        // 🏢 Handling Tenant & Branch Isolation Guard
+        // Handling Tenant & Branch Isolation Guard
         return ordersRepository.findAllWithDetails().stream()
                 .filter(order -> order.getPartner() != null && order.getPartner().getId().equals(currentUser.getPartner().getId()))
                 .filter(order -> {
@@ -154,12 +154,12 @@ public class OrdersService {
     }
 
     // ==========================================
-    // CREATE / CHECKOUT KASIR (🔒 Berbasis Permission)
+    // CREATE / CHECKOUT KASIR (Berbasis Permission)
     // ==========================================
     @Transactional
     public OrdersResponse create(OrdersRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "order.store"); // 💡 Siapapun boleh checkout asal punya permission kasir/sales
+        checkPermission(currentUser, "order.store"); // Siapapun boleh checkout asal punya permission kasir/sales
 
         Partners partner = currentUser.getPartner();
         
@@ -358,7 +358,7 @@ public class OrdersService {
     }
 
     // ==========================================
-    // DELETE (🔒 Berbasis Permission)
+    // DELETE (Berbasis Permission)
     // ==========================================
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
@@ -369,7 +369,7 @@ public class OrdersService {
     }
 
     // ==========================================
-    // CANCEL ORDER (🔒 Berbasis Permission)
+    // CANCEL ORDER (Berbasis Permission)
     // ==========================================
     @Transactional
     public OrdersResponse cancelOrder(Long id) {
@@ -419,7 +419,7 @@ public class OrdersService {
     }
 
     // ==========================================
-    // RETURN ORDER / RETUR (🔒 Berbasis Permission)
+    // RETURN ORDER / RETUR (Berbasis Permission)
     // ==========================================
     @Transactional
     public ReturnResponse returnOrder(Long id, ReturnRequest request) {
@@ -554,7 +554,7 @@ public class OrdersService {
         return mapToResponse(order);
     }
 
-    // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
+    // ─── PRIVATE MAPPERS SECTION ───────────────────────────────────────────
 
     private OrdersResponse mapToResponse(Orders order) {
         if (order == null) return null;

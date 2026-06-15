@@ -22,9 +22,6 @@ public class PaymentsController {
 
     private final PaymentsService paymentsService;
 
-    // Auth dikontrol penuh oleh service layer
-    // Super admin → findAllPayments(), partner/employee → findAll()
-
     @GetMapping("/admin")
     public ResponseEntity<ResData<List<PaymentResponse>>> getAllForAdmin() {
         log.info("[GET] /api/v1/payments/admin");
@@ -58,7 +55,6 @@ public class PaymentsController {
         return ResponseEntity.noContent().build();
     }
 
-    // VERIFY PAYMENT — hanya admin-partners, dikontrol di service
     @PatchMapping("/{id}/verify")
     public ResponseEntity<ResData<PaymentResponse>> verify(@PathVariable Long id) {
         log.info("[PATCH] /api/v1/payments/{}/verify", id);

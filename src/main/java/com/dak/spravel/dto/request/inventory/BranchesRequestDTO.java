@@ -16,5 +16,5 @@ public class BranchesRequestDTO {
     private String name;
 
     @Column(columnDefinition = "TEXT")
-    private String address; // opsional
+    private String address;
 }

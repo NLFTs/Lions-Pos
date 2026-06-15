@@ -38,7 +38,7 @@ public class PartnerService {
     private final PasswordEncoder passwordEncoder;
     private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -49,9 +49,9 @@ public class PartnerService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
+    // KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Super Admin murni (partner null) bypass seluruh jenis gate permission
+        // Super Admin murni (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -66,14 +66,14 @@ public class PartnerService {
         }
     }
 
-    // ⛔ HAK AKSES DEWA: Proteksi ketat untuk fitur khusus Super Admin Master
+    // HAK AKSES DEWA: Proteksi ketat untuk fitur khusus Super Admin Master
     private void checkSuperAdminOnly(User user) {
         if (user.getPartner() != null) {
             throw new RuntimeException("Akses Ditolak: Fitur ini hanya dapat dikelola oleh Super Admin Global.");
         }
     }
 
-    // ─── 🚀 MAIN CORE METHODS ───────────────────────────────────────────────────
+    // ─── MAIN CORE METHODS ───────────────────────────────────────────────────
 
     public List<PartnerResponse> findAll() {
         User currentUser = getAuthenticatedUser();
@@ -98,7 +98,7 @@ public class PartnerService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "partner.show");
 
-        // 🛡️ Multi-Tenant Guard: Partner biasa cuma boleh ngintip data perusahaannya sendiri!
+        // Multi-Tenant Guard: Partner biasa cuma boleh ngintip data perusahaannya sendiri!
         if (currentUser.getPartner() != null && !currentUser.getPartner().getId().equals(id)) {
             throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin melihat data partner lain.");
         }
@@ -167,7 +167,7 @@ public class PartnerService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "partner.update");
 
-        // 🛡️ Multi-Tenant Guard: Mencegah Owner mengedit profil perusahaan milik kompetitor/partner lain
+        // Multi-Tenant Guard: Mencegah Owner mengedit profil perusahaan milik kompetitor/partner lain
         if (currentUser.getPartner() != null && !currentUser.getPartner().getId().equals(id)) {
             throw new RuntimeException("Akses Ditolak: Anda tidak memiliki izin mengubah data partner lain.");
         }
@@ -243,7 +243,7 @@ public class PartnerService {
         partnerRepository.delete(partner);
     }
 
-    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
+    // ─── PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
     public PartnerResponse mapToResponse(Partners partner) {
         if (partner == null) return null;

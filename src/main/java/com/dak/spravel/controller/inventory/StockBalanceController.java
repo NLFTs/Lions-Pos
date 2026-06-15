@@ -37,14 +37,12 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.getInventoryStats(locationType, locationId));
     }
 
-    // SUPER ADMIN ONLY
     @GetMapping("/admin")
     public ResponseEntity<List<StockBalanceResponse>> getAllForAdmin() {
         log.info("[GET] /api/v1/stock-balances/admin");
         return ResponseEntity.ok(stockBalanceService.findAllStockBalance());
     }
 
-    // PARTNER / EMPLOYEE — semua stock flat
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> index() {
@@ -52,7 +50,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findAll());
     }
 
-    // PAGINATION
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<Page<StockBalanceResponse>>> paginated(
@@ -62,7 +59,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
     }
 
-    // SUMMARY — per product, dikelompokkan per lokasi + total qty
     @GetMapping("/summary")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockLocationSummaryResponse>>> summary() {
@@ -78,7 +74,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findById(id));
     }
 
-    // GET BY LOKASI TERTENTU (branch/warehouse)
     @GetMapping("/location")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByLocation(
@@ -88,7 +83,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findByLocation(locationType, locationId));
     }
 
-    // GET BY BRANCH
     @GetMapping("/branch/{branchId}")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByBranch(
@@ -97,7 +91,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findByBranch(branchId));
     }
 
-    // GET BY WAREHOUSE
     @GetMapping("/warehouse/{warehouseId}")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> getByWarehouse(
@@ -106,7 +99,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.findByWarehouse(warehouseId));
     }
 
-    // CREATE — stock awal manual 1 produk
     @PostMapping
     @PreAuthorize("hasAuthority('stock_balance.store')")
     public ResponseEntity<ResData<StockBalanceResponse>> store(
@@ -116,7 +108,6 @@ public class StockBalanceController {
         return ResponseBuilder.ok(stockBalanceService.create(request));
     }
 
-    // INISIASI STOCK AWAL BATCH — banyak produk sekaligus
     @PostMapping("/initialize")
     @PreAuthorize("hasAuthority('stock_balance.store')")
     public ResponseEntity<ResData<List<StockBalanceResponse>>> initialize(

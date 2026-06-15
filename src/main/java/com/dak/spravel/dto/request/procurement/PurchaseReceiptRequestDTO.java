@@ -16,7 +16,7 @@ public class PurchaseReceiptRequestDTO {
     @NotNull(message = "Tanggal terima tidak boleh kosong")
     private LocalDateTime receivedDate;
 
-    private String notes; // opsional
+    private String notes;
 
     @NotNull(message = "Items tidak boleh kosong")
     @NotEmpty(message = "Minimal harus ada 1 item")

@@ -44,7 +44,7 @@ public class StockOpnameService {
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMutationService stockMutationService;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -55,9 +55,9 @@ public class StockOpnameService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -78,7 +78,7 @@ public class StockOpnameService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private StockOpname getValidatedOpname(Long id, User currentUser) {
         StockOpname opname = stockOpnameRepository.findById(id)
@@ -130,13 +130,13 @@ public class StockOpnameService {
         }
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
     public List<StockOpnameResponse> findAllAdmin() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "stock_opname.index"); // Saring via permission index
         checkSuperAdminOnly(currentUser);
 
         return stockOpnameRepository.findByDeletedAtIsNull()
@@ -147,7 +147,7 @@ public class StockOpnameService {
 
     public Page<StockOpnameResponse> findPageAdmin(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "stock_opname.index"); // Saring via permission index
         checkSuperAdminOnly(currentUser);
 
         return stockOpnameRepository.findByDeletedAtIsNull(
@@ -171,7 +171,7 @@ public class StockOpnameService {
         List<StockOpname> data = stockOpnameRepository
                 .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
 
-        // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
+        // LOCATION ISOLATION: filter per branch atau warehouse user
         data = filterByUserLocation(data, currentUser);
 
         return data.stream().map(this::mapToResponse).toList();
@@ -182,7 +182,7 @@ public class StockOpnameService {
         checkPermission(currentUser, "stock_opname.show");
         StockOpname opname = getValidatedOpname(id, currentUser);
 
-        // 🛡️ LOCATION ISOLATION
+        // LOCATION ISOLATION
         if (currentUser.getPartner() != null) {
             enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
         }
@@ -242,7 +242,7 @@ public class StockOpnameService {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen opname langsung.");
         }
 
-        // 🛡️ LOCATION GUARD: user hanya boleh buat opname di lokasi tugasnya
+        // LOCATION GUARD: user hanya boleh buat opname di lokasi tugasnya
         enforceLocationAccess(request.getLocationType(), request.getLocationId(), currentUser);
 
         StockOpname opname = new StockOpname();
@@ -352,7 +352,7 @@ public class StockOpnameService {
             opname.setApprovedBy(currentUser);
         }
 
-        // ⚙️ EKSEKUSI PENYESUAIAN STOK JIKA STATUS BERUBAH MENJADI ADJUSTED
+        // EKSEKUSI PENYESUAIAN STOK JIKA STATUS BERUBAH MENJADI ADJUSTED
         if (newStatus == StockOpname.Status.ADJUSTED) {
             applyAdjustment(opname, currentUser);
         }
@@ -415,7 +415,7 @@ public class StockOpnameService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.delete"); // 💡 Sikat via permission delete
+        checkPermission(currentUser, "stock_opname.delete"); // Sikat via permission delete
         
         StockOpname opname = getValidatedOpname(id, currentUser);
 
@@ -425,7 +425,7 @@ public class StockOpnameService {
         stockOpnameRepository.save(opname);
     }
 
-    // ─── 🔄 UTILS MAPPERS SECTION ───────────────────────────────────────────
+    // ─── UTILS MAPPERS SECTION ───────────────────────────────────────────
 
     private StockOpnameResponse mapToResponse(StockOpname opname) {
         PartnerSimpleDto partnerDto = null;

@@ -30,7 +30,6 @@ public class WarehousesController {
 
     private final WarehousesService warehousesService;
 
-    // --- SUPER ADMIN ---
     @GetMapping("/admin")
     public ResponseEntity<ResData<Page<WarehouseResponse>>> getAllForAdmin(
             @RequestParam(defaultValue = "0") int page,
@@ -39,7 +38,6 @@ public class WarehousesController {
         return ResponseBuilder.ok(warehousesService.findPageAdmin(page, size));
     }
 
-    // --- PARTNER ---
     @GetMapping
     @PreAuthorize("hasAuthority('warehouse.index')")
     public ResponseEntity<ResData<List<WarehouseResponse>>> findAll() {
@@ -67,11 +65,7 @@ public class WarehousesController {
         log.info("[PUT] /api/v1/warehouses/{}", id);
         return ResponseBuilder.ok(warehousesService.update(id, request));
     }
-
-    /**
-     * GET /api/v1/warehouses/{id}/users
-     * Returns all users assigned to this warehouse.
-     */
+    
     @GetMapping("/{id}/users")
     @PreAuthorize("hasAuthority('warehouse.index')")
     public ResponseEntity<ResData<List<com.dak.spravel.dto.response.UserResponse>>> getUsersByWarehouse(@PathVariable Long id) {
@@ -79,10 +73,6 @@ public class WarehousesController {
         return ResponseBuilder.ok(warehousesService.getUsersByWarehouse(id));
     }
 
-    /**
-     * PUT /api/v1/warehouses/{id}/manager
-     * Transfer warehouse manager to another user.
-     */
     @PutMapping("/{id}/manager")
     @PreAuthorize("hasAuthority('warehouse.update')")
     public ResponseEntity<ResData<WarehouseResponse>> transferManager(

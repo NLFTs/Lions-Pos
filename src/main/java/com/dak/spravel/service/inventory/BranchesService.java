@@ -60,9 +60,9 @@ public class BranchesService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
+    // KUNCI DINAMIS: Cek permission tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Super Admin murni (partner null) bypass seluruh jenis gate permission
+        // Super Admin murni (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -83,13 +83,13 @@ public class BranchesService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD ────────────────────────────────────────
+    // ─── MULTI-TENANT GUARD ────────────────────────────────────────
 
     private Branches getValidatedBranch(Long id, User currentUser) {
         Branches branch = branchesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Branch", id));
 
-        // 👑 Super Admin bypass checking partner id
+        // Super Admin bypass checking partner id
         if (currentUser.getPartner() == null) {
             return branch;
         }
@@ -101,7 +101,7 @@ public class BranchesService {
         return branch;
     }
 
-    // ─── 🚀 MAIN METHODS CORRESPONDENCE ────────────────────────────────────────
+    // ─── MAIN METHODS CORRESPONDENCE ────────────────────────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -157,7 +157,7 @@ public class BranchesService {
         Branches branch = getValidatedBranch(id, currentUser);
         return mapToResponse(branch);
     }
-
+    
     @Transactional
     public BranchResponse create(BranchRequest request) {
         User currentUser = getAuthenticatedUser();
@@ -223,26 +223,6 @@ public class BranchesService {
         return mapToResponse(savedBranch);
     }
     
-    // ── 🛡️ HELPER FIX: Resolusi Role Bersifat Global Tanpa Dependensi Partner Scope ──
-    // private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
-    //     List<Role> roles = roleRepository.findAllById(roleIds);
-        
-    //     if (roles.size() != roleIds.size()) {
-    //         throw new RuntimeException("Satu atau lebih Role yang dipilih tidak ditemukan.");
-    //     }
-    
-    //     for (Role role : roles) {
-    //         if (currentUser.getPartner() != null) {
-    //             String roleSlug = role.getSlug().toLowerCase();
-    //             if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
-    //                 throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda tidak diperbolehkan memasang role master pusat '" + role.getName() + "' ke staff cabang.");
-    //             }
-    //         }
-    //     }
-        
-    //     return new HashSet<>(roles);
-    // }
-
     @Transactional
     public BranchResponse update(Long id, BranchRequest request) {
         User currentUser = getAuthenticatedUser();
@@ -398,7 +378,7 @@ public class BranchesService {
         return res;
     }
 
-    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
+    // ─── PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
     private BranchResponse mapToResponse(Branches branch) {
         if (branch == null) return null;

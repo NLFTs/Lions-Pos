@@ -31,8 +31,6 @@ public class StockMutation {
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
     private Partners partner;
 
-    // "sale_out" | "purchase_in" | "transfer" | "adjustment" | "return"
-
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
     private Type type;
@@ -45,7 +43,6 @@ public class StockMutation {
         BRANCH, WAREHOUSE
     }
 
-    // "branch" | "warehouse" | null
     @Enumerated(EnumType.STRING)
     @Column(name = "from_location_type", nullable = true)
     private Location fromLocationType;
@@ -53,7 +50,6 @@ public class StockMutation {
     @Column(name = "from_location_id", nullable = true)
     private Long fromLocationId;
 
-    // "branch" | "warehouse" | null
     @Enumerated(EnumType.STRING)
     @Column(name = "to_location_type", length = 50)
     private Location toLocationType;
@@ -64,8 +60,6 @@ public class StockMutation {
     @Column(name = "qty", nullable = false)
     private Long qty;
 
-    // "order" | "transfer_request" | "stock_opname"
-
     @Enumerated(EnumType.STRING)
     @Column(name = "reference_type")
     private ReferenceType referenceType;
@@ -73,8 +67,7 @@ public class StockMutation {
     public enum ReferenceType {
         ORDER, TRANSFER_REQUEST, STOCK_OPNAME, PURCHASE_RECEIPT
     }
-
-    // Polymorphic FK — points to orders.id, transfer_requests.id, or stock_opname.id
+    
     @Column(name = "reference_id")
     private Long referenceId;
 

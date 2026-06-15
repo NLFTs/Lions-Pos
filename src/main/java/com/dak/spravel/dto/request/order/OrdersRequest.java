@@ -8,8 +8,8 @@ import java.util.List;
 public class OrdersRequest {
 
     private Long branchId;
-    private Long cashierId; // Optional, defaults to current user
-    private Long customerId; // Optional
+    private Long cashierId;
+    private Long customerId; 
 
     private String orderNumber;
 
@@ -17,7 +17,6 @@ public class OrdersRequest {
     private String notes;
     private String buyerName;
 
-    // Diskon manual tanpa voucher
     private String manualDiscountType;
     private BigDecimal manualDiscountValue;
     private String manualDiscountNote;
@@ -34,7 +33,7 @@ public class OrdersRequest {
 
     @Data
     public static class PaymentRequest {
-        private String method; // CASH, TRANSFER
+        private String method;
         private BigDecimal amount;
         private BigDecimal cashTendered;
         private BigDecimal changeDue;

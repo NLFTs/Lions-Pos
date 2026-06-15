@@ -29,8 +29,6 @@ public class BranchWarehousesController {
 
     private final BranchWarehousesService branchWarehousesService;
 
-    // 1 & 2. ENDPOINT KHUSUS SUPER ADMIN
-
     @GetMapping("/admin/all")
     @PreAuthorize("hasAuthority('branch_warehouse.admin')") // Sesuaikan authority dengan seeder
     public ResponseEntity<List<BranchWarehouses>> findAllAdmin() {
@@ -46,8 +44,6 @@ public class BranchWarehousesController {
         log.info("[GET] /api/v1/branch-warehouses/admin/page - page: {}, size: {}", page, size);
         return ResponseEntity.ok(branchWarehousesService.findPageAdmin(page, size));
     }
-
-    // 3. ENDPOINT UNTUK PARTNER (VALIDASI DI SERVICE)
 
     @GetMapping("/branch/{branchesId}")
     @PreAuthorize("hasAuthority('branch_warehouse.index')")

@@ -52,9 +52,9 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -94,13 +94,13 @@ public class PurchaseOrderService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return po;
         }
@@ -112,7 +112,7 @@ public class PurchaseOrderService {
         return po;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
     public List<PurchaseOrder> findAllPurchaseOrders() {
@@ -127,7 +127,7 @@ public class PurchaseOrderService {
         // Izinkan akses jika punya purchase_order.index ATAU purchase_receipt.store
         checkAnyPermission(currentUser, "purchase_order.index", "purchase_receipt.store");
 
-        // 👑 Super Admin: lihat semua
+        // Super Admin: lihat semua
         if (currentUser.getPartner() == null) {
             return purchaseOrderRepository.findAll(Sort.by("id").descending());
         }
@@ -135,7 +135,7 @@ public class PurchaseOrderService {
         List<PurchaseOrder> partnerPOs = purchaseOrderRepository.findByPartnerIdAndDeletedAtIsNull(
                 currentUser.getPartner().getId(), Sort.by("id").descending());
 
-        // 🏢 Branch isolation: user cabang hanya lihat PO untuk cabangnya
+        // Branch isolation: user cabang hanya lihat PO untuk cabangnya
         if (currentUser.getBranch() != null) {
             final Long branchId = currentUser.getBranch().getId();
             return partnerPOs.stream()
@@ -144,7 +144,7 @@ public class PurchaseOrderService {
                     .toList();
         }
 
-        // 🏭 Warehouse isolation: user gudang hanya lihat PO untuk gudangnya
+        // Warehouse isolation: user gudang hanya lihat PO untuk gudangnya
         if (currentUser.getWarehouse() != null) {
             final Long warehouseId = currentUser.getWarehouse().getId();
             return partnerPOs.stream()
@@ -164,7 +164,7 @@ public class PurchaseOrderService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        // 👑 Super Admin
+        // Super Admin
         if (currentUser.getPartner() == null) {
             return purchaseOrderRepository.findAll(pageable);
         }
@@ -198,7 +198,7 @@ public class PurchaseOrderService {
     }
 
     // ==========================================
-    // CREATE PURCHASE ORDER (🔒 Berbasis Permission)
+    // CREATE PURCHASE ORDER (Berbasis Permission)
     // ==========================================
     @Transactional
     public PurchaseOrder create(PurchaseOrderRequestDTO request) {
@@ -259,7 +259,7 @@ public class PurchaseOrderService {
     }
 
     // ==========================================
-    // UPDATE STATUS (🔒 Berbasis Permission)
+    // UPDATE STATUS (Berbasis Permission)
     // ==========================================
     @Transactional
     public PurchaseOrder updateStatus(Long id, String status) {
@@ -272,7 +272,7 @@ public class PurchaseOrderService {
     }
 
     // ==========================================
-    // SOFT DELETE (🔒 Berbasis Permission)
+    // SOFT DELETE (Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
@@ -284,7 +284,7 @@ public class PurchaseOrderService {
         purchaseOrderRepository.save(po);
     }
 
-    // ─── 🔄 PRIVATE GENERATOR UTILS ───────────────────────────────────────────
+    // ─── PRIVATE GENERATOR UTILS ───────────────────────────────────────────
 
     private String generatePoNumber() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));

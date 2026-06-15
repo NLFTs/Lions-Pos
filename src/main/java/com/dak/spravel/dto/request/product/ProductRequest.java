@@ -27,8 +27,8 @@ public class ProductRequest {
     private String sku;
 
     @NotNull(message = "Harga dasar tidak boleh kosong")
-    @DecimalMin(value = "0.0", inclusive = true, message = "Harga tidak boleh negatif")
-    @DecimalMax(value = "999999999999999.99", message = "Harga terlalu besar")
+    @DecimalMin(value = "0.0", inclusive = true)
+    @DecimalMax(value = "999999999999999.99")
     @JsonProperty("base_price")
     private BigDecimal basePrice;
 

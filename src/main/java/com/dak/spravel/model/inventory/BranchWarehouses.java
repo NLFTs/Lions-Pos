@@ -38,10 +38,4 @@ public class BranchWarehouses {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     private User createdBy;
-
-    // Disimpan di service saat membuat relasi baru
-    // @PrePersist
-    // private void onCreate(){
-    //     this.createdAt = LocalDateTime.now();
-    // }
 }

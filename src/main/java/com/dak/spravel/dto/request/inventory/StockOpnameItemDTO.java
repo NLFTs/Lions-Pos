@@ -10,14 +10,11 @@ public class StockOpnameItemDTO {
     @NotNull(message = "Product ID tidak boleh kosong")
     private Long productId;
 
-    // qtySystem diambil otomatis dari stock_balances saat start-counting
-    // tidak perlu diisi oleh user
-
     private Long qtySystem;
 
     @NotNull(message = "Qty physical tidak boleh kosong")
     @PositiveOrZero(message = "Qty physical tidak boleh negatif")
-    private Long qtyPhysical; // diisi saat counting
+    private Long qtyPhysical;
 
-    private String notes; // opsional
+    private String notes;
 }

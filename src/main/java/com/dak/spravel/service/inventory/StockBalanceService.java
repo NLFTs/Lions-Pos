@@ -51,7 +51,7 @@ public class StockBalanceService {
     private final StockMutationRepository stockMutationRepository;
     private final UserRepository userRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -62,9 +62,9 @@ public class StockBalanceService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI UTAMA KITA: Cek permission dinamis, bebas dari hardcode nama role!
+    // KUNCI UTAMA KITA: Cek permission dinamis, bebas dari hardcode nama role!
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass semua jenis permission sistem
+        // Raja Super Admin (partner null) bypass semua jenis permission sistem
         if (user.getPartner() == null) {
             return;
         }
@@ -86,7 +86,7 @@ public class StockBalanceService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD ────────────────────────────────────────
+    // ─── MULTI-TENANT GUARD ────────────────────────────────────────
 
     private StockBalance getValidatedStockBalance(Long id, User currentUser) {
         StockBalance stock = stockBalanceRepository.findById(id)
@@ -133,7 +133,7 @@ public class StockBalanceService {
         return "Lokasi #" + locationId;
     }
 
-    // ─── 🔄 MAPPERS & MUTATION LOGS ───────────────────────────────────────────
+    // ─── MAPPERS & MUTATION LOGS ───────────────────────────────────────────
 
     public StockBalanceResponse mapToResponse(StockBalance stock) {
         if (stock == null) return null;
@@ -178,7 +178,7 @@ public class StockBalanceService {
         stockMutationRepository.save(mutation);
     }
 
-    // ─── 🚀 METHODS CORE (PERMISSON SIKAT HABIS ROLE VALIDATION) ────────────────
+    // ─── METHODS CORE (PERMISSON SIKAT HABIS ROLE VALIDATION) ────────────────
 
     public List<StockBalanceResponse> findAllStockBalance() {
         User currentUser = getAuthenticatedUser();
@@ -188,7 +188,7 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.index"); // 💡 Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index"); // Cukup cek permission slug
 
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll().stream().map(this::mapToResponse).toList();
@@ -199,7 +199,7 @@ public class StockBalanceService {
 
     public Page<StockBalanceResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.index"); // 💡 Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index"); // Cukup cek permission slug
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         if (currentUser.getPartner() == null) {
@@ -292,12 +292,12 @@ public class StockBalanceService {
                 .map(this::mapToResponse).toList();
     }
 
-    // ─── 🛠️ MUTATION ACTIONS (MAKIN SAKTI TANPA LOCK ROLE) ─────────────────────
+    // ─── MUTATION ACTIONS (MAKIN SAKTI TANPA LOCK ROLE) ─────────────────────
 
     @Transactional
     public StockBalanceResponse create(StockBalanceRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.store"); // 💡 Siapapun boleh create asal punya permission ini!
+        checkPermission(currentUser, "stock_balance.store"); // Siapapun boleh create asal punya permission ini!
 
         Partners partner = currentUser.getPartner();
         Product product = productRepository.findById(request.getProduct())
@@ -334,7 +334,7 @@ public class StockBalanceService {
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.store"); // 💡 Hilang sudah barier kaku employee!
+        checkPermission(currentUser, "stock_balance.store"); // Hilang sudah barier kaku employee!
 
         Partners partner = currentUser.getPartner();
         validateLocation(request.getLocationType(), request.getLocationId(), partner);
