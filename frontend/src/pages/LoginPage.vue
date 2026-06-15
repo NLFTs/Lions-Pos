@@ -122,9 +122,13 @@ async function handleLogin() {
       <!-- Logo -->
         <a href="/" class="flex items-center gap-2.5 group cursor-pointer hover:opacity-80 transition-opacity">
           <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
+            class="flex h-9 w-9 items-center justify-center rounded-xl  shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
           >
-            <Zap class="h-5 w-5 text-primary-foreground" />
+            <img 
+            src="/gaptek-hit.png" 
+            alt="Logo Gaptek" 
+            class="h-8 w-8 object-contain"
+          />
           </div>
 
           <span class="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">

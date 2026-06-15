@@ -1,27 +1,49 @@
 /* Minimalist custom design theme overrides for VitePress */
 
+/* Remove default page padding so HomeLayout controls its own spacing */
+.VPPage {
+  padding: 0 !important;
+}
+
+.VPPage > .container {
+  max-width: unset !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 :root {
-  --vp-c-brand-1: #18181b; /* Zinc 900 */
-  --vp-c-brand-2: #27272a; /* Zinc 800 */
-  --vp-c-brand-3: #3f3f46; /* Zinc 700 */
-  --vp-c-brand-soft: #f4f4f5; /* Zinc 100 */
+  --vp-c-brand-1: #18181b;
+  /* Zinc 900 */
+  --vp-c-brand-2: #27272a;
+  /* Zinc 800 */
+  --vp-c-brand-3: #3f3f46;
+  /* Zinc 700 */
+  --vp-c-brand-soft: #f4f4f5;
+  /* Zinc 100 */
 
   /* Font settings */
   --vp-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
-  
+
   /* Layout constraints */
   --vp-home-hero-image-filter: none;
 }
 
 .dark {
-  --vp-c-brand-1: #fafafa; /* Zinc 50 */
-  --vp-c-brand-2: #f4f4f5; /* Zinc 100 */
-  --vp-c-brand-3: #e4e4e7; /* Zinc 200 */
-  --vp-c-brand-soft: #27272a; /* Zinc 800 */
+  --vp-c-brand-1: #fafafa;
+  /* Zinc 50 */
+  --vp-c-brand-2: #f4f4f5;
+  /* Zinc 100 */
+  --vp-c-brand-3: #e4e4e7;
+  /* Zinc 200 */
+  --vp-c-brand-soft: #27272a;
+  /* Zinc 800 */
 }
 
 /* Modern & Clean typography adjustments */
-.vp-doc h1, .vp-doc h2, .vp-doc h3, .vp-doc h4 {
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4 {
   letter-spacing: -0.02em;
   font-weight: 600;
   border-bottom: none !important;

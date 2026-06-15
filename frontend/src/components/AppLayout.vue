@@ -556,8 +556,12 @@ function isLocationActive(type, id) {
       <!-- ─── HEADER: Logo ─────────────────────────────────────────────────── -->
       <div class="flex h-12 items-center px-4 shrink-0">
         <div class="flex items-center gap-2.5 overflow-hidden">
-          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-            <Zap class="w-5 h-5 text-primary-foreground" />
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+            <img 
+            src="/gaptek-hit.png" 
+            alt="Logo Gaptek" 
+            class="h-8 w-8 object-contain"
+          />
           </div>
           <span class="text-lg font-bold tracking-tight whitespace-nowrap transition-opacity duration-200">
             GAPTEK

@@ -5,7 +5,7 @@
       <div class="flex items-center gap-6">
         <a href="#" class="flex items-center gap-2 cursor-pointer mr-4" @click.prevent="$emit('navigate', '/')">
           <img 
-            src="/logo-G-zinc.svg" 
+            src="/gaptek-hit.png" 
             alt="Logo Gaptek" 
             class="h-8 w-8 object-contain"
           />
@@ -106,7 +106,7 @@ const navItems = ref([
       }
     ]
   },
-  { name: 'Enterprise', url: '#' },
-  { name: 'Pricing', url: '#' }
+  { name: 'Tentang', url: '/about' },
+  { name: 'Plan', url: '/pricing' }
 ])
 </script>
