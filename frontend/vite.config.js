@@ -29,7 +29,24 @@ export default defineConfig(({ command, mode, isSsrBuild }) => {
 
   return {
     base: mode === 'production' ? '/_/' : '/',
-    plugins: [vue(), vueDevTools()],
+    plugins: [
+      vue(),
+      vueDevTools(),
+      {
+        name: 'docs-redirect',
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            const url = req.url ? req.url.split('?')[0] : ''
+            if (url === '/docs' || url === '/docs/') {
+              req.url = '/docs/index.html'
+            } else if (url.startsWith('/docs/') && !url.includes('.')) {
+              req.url = url + '.html'
+            }
+            next()
+          })
+        }
+      }
+    ],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
