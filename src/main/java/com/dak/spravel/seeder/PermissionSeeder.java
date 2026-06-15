@@ -259,46 +259,7 @@ public class PermissionSeeder {
         log.info("[SEEDER] Admin role '{}' now has {} permissions (read-only + full CRUD on: role/permission/module/user/partner/log)",
             savedAdmin.getSlug(), savedAdmin.getPermissions().size());
 
-        // 4. Update template roles with specific module access
-        // Role "owner" — pemilik mitra, akses penuh ke semua modul mitranya
-        Role ownerRole = roleRepository.findBySlug("owner").orElseGet(() -> {
-            Role r = new Role();
-            r.setSlug("owner");
-            r.setName("Owner / Pemilik Mitra");
-            r.setType(Role.Type.EXTERNAL);
-            return r;
-        });
-        ownerRole.setPermissions(new HashSet<>());
-
-        Set<Permission> ownerPerms = new HashSet<>();
-        for (Permission p : allPerms) {
-            String moduleSlug = p.getModule().getSlug();
-            if (moduleSlug.equals("user") || 
-                moduleSlug.equals("category") ||
-                moduleSlug.equals("produk") ||
-                moduleSlug.equals("warehouse") ||
-                moduleSlug.equals("branch") ||
-                moduleSlug.equals("product_photo") ||
-                moduleSlug.equals("stock_balance") ||
-                moduleSlug.equals("stock_mutation") ||
-                moduleSlug.equals("transfer_request") ||
-                moduleSlug.equals("stock_opname") ||
-                moduleSlug.equals("purchase_order") ||
-                moduleSlug.equals("order_item") ||
-                moduleSlug.equals("order") ||
-                moduleSlug.equals("supplier") ||
-                moduleSlug.equals("voucher") ||
-                moduleSlug.equals("dashboard") ||
-                moduleSlug.equals("pos") ||
-                moduleSlug.equals("report")) { 
-                ownerPerms.add(p);  
-            }
-        }
-        ownerRole.setPermissions(ownerPerms);
-        roleRepository.save(ownerRole);
-        log.info("[SEEDER] Owner role seeded with {} permissions", ownerPerms.size());
-
-        // 5. Assign "admin" role to super user "superadmin"
+        // 4. Assign "admin" role to super user "superadmin"
         userRepository.findByUsername("superadmin").ifPresent(su -> {
             Role managed = roleRepository.findBySlug("admin").orElseThrow();
             if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {

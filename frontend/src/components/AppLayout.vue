@@ -184,15 +184,32 @@ const MENU_GROUPS = [
 // Filter menu by permission
 function filterMenu(groups) {
   const isAdmin = auth.isAdmin
+  
+  // Memastikan status apakah user memiliki partner atau partnerId
+  const hasPartner = !!(user.value?.partner || user.value?.partnerId)
 
   return groups.reduce((acc, group) => {
+    
+    // ─── VALIDASI LEVEL GROUP (KONTROL AKSES) ───────────────────────────
+    if (group.label === 'Kontrol Akses' && hasPartner) {
+      return acc
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     const filteredItems = group.items.reduce((items, item) => {
+      
+      // VALIDASI LEVEL ITEM (Menu Mitra): Sembunyikan jika sudah punya partner
+      if (item.label === 'Mitra' && hasPartner) {
+        return items
+      }
+
       // Support anyPermission: tampilkan jika punya salah satu
       if (item.anyPermission) {
         if (!isAdmin && !item.anyPermission.some(p => can(p))) return items
       } else if (item.permission && !isAdmin && !can(item.permission)) {
         return items
       }
+      
       const filtered = { ...item }
       if (filtered.children) {
         filtered.children = filterMenu([{ label: '', items: filtered.children }])[0]?.items || []
@@ -201,6 +218,7 @@ function filterMenu(groups) {
       items.push(filtered)
       return items
     }, [])
+
     if (filteredItems.length > 0) {
       acc.push({ label: group.label, items: filteredItems })
     }

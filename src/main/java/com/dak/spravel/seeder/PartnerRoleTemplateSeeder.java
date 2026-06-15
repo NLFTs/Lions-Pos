@@ -48,6 +48,10 @@ public class PartnerRoleTemplateSeeder {
         "user.index", "user.show", "user.store", "user.update", "user.delete",
         // Role (per-partner)
         "role.index", "role.show",
+        // Permissions
+        "permission.index", "permission.show",
+        // Module
+        "module.index", "module.show",
         // Kategori
         "category.index", "category.show", "category.store", "category.update", "category.delete",
         // Produk
@@ -239,15 +243,15 @@ public class PartnerRoleTemplateSeeder {
 
     // ─── Template definitions ─────────────────────────────────────────────────
 
-    private record RoleTemplate(String slug, String name, String[] perms) {}
+    record RoleTemplate(String slug, String name, String[] perms) {}
 
-    private static final List<RoleTemplate> TEMPLATES = List.of(
-        new RoleTemplate("admin-partner",      "Admin Partner",      ADMIN_PARTNER_PERMS),
-        new RoleTemplate("pengelola-gudang",   "Pengelola Gudang",   PENGELOLA_GUDANG_PERMS),
-        new RoleTemplate("pengelola-cabang",   "Pengelola Cabang",   PENGELOLA_CABANG_PERMS),
-        new RoleTemplate("kasir",              "Kasir",              KASIR_PERMS),
-        new RoleTemplate("karyawan-cabang",    "Karyawan Cabang",    KARYAWAN_CABANG_PERMS),
-        new RoleTemplate("karyawan-gudang",    "Karyawan Gudang",    KARYAWAN_GUDANG_PERMS)
+    public static final List<RoleTemplate> TEMPLATES = List.of(
+        new RoleTemplate("owner",              "Owner / Pemilik Mitra", ADMIN_PARTNER_PERMS),
+        new RoleTemplate("pengelola-gudang",   "Pengelola Gudang",      PENGELOLA_GUDANG_PERMS),
+        new RoleTemplate("pengelola-cabang",   "Pengelola Cabang",      PENGELOLA_CABANG_PERMS),
+        new RoleTemplate("kasir",              "Kasir",                 KASIR_PERMS),
+        new RoleTemplate("karyawan-cabang",    "Karyawan Cabang",       KARYAWAN_CABANG_PERMS),
+        new RoleTemplate("karyawan-gudang",    "Karyawan Gudang",       KARYAWAN_GUDANG_PERMS)
     );
 
     // ─── Public API ───────────────────────────────────────────────────────────

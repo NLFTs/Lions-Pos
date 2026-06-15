@@ -136,68 +136,26 @@ public class PartnerSeeder {
                 return branchesRepository.save(c);
             });
 
-        // ── 4b. Role Cabang (per-partner) — gunakan template yang sudah di-seed ──
-        final Partners partnerForRole = partner;
-        final User adminForRole = adminPartner;
-        Role roleCabang = roleRepository.findBySlug("pengelola-cabang")
-            .orElseGet(() -> {
-                log.warn("[PartnerSeeder] Template role 'pengelola-cabang' belum ada, buat manual.");
-                return createPartnerRoleIfNotExists(
-                    "pengelola-cabang", "Pengelola Cabang", partnerForRole, adminForRole,
-                    new String[]{
-                        "produk.index", "produk.show",
-                        "category.index", "category.show",
-                        "warehouse.index", "warehouse.show",
-                        "branch.index", "branch.show",
-                        "branch_warehouse.index", "branch_warehouse.show",
-                        "stock_balance.index", "stock_balance.show",
-                        "stock_mutation.index", "stock_mutation.show",
-                        "transfer_request.index", "transfer_request.show",
-                        "transfer_request.store", "transfer_request.update",
-                        "stock_opname.index", "stock_opname.show",
-                        "purchase_order.index", "purchase_order.show",
-                        "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
-                        "supplier.index", "supplier.show",
-                        "pos.index",
-                        "order.index", "order.show", "order.store", "order.update",
-                        "order_item.index", "order_item.show", "order_item.store",
-                        "voucher.index", "voucher.show",
-                        "dashboard.index",
-                        "report.index",
-                    }
-                );
-            });
+            // ── 4d. User Cabang: davingm ──────────────────────────────────────────
+        // 1. Ambil template pengelola-cabang dari seeder template
+        var templateCabang = PartnerRoleTemplateSeeder.TEMPLATES.stream()
+            .filter(t -> t.slug().equals("pengelola-cabang"))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Template pengelola-cabang tidak ditemukan"));
 
-        // ── 4c. Role Gudang (per-partner) — gunakan template yang sudah di-seed ──
-        Role roleGudang = roleRepository.findBySlug("pengelola-gudang")
-            .orElseGet(() -> {
-                log.warn("[PartnerSeeder] Template role 'pengelola-gudang' belum ada, buat manual.");
-                return createPartnerRoleIfNotExists(
-                    "pengelola-gudang", "Pengelola Gudang", partnerForRole, adminForRole,
-                    new String[]{
-                        "produk.index", "produk.show",
-                        "category.index", "category.show",
-                        "warehouse.index", "warehouse.show",
-                        "branch.index", "branch.show",
-                        "branch_warehouse.index", "branch_warehouse.show",
-                        "stock_balance.index", "stock_balance.show",
-                        "stock_balance.store", "stock_balance.update", "stock_balance.transfer",
-                        "stock_mutation.index", "stock_mutation.show",
-                        "transfer_request.index", "transfer_request.show",
-                        "transfer_request.store", "transfer_request.update",
-                        "stock_opname.index", "stock_opname.show",
-                        "purchase_order.index", "purchase_order.show",
-                        "purchase_receipt.index", "purchase_receipt.show", "purchase_receipt.store",
-                        "supplier.index", "supplier.show",
-                        "dashboard.index",
-                    }
-                );
-            });
-
-        // ── 4d. User Cabang: davingm ──────────────────────────────────────────
+        // 2. Buat role spesifik untuk partner ini berdasarkan template tersebut
+        Role roleCabangAsli = createPartnerRoleIfNotExists(
+            templateCabang.slug(),
+            templateCabang.name(),
+            partner,
+            adminPartner, // Ditandai dibuat oleh admin partner (nairha)
+            templateCabang.perms() // Mengambil String[] permissions dari record template
+        );
+        
+        // 3. Daftarkan usernya menggunakan role asli yang baru dibuat
         createBranchUserIfNotExists(
             "davingm", "Davin GM Cabang NLFTs Djogja", "davingm@nlfts.co.id",
-            "12345678", partner, cabang, roleCabang);
+            "12345678", partner, cabang, roleCabangAsli);
 
         // ── 4e. Cabang NLFTs Djogja ───────────────────────────────────────────
         final Branches savedCabangDjogja = branchesRepository.findByPartners(partnerRef).stream()
@@ -220,9 +178,24 @@ public class PartnerSeeder {
         });
 
         // ── 4f. User Gudang: gudangnlfts ──────────────────────────────────────
+        // 1. Ambil template pengelola-gudang dari seeder template
+        var templateGudang = PartnerRoleTemplateSeeder.TEMPLATES.stream()
+            .filter(t -> t.slug().equals("pengelola-gudang"))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Template pengelola-gudang tidak ditemukan"));
+
+        // 2. Buat role spesifik untuk partner ini berdasarkan template tersebut
+        Role roleGudangAsli = createPartnerRoleIfNotExists(
+            templateGudang.slug(),
+            templateGudang.name(),
+            partner,
+            adminPartner,
+            templateGudang.perms() // Mengambil String[] permissions dari record template
+        );
+
         createWarehouseUserIfNotExists(
             "gudangnlfts", "Pengelola Gudang Pusat NLFTs", "gudang@nlfts.co.id",
-            "12345678", partner, gudang, roleGudang);
+            "12345678", partner, gudang, roleGudangAsli);
 
         // ── 5. Branch ↔ Warehouse mapping ────────────────────────────────────
         if (!branchWarehousesRepository.existsByBranchesAndWarehouses(cabang, gudang)) {
@@ -522,15 +495,18 @@ public class PartnerSeeder {
     /**
      * Buat role per-partner dengan permission slugs yang diberikan.
      */
-    private Role createPartnerRoleIfNotExists(String slug, String name, Partners partner,
+     private Role createPartnerRoleIfNotExists(String slug, String name, Partners partner,
             User createdBy, String[] permissionSlugs) {
-        // Cek apakah role sudah ada untuk partner ini
-        Optional<Role> existing = roleRepository.findBySlug(slug);
-        if (existing.isPresent()) {
-            log.info("[PartnerSeeder] Role '{}' untuk partner '{}' sudah ada, skip.", slug, partner.getName());
-            return existing.get();
+        
+        // 1. CEK DULU: Kalau role dengan slug ini sudah ada di DB, langsung kembalikan yang sudah ada
+        Optional<Role> existingRole = roleRepository.findBySlug(slug); // atau findBySlugAndPartnerId jika role-nya unique per partner
+        if (existingRole.isPresent()) {
+            log.info("[PartnerSeeder] Role '{}' sudah ada di database, skip creation.", slug);
+            return existingRole.get();
         }
-
+        
+        // 2. Kalau belum ada, baru buat baru (Kode bawaan kamu)
+        log.info("[PartnerSeeder] Role '{}' belum ada, mulai membuat baru...", slug);
         Role role = new Role();
         role.setSlug(slug);
         role.setName(name);
@@ -549,7 +525,7 @@ public class PartnerSeeder {
         role.setPermissions(perms);
 
         Role saved = roleRepository.save(role);
-        log.info("[PartnerSeeder] Role '{}' dibuat dengan {} permissions.", slug, perms.size());
+        log.info("[PartnerSeeder] Role '{}' berhasil dibuat dengan {} permissions.", slug, perms.size());
         return saved;
     }
 
