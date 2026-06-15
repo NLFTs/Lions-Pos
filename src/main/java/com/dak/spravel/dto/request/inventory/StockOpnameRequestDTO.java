@@ -28,7 +28,7 @@ public class StockOpnameRequestDTO {
     @NotNull(message = "Tanggal opname tidak boleh kosong")
     private LocalDateTime date;
 
-    private String notes; // opsional
+    private String notes;
 
     @NotNull(message = "Items tidak boleh kosong")
     private List<StockOpnameItemDTO> items;

@@ -35,8 +35,6 @@ public class PurchaseReceiptItem {
     @Column(precision = 15, scale = 2)
     private BigDecimal unitCost = BigDecimal.ZERO;
 
-    // Snapshot unit cost dari purchase order item, untuk menghindari perubahan harga di masa depan
-    // receiptItem.setUnitCost(poItem.getUnitCost());
     @Column(columnDefinition = "TEXT")
     private String notes;
 }

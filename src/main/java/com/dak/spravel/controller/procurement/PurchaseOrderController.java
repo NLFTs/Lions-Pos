@@ -22,21 +22,18 @@ public class PurchaseOrderController {
 
     private final PurchaseOrderService purchaseOrderService;
 
-    // SUPER ADMIN ONLY
     @GetMapping("/admin")
     public ResponseEntity<List<PurchaseOrder>> getAllForAdmin() {
         log.info("[GET] /api/v1/purchase-orders/admin");
         return ResponseEntity.ok(purchaseOrderService.findAllPurchaseOrders());
     }
 
-    // PARTNER / EMPLOYEE ONLY
     @GetMapping
     public ResponseEntity<List<PurchaseOrder>> index() {
         log.info("[GET] /api/v1/purchase-orders");
         return ResponseEntity.ok(purchaseOrderService.findAll());
     }
-
-    // PAGINATION PARTNER / EMPLOYEE ONLY
+    
     @GetMapping("/page")
     public ResponseEntity<Page<PurchaseOrder>> paginated(
             @RequestParam(defaultValue = "0") int page,

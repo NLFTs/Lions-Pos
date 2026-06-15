@@ -31,7 +31,7 @@ public class OrderItemsService {
     private final OrdersRepository ordersRepository;
     private final UserRepository userRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -42,9 +42,9 @@ public class OrderItemsService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -65,13 +65,13 @@ public class OrderItemsService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private OrderItems getValidatedOrderItem(Long id, User currentUser) {
         OrderItems item = orderItemsRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("OrderItem", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return item;
         }
@@ -84,7 +84,7 @@ public class OrderItemsService {
         return item;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -98,14 +98,14 @@ public class OrderItemsService {
 
     public List<OrderItems> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "order.show"); // 💡 Masuk ke rumpun melihat data transaksi
+        checkPermission(currentUser, "order.show"); // Masuk ke rumpun melihat data transaksi
 
-        // 👑 Handling Super Admin: Tarik semua item transaksi global
+        // Handling Super Admin: Tarik semua item transaksi global
         if (currentUser.getPartner() == null) {
             return orderItemsRepository.findAll();
         }
 
-        // 🏢 Handling Tenant: Filter item yang hanya milik perusahaan context dia sendiri
+        // Handling Tenant: Filter item yang hanya milik perusahaan context dia sendiri
         return orderItemsRepository.findAll().stream()
                 .filter(item -> item.getOrder() != null 
                         && item.getOrder().getPartner() != null
@@ -126,7 +126,7 @@ public class OrderItemsService {
         OrderItems item = orderItemsRepository.findByProductName(productName)
                 .orElseThrow(() -> new RuntimeException("Order item dengan nama '" + productName + "' tidak ditemukan"));
 
-        // 🛡️ Multi-Tenant Adaptif Guard (Bebaskan jika Super Admin)
+        // Multi-Tenant Adaptif Guard (Bebaskan jika Super Admin)
         if (currentUser.getPartner() != null) {
             if (item.getOrder() == null || item.getOrder().getPartner() == null || 
                     !item.getOrder().getPartner().getId().equals(currentUser.getPartner().getId())) {
@@ -138,12 +138,12 @@ public class OrderItemsService {
     }
 
     // ==========================================
-    // CREATE / ADD ITEM (🔒 Berbasis Permission)
+    // CREATE / ADD ITEM (Berbasis Permission)
     // ==========================================
     @Transactional
     public OrderItems create(OrderItemsRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "order.update"); // 💡 Menambah item ke dalam order dihitung sebagai aksi update transaksi
+        checkPermission(currentUser, "order.update"); // Menambah item ke dalam order dihitung sebagai aksi update transaksi
 
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -173,12 +173,12 @@ public class OrderItemsService {
     }
 
     // ==========================================
-    // DELETE ITEM (🔒 Berbasis Permission)
+    // DELETE ITEM (Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "order.update"); // 💡 Menghapus baris item belanjaan dihitung sebagai update order
+        checkPermission(currentUser, "order.update"); // Menghapus baris item belanjaan dihitung sebagai update order
 
         OrderItems item = getValidatedOrderItem(id, currentUser);
         orderItemsRepository.delete(item);

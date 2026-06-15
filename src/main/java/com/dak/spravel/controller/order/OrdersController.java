@@ -22,9 +22,6 @@ public class OrdersController {
 
     private final OrdersService ordersService;
 
-    // Auth dikontrol penuh oleh service layer (cek role + partner)
-    // Super admin → findAllOrders(), partner/employee → findAll()
-
     @GetMapping("/admin")
     public ResponseEntity<ResData<List<OrdersResponse>>> findAllForAdmin() {
         log.info("[GET] /api/v1/orders/admin");

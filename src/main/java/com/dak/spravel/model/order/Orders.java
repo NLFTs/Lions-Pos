@@ -74,7 +74,6 @@ public class Orders  {
     @Column(name = "buyer_name", length = 255)
     private String buyerName;
 
-    // Diskon manual
     @Column(name = "manual_discount_type", length = 10)
     private String manualDiscountType;
 
@@ -84,7 +83,6 @@ public class Orders  {
     @Column(name = "manual_discount_note", length = 255)
     private String manualDiscountNote;
 
-    // Field untuk retur
     @Column(name = "returned_at")
     private LocalDateTime returnedAt;
 
@@ -112,7 +110,6 @@ public class Orders  {
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     private User deletedBy;
 
-    // Menambah Relasi Yang Belum Di Panggil Dari Repo
     @JsonManagedReference("orders-items")
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     private List<OrderItems> items = new ArrayList<>();

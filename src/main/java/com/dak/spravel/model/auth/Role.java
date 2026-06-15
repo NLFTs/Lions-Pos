@@ -22,7 +22,6 @@ public class Role {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 💡 Hapus unique = true dari sini karena sudah dicover uniqueConstraints di atas
     @Column(nullable = false)
     private String slug;
 

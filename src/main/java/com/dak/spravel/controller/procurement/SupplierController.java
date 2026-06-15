@@ -28,8 +28,6 @@ public class SupplierController {
 
     private final SupplierService supplierService;
 
-    // --- ENDPOINT SUPER ADMIN ---
-
     @GetMapping("/admin/all")
     @PreAuthorize("hasAuthority('supplier.admin')")
     public ResponseEntity<List<Supplier>> findAllAdmin() {
@@ -45,8 +43,6 @@ public class SupplierController {
         log.info("[GET] /api/v1/suppliers/admin/page - Access by Super Admin, Page: {}", page);
         return ResponseEntity.ok(supplierService.findPageAdmin(page, size));
     }
-
-    // --- ENDPOINT PARTNER ---
 
     @GetMapping
     public ResponseEntity<List<Supplier>> findAll() {

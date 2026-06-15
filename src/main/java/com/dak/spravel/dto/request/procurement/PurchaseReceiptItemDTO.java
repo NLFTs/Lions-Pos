@@ -18,6 +18,6 @@ public class PurchaseReceiptItemDTO {
     @Positive(message = "Qty received harus lebih dari 0")
     private BigDecimal qtyReceived;
 
-    private BigDecimal unitCost; // opsional, diambil dari PO item di service
-    private String notes;        // opsional
+    private BigDecimal unitCost;
+    private String notes;
 }

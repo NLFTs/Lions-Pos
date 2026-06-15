@@ -36,10 +36,6 @@ public class OrderItems {
     @Column(name = "product_name", nullable = false)
     private String productName;
 
-    // Snapshot harga saat order dibuat dan disimpan di Service, untuk menghindari masalah jika harga produk berubah setelah order dibuat
-    // orderItem.setProductName(product.getName()); // snapshot disini
-    // orderItem.setUnitPrice(product.getPrice());  // snapshot disini
-
     @Column(name = "unit_price", nullable = false)
     private BigDecimal unitPrice;
 
@@ -49,7 +45,6 @@ public class OrderItems {
     @Column(nullable = false)
     private BigDecimal subtotal;
 
-    // Field retur
     @Column(name = "return_qty")
     private Long returnQty;
 

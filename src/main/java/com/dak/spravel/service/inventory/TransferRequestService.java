@@ -34,7 +34,7 @@ public class TransferRequestService {
     private final StockMutationService stockMutationService;
     private final StockBalanceRepository stockBalanceRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION ───────────────────────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION ───────────────────────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -66,7 +66,7 @@ public class TransferRequestService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD ──────────────────────────────────────────────────
+    // ─── MULTI-TENANT GUARD ──────────────────────────────────────────────────
 
     private TransferRequest getValidatedTransferRequest(Long id, User currentUser) {
         TransferRequest tr = transferRequestRepository.findById(id)
@@ -100,7 +100,7 @@ public class TransferRequestService {
         return tr;
     }
 
-    // ─── 🚀 MAIN METHODS CORE ──────────────────────────────────────────────────
+    // ─── MAIN METHODS CORE ──────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<TransferRequestResponse> findAllAdmin() {
@@ -321,7 +321,7 @@ public class TransferRequestService {
 
         List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
 
-        // 🛡️ VALIDASI KESIAPAN LOKASI TUJUAN
+        // VALIDASI KESIAPAN LOKASI TUJUAN
         for (TransferRequestItem item : trItems) {
             var currentStockOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                     item.getProductId(),
@@ -415,7 +415,7 @@ public class TransferRequestService {
         transferRequestRepository.save(tr);
     }
 
-    // ─── 🔄 PRIVATE MAPPERS SECTION ───────────────────────────────────────────
+    // ─── PRIVATE MAPPERS SECTION ───────────────────────────────────────────
 
     private String resolveLocationName(TransferRequest.Location type, Long locationId) {
         if (type == null || locationId == null) return null;

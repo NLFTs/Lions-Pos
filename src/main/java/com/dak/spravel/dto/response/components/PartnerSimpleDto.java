@@ -5,5 +5,6 @@ import lombok.Data;
 @Data
 public class PartnerSimpleDto {
     private Long id;
+    
     private String name;
 }

@@ -44,7 +44,7 @@ public class ProductService {
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
-    // ─── 💾 FILE SYSTEM UTILS ──────────────────────────────────────────────────
+    // ─── FILE SYSTEM UTILS ──────────────────────────────────────────────────
 
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
@@ -61,7 +61,7 @@ public class ProductService {
         }
     }
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -72,9 +72,9 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa hardcode kasta nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa hardcode kasta nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -104,7 +104,7 @@ public class ProductService {
                     .orElseThrow(() -> new ResourceNotFoundException("Product", id));
         }
 
-        // 🏢 Partner biasa dikunci strict agar tidak bisa mengintip silang produk kompetitor
+        // Partner biasa dikunci strict agar tidak bisa mengintip silang produk kompetitor
         Product product = productRepository.findByIdAndPartner(id, currentUser.getPartner());
         if (product == null) {
             throw new ResourceNotFoundException("Product", id);
@@ -112,7 +112,7 @@ public class ProductService {
         return product;
     }
 
-    // ─── 🚀 MAIN CORE METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN CORE METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -183,7 +183,7 @@ public class ProductService {
 
     public Page<ProductResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.index"); // 💡 Sikat pake permission index
+        checkPermission(currentUser, "produk.index"); // Sikat pake permission index
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         if (currentUser.getPartner() == null) {
@@ -205,7 +205,7 @@ public class ProductService {
     @Transactional
     public ProductResponse patchProduct(Long id, ProductRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update"); // 💡 Diperbarui ke permission update
+        checkPermission(currentUser, "produk.update"); // Diperbarui ke permission update
 
         Product product = getValidatedProduct(id, currentUser);
         Partners partner = product.getPartner(); 
@@ -274,7 +274,7 @@ public class ProductService {
     @Transactional
     public ProductResponse softDeleteProduct(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.delete"); // 💡 Diubah murni ke permission delete
+        checkPermission(currentUser, "produk.delete"); // Diubah murni ke permission delete
 
         Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(false);
@@ -287,7 +287,7 @@ public class ProductService {
     @Transactional
     public ProductResponse restoreProduct(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update");
+        checkPermission(currentUser, "produk.update"); // Diubah murni ke permission update
 
         Product product = getValidatedProduct(id, currentUser);
         product.setIsActive(true);
@@ -300,7 +300,7 @@ public class ProductService {
     @Transactional
     public ProductResponse setTrueTrackStock(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update");
+        checkPermission(currentUser, "produk.update"); // Diubah murni ke permission update 
 
         Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(true);
@@ -313,7 +313,7 @@ public class ProductService {
     @Transactional
     public ProductResponse setFalseTrackStock(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update");
+        checkPermission(currentUser, "produk.update"); // Diubah murni ke permission update 
 
         Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(false);
@@ -330,7 +330,7 @@ public class ProductService {
 
         Product product = getValidatedProduct(id, currentUser);
 
-        // 🛡️ GUARD: Cek apakah masih ada stok aktif di lokasi manapun
+        // GUARD: Cek apakah masih ada stok aktif di lokasi manapun
         List<StockBalance> stockBalances = stockBalanceRepository.findByProductId(product.getId());
         long nonZeroStocks = stockBalances.stream()
                 .filter(sb -> sb.getQty() != null && sb.getQty() > 0)
@@ -342,7 +342,7 @@ public class ProductService {
             );
         }
 
-        // 🧹 Hapus semua foto produk terlebih dahulu
+        // Hapus semua foto produk terlebih dahulu
         List<ProductPhoto> photos = productPhotoRepository.findByProductId(product.getId());
         for (ProductPhoto photo : photos) {
             if (photo.getUrl() != null) {
@@ -353,7 +353,7 @@ public class ProductService {
         }
         productPhotoRepository.deleteAll(photos);
 
-        // 🧹 Hapus semua stock balance (qty 0) yang terkait produk ini
+        // Hapus semua stock balance (qty 0) yang terkait produk ini
         if (!stockBalances.isEmpty()) {
             stockBalanceRepository.deleteAll(stockBalances);
         }
@@ -361,7 +361,7 @@ public class ProductService {
         productRepository.delete(product);
     }
 
-    // ─── 🔄 PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
+    // ─── PRIVATE UTILS & MAPPERS ────────────────────────────────────────────
 
     private String generateUniqueSku(String name, Partners partner) {
         String newSku;

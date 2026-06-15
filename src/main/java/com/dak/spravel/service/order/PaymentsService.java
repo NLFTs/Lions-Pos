@@ -47,9 +47,9 @@ public class PaymentsService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -76,7 +76,7 @@ public class PaymentsService {
         Payments payment = paymentsRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment", id));
         
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return payment;
         }
@@ -94,7 +94,7 @@ public class PaymentsService {
         return payment;
     }
 
-    // ─── 🔄 MAPPER SECTION ────────────────────────────────────────────────────
+    // ─── MAPPER SECTION ────────────────────────────────────────────────────
 
     private PaymentResponse mapToResponse(Payments p) {
         if (p == null) return null;
@@ -115,7 +115,7 @@ public class PaymentsService {
                 .build();
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -132,9 +132,9 @@ public class PaymentsService {
 
     public List<PaymentResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "payment.index"); // 💡 Saring via permission index
+        checkPermission(currentUser, "payment.index"); // Saring via permission index
 
-        // 👑 Handling Super Admin: Lihat data global
+        // Handling Super Admin: Lihat data global
         if (currentUser.getPartner() == null) {
             return paymentsRepository.findAll().stream().map(this::mapToResponse).toList();
         }
@@ -153,7 +153,7 @@ public class PaymentsService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         
-        // 👑 Handling Super Admin Global
+        // Handling Super Admin Global
         if (currentUser.getPartner() == null) {
             return paymentsRepository.findAll(pageable).map(this::mapToResponse);
         }
@@ -173,7 +173,7 @@ public class PaymentsService {
     @Transactional
     public PaymentResponse pay(PaymentsRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "payment.store"); // 💡 Berhak memicu pembuatan transaksi invoice baru
+        checkPermission(currentUser, "payment.store"); // Berhak memicu pembuatan transaksi invoice baru
 
         Orders orders = ordersRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Orders", request.getOrderId()));
@@ -226,7 +226,7 @@ public class PaymentsService {
     }
 
     // ==========================================
-    // DELETE (🔒 Berbasis Permission)
+    // DELETE (Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
@@ -279,7 +279,7 @@ public class PaymentsService {
             order.setUpdatedAt(LocalDateTime.now());
             order.setUpdatedBy(currentUser);
 
-            // 🔥 POTONG STOK SEARA REAL-TIME SAAT SETELAH APPROVAL TRANSFER TERVERIFIKASI
+            // POTONG STOK SEARA REAL-TIME SAAT SETELAH APPROVAL TRANSFER TERVERIFIKASI
             if (order.getBranch() != null && order.getPartner() != null) {
                 for (com.dak.spravel.model.order.OrderItems item : order.getItems()) {
                     stockBalanceService.adjustStock(

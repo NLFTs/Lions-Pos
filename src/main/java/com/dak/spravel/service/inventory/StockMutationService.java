@@ -28,7 +28,7 @@ public class StockMutationService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -39,9 +39,9 @@ public class StockMutationService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -62,7 +62,7 @@ public class StockMutationService {
         }
     }
 
-    // ─── 🔄 MAP TO RESPONSE ───────────────────────────────────────────────────
+    // ─── MAP TO RESPONSE ───────────────────────────────────────────────────
 
     public StockMutationResponse mapToResponse(StockMutation stockMutation) {
         if (stockMutation == null) return null;
@@ -88,7 +88,7 @@ public class StockMutationService {
             response.setToLocationType(stockMutation.getToLocationType().name());
         }
 
-        // ✅ Set product
+        // Set product
         if (stockMutation.getProduct() != null) {
             StockMutationResponse.ProductSimpleDto p = new StockMutationResponse.ProductSimpleDto();
             p.setId(stockMutation.getProduct().getId());
@@ -97,7 +97,7 @@ public class StockMutationService {
             response.setProduct(p);
         }
 
-        // ✅ Set partner
+        // Set partner
         if (stockMutation.getPartner() != null) {
             com.dak.spravel.dto.response.components.PartnerSimpleDto pDto = new com.dak.spravel.dto.response.components.PartnerSimpleDto();
             pDto.setId(stockMutation.getPartner().getId());
@@ -105,7 +105,7 @@ public class StockMutationService {
             response.setPartner(pDto);
         }
 
-        // ✅ Set createdAt & createdBy
+        // Set createdAt & createdBy
         response.setCreatedAt(stockMutation.getCreatedAt());
         if (stockMutation.getCreatedBy() != null) {
             com.dak.spravel.dto.response.components.UserSimpleDto u = new com.dak.spravel.dto.response.components.UserSimpleDto();
@@ -117,7 +117,7 @@ public class StockMutationService {
         return response;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -142,7 +142,7 @@ public class StockMutationService {
 
         List<StockMutation> data = stockMutationRepository.findByPartner(currentUser.getPartner(), Sort.by("id").descending());
 
-        // 🛡️ LOCATION ISOLATION: filter per branch atau warehouse user
+        // LOCATION ISOLATION: filter per branch atau warehouse user
         if (currentUser.getBranch() != null) {
             Long branchId = currentUser.getBranch().getId();
             data = data.stream()
@@ -208,7 +208,7 @@ public class StockMutationService {
         StockMutation mutation = stockMutationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("StockMutation", id));
 
-        // 🛡️ Multi-Tenant Guard Check
+        // Multi-Tenant Guard Check
         if (currentUser.getPartner() != null) {
             if (mutation.getPartner() == null || !mutation.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Stock mutation bukan milik partner Anda.");
@@ -225,7 +225,7 @@ public class StockMutationService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
 
-        // 🛡️ Multi-Tenant Guard Check
+        // Multi-Tenant Guard Check
         if (currentUser.getPartner() != null) {
             if (product.getPartner() == null || !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Product bukan milik partner Anda.");
@@ -241,7 +241,7 @@ public class StockMutationService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_mutation.index");
 
-        // 🛡️ Multi-Tenant Guard Check (Super Admin boleh bebas lolos nyari target partner manapun)
+        // Multi-Tenant Guard Check (Super Admin boleh bebas lolos nyari target partner manapun)
         if (currentUser.getPartner() != null && !currentUser.getPartner().getId().equals(partnerId)) {
             throw new RuntimeException("Akses Ditolak: Anda tidak bisa mengakses data partner lain.");
         }
@@ -252,7 +252,7 @@ public class StockMutationService {
                 .toList();
     }
 
-    // ⚙️ INTERNAL MUTATION RECORD SYSTEM (Dipicu otomatis dari transaksi gudang/cabang/kasir)
+    // INTERNAL MUTATION RECORD SYSTEM (Dipicu otomatis dari transaksi gudang/cabang/kasir)
     @Transactional
     public void recordMutation(Product product, Partners partner, String type,
                                String fromType, Long fromId,

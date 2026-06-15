@@ -51,10 +51,7 @@ public class TransferRequest {
         
     @Column(name = "to_location_id", nullable = false)
     private Long toLocationId;
-
-    /**
-     * "pending" | "approved" | "in_transit" | "received" | "cancelled"
-     */
+    
     public enum Status {
         PENDING, APPROVED, IN_TRANSIT, RECEIVED, CANCELLED
     }
@@ -67,7 +64,7 @@ public class TransferRequest {
     private String notes;
 
     @Column(name = "requested_at")
-    private LocalDateTime requestedAt = LocalDateTime.now(); // Set default waktu saat request dibuat
+    private LocalDateTime requestedAt = LocalDateTime.now(); 
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;

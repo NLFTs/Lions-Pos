@@ -35,19 +35,8 @@ public class RolePermission {
     private LocalDateTime createdAt;
     
     @ToString.Exclude
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by", referencedColumnName = "id", updatable = false)
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
-
-    // Disimpan di service saat membuat RolePermission baru
-    //  @PrePersist
-    // private void onCreate() {
-    //     this.createdAt = LocalDateTime.now();
-
-    //     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    //     if (auth != null && auth.getPrincipal() instanceof User currentUser) {
-    //         this.createdBy = currentUser;
-    //     }
-    // }
 }

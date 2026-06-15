@@ -12,7 +12,7 @@ import java.util.List;
 public class StockBalanceInitRequest {
 
     @NotBlank(message = "locationType wajib diisi")
-    private String locationType; // "BRANCH" atau "WAREHOUSE"
+    private String locationType;
 
     @NotNull(message = "locationId wajib diisi")
     private Long locationId;

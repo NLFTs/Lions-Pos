@@ -28,20 +28,6 @@ public class PurchaseReceipt {
     @Column(nullable = false)
     private String receiptNumber;
 
-    // Disimpan di service, karena harus generate nomor unik dengan format tertentu
-    // private void generateReceiptNumber() {
-    //     if (this.receiptNumber == null) {
-    //         // Format tanggal hari ini
-    //         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            
-    //         // Random 4 digit
-    //         String random = String.format("%04d", new Random().nextInt(9999) + 1);
-            
-    //         this.receiptNumber = "GR-" + date + "-" + random;
-    //         // Hasil: GR-20260429-0421
-    //     }
-    // }
-
     @Column(nullable = false)
     private LocalDateTime receivedDate;
 

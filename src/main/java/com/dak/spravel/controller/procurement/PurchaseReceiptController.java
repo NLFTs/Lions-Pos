@@ -23,7 +23,6 @@
 
         private final PurchaseReceiptService purchaseReceiptService;
 
-        // SUPER ADMIN ONLY
         @GetMapping("/admin")
         @PreAuthorize("hasAuthority('purchase_receipt.index')")
         public ResponseEntity<List<PurchaseReceipt>> getAllForAdmin() {
@@ -31,7 +30,6 @@
             return ResponseEntity.ok(purchaseReceiptService.findAllPurchaseReceipt());
         }
 
-        // PARTNER / EMPLOYEE ONLY
         @GetMapping
         @PreAuthorize("hasAuthority('purchase_receipt.index')")
         public ResponseEntity<List<PurchaseReceipt>> index() {
@@ -39,7 +37,6 @@
             return ResponseEntity.ok(purchaseReceiptService.findAll());
         }
 
-        // PAGINATION PARTNER / EMPLOYEE ONLY
         @GetMapping("/page")
         @PreAuthorize("hasAuthority('purchase_receipt.index')")
         public ResponseEntity<Page<PurchaseReceipt>> paginated(
