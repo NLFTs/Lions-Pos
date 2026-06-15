@@ -219,12 +219,12 @@ onMounted(fetchSuppliers)
           <!-- Page Header -->
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Supplier</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola data supplier dan pemasok Anda.</p>
+              <h1 class="text-2xl font-bold tracking-tight">Agen/Distrbutor</h1>
+              <p class="text-muted-foreground text-sm mt-1">Kelola data Agen dan distributor Anda.</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
-                <DataTableSearch v-model="searchQuery" placeholder="Cari supplier..." />
+                <DataTableSearch v-model="searchQuery" placeholder="Cari Agen/Distributor..." />
               </div>
               <Button
                 v-if="can('supplier.store') && !isSuperAdmin"

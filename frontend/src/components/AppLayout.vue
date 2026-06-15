@@ -80,7 +80,7 @@ const activeSidebar = ref('main')
 const INVENTORY_MENU_RAW = [
   { label: 'Dashboard Inventaris', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
-  { label: 'Opname Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
+  { label: 'Pengecekan Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
 
@@ -144,7 +144,7 @@ const MENU_GROUPS = [
   {
     label: 'Pengadaan',
     items: [
-      { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
+      { label: 'Distributor', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
       { label: 'Pembelian', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
@@ -154,7 +154,7 @@ const MENU_GROUPS = [
       { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
-      { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
+      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
