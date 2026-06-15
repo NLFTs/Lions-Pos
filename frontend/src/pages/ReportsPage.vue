@@ -4,6 +4,8 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import api from '@/lib/api'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable' // 🌟 Baris impor tabel yang bersih
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -143,7 +145,95 @@ const exportToCSV = () => {
   link.setAttribute('download', `GAPTEK_Laporan_${activeFilter.value.replace(' ', '_')}_${new Date().toISOString().split('T')[0]}.csv`)
   link.click()
 }
+const exportToPDF = () => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  })
 
+  const tanggalSekarang = new Date().toISOString().split('T')[0]
+  const filterHari = activeFilter.value
+
+  // 1. Banner Atas Modern (Warna Hitam/Zinc Gelap Premium)
+  doc.setFillColor(15, 23, 42) 
+  doc.rect(0, 0, 210, 38, 'F')  
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.setTextColor(255, 255, 255) 
+  doc.text('GAPTEK TERMINAL POS', 14, 16)
+  
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  doc.setTextColor(148, 163, 184) 
+  doc.text(`Laporan Analisis Performa Bisnis — Periode ${filterHari}`, 14, 24)
+  
+  doc.setFontSize(9)
+  doc.setTextColor(203, 213, 225)
+  doc.text(`Diekspor pada: ${tanggalSekarang}`, 14, 31)
+
+  // 2. Tabel Ringkasan Data Kunci
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(15, 23, 42) 
+  doc.text('I. RINGKASAN DATA KUNCI', 14, 50)
+
+  const statsRows = stats.value.map(stat => [stat.label, stat.value])
+
+  autoTable(doc, {
+    startY: 54,
+    margin: { left: 14, right: 14 },
+    theme: 'plain', 
+    styles: { fontSize: 10, cellPadding: 2.5 },
+    columnStyles: {
+      0: { fontStyle: 'normal', textColor: [100, 116, 139], width: 60 },
+      1: { fontStyle: 'bold', textColor: [15, 23, 42], halign: 'left' }
+    },
+    body: statsRows,
+  })
+
+  // 3. Tabel Produk Terlaris Berkualitas Tinggi (Striped)
+  const currentY = doc.lastAutoTable.finalY + 10
+  
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(15, 23, 42)
+  doc.text('II. DAFTAR 5 PRODUK PALING LARIS', 14, currentY)
+
+  const productHeaders = [['Nama Produk', 'Kategori', 'Terjual', 'Pendapatan']]
+  let productRows = []
+
+  if (bestSellers.value.length === 0) {
+    productRows = [['Belum ada data penjualan produk di periode ini.', '', '', '']]
+  } else {
+    productRows = bestSellers.value.map(p => [p.name, p.category, `${p.sold} Unit`, p.revenue])
+  }
+
+  autoTable(doc, {
+    startY: currentY + 4,
+    margin: { left: 14, right: 14 },
+    theme: 'striped', 
+    headStyles: { 
+      fillColor: [15, 23, 42], 
+      textColor: [255, 255, 255], 
+      fontStyle: 'bold',
+      fontSize: 9.5 
+    },
+    bodyStyles: { fontSize: 9, textColor: [51, 65, 85] },
+    columnStyles: {
+      0: { width: 75 },
+      1: { width: 40 },
+      2: { halign: 'center', width: 25 },
+      3: { halign: 'right', fontStyle: 'bold', width: 42 }
+    },
+    head: productHeaders,
+    body: productRows,
+  })
+
+  // 4. Unduh Berkas Otomatis
+  doc.save(`GAPTEK_Laporan_${filterHari.replace(' ', '_')}_${tanggalSekarang}.pdf`)
+}
 async function fetchData() {
   loading.value = true
   try {
@@ -165,17 +255,28 @@ async function fetchData() {
     loading.value = false
   }
 }
-
 function processData() {
   const days = parseInt(activeFilter.value)
   const now = new Date()
   const filterDate = new Date()
   filterDate.setDate(now.getDate() - days)
 
-  const filteredOrders = rawOrders.value.filter(o => new Date(o.createdAt) >= filterDate)
+  // Helper untuk membersihkan "Rp 3.200.000" menjadi angka murni 3200000
+  const cleanNumber = (val) => {
+    if (!val) return 0
+    if (typeof val === 'number') return val
+    // Hapus semua karakter selain angka
+    const clean = val.toString().replace(/[^0-9]/g, '')
+    return parseInt(clean) || 0
+  }
+
+  const filteredOrders = rawOrders.value.filter(o => {
+    if (!o.createdAt) return false
+    return new Date(o.createdAt) >= filterDate
+  })
   
-  // Calculate Stats
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  // Hitung Statistik dengan data yang sudah dibersihkan
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + cleanNumber(o.total), 0)
   const totalOrders = filteredOrders.length
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
   const activeProducts = rawProducts.value.filter(p => p.isActive).length
@@ -185,7 +286,7 @@ function processData() {
   stats.value[2].value = formatCurrency(avgOrder)
   stats.value[3].value = activeProducts.toString()
 
-  // Process Line Chart (Daily grouping)
+  // Ambil label tanggal untuk chart
   const dateLabels = []
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date()
@@ -195,14 +296,14 @@ function processData() {
 
   lineChartData.value.labels = dateLabels.map(d => d.split('-').slice(1).reverse().join('/'))
   lineChartData.value.datasets[0].data = dateLabels.map(date => 
-    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + (o.total || 0), 0) / 1000000
+    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + cleanNumber(o.total), 0) / 1000000
   )
   lineChartData.value.datasets[1].data = dateLabels.map(date => 
     filteredOrders.filter(o => o.createdAt?.startsWith(date)).length
   )
 
-  // Payment Method Distribution
-  const cashCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'cash').length
+  // Distribusi Metode Pembayaran
+  const cashCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'cash' || o.payment?.method?.toLowerCase() === 'tunai').length
   const transferCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'transfer').length
   const totalWithPayment = cashCount + transferCount
   
@@ -214,23 +315,23 @@ function processData() {
     paymentDist.value[1].percentage = 0
   }
 
-  // Best Sellers Calculation
+  // Hitung Ulang Produk Terlaris
   const productSales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
-        const pid = item.product?.id
+        const pid = item.product?.id || item.productId
         if (!pid) return
         if (!productSales[pid]) {
           productSales[pid] = { 
-            name: item.product.name, 
-            category: item.product.category?.name || 'General', 
+            name: item.product?.name || item.name || 'Produk', 
+            category: item.product?.category?.name || item.category || 'General', 
             sold: 0, 
             revenue: 0 
           }
         }
-        productSales[pid].sold += item.qty
-        productSales[pid].revenue += item.subtotal
+        productSales[pid].sold += (parseInt(item.qty) || 0)
+        productSales[pid].revenue += cleanNumber(item.subtotal)
       })
     }
   })
@@ -243,13 +344,13 @@ function processData() {
       revenue: formatCurrency(p.revenue)
     }))
 
-  // Bar Chart: Top 5 Categories
+  // Bar Chart: Top 5 Kategori
   const categorySales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
-        const cat = item.product?.category?.name || 'Lainnya'
-        categorySales[cat] = (categorySales[cat] || 0) + item.subtotal
+        const cat = item.product?.category?.name || item.category || 'Lainnya'
+        categorySales[cat] = (categorySales[cat] || 0) + cleanNumber(item.subtotal)
       })
     }
   })
@@ -294,7 +395,7 @@ const barChartOptions = {
       <Loader2 class="w-10 h-10 animate-spin text-primary/40" />
       <p class="text-sm text-muted-foreground mt-4 font-medium italic">Menghubungkan ke sistem...</p>
     </div>
-    <div v-else class="space-y-8 pb-10 animate-in fade-in duration-500">
+   <div v-else id="report-content" class="space-y-8 pb-10 animate-in fade-in duration-500 bg-white dark:bg-zinc-950 p-4 rounded-2xl">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">WAWASAN & ANALISIS DATA</h3>
@@ -503,6 +604,7 @@ const barChartOptions = {
     </div>
   </AppLayout>
 </template>
+
 
 <style scoped>
 canvas {
