@@ -452,7 +452,7 @@ onMounted(async () => {
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="w-full sm:w-72">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari No. PO atau Supplier..." />
+            <DataTableSearch v-model="searchQuery" placeholder="Cari No. Pembelian atau Supplier..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
           <Button v-if="can('purchase_order.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
