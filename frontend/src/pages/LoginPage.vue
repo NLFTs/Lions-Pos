@@ -120,17 +120,17 @@ async function handleLogin() {
     <div class="flex w-full flex-col justify-between px-8 py-10 sm:px-12 md:w-1/2 lg:px-16 xl:px-24">
 
       <!-- Logo -->
-      <div class="flex items-center gap-2.5">
-        <div
-          class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30"
-        >
-          <Zap class="h-5 w-5 text-primary-foreground" />
-        </div>
+        <a href="/" class="flex items-center gap-2.5 group cursor-pointer hover:opacity-80 transition-opacity">
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
+          >
+            <Zap class="h-5 w-5 text-primary-foreground" />
+          </div>
 
-        <span class="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          GapTek
-        </span>
-      </div>
+          <span class="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            GapTek
+          </span>
+        </a>
 
       <!-- FORM -->
       <div class="mx-auto w-full max-w-sm space-y-7">
