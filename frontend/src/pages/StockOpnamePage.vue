@@ -238,7 +238,7 @@ onMounted(fetchData)
                 <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
                   <PackageSearch class="h-7 w-7 opacity-40" />
                 </div>
-                <p class="text-sm font-medium">Belum ada data Stock Opname.</p>
+                <p class="text-sm font-medium">Belum ada data Pengecekan Stock.</p>
                 <Button v-if="can('stock_opname.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
                   <Plus class="h-3.5 w-3.5 mr-1.5" />Mulai Opname Baru
                 </Button>
