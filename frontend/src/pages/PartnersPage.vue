@@ -484,10 +484,10 @@ onMounted(fetchPartners)
             <div>
               <h3 class="font-semibold text-base flex items-center gap-2">
                 <Building2 class="h-4 w-4 text-muted-foreground" />
-                {{ modalMode === 'create' ? 'Tambah Partner Mitra' : 'Edit Partner' }}
+                {{ modalMode === 'create' ? 'Tambah Partner Mitra' : 'Edit Mitra' }}
               </h3>
               <p class="text-xs text-muted-foreground mt-0.5">
-                {{ modalMode === 'create' ? 'Buat Mitra beserta akun admin yang mengelolanya.' : 'Ubah detail partner.' }}
+                {{ modalMode === 'create' ? 'Buat Mitra beserta akun admin yang mengelolanya.' : 'Ubah detail mitra.' }}
               </p>
             </div>
             <Button variant="ghost" size="icon" @click="closeDrawer">
@@ -583,8 +583,8 @@ onMounted(fetchPartners)
             <!-- ══ EDIT MODE ══ -->
             <template v-else>
               <div class="space-y-1.5">
-                <Label for="e-name">Nama Partner <span class="text-destructive">*</span></Label>
-                <Input id="e-name" v-model="editForm.name" placeholder="Nama partner" />
+                <Label for="e-name">Nama Mitra <span class="text-destructive">*</span></Label>
+                <Input id="e-name" v-model="editForm.name" placeholder="Nama mitra" />
               </div>
 
               <div class="space-y-1.5">
@@ -605,8 +605,8 @@ onMounted(fetchPartners)
                     </div>
                   </div>
                   <div>
-                    <div class="text-sm font-medium">Partner Aktif</div>
-                    <div class="text-xs text-muted-foreground">Izinkan partner mengakses sistem.</div>
+                    <div class="text-sm font-medium">Mitra Aktif</div>
+                    <div class="text-xs text-muted-foreground">Izinkan mitra mengakses sistem.</div>
                   </div>
                 </label>
               </div>
