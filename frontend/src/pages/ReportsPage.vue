@@ -105,6 +105,45 @@ const paymentDist = ref([
   { name: 'Transfer', percentage: 0, color: 'bg-blue-500' }
 ])
 
+// ==========================================
+// 🛠️ TAMBAHAN: FUNGSI EKSPOR DATA CSV
+// ==========================================
+const exportToCSV = () => {
+  const days = parseInt(activeFilter.value)
+  const now = new Date()
+  const filterDate = new Date()
+  filterDate.setDate(now.getDate() - days)
+
+  // Ambil data order yang terfilter sesuai pilihan hari dashboard
+  const filteredOrders = rawOrders.value.filter(o => new Date(o.createdAt) >= filterDate)
+
+  // Buat Baris Header CSV
+  const headers = ['ID Order', 'Tanggal', 'Metode Pembayaran', 'Total Transaksi (Rp)', 'Status']
+  
+  // Mapping isi data transaksinya
+  const rows = filteredOrders.map(o => [
+    `"${o.id || '-'}"`,
+    `"${o.createdAt ? o.createdAt.split('T')[0] : '-'}"`,
+    `"${o.payment?.method || '-'}"`,
+    o.total || 0,
+    `"${o.status || 'COMPLETED'}"`
+  ])
+
+  // Gabungkan semua baris menjadi string CSV rapi
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n')
+
+  // Download File via Browser
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', `GAPTEK_Laporan_${activeFilter.value.replace(' ', '_')}_${new Date().toISOString().split('T')[0]}.csv`)
+  link.click()
+}
+
 async function fetchData() {
   loading.value = true
   try {
@@ -256,7 +295,6 @@ const barChartOptions = {
       <p class="text-sm text-muted-foreground mt-4 font-medium italic">Menghubungkan ke sistem...</p>
     </div>
     <div v-else class="space-y-8 pb-10 animate-in fade-in duration-500">
-      <!-- Header -->
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">WAWASAN & ANALISIS DATA</h3>
@@ -266,7 +304,6 @@ const barChartOptions = {
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <!-- Period Filter -->
           <div class="flex items-center bg-zinc-100/80 dark:bg-zinc-900/80 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 backdrop-blur-sm">
             <button 
               v-for="filter in filters" 
@@ -281,13 +318,12 @@ const barChartOptions = {
             </button>
           </div>
 
-          <!-- Export Buttons -->
           <div class="flex items-center gap-2">
-            <button class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
+            <button @click="exportToCSV" class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
               <Table class="w-4 h-4 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
               CSV
             </button>
-            <button class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
+            <button @click="exportToPDF" class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
               <FileIcon class="w-4 h-4 text-zinc-400 group-hover:text-rose-500 transition-colors" />
               PDF
             </button>
@@ -295,7 +331,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Stat Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div v-for="stat in stats" :key="stat.label" class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 group">
           <div class="flex items-center justify-between mb-4">
@@ -314,7 +349,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Main Line Chart -->
       <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
@@ -337,9 +371,7 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Charts Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Bar Chart: Category Sales -->
         <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
           <div class="flex items-center justify-between mb-8">
             <div>
@@ -355,7 +387,6 @@ const barChartOptions = {
           </div>
         </div>
 
-        <!-- Payment Method Distribution -->
         <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
           <div class="flex items-center justify-between mb-8">
             <div>
@@ -384,7 +415,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Best Sellers -->
       <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
         <div class="flex items-center justify-between mb-8">
           <div>
@@ -402,7 +432,6 @@ const barChartOptions = {
         </div>
 
         <div v-else>
-          <!-- Mobile List View -->
           <div class="md:hidden space-y-4">
             <div v-for="product in bestSellers" :key="'mobile-' + product.name" class="p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/30 dark:bg-zinc-900/20">
               <div class="flex items-center gap-3 mb-3">
@@ -429,7 +458,6 @@ const barChartOptions = {
             </div>
           </div>
 
-          <!-- Desktop Table View -->
           <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm text-left">
               <thead class="text-xs text-muted-foreground uppercase bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800/60">
