@@ -125,6 +125,10 @@ public class PartnerService {
         // 1. Simpan entitas Partner Baru
         Partners partner = new Partners();
         partner.setName(request.getName());
+        if(partnerRepository.existsByName(request.getName())) {
+            throw new IllegalArgumentException("Partner dengan nama '" + request.getName() + "' sudah ada.");
+        }
+        
         partner.setPlan(request.getPlan());
         partner.setSlug(request.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-"));
         partner.setCreatedAt(LocalDateTime.now());

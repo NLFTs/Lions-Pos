@@ -64,7 +64,7 @@ public class OrdersService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
+    // KUNCI DINAMIS: Cek permission langsung dari database tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
         // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
@@ -162,6 +162,7 @@ public class OrdersService {
         checkPermission(currentUser, "order.store"); // 💡 Siapapun boleh checkout asal punya permission kasir/sales
 
         Partners partner = currentUser.getPartner();
+        
         if (partner == null) {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat transaksi langsung.");
         }
@@ -315,7 +316,7 @@ public class OrdersService {
                 payment.setStatus(Payments.Status.VERIFIED);
                 savedOrder.setStatus(Orders.PaymentStatus.PAID);
 
-                // 🔥 POTONG STOK REAL-TIME HANYA JIKA METODE TUNAI LUNAS (CASH PAID)
+                // POTONG STOK REAL-TIME HANYA JIKA METODE TUNAI LUNAS (CASH PAID)
                 for (OrderItems item : orderItems) {
                     stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
                     stockMutationService.recordMutation(
@@ -375,9 +376,12 @@ public class OrdersService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "order.update"); // Pembatalan dihitung hak kelola update data keuangan
 
-        Orders order = ordersRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Orders", id));
+        Orders order = getValidatedOrder(id, currentUser);
 
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak boleh membatalkan order.");
+        }
+        
         if (currentUser.getPartner() != null) {
             if (order.getPartner() == null || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
                 throw new RuntimeException("Akses Ditolak: Order bukan milik partner Anda.");
@@ -391,7 +395,7 @@ public class OrdersService {
             throw new RuntimeException("Order dengan status RETURN tidak bisa dibatalkan.");
         }
 
-        // 🔥 LOGIC REVERSAL STOK: Hanya pulangkan kuantitas barang jika status pesanan adalah PAID
+        // LOGIC REVERSAL STOK: Hanya pulangkan kuantitas barang jika status pesanan adalah PAID
         if (order.getStatus() == Orders.PaymentStatus.PAID) {
             for (OrderItems item : order.getItems()) {
                 stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", order.getBranch().getId(), item.getQty());
@@ -424,6 +428,10 @@ public class OrdersService {
 
         Orders order = ordersRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Orders", id));
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin tidak boleh memreturn order.");
+        }
 
         if (currentUser.getPartner() != null) {
             if (order.getPartner() == null || !order.getPartner().getId().equals(currentUser.getPartner().getId())) {
