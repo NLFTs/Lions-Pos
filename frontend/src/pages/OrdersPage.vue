@@ -313,12 +313,12 @@ onMounted(() => {
       <!-- Header -->
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Riwayat Order</h1>
+          <h1 class="text-2xl font-bold tracking-tight">Riwayat Pesanan</h1>
           <p class="text-muted-foreground text-sm mt-1">Lihat riwayat transaksi penjualan dari Terminal POS.</p>
         </div>
         <div class="flex items-center gap-2 w-full md:w-auto">
           <div class="w-full sm:w-64">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari order, kasir atau cabang..." />
+            <DataTableSearch v-model="searchQuery" placeholder="Cari pesanan, kasir atau cabang..." />
           </div>
           <CustomSelect
             v-model="branchFilter"
@@ -372,7 +372,7 @@ onMounted(() => {
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. Order</th>
+                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. Pesanan</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tgl &amp; Waktu</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Pembeli</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Cabang</th>
