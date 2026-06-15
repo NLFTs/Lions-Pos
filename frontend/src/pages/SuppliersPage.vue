@@ -319,7 +319,7 @@ onMounted(fetchSuppliers)
                         <th class="w-12 pl-5 py-3 text-left">
                           <input type="checkbox" class="rounded border-zinc-300 dark:border-zinc-700 text-primary focus:ring-primary h-4 w-4 cursor-pointer" :checked="isAllSelected" @change="toggleSelectAll" />
                         </th>
-                        <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Supplier</th>
+                        <th class="pl-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Distributor</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Kontak</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Alamat</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Catatan</th>
