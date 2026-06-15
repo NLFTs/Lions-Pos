@@ -12,6 +12,13 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Panduan', link: '/introduction' }
     ],
+
+    logo: '/gaptek-hit.png',
+
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com' },
+      { icon: 'discord', link: 'https://discord.com' }
+    ],
     
     sidebar: [
       {
