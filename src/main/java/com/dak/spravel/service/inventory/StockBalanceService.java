@@ -119,8 +119,12 @@ public class StockBalanceService {
             if (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Warehouse bukan milik partner Anda.");
             }
+        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+            if (!locationId.equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Lokasi karantina bukan milik partner Anda.");
+            }
         } else {
-            throw new RuntimeException("locationType tidak valid. Gunakan 'BRANCH' or 'WAREHOUSE'.");
+            throw new RuntimeException("locationType tidak valid. Gunakan 'BRANCH', 'WAREHOUSE', atau 'QUARANTINE'.");
         }
     }
 
@@ -129,6 +133,8 @@ public class StockBalanceService {
             return branchesRepository.findById(locationId).map(Branches::getName).orElse("Branch #" + locationId);
         } else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
             return warehousesRepository.findById(locationId).map(Warehouses::getName).orElse("Warehouse #" + locationId);
+        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+            return "Karantina (Partner #" + locationId + ")";
         }
         return "Lokasi #" + locationId;
     }
@@ -651,5 +657,107 @@ public class StockBalanceService {
             .outgoingProducts(outgoing)
             .chartData(chartData)
             .build();
+    }
+
+    @Transactional
+    public void addToQuarantine(Long productId, Long partnerId, Long qty, Long referenceId, String notes, User createdBy) {
+        StockBalance quarantineStock = stockBalanceRepository
+                .findByProductIdAndLocationTypeAndLocationId(productId, "QUARANTINE", partnerId)
+                .orElse(null);
+
+        if (quarantineStock == null) {
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan id=" + productId));
+            quarantineStock = new StockBalance();
+            quarantineStock.setProduct(product);
+            quarantineStock.setLocationType("QUARANTINE");
+            quarantineStock.setLocationId(partnerId);
+            quarantineStock.setQty(qty);
+            quarantineStock.setCreatedBy(createdBy);
+        } else {
+            quarantineStock.setQty(quarantineStock.getQty() + qty);
+        }
+        quarantineStock.setUpdatedBy(createdBy);
+        quarantineStock.setUpdatedAt(java.time.LocalDateTime.now());
+        StockBalance saved = stockBalanceRepository.save(quarantineStock);
+
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(saved.getProduct());
+        mutation.setPartner(saved.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.QUARANTINE_IN);
+        mutation.setFromLocationType(null);
+        mutation.setFromLocationId(null);
+        mutation.setToLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setToLocationId(partnerId);
+        mutation.setQty(qty);
+        mutation.setReferenceType(StockMutation.ReferenceType.ORDER);
+        mutation.setReferenceId(referenceId);
+        mutation.setNotes(notes);
+        mutation.setCreatedBy(createdBy);
+        stockMutationRepository.save(mutation);
+    }
+
+    @Transactional
+    public StockBalanceResponse disposeQuarantine(Long stockBalanceId, Long qty, String notes) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.update");
+
+        StockBalance stock = stockBalanceRepository.findById(stockBalanceId)
+                .orElseThrow(() -> new RuntimeException("Stock balance tidak ditemukan id=" + stockBalanceId));
+
+        if (!"QUARANTINE".equalsIgnoreCase(stock.getLocationType())) {
+            throw new RuntimeException("Hanya stok karantina yang bisa di-dispose.");
+        }
+
+        if (currentUser.getPartner() != null) {
+            if (stock.getProduct().getPartner() == null ||
+                    !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Stok bukan milik partner Anda.");
+            }
+        }
+
+        long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
+        long disposeQty = (qty == null || qty <= 0) ? currentQty : Math.min(qty, currentQty);
+
+        if (disposeQty <= 0) {
+            throw new RuntimeException("Tidak ada stok karantina untuk di-dispose.");
+        }
+
+        stock.setQty(currentQty - disposeQty);
+        stock.setUpdatedBy(currentUser);
+        stock.setUpdatedAt(java.time.LocalDateTime.now());
+        stockBalanceRepository.save(stock);
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(stock.getProduct());
+        mutation.setPartner(stock.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.QUARANTINE_DISPOSE);
+        mutation.setFromLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setFromLocationId(stock.getLocationId());
+        mutation.setToLocationType(null);
+        mutation.setToLocationId(null);
+        mutation.setQty(disposeQty);
+        mutation.setReferenceType(StockMutation.ReferenceType.STOCK_OPNAME);
+        mutation.setReferenceId(stock.getId());
+        mutation.setNotes(notes != null ? notes : "Dispose stok karantina ke supplier");
+        mutation.setCreatedBy(currentUser);
+        stockMutationRepository.save(mutation);
+
+        return mapToResponse(stock);
+    }
+    
+    public List<StockBalanceResponse> findQuarantineStock() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        if (currentUser.getPartner() == null) {
+            return stockBalanceRepository.findAll().stream()
+                    .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getLocationType()))
+                    .map(this::mapToResponse).toList();
+        }
+
+        return stockBalanceRepository
+                .findByProductPartnerId(currentUser.getPartner().getId()).stream()
+                .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getLocationType()))
+                .map(this::mapToResponse).toList();
     }
 }

@@ -25,6 +25,8 @@ import {
   Filter,
   X,
   ChevronDown,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
@@ -85,7 +87,8 @@ const locationOptions = computed(() => {
 const typeOptions = [
   { value: 'all', label: 'Semua Tipe' },
   { value: 'warehouse', label: 'Gudang' },
-  { value: 'branch', label: 'Cabang' }
+  { value: 'branch', label: 'Cabang' },
+  { value: 'quarantine', label: 'Karantina' }
 ]
 
 // ─── Actions: Fetch Master Data ───────────────────────────────────────────────
@@ -186,8 +189,41 @@ async function saveAdjustment() {
   }
 }
 
-// ─── TRANSFER STOK DRAWER CONTROL ───────────────────────────────────────────
-const showTransferDrawer = ref(false)
+// DISPOSE KARANTINA
+const showDisposeModal = ref(false)
+const disposeTarget = ref(null)
+const disposeQty = ref('')
+const disposeNotes = ref('')
+const disposeSaving = ref(false)
+
+function openDispose(balance) {
+  disposeTarget.value = balance
+  disposeQty.value = balance.qty?.toString() || ''
+  disposeNotes.value = ''
+  showDisposeModal.value = true
+}
+
+async function submitDispose() {
+  if (!disposeTarget.value) return
+  const qty = Number(disposeQty.value)
+  if (!qty || qty <= 0) { toast.error('Jumlah dispose harus lebih dari 0.'); return }
+  if (qty > disposeTarget.value.qty) { toast.error(`Maksimal qty dispose: ${disposeTarget.value.qty}.`); return }
+  disposeSaving.value = true
+  try {
+    await api.post(`/api/v1/stock-balances/${disposeTarget.value.id}/dispose`, null, {
+      params: { qty, notes: disposeNotes.value?.trim() || null }
+    })
+    toast.success(`${qty} pcs berhasil di-dispose ke supplier.`)
+    showDisposeModal.value = false
+    fetchData()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal melakukan dispose.')
+  } finally {
+    disposeSaving.value = false
+  }
+}
+
+// ─── TRANSFER STOK DRAWER CONTROL ───────────────────────────────────────────const showTransferDrawer = ref(false)
 const transferSaving = ref(false)
 const transferFormError = ref(null)
 const transferForm = ref({ fromLocationType: 'warehouse', fromLocationId: '', toLocationType: 'branch', toLocationId: '', productId: '', qty: 1 })
@@ -339,13 +375,21 @@ onMounted(fetchData)
                     </td>
                     <td class="py-4">
                       <div class="flex flex-col gap-1">
-                        <div class="flex items-center gap-1.5 font-medium text-zinc-700 dark:text-zinc-300">
-                          <Warehouse v-if="b.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
+                        <div class="flex items-center gap-1.5 font-medium"
+                          :class="b.locationType?.toUpperCase() === 'QUARANTINE'
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-zinc-700 dark:text-zinc-300'">
+                          <AlertTriangle v-if="b.locationType?.toUpperCase() === 'QUARANTINE'" class="h-3.5 w-3.5 opacity-70" />
+                          <Warehouse v-else-if="b.locationType === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
                           <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
-                          {{ getLocationName(b.locationType, b.locationId) }}
+                          {{ b.locationType?.toUpperCase() === 'QUARANTINE' ? 'Karantina' : getLocationName(b.locationType, b.locationId) }}
                         </div>
-                        <Badge variant="outline" class="w-fit text-[9px] px-1.5 py-0 uppercase tracking-widest font-bold">
-                          {{ b.locationType }}
+                        <Badge variant="outline"
+                          :class="['w-fit text-[9px] px-1.5 py-0 uppercase tracking-widest font-bold',
+                            b.locationType?.toUpperCase() === 'QUARANTINE'
+                              ? 'border-red-300 text-red-600 dark:border-red-700 dark:text-red-400'
+                              : '']">
+                          {{ b.locationType?.toUpperCase() === 'QUARANTINE' ? 'Karantina' : b.locationType }}
                         </Badge>
                       </div>
                     </td>
@@ -364,7 +408,14 @@ onMounted(fetchData)
                       <div v-if="b.updatedBy" class="text-[10px] text-muted-foreground mt-0.5">Oleh: {{ b.updatedBy.username }}</div>
                     </td>
                     <td class="pr-5 py-4 text-right">
-                      <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-primary transition-colors">
+                      <Button v-if="b.locationType?.toUpperCase() === 'QUARANTINE'"
+                        variant="ghost" size="sm"
+                        class="h-8 px-3 text-[11px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5"
+                        @click="openDispose(b)">
+                        <Trash2 class="h-3.5 w-3.5" />
+                        Dispose
+                      </Button>
+                      <Button v-else variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-primary transition-colors">
                         <ArrowUpRight class="h-4 w-4" />
                       </Button>
                     </td>
@@ -501,6 +552,101 @@ onMounted(fetchData)
           </div>
         </Transition>
       </Teleport>
+
+    <!-- ─── Modal Dispose Karantina ─── -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showDisposeModal" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="showDisposeModal = false" />
+      </Transition>
+      <Transition name="scale">
+        <div v-if="showDisposeModal && disposeTarget" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-red-200 dark:border-red-800/40 pointer-events-auto overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center gap-3 px-6 py-4 border-b border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20">
+              <div class="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                <AlertTriangle class="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 class="font-black text-[15px] text-zinc-900 dark:text-zinc-100">Dispose ke Supplier</h3>
+                <p class="text-[11px] text-muted-foreground mt-0.5">Stok karantina akan dihapus dari sistem</p>
+              </div>
+              <button @click="showDisposeModal = false" class="ml-auto p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-400">
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+
+            <!-- Body -->
+            <div class="px-6 py-5 space-y-4">
+              <!-- Info produk -->
+              <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Produk</p>
+                <p class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ disposeTarget.product?.name }}</p>
+                <p class="text-[11px] font-mono text-muted-foreground">{{ disposeTarget.product?.sku }}</p>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                  <span class="text-[11px] text-zinc-500">Stok Karantina Saat Ini</span>
+                  <span class="text-sm font-black text-red-600 dark:text-red-400">{{ disposeTarget.qty }} pcs</span>
+                </div>
+              </div>
+
+              <!-- Input jumlah -->
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+                  Jumlah Dispose <span class="text-destructive normal-case font-normal">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="disposeQty"
+                    type="number"
+                    min="1"
+                    :max="disposeTarget.qty"
+                    placeholder="0"
+                    class="w-full h-11 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 pr-12 text-base font-bold outline-none focus:ring-2 focus:ring-red-400/30"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-zinc-400">PCS</span>
+                </div>
+                <button
+                  type="button"
+                  @click="disposeQty = disposeTarget.qty.toString()"
+                  class="text-[11px] font-semibold text-primary hover:underline">
+                  Dispose semua ({{ disposeTarget.qty }} pcs)
+                </button>
+              </div>
+
+              <!-- Keterangan -->
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Keterangan <span class="normal-case font-normal">(opsional)</span></label>
+                <input
+                  v-model="disposeNotes"
+                  placeholder="cth: dikembalikan ke supplier karena expired"
+                  class="w-full h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-red-400/30"
+                />
+              </div>
+
+              <!-- Warning -->
+              <div class="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-700 dark:text-amber-400">
+                <AlertTriangle class="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>Tindakan ini <strong>tidak dapat dibatalkan</strong>. Stok akan dikurangi dan tercatat sebagai dispose ke supplier.</span>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 pb-5 flex gap-2.5">
+              <button @click="showDisposeModal = false" :disabled="disposeSaving"
+                class="flex-1 h-11 rounded-[14px] border border-zinc-200 dark:border-zinc-700 font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50">
+                Batal
+              </button>
+              <button @click="submitDispose" :disabled="disposeSaving"
+                class="flex-1 h-11 rounded-[14px] bg-red-600 hover:bg-red-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                <Loader2 v-if="disposeSaving" class="h-4 w-4 animate-spin" />
+                <Trash2 v-else class="h-4 w-4" />
+                Dispose
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
   </AppLayout>
 </template>
 
