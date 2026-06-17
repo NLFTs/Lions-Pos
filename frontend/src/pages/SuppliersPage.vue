@@ -233,7 +233,7 @@ onMounted(fetchSuppliers)
                 class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 <Plus class="h-4 w-4" />
-                <span>Tambah Supplier</span>
+                <span>Tambah Distributor</span>
               </Button>
             </div>
           </div>
@@ -385,13 +385,13 @@ onMounted(fetchSuppliers)
               </Button>
               <div>
                 <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                  <span>{{ modalMode === 'create' ? 'Tambah Supplier' : 'Edit Supplier' }}</span>
+                  <span>{{ modalMode === 'create' ? 'Tambah Distributor' : 'Edit Distributor' }}</span>
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
                     {{ modalMode === 'create' ? 'Baru' : 'Modifikasi' }}
                   </span>
                 </h2>
                 <p class="text-xs text-muted-foreground mt-0.5">
-                  {{ modalMode === 'create' ? 'Lengkapi detail untuk menambahkan supplier baru.' : 'Perbarui informasi supplier.' }}
+                  {{ modalMode === 'create' ? 'Lengkapi detail untuk menambahkan distributor baru.' : 'Perbarui informasi distributor.' }}
                 </p>
               </div>
             </div>
@@ -399,7 +399,7 @@ onMounted(fetchSuppliers)
               <Button variant="outline" @click="closeForm" :disabled="saving" class="flex-1 sm:flex-none">Batal</Button>
               <Button @click="saveSupplier" :disabled="saving" class="flex-1 sm:flex-none bg-primary text-primary-foreground hover:bg-primary/95 shadow-md shadow-primary/20">
                 <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                <span>{{ modalMode === 'create' ? 'Simpan Supplier' : 'Perbarui' }}</span>
+                <span>{{ modalMode === 'create' ? 'Simpan Distributor' : 'Perbarui' }}</span>
               </Button>
             </div>
           </div>
@@ -418,16 +418,16 @@ onMounted(fetchSuppliers)
                 <CardContent class="p-5 space-y-4">
                   <div class="flex items-center justify-between border-b pb-3 border-zinc-100 dark:border-zinc-800">
                     <div>
-                      <Label class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Pratinjau Supplier</Label>
-                      <p class="text-[10px] text-muted-foreground mt-0.5">Tampilan data supplier secara visual.</p>
+                      <Label class="text-sm font-semibold text-zinc-950 dark:text-zinc-50">Pratinjau Distributor</Label>
+                      <p class="text-[10px] text-muted-foreground mt-0.5">Tampilan data distributor secara visual.</p>
                     </div>
                   </div>
                   <div class="flex flex-col items-center justify-center py-6 gap-4">
                     <div class="w-20 h-20 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-3xl font-bold text-zinc-600 dark:text-zinc-300 shadow-lg border-2 border-zinc-200 dark:border-zinc-700 select-none transition-all duration-300">
-                      {{ (form.name || 'S').charAt(0).toUpperCase() }}
+                      {{ (form.name || 'D').charAt(0).toUpperCase() }}
                     </div>
                     <div class="text-center space-y-1">
-                      <p class="font-semibold text-base text-zinc-900 dark:text-zinc-100">{{ form.name || 'Nama Supplier' }}</p>
+                      <p class="font-semibold text-base text-zinc-900 dark:text-zinc-100">{{ form.name || 'Nama Distributor' }}</p>
                       <div v-if="form.phone" class="flex items-center justify-center gap-1 text-xs text-zinc-500">
                         <Phone class="h-3 w-3" /> {{ form.phone }}
                       </div>
@@ -462,7 +462,7 @@ onMounted(fetchSuppliers)
                   </h3>
 
                   <div class="space-y-1.5">
-                    <Label for="s-name" class="text-xs font-semibold">Nama Supplier <span class="text-destructive">*</span></Label>
+                    <Label for="s-name" class="text-xs font-semibold">Nama Distributor <span class="text-destructive">*</span></Label>
                     <Input
                       id="s-name"
                       v-model="form.name"
@@ -490,7 +490,7 @@ onMounted(fetchSuppliers)
                       </Label>
                       <div class="relative">
                         <Mail class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input id="s-email" v-model="form.email" type="email" placeholder="supplier@example.com" :disabled="saving" class="h-10 rounded-lg pl-9" />
+                        <Input id="s-email" v-model="form.email" type="email" placeholder="distributor@example.com" :disabled="saving" class="h-10 rounded-lg pl-9" />
                       </div>
                     </div>
                   </div>
@@ -514,7 +514,7 @@ onMounted(fetchSuppliers)
                       v-model="form.address"
                       rows="3"
                       :disabled="saving"
-                      placeholder="Alamat kantor atau gudang supplier..."
+                      placeholder="Alamat kantor atau gudang distributor..."
                       class="flex min-h-[80px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none transition-colors"
                     />
                   </div>
@@ -566,7 +566,7 @@ onMounted(fetchSuppliers)
                 <Label class="text-sm font-medium">
                   Ketik <span class="font-bold bg-muted px-1.5 py-0.5 rounded text-foreground">{{ deleteModal.supplier?.name }}</span> untuk konfirmasi.
                 </Label>
-                <Input v-model="deleteModal.confirmText" class="mt-2" placeholder="Masukkan nama supplier" @keyup.enter="confirmDelete" />
+                <Input v-model="deleteModal.confirmText" class="mt-2" placeholder="Masukkan nama distributor" @keyup.enter="confirmDelete" />
               </div>
             </div>
             <div class="flex items-center justify-end gap-3 px-6 py-4 bg-muted/30 border-t">
