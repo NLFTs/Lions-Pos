@@ -330,10 +330,26 @@ const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 const showPayment = ref(false)
 const payMethod = ref('cash')
 const cashTendered = ref('')
+const cashTenderedDisplay = ref('') // format ribuan untuk tampilan, cashTendered tetap angka bersih
 const bankName = ref('')
 const referenceNo = ref('')
 const buyerName = ref('')
 const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
+
+function onCashTenderedInput(e) {
+  const raw = e.target.value.replace(/\D/g, '') // hanya angka
+  cashTendered.value = raw
+  cashTenderedDisplay.value = raw
+    ? Number(raw).toLocaleString('id-ID')
+    : ''
+  // Paksa value di elemen kembali ke format agar kursor tidak lompat
+  e.target.value = cashTenderedDisplay.value
+}
+
+function setCashTendered(amount) {
+  cashTendered.value = String(amount)
+  cashTenderedDisplay.value = amount ? Number(amount).toLocaleString('id-ID') : ''
+}
 
 function openPayment() { 
   if (!cart.value.length) return
@@ -344,6 +360,7 @@ function openPayment() {
   showPayment.value = true
   payMethod.value = 'cash'
   cashTendered.value = ''
+  cashTenderedDisplay.value = ''
   bankName.value = ''
   referenceNo.value = ''
   buyerName.value = ''
@@ -479,6 +496,8 @@ async function checkout() {
     manualDiscountValue.value = ''
     manualDiscountDisplay.value = ''
     manualDiscountNote.value = ''
+    cashTendered.value = ''
+    cashTenderedDisplay.value = ''
     showPayment.value = false
     showReceipt.value = true
 
@@ -838,12 +857,18 @@ function avatarStyle(name = '') {
                     <label class="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">Uang Diterima</label>
                     <div class="relative">
                       <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[15px] font-black text-zinc-400">Rp</span>
-                      <Input v-model="cashTendered" type="number" min="0" class="pl-10 h-12 text-lg font-black rounded-[14px] border-zinc-200 shadow-sm" placeholder="0" />
+                      <input
+                        :value="cashTenderedDisplay"
+                        @input="onCashTenderedInput"
+                        inputmode="numeric"
+                        placeholder="0"
+                        class="pl-10 h-12 w-full text-lg font-black rounded-[14px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      />
                     </div>
                   </div>
                   
                   <div class="flex flex-wrap gap-2 pt-1">
-                    <button v-for="amt in [total, Math.ceil(total/10000)*10000, Math.ceil(total/50000)*50000, Math.ceil(total/100000)*100000].filter((v,i,a) => a.indexOf(v) === i)" :key="amt" @click="cashTendered = amt"
+                    <button v-for="amt in [total, Math.ceil(total/10000)*10000, Math.ceil(total/50000)*50000, Math.ceil(total/100000)*100000].filter((v,i,a) => a.indexOf(v) === i)" :key="amt" @click="setCashTendered(amt)"
                       class="px-3.5 py-2 text-[13px] font-bold rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
                       {{ formatCurrency(amt) }}
                     </button>
