@@ -33,7 +33,6 @@ public class StockBalance {
         @Column(name = "location_type", nullable = true)
         private String locationType;
 
-        // FK to branches.id or warehouses.id depending on location_type
         @Column(name = "location_id", nullable = true)
         private Long locationId;
 

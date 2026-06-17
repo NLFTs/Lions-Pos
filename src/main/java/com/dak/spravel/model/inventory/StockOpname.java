@@ -27,7 +27,6 @@ public class StockOpname  {
     @JoinColumn(name = "partner_id", referencedColumnName = "id", nullable = false)
     private Partners partner;
 
-    // "branch" | "warehouse"
     @Column(name = "location_type", nullable = true)
     private String location;
 

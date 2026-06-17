@@ -35,7 +35,7 @@ public class Voucher  {
     
     @Column( nullable = true)
     @Enumerated(EnumType.STRING)
-    private DiscountType discountType; // "percent" atau "fixed"
+    private DiscountType discountType;
 
     public enum DiscountType {
         PERCENT,
@@ -49,10 +49,10 @@ public class Voucher  {
     private BigDecimal minPurchase = BigDecimal.ZERO;
 
     @Column( precision = 15, scale = 2)
-    private BigDecimal maxDiscount; //null= no cap
+    private BigDecimal maxDiscount;
 
     @Column(nullable = true)
-    private Integer quota = 0; // 0 = unlimited
+    private Integer quota = 0;
 
     private Integer used_count = 0;
 
@@ -86,4 +86,5 @@ public class Voucher  {
     @JoinColumn(name = "deleted_by", referencedColumnName = "id")
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User deletedBy;
+
 }

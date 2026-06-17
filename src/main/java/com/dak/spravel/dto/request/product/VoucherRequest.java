@@ -24,7 +24,7 @@ public class VoucherRequest {
     private Integer quota;
 
     @JsonProperty("discount_type")
-    private String discountType; // "PERCENT" / "FIXED"
+    private String discountType;
 
     @JsonProperty("discount_value")
     private BigDecimal discountValue;

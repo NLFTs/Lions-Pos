@@ -1,0 +1,137 @@
+/* Minimalist custom design theme overrides for VitePress */
+
+/* Remove default page padding so HomeLayout controls its own spacing */
+.VPPage {
+  padding: 0 !important;
+}
+
+.VPPage > .container {
+  max-width: unset !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:root {
+  --vp-c-brand-1: #18181b;
+  /* Zinc 900 */
+  --vp-c-brand-2: #27272a;
+  /* Zinc 800 */
+  --vp-c-brand-3: #3f3f46;
+  /* Zinc 700 */
+  --vp-c-brand-soft: #f4f4f5;
+  /* Zinc 100 */
+
+  /* Font settings */
+  --vp-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Layout constraints */
+  --vp-home-hero-image-filter: none;
+}
+
+.dark {
+  --vp-c-brand-1: #fafafa;
+  /* Zinc 50 */
+  --vp-c-brand-2: #f4f4f5;
+  /* Zinc 100 */
+  --vp-c-brand-3: #e4e4e7;
+  /* Zinc 200 */
+  --vp-c-brand-soft: #27272a;
+  /* Zinc 800 */
+}
+
+/* Modern & Clean typography adjustments */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4 {
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  border-bottom: none !important;
+}
+
+/* Super minimal sidebar */
+.VPSidebar {
+  background-color: var(--vp-c-bg) !important;
+  border-right: 1px solid var(--vp-c-divider) !important;
+}
+
+/* Super minimal navbar */
+.VPNavBar {
+  background-color: var(--vp-c-bg) !important;
+  border-bottom: 1px solid var(--vp-c-divider) !important;
+}
+
+/* Minimalist content container */
+.VPContent {
+  background-color: var(--vp-c-bg) !important;
+}
+
+/* Clean up hero section for a clean text-first home page */
+.VPHero {
+  padding: 64px 24px 48px !important;
+}
+
+.VPHero .name {
+  font-size: 3rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+  background: none !important;
+  -webkit-text-fill-color: var(--vp-c-text-1) !important;
+}
+
+.VPHero .text {
+  font-size: 3rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+.VPHero .tagline {
+  font-size: 1.15rem !important;
+  color: var(--vp-c-text-2) !important;
+  max-width: 500px !important;
+  margin: 12px auto 0 !important;
+}
+
+.VPFeatures {
+  border-top: none !important;
+  padding: 0 24px !important;
+}
+
+.VPFeature {
+  border: 1px solid var(--vp-c-divider) !important;
+  background-color: transparent !important;
+  border-radius: 6px !important;
+  transition: border-color 0.2s ease !important;
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-text-2) !important;
+  background-color: transparent !important;
+}
+
+/* Minimalist buttons */
+.VPButton.brand {
+  border-color: var(--vp-c-brand-1) !important;
+  color: var(--vp-c-bg) !important;
+  background-color: var(--vp-c-brand-1) !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+.VPButton.brand:hover {
+  background-color: var(--vp-c-brand-2) !important;
+  border-color: var(--vp-c-brand-2) !important;
+}
+
+.VPButton.alt {
+  border-color: var(--vp-c-divider) !important;
+  background-color: transparent !important;
+  color: var(--vp-c-text-1) !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+}
+
+.VPButton.alt:hover {
+  border-color: var(--vp-c-text-2) !important;
+  background-color: transparent !important;
+}

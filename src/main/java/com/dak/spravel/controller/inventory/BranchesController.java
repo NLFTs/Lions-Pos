@@ -67,10 +67,6 @@ public class BranchesController {
         return ResponseBuilder.ok(branchesService.findById(id));
     }
 
-    /**
-     * GET /api/v1/branches/{id}/users
-     * Returns all users assigned to this branch.
-     */
     @GetMapping("/{id}/users")
     @PreAuthorize("hasAuthority('branch.show')")
     public ResponseEntity<ResData<List<com.dak.spravel.dto.response.UserResponse>>> getUsersByBranch(@PathVariable Long id) {
@@ -78,10 +74,6 @@ public class BranchesController {
         return ResponseBuilder.ok(branchesService.getUsersByBranch(id));
     }
 
-    /**
-     * PUT /api/v1/branches/{id}/manager
-     * Transfer branch manager to another user (userId in body).
-     */
     @PutMapping("/{id}/manager")
     @PreAuthorize("hasAuthority('branch.update')")
     public ResponseEntity<ResData<BranchResponse>> transferManager(

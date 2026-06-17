@@ -26,7 +26,7 @@ public class SupplierService {
     private final SupplierRepository supplierRepository;
     private final UserRepository userRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -37,9 +37,9 @@ public class SupplierService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Cek hak akses dari database berdasarkan centang matriks UI Nuxt lu
+    // KUNCI DINAMIS: Cek hak akses dari database berdasarkan centang matriks UI Nuxt lu
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -60,13 +60,13 @@ public class SupplierService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Supplier getValidatedSupplier(Long id, User currentUser) {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant ID
+        // Super Admin global bebas bypass pengecekan tenant ID
         if (currentUser.getPartner() == null) {
             return supplier;
         }
@@ -78,7 +78,7 @@ public class SupplierService {
         return supplier;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -98,9 +98,9 @@ public class SupplierService {
 
     public List<Supplier> findAllByPartner() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "supplier.index"); // 💡 Saring via permission index vendor
+        checkPermission(currentUser, "supplier.index"); // Saring via permission index vendor
 
-        // 👑 Handling Super Admin Global: Tarik semua riwayat supplier tanpa filter tenant
+        // Handling Super Admin Global: Tarik semua riwayat supplier tanpa filter tenant
         if (currentUser.getPartner() == null) {
             return supplierRepository.findAll(Sort.by("id").descending());
         }
@@ -112,7 +112,7 @@ public class SupplierService {
     @Transactional
     public Supplier create(Supplier supplier) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "supplier.store"); // 💡 Siapapun boleh input data supplier baru asal diizinkan
+        checkPermission(currentUser, "supplier.store"); // Siapapun boleh input data supplier baru asal diizinkan
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan mendaftarkan data supplier langsung.");

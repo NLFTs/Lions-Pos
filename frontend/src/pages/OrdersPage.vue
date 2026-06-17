@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
@@ -13,6 +13,7 @@ import Input from '@/components/ui/Input.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
+import CustomSelect from '@/components/ui/CustomSelect.vue'
 import { Loader2, X, Eye, ShoppingBag, Banknote, ArrowRightLeft, Printer, RotateCcw, Ban, CheckCircle2, Building2, Warehouse } from 'lucide-vue-next'
 import api from '@/lib/api'
 
@@ -36,6 +37,8 @@ const orders = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
 const statusFilter = ref('all')
+const branchFilter = ref('all')
+const branches = ref([])
 const page = ref(1)
 const pageSize = ref(10)
 const detailDrawer = ref({ show: false, order: null })
@@ -83,6 +86,12 @@ const filteredOrders = computed(() => {
       return o.status?.toLowerCase() === statusFilter.value.toLowerCase()
     })
   }
+  if (branchFilter.value !== 'all') {
+    result = result.filter(o => {
+      const bId = o.branchId || o.branch?.id
+      return String(bId) === String(branchFilter.value)
+    })
+  }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
     result = result.filter(o =>
@@ -104,16 +113,16 @@ function openDetail(order) { detailDrawer.value = { show: true, order } }
 function closeDetail() { detailDrawer.value.show = false }
 
 async function cancelOrder(order) {
-  const ok = await confirm({ title: 'Batalkan Order?', description: `Order ${order.orderNumber} akan dibatalkan dan stok dikembalikan.` })
+  const ok = await confirm({ title: 'Batalkan Pesanan?', description: `Pesanan ${order.orderNumber} akan dibatalkan dan stok dikembalikan.` })
   if (!ok) return
   actionLoading.value = true
   try {
     await api.patch(`/api/v1/orders/${order.id}/cancel`)
-    toast.success('Order berhasil dibatalkan.')
+    toast.success('Pesanan berhasil dibatalkan.')
     await fetchOrders()
     closeDetail()
   } catch (err) {
-    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal membatalkan order.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal membatalkan pesanan.')
   } finally { actionLoading.value = false }
 }
 
@@ -273,7 +282,37 @@ const pendingTransferPayment = computed(() => {
   ) || null
 })
 
-onMounted(fetchOrders)
+async function fetchBranches() {
+  try {
+    const url = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
+    const res = await api.get(url)
+    const raw = res.data?.data
+    branches.value = Array.isArray(raw) ? raw : (raw?.content || [])
+  } catch {
+  }
+}
+
+watch([statusFilter, branchFilter, searchQuery], () => { page.value = 1 })
+
+// Filter Cabang
+const statusOptions = computed(() => [
+  { value: 'all', label: 'Semua Status' },
+  { value: 'paid', label: 'Lunas' },
+  { value: 'pending_transfer', label: 'Menunggu Konfirmasi' },
+  { value: 'draft', label: 'Draf' },
+  { value: 'return', label: 'Retur' },
+  { value: 'canceled', label: 'Batal' },
+])
+
+const branchOptions = computed(() => [
+  { value: 'all', label: 'Semua Cabang' },
+  ...branches.value.map(b => ({ value: b.id, label: b.name }))
+])
+
+onMounted(() => {
+  fetchOrders()
+  fetchBranches()
+})
 </script>
 
 <template>
@@ -282,20 +321,27 @@ onMounted(fetchOrders)
       <!-- Header -->
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Riwayat Order</h1>
+          <h1 class="text-2xl font-bold tracking-tight">Riwayat Pesanan</h1>
           <p class="text-muted-foreground text-sm mt-1">Lihat riwayat transaksi penjualan dari Terminal POS.</p>
         </div>
-        <div class="flex items-center gap-3 w-full md:w-auto">
-          <div class="w-full sm:w-72">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari order, kasir atau cabang..." />
+        <div class="flex items-center gap-2 w-full md:w-auto">
+          <div class="w-full sm:w-64">
+            <DataTableSearch v-model="searchQuery" placeholder="Cari pesanan, kasir atau cabang..." />
           </div>
-          <select v-model="statusFilter" class="h-9 rounded-md border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
-            <option value="all">Semua Status</option>
-            <option value="paid">Lunas</option>
-            <option value="draft">Draft</option>
-            <option value="canceled">Batal</option>
-            <option value="return">Retur</option>
-          </select>
+          <CustomSelect
+            v-model="branchFilter"
+            :options="branchOptions"
+            placeholder="Semua Cabang"
+            :show-icon="false"
+            class="w-full sm:w-40"
+          />
+          <CustomSelect
+            v-model="statusFilter"
+            :options="statusOptions"
+            placeholder="Semua Status"
+            :show-icon="false"
+            class="w-full sm:w-40"
+          />
         </div>
       </div>
 
@@ -334,7 +380,7 @@ onMounted(fetchOrders)
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. Order</th>
+                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. Pesanan</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tgl &amp; Waktu</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Nama Pembeli</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Cabang</th>
@@ -439,20 +485,54 @@ onMounted(fetchOrders)
             <div v-if="detailDrawer.order.payments?.length" class="space-y-2">
               <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Pembayaran</h4>
               <div v-for="(pay, idx) in detailDrawer.order.payments" :key="idx"
-                class="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-                <div class="flex items-center gap-2.5">
-                  <div class="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800">
-                    <Banknote v-if="pay.method?.toUpperCase() === 'CASH'" class="h-4 w-4 text-zinc-500" />
-                    <ArrowRightLeft v-else class="h-4 w-4 text-zinc-500" />
+                class="flex flex-col gap-2.5 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <div class="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                      <Banknote v-if="pay.method?.toUpperCase() === 'CASH'" class="h-4 w-4 text-zinc-500" />
+                      <ArrowRightLeft v-else class="h-4 w-4 text-zinc-500" />
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold">{{ pay.method === 'CASH' ? 'Tunai' : 'Transfer' }}</p>
+                      <p class="text-[11px] text-muted-foreground">{{ formatCurrency(pay.amount) }}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p class="text-sm font-bold">{{ pay.method === 'CASH' ? 'Tunai' : 'Transfer' }}</p>
-                    <p class="text-[11px] text-muted-foreground">{{ formatCurrency(pay.amount) }}</p>
-                  </div>
+                  <Badge :class="['text-[9px] font-bold uppercase tracking-wider px-2 py-0.5', paymentStatusColor(pay.status, detailDrawer.order.status)]" variant="outline">
+                    {{ paymentStatusLabel(pay.status, detailDrawer.order.status) }}
+                  </Badge>
                 </div>
-                <Badge :class="['text-[9px] font-bold uppercase tracking-wider px-2 py-0.5', paymentStatusColor(pay.status, detailDrawer.order.status)]" variant="outline">
-                  {{ paymentStatusLabel(pay.status, detailDrawer.order.status) }}
-                </Badge>              </div>
+                <template v-if="pay.method?.toUpperCase() === 'CASH' && pay.cashTendered != null">
+                  <div class="border-t border-zinc-100 dark:border-zinc-800 pt-2.5 space-y-1.5">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="text-zinc-500">Uang Diterima</span>
+                      <span class="font-semibold text-zinc-800 dark:text-zinc-200">{{ formatCurrency(pay.cashTendered) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg"
+                      :class="pay.changeDue > 0
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                        : 'bg-zinc-50 dark:bg-zinc-800/40'">
+                      <span :class="pay.changeDue > 0 ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-zinc-500'">
+                        Kembalian
+                      </span>
+                      <span :class="pay.changeDue > 0 ? 'font-black text-emerald-700 dark:text-emerald-400' : 'font-semibold text-zinc-500'">
+                        {{ formatCurrency(pay.changeDue ?? 0) }}
+                      </span>
+                    </div>
+                  </div>
+                </template>
+                <template v-if="pay.method?.toUpperCase() === 'TRANSFER'">
+                  <div v-if="pay.bankName || pay.referenceNo" class="border-t border-zinc-100 dark:border-zinc-800 pt-2.5 space-y-1.5">
+                    <div v-if="pay.bankName" class="flex items-center justify-between text-xs">
+                      <span class="text-zinc-500">Bank</span>
+                      <span class="font-semibold">{{ pay.bankName }}</span>
+                    </div>
+                    <div v-if="pay.referenceNo" class="flex items-center justify-between text-xs">
+                      <span class="text-zinc-500">No. Referensi</span>
+                      <span class="font-mono font-semibold">{{ pay.referenceNo }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </div>
 
             <!-- Payment Info (If available via relationship) -->
@@ -521,7 +601,7 @@ onMounted(fetchOrders)
                 :disabled="actionLoading"
                 @click="cancelOrder(detailDrawer.order)"
                 class="w-full h-10 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
-                <Ban class="h-4 w-4" /> Batalkan Order
+                <Ban class="h-4 w-4" /> Batalkan Pesanan
               </button>
             </div>
           </div>

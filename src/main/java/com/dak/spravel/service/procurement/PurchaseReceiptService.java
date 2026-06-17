@@ -51,7 +51,7 @@ public class PurchaseReceiptService {
     private final StockBalanceRepository stockBalanceRepository;
     private final StockMutationRepository stockMutationRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -64,7 +64,7 @@ public class PurchaseReceiptService {
 
     // KUNCI DINAMIS: Cek permission dinamis langsung dari database tanpa hardcode nama role kaku
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -76,7 +76,7 @@ public class PurchaseReceiptService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
         PurchaseOrder po = purchaseOrderRepository.findById(id)
@@ -109,7 +109,7 @@ public class PurchaseReceiptService {
         return receipt;
     }
 
-    // ─── 🚀 MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
     public List<PurchaseReceipt> findAllPurchaseReceipt() {
@@ -121,7 +121,7 @@ public class PurchaseReceiptService {
     // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG BARU)
     public List<PurchaseReceipt> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.index"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.index"); // SINKRON: Menggunakan purchase_receipt.*
 
         if (currentUser.getPartner() == null) {
             return purchaseReceiptRepository.findAll();
@@ -155,7 +155,7 @@ public class PurchaseReceiptService {
     // PAGINATION TENANT
     public Page<PurchaseReceipt> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.index"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.index"); // SINKRON: Menggunakan purchase_receipt.*
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("receivedDate").ascending());
 
@@ -170,7 +170,7 @@ public class PurchaseReceiptService {
     // GET BY ORDER ID
     public List<PurchaseReceipt> findByOrderId(Long purchaseOrderId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.show"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
         getValidatedPurchaseOrder(purchaseOrderId, currentUser);
         return purchaseReceiptRepository.findByPurchaseOrderId(purchaseOrderId);
     }
@@ -178,7 +178,7 @@ public class PurchaseReceiptService {
     // GET BY ID
     public PurchaseReceipt findById(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.show"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
         
         PurchaseReceipt receipt = getValidatedPurchaseReceipt(id, currentUser);
 
@@ -206,7 +206,7 @@ public class PurchaseReceiptService {
     // GET ITEMS
     public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.show"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
         getValidatedPurchaseReceipt(receiptId, currentUser);
         return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
     }
@@ -217,7 +217,7 @@ public class PurchaseReceiptService {
     @Transactional
     public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "purchase_receipt.store"); // 💡 SINKRON: Menggunakan purchase_receipt.*
+        checkPermission(currentUser, "purchase_receipt.store"); // SINKRON: Menggunakan purchase_receipt.*
 
         if (currentUser.getPartner() == null) {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen penerimaan langsung.");
@@ -370,7 +370,7 @@ public class PurchaseReceiptService {
         purchaseOrderRepository.save(po);
     }
 
-    // ─── 🔄 PRIVATE GENERATOR UTILS ───────────────────────────────────────────
+    // ─── PRIVATE GENERATOR UTILS ───────────────────────────────────────────
 
     private String generateReceiptNumber() {
         String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));

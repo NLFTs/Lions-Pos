@@ -40,6 +40,7 @@ import {
   TrendingUp,
   Building2,
   Handshake,
+  Bell,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -79,7 +80,7 @@ const activeSidebar = ref('main')
 const INVENTORY_MENU_RAW = [
   { label: 'Dashboard Inventaris', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
-  { label: 'Opname Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
+  { label: 'Pengecekan Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
 
@@ -129,7 +130,7 @@ const MENU_GROUPS = [
     label: 'Transaksi',
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: 'pos.index' },
-      { label: 'Riwayat Order', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
+      { label: 'Riwayat Pesanan', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
     ],
   },
   {
@@ -143,7 +144,7 @@ const MENU_GROUPS = [
   {
     label: 'Pengadaan',
     items: [
-      { label: 'Supplier', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
+      { label: 'Distributor', icon: Truck, to: '/dashboard/suppliers', permission: 'supplier.index' },
       { label: 'Pembelian', icon: ClipboardList, to: '/dashboard/purchase-orders', anyPermission: ['purchase_order.index', 'purchase_receipt.store'] },
     ],
   },
@@ -153,7 +154,7 @@ const MENU_GROUPS = [
       { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
       { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
-      { label: 'Voucher', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
+      { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
   },
   {
@@ -183,15 +184,32 @@ const MENU_GROUPS = [
 // Filter menu by permission
 function filterMenu(groups) {
   const isAdmin = auth.isAdmin
+  
+  // Memastikan status apakah user memiliki partner atau partnerId
+  const hasPartner = !!(user.value?.partner || user.value?.partnerId)
 
   return groups.reduce((acc, group) => {
+    
+    // ─── VALIDASI LEVEL GROUP (KONTROL AKSES) ───────────────────────────
+    if (group.label === 'Kontrol Akses' && hasPartner) {
+      return acc
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     const filteredItems = group.items.reduce((items, item) => {
+      
+      // VALIDASI LEVEL ITEM (Menu Mitra): Sembunyikan jika sudah punya partner
+      if (item.label === 'Mitra' && hasPartner) {
+        return items
+      }
+
       // Support anyPermission: tampilkan jika punya salah satu
       if (item.anyPermission) {
         if (!isAdmin && !item.anyPermission.some(p => can(p))) return items
       } else if (item.permission && !isAdmin && !can(item.permission)) {
         return items
       }
+      
       const filtered = { ...item }
       if (filtered.children) {
         filtered.children = filterMenu([{ label: '', items: filtered.children }])[0]?.items || []
@@ -200,6 +218,7 @@ function filterMenu(groups) {
       items.push(filtered)
       return items
     }, [])
+
     if (filteredItems.length > 0) {
       acc.push({ label: group.label, items: filteredItems })
     }
@@ -555,8 +574,12 @@ function isLocationActive(type, id) {
       <!-- ─── HEADER: Logo ─────────────────────────────────────────────────── -->
       <div class="flex h-12 items-center px-4 shrink-0">
         <div class="flex items-center gap-2.5 overflow-hidden">
-          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-            <Zap class="w-5 h-5 text-primary-foreground" />
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
+            <img 
+            src="/gaptek-hit.png" 
+            alt="Logo Gaptek" 
+            class="h-8 w-8 object-contain"
+          />
           </div>
           <span class="text-lg font-bold tracking-tight whitespace-nowrap transition-opacity duration-200">
             GAPTEK
@@ -850,13 +873,13 @@ function isLocationActive(type, id) {
             <!-- Main actions -->
             <div class="p-1">
               <DropdownMenuItem @click="router.push('/')" class="justify-between px-2 py-2 text-sm cursor-pointer">
-                <span>Home Page</span>
+                <span>Beranda</span>
                 <Home class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
 
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger class="flex w-full justify-between items-center px-2 py-2 text-sm cursor-pointer outline-none">
-                  <span>Theme Color</span>
+                  <span>Warna Tema</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent side="right" align="start" class="min-w-[140px]">
@@ -879,7 +902,7 @@ function isLocationActive(type, id) {
 
               <!-- Display Mode: Direct Icons -->
               <div class="px-2 py-2 flex items-center justify-between border-t border-border mt-1 pt-3">
-                <span class="text-sm">Display Mode</span>
+                <span class="text-sm">Mode Tampilan</span>
                 <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
                   <button 
                     @click="setThemePreference('light')" 
@@ -909,7 +932,7 @@ function isLocationActive(type, id) {
               </div>
 
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
-                <span>Log Out</span>
+                <span>Keluar</span>
                 <LogOut class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
             </div>
@@ -964,7 +987,7 @@ function isLocationActive(type, id) {
             class="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
             title="Help"
           >
-            <HelpCircle class="w-4 h-4" />
+            <Bell class="w-4 h-4" />
           </button>
         </div>
       </header>

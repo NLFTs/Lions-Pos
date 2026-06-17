@@ -8,7 +8,6 @@ public class ReturnRequest {
 
     private List<ReturnItemRequest> items;
     
-    // Lokasi tujuan return: "WAREHOUSE" atau "BRANCH"
     private String returnLocationType;
     private Long returnLocationId;
     private Boolean isDefective = false;

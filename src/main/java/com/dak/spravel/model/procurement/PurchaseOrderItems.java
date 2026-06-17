@@ -32,10 +32,6 @@ public class PurchaseOrderItems {
     @Column(name = "product_name", nullable = false)
     private String productName;
 
-    // Snapshot harga saat order dibuat dan disimpan di Service, untuk menghindari masalah jika harga produk berubah setelah order dibuat
-    // orderItem.setProductName(product.getName()); // snapshot disini
-    // orderItem.setUnitCost(product.getCost());  // snapshot disini
-
     @Column(precision = 15, scale = 2)
     private BigDecimal qtyOrdered = BigDecimal.ZERO;
 
@@ -47,8 +43,4 @@ public class PurchaseOrderItems {
 
     @Column(precision = 15, scale = 2)
     private BigDecimal subtotal = BigDecimal.ZERO;
-
-    // Disimpan di Service, tidak dihitung otomatis disini, untuk menghindari masalah jika harga produk berubah setelah order dibuat
-    // item.setUnitCost(request.getUnitCost());
-    // item.setSubtotal(request.getQty().multiply(request.getUnitCost()));
 }

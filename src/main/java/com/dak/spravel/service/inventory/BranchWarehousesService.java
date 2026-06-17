@@ -31,7 +31,7 @@ public class BranchWarehousesService {
     private final WarehousesRepository warehousesRepository;
     private final UserRepository userRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -42,9 +42,9 @@ public class BranchWarehousesService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI UTAMA SAKTI: Bebas cek permission apa aja tanpa hardcode kasta role!
+    // KUNCI UTAMA SAKTI: Bebas cek permission apa aja tanpa hardcode kasta role!
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass semua jenis gate permission
+        // Raja Super Admin (partner null) bypass semua jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -65,7 +65,7 @@ public class BranchWarehousesService {
         }
     }
 
-    // ─── 🚀 CORE METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
+    // ─── CORE METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────────
 
     // KHUSUS SUPER ADMIN GLOBAL
 
@@ -85,7 +85,7 @@ public class BranchWarehousesService {
 
     public List<BranchWarehouses> findAllByPartner() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "branch_warehouse.index"); // 💡 Check via permission slug
+        checkPermission(currentUser, "branch_warehouse.index"); // Check via permission slug
 
         if (currentUser.getPartner() == null) {
             return branchWarehousesRepository.findAll();
@@ -101,7 +101,7 @@ public class BranchWarehousesService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "branch_warehouse.index");
 
-        // 🛡️ Multi-Tenant Guard: Mencegah cross-tenant data peeking
+        // Multi-Tenant Guard: Mencegah cross-tenant data peeking
         if (currentUser.getPartner() != null) {
             Branches branch = branchesRepository.findById(branchesId)
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", branchesId));
@@ -117,7 +117,7 @@ public class BranchWarehousesService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "branch_warehouse.index");
 
-        // 🛡️ Multi-Tenant Guard
+        // Multi-Tenant Guard
         if (currentUser.getPartner() != null) {
             Warehouses warehouse = warehousesRepository.findById(warehousesId)
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", warehousesId));
@@ -132,7 +132,7 @@ public class BranchWarehousesService {
     @Transactional
     public BranchWarehouses assign(BranchWarehousesRequestDTO request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "branch_warehouse.store"); // 💡 Siapapun bisa asal dikasih izin Owner via UI
+        checkPermission(currentUser, "branch_warehouse.store"); // Siapapun bisa asal dikasih izin Owner via UI
         Partners partner = currentUser.getPartner();
 
         Branches branch = branchesRepository.findById(request.getBranchesId())
@@ -167,7 +167,7 @@ public class BranchWarehousesService {
     @Transactional
     public void unassign(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "branch_warehouse.delete"); // 💡 Sikat pake permission slug
+        checkPermission(currentUser, "branch_warehouse.delete"); // Sikat pake permission slug
 
         BranchWarehouses bw = branchWarehousesRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("BranchWarehouse", id));

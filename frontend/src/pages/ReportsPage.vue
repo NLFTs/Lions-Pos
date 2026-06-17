@@ -4,6 +4,8 @@ import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import api from '@/lib/api'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable' // 🌟 Baris impor tabel yang bersih
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -105,6 +107,133 @@ const paymentDist = ref([
   { name: 'Transfer', percentage: 0, color: 'bg-blue-500' }
 ])
 
+// ==========================================
+// 🛠️ TAMBAHAN: FUNGSI EKSPOR DATA CSV
+// ==========================================
+const exportToCSV = () => {
+  const days = parseInt(activeFilter.value)
+  const now = new Date()
+  const filterDate = new Date()
+  filterDate.setDate(now.getDate() - days)
+
+  // Ambil data order yang terfilter sesuai pilihan hari dashboard
+  const filteredOrders = rawOrders.value.filter(o => new Date(o.createdAt) >= filterDate)
+
+  // Buat Baris Header CSV
+  const headers = ['ID Order', 'Tanggal', 'Metode Pembayaran', 'Total Transaksi (Rp)', 'Status']
+  
+  // Mapping isi data transaksinya
+  const rows = filteredOrders.map(o => [
+    `"${o.id || '-'}"`,
+    `"${o.createdAt ? o.createdAt.split('T')[0] : '-'}"`,
+    `"${o.payment?.method || '-'}"`,
+    o.total || 0,
+    `"${o.status || 'COMPLETED'}"`
+  ])
+
+  // Gabungkan semua baris menjadi string CSV rapi
+  const csvContent = [
+    headers.join(','),
+    ...rows.map(row => row.join(','))
+  ].join('\n')
+
+  // Download File via Browser
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.setAttribute('download', `GAPTEK_Laporan_${activeFilter.value.replace(' ', '_')}_${new Date().toISOString().split('T')[0]}.csv`)
+  link.click()
+}
+const exportToPDF = () => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  })
+
+  const tanggalSekarang = new Date().toISOString().split('T')[0]
+  const filterHari = activeFilter.value
+
+  // 1. Banner Atas Modern (Warna Hitam/Zinc Gelap Premium)
+  doc.setFillColor(15, 23, 42) 
+  doc.rect(0, 0, 210, 38, 'F')  
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.setTextColor(255, 255, 255) 
+  doc.text('GAPTEK TERMINAL POS', 14, 16)
+  
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(11)
+  doc.setTextColor(148, 163, 184) 
+  doc.text(`Laporan Analisis Performa Bisnis — Periode ${filterHari}`, 14, 24)
+  
+  doc.setFontSize(9)
+  doc.setTextColor(203, 213, 225)
+  doc.text(`Diekspor pada: ${tanggalSekarang}`, 14, 31)
+
+  // 2. Tabel Ringkasan Data Kunci
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(15, 23, 42) 
+  doc.text('I. RINGKASAN DATA KUNCI', 14, 50)
+
+  const statsRows = stats.value.map(stat => [stat.label, stat.value])
+
+  autoTable(doc, {
+    startY: 54,
+    margin: { left: 14, right: 14 },
+    theme: 'plain', 
+    styles: { fontSize: 10, cellPadding: 2.5 },
+    columnStyles: {
+      0: { fontStyle: 'normal', textColor: [100, 116, 139], width: 60 },
+      1: { fontStyle: 'bold', textColor: [15, 23, 42], halign: 'left' }
+    },
+    body: statsRows,
+  })
+
+  // 3. Tabel Produk Terlaris Berkualitas Tinggi (Striped)
+  const currentY = doc.lastAutoTable.finalY + 10
+  
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(15, 23, 42)
+  doc.text('II. DAFTAR 5 PRODUK PALING LARIS', 14, currentY)
+
+  const productHeaders = [['Nama Produk', 'Kategori', 'Terjual', 'Pendapatan']]
+  let productRows = []
+
+  if (bestSellers.value.length === 0) {
+    productRows = [['Belum ada data penjualan produk di periode ini.', '', '', '']]
+  } else {
+    productRows = bestSellers.value.map(p => [p.name, p.category, `${p.sold} Unit`, p.revenue])
+  }
+
+  autoTable(doc, {
+    startY: currentY + 4,
+    margin: { left: 14, right: 14 },
+    theme: 'striped', 
+    headStyles: { 
+      fillColor: [15, 23, 42], 
+      textColor: [255, 255, 255], 
+      fontStyle: 'bold',
+      fontSize: 9.5 
+    },
+    bodyStyles: { fontSize: 9, textColor: [51, 65, 85] },
+    columnStyles: {
+      0: { width: 75 },
+      1: { width: 40 },
+      2: { halign: 'center', width: 25 },
+      3: { halign: 'right', fontStyle: 'bold', width: 42 }
+    },
+    head: productHeaders,
+    body: productRows,
+  })
+
+  // 4. Unduh Berkas Otomatis
+  doc.save(`GAPTEK_Laporan_${filterHari.replace(' ', '_')}_${tanggalSekarang}.pdf`)
+}
 async function fetchData() {
   loading.value = true
   try {
@@ -126,27 +255,49 @@ async function fetchData() {
     loading.value = false
   }
 }
-
 function processData() {
   const days = parseInt(activeFilter.value)
   const now = new Date()
   const filterDate = new Date()
   filterDate.setDate(now.getDate() - days)
 
-  const filteredOrders = rawOrders.value.filter(o => new Date(o.createdAt) >= filterDate)
+  // 🌟 Fungsi pembersih angka yang jauh lebih aman & fleksibel
+  const safeNumber = (val) => {
+    if (val === undefined || val === null) return 0
+    if (typeof val === 'number') return val // Jika sudah angka murni, langsung kembalikan
+    
+    // Jika bentuknya string, bersihkan dulu teks Rp dan titiknya
+    const clean = val.toString().replace(/[^0-9.-]/g, '')
+    return parseFloat(clean) || 0
+  }
+
+  // Filter pesanan berdasarkan tanggal (Logika asli kamu yang sudah work)
+  const filteredOrders = rawOrders.value.filter(o => {
+    if (!o.createdAt) return false
+    return new Date(o.createdAt) >= filterDate
+  })
   
-  // Calculate Stats
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  // 1. Hitung Statistik Utama
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + safeNumber(o.total), 0)
   const totalOrders = filteredOrders.length
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
-  const activeProducts = rawProducts.value.filter(p => p.isActive).length
+  
+  // 🌟 Perbaikan pembacaan PRODUK AKTIF agar tidak 0
+  const activeProducts = rawProducts.value.filter(p => {
+    return p.isActive === true || 
+           p.isActive === 1 || 
+           p.is_active === true || 
+           p.is_active === 1 ||
+           p.status?.toLowerCase() === 'active' ||
+           p.status?.toLowerCase() === 'aktif'
+  }).length
 
   stats.value[0].value = formatCurrency(totalRevenue)
   stats.value[1].value = totalOrders.toString()
   stats.value[2].value = formatCurrency(avgOrder)
   stats.value[3].value = activeProducts.toString()
 
-  // Process Line Chart (Daily grouping)
+  // 2. Pemetaan Grafik Tren / Line Chart
   const dateLabels = []
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date()
@@ -156,14 +307,17 @@ function processData() {
 
   lineChartData.value.labels = dateLabels.map(d => d.split('-').slice(1).reverse().join('/'))
   lineChartData.value.datasets[0].data = dateLabels.map(date => 
-    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + (o.total || 0), 0) / 1000000
+    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + safeNumber(o.total), 0) / 1000000
   )
   lineChartData.value.datasets[1].data = dateLabels.map(date => 
     filteredOrders.filter(o => o.createdAt?.startsWith(date)).length
   )
 
-  // Payment Method Distribution
-  const cashCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'cash').length
+  // 3. Distribusi Metode Pembayaran
+  const cashCount = filteredOrders.filter(o => {
+    const m = o.payment?.method?.toLowerCase()
+    return m === 'cash' || m === 'tunai'
+  }).length
   const transferCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'transfer').length
   const totalWithPayment = cashCount + transferCount
   
@@ -175,23 +329,23 @@ function processData() {
     paymentDist.value[1].percentage = 0
   }
 
-  // Best Sellers Calculation
+  // 4. Hitung Ulang Daftar 5 Produk Terlaris
   const productSales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
-        const pid = item.product?.id
+        const pid = item.product?.id || item.productId || item.product_id
         if (!pid) return
         if (!productSales[pid]) {
           productSales[pid] = { 
-            name: item.product.name, 
-            category: item.product.category?.name || 'General', 
+            name: item.product?.name || item.name || 'Produk', 
+            category: item.product?.category?.name || item.category || 'General', 
             sold: 0, 
             revenue: 0 
           }
         }
-        productSales[pid].sold += item.qty
-        productSales[pid].revenue += item.subtotal
+        productSales[pid].sold += (parseInt(item.qty) || 0)
+        productSales[pid].revenue += safeNumber(item.subtotal || item.price * item.qty)
       })
     }
   })
@@ -204,13 +358,13 @@ function processData() {
       revenue: formatCurrency(p.revenue)
     }))
 
-  // Bar Chart: Top 5 Categories
+  // 5. Grafik Batang / Bar Chart Kategori
   const categorySales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
-        const cat = item.product?.category?.name || 'Lainnya'
-        categorySales[cat] = (categorySales[cat] || 0) + item.subtotal
+        const cat = item.product?.category?.name || item.category || 'Lainnya'
+        categorySales[cat] = (categorySales[cat] || 0) + safeNumber(item.subtotal || item.price * item.qty)
       })
     }
   })
@@ -255,8 +409,7 @@ const barChartOptions = {
       <Loader2 class="w-10 h-10 animate-spin text-primary/40" />
       <p class="text-sm text-muted-foreground mt-4 font-medium italic">Menghubungkan ke sistem...</p>
     </div>
-    <div v-else class="space-y-8 pb-10 animate-in fade-in duration-500">
-      <!-- Header -->
+   <div v-else id="report-content" class="space-y-8 pb-10 animate-in fade-in duration-500 bg-white dark:bg-zinc-950 p-4 rounded-2xl">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1">WAWASAN & ANALISIS DATA</h3>
@@ -266,7 +419,6 @@ const barChartOptions = {
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <!-- Period Filter -->
           <div class="flex items-center bg-zinc-100/80 dark:bg-zinc-900/80 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 backdrop-blur-sm">
             <button 
               v-for="filter in filters" 
@@ -281,13 +433,12 @@ const barChartOptions = {
             </button>
           </div>
 
-          <!-- Export Buttons -->
           <div class="flex items-center gap-2">
-            <button class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
+            <button @click="exportToCSV" class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
               <Table class="w-4 h-4 text-zinc-400 group-hover:text-emerald-500 transition-colors" />
               CSV
             </button>
-            <button class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
+            <button @click="exportToPDF" class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
               <FileIcon class="w-4 h-4 text-zinc-400 group-hover:text-rose-500 transition-colors" />
               PDF
             </button>
@@ -295,7 +446,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Stat Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div v-for="stat in stats" :key="stat.label" class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 group">
           <div class="flex items-center justify-between mb-4">
@@ -314,7 +464,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Main Line Chart -->
       <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
@@ -337,9 +486,7 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Charts Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Bar Chart: Category Sales -->
         <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
           <div class="flex items-center justify-between mb-8">
             <div>
@@ -355,7 +502,6 @@ const barChartOptions = {
           </div>
         </div>
 
-        <!-- Payment Method Distribution -->
         <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
           <div class="flex items-center justify-between mb-8">
             <div>
@@ -384,7 +530,6 @@ const barChartOptions = {
         </div>
       </div>
 
-      <!-- Best Sellers -->
       <div class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
         <div class="flex items-center justify-between mb-8">
           <div>
@@ -402,7 +547,6 @@ const barChartOptions = {
         </div>
 
         <div v-else>
-          <!-- Mobile List View -->
           <div class="md:hidden space-y-4">
             <div v-for="product in bestSellers" :key="'mobile-' + product.name" class="p-4 rounded-xl border border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/30 dark:bg-zinc-900/20">
               <div class="flex items-center gap-3 mb-3">
@@ -429,7 +573,6 @@ const barChartOptions = {
             </div>
           </div>
 
-          <!-- Desktop Table View -->
           <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-sm text-left">
               <thead class="text-xs text-muted-foreground uppercase bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-100 dark:border-zinc-800/60">
@@ -475,6 +618,7 @@ const barChartOptions = {
     </div>
   </AppLayout>
 </template>
+
 
 <style scoped>
 canvas {

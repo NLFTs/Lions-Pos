@@ -38,9 +38,9 @@ public class VoucherService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // 🔥 KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
+    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // 👑 Raja Super Admin (partner null) bypass seluruh jenis gate permission
+        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -55,13 +55,13 @@ public class VoucherService {
         }
     }
 
-    // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Voucher getValidatedVoucher(Long id, User currentUser) {
         Voucher voucher = voucherRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher", id));
 
-        // 👑 Super Admin global bebas bypass pengecekan tenant id
+        // Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return voucher;
         }
@@ -73,7 +73,7 @@ public class VoucherService {
         return voucher;
     }
 
-    // ─── 🚀 MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+    // ─── MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // ==========================================
     // CREATE (🔒 Berbasis Permission)
@@ -81,7 +81,7 @@ public class VoucherService {
     @Transactional
     public VoucherResponse create(VoucherRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "voucher.store"); // 💡 Siapapun boleh input asal diberi izin Owner via UI
+        checkPermission(currentUser, "voucher.store"); // Siapapun boleh input asal diberi izin Owner via UI
         
         Partners partner = currentUser.getPartner();
         if (partner == null) {
@@ -102,7 +102,7 @@ public class VoucherService {
     }
 
     // ==========================================
-    // UPDATE (🔒 Berbasis Permission)
+    // UPDATE (Berbasis Permission)
     // ==========================================
     @Transactional
     public VoucherResponse update(Long id, VoucherRequest request) {
@@ -134,20 +134,20 @@ public class VoucherService {
     }
 
     // ==========================================
-    // GET ALL (🔒 Berbasis Permission)
+    // GET ALL (Berbasis Permission)
     // ==========================================
     public List<VoucherResponse> getAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "voucher.index"); // 💡 Sikat pake permission index
+        checkPermission(currentUser, "voucher.index"); // Sikat pake permission index
         
-        // 👑 Jika yang akses Super Admin Global, tampilin seluruh voucher semua tenant tanpa terkecuali
+        // Jika yang akses Super Admin Global, tampilin seluruh voucher semua tenant tanpa terkecuali
         if (currentUser.getPartner() == null) {
             return voucherRepository.findAll().stream()
                     .map(this::mapToResponse)
                     .toList();
         }
 
-        // 🏢 Jika Partner, hanya ambil voucher milik dia sendiri
+        // Jika Partner, hanya ambil voucher milik dia sendiri
         return voucherRepository.findAllByPartner(currentUser.getPartner())
                 .stream()
                 .map(this::mapToResponse)
@@ -155,19 +155,19 @@ public class VoucherService {
     }
 
     // ==========================================
-    // DELETE (🔒 Berbasis Permission)
+    // DELETE (Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "voucher.delete"); // 💡 Sikat pake permission delete
+        checkPermission(currentUser, "voucher.delete"); // Sikat pake permission delete
 
         Voucher voucher = getValidatedVoucher(id, currentUser);
         AuditHelper.setDeleted(voucher);
         voucherRepository.delete(voucher);
     }
 
-    // ─── 🔄 UTILS & MAPPERS SECTION ──────────────────────────────────────────
+    // ─── UTILS & MAPPERS SECTION ──────────────────────────────────────────
 
     public VoucherResponse mapToResponse(Voucher voucher) {
         if (voucher == null) return null;
@@ -234,6 +234,7 @@ public class VoucherService {
         voucher.setQuota(request.getQuota());
         voucher.setValidFrom(request.getValidFrom());
         voucher.setValidUntil(request.getValidUntil());
+        
         // Set isActive jika dikirim dari request, default true jika null
         if (request.getIsActive() != null) {
             voucher.setIs_active(request.getIsActive());

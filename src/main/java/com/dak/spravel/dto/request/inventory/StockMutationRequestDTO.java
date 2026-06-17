@@ -22,24 +22,24 @@ public class StockMutationRequestDTO {
 
     @Pattern(regexp = "branch|warehouse",
             message = "From location type harus 'branch' atau 'warehouse'")
-    private String fromLocationType; // opsional
+    private String fromLocationType; 
 
-    private Long fromLocationId; // opsional
+    private Long fromLocationId;
 
     @Pattern(regexp = "branch|warehouse",
             message = "To location type harus 'branch' atau 'warehouse'")
-    private String toLocationType; // opsional
+    private String toLocationType; 
 
-    private Long toLocationId; // opsional
+    private Long toLocationId; 
 
     @NotNull(message = "Qty tidak boleh kosong")
     private BigDecimal qty;
 
     @Pattern(regexp = "order|transfer_request|stock_opname",
             message = "Reference type harus 'order', 'transfer_request', atau 'stock_opname'")
-    private String referenceType; // opsional
+    private String referenceType; 
 
-    private Long referenceId; // opsional
-
-    private String notes; // opsional
+    private Long referenceId; 
+    
+    private String notes; 
 }

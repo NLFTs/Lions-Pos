@@ -24,7 +24,7 @@ public class TransferRequestDTO {
 
     @NotBlank(message = "To location type tidak boleh kosong")
     @JsonProperty("to_location_type")
-    private String toLocationType; // "branch" atau "warehouse"
+    private String toLocationType;
 
     @NotNull(message = "To location ID tidak boleh kosong")
     @JsonProperty("to_location_id")

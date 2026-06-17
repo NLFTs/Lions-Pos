@@ -448,11 +448,11 @@ onMounted(async () => {
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Pembelian</h1>
-          <p class="text-muted-foreground text-sm mt-1">Kelola pesanan pembelian barang ke supplier.</p>
+          <p class="text-muted-foreground text-sm mt-1">Kelola pesanan pembelian barang ke distributor.</p>
         </div>
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="w-full sm:w-72">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari No. PO atau Supplier..." />
+            <DataTableSearch v-model="searchQuery" placeholder="Cari No. Pembelian atau Distributor..." />
           </div>
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
           <Button v-if="can('purchase_order.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -540,8 +540,8 @@ onMounted(async () => {
               <table class="w-full text-sm">
                 <thead>
                   <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No. PO</th>
-                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Supplier</th>
+                    <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">No.Pembelian</th>
+                    <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Distributor</th>
                     <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tujuan</th>
                     <th class="py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Total</th>
                     <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
@@ -641,8 +641,8 @@ onMounted(async () => {
             
             <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
               <div>
-                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Purchase Order' : 'Detail Purchase Order' }}</h3>
-                <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke supplier secara efisien.</p>
+                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Purchase Order' : 'Detail Pembelian' }}</h3>
+                <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke distributor secara efisien.</p>
               </div>
               <Button variant="ghost" size="icon" @click="showDrawer = false">
                 <X class="h-4 w-4" />
@@ -744,7 +744,7 @@ onMounted(async () => {
                             <Input v-model.number="item.qtyOrdered" type="number" min="1" class="h-8 text-xs text-center" />
                           </div>
                           <div class="space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Harga Satuan (HPP)</Label>
+                            <Label class="text-[10px] text-zinc-500">Harga Satuan </Label>
                             <Input v-model.number="item.unitCost" type="number" min="0" class="h-8 text-xs" />
                           </div>
                         </div>
@@ -780,7 +780,7 @@ onMounted(async () => {
                 <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
                   <div class="flex items-center justify-between">
                     <div>
-                      <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Purchase Order</span>
+                      <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Pembelian</span>
                       <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
                     </div>
                     <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
@@ -820,7 +820,7 @@ onMounted(async () => {
 
                 <div class="grid grid-cols-2 gap-6">
                   <div class="space-y-1">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Supplier</p>
+                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Distributor</p>
                     <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ selectedPO.supplier?.name || '-' }}</p>
                     <p class="text-[11px] text-zinc-500 leading-relaxed">{{ selectedPO.supplier?.address || '-' }}</p>
                   </div>
