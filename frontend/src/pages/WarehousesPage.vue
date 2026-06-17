@@ -522,16 +522,16 @@ onMounted(fetchWarehouses)
                   <div class="w-7 h-7 rounded-md bg-amber-500/10 flex items-center justify-center"><Users class="h-4 w-4 text-amber-600" /></div>
                   <div>
                     <p class="text-sm font-semibold">Akun Pengelola Gudang <span class="text-muted-foreground font-normal text-xs">(opsional)</span></p>
-                    <p class="text-xs text-muted-foreground">Kosongkan username jika tidak perlu akun tersendiri.</p>
+                    <p class="text-xs text-muted-foreground">Kosongkan nama pengguna jika tidak perlu akun tersendiri.</p>
                   </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
-                    <Label>Username</Label>
-                    <Input v-model="createForm.username" placeholder="Masukan username" :disabled="createSaving" autocomplete="off" />
+                    <Label>Nama Pengguna</Label>
+                    <Input v-model="createForm.username" placeholder="Masukan nama pengguna" :disabled="createSaving" autocomplete="off" />
                   </div>
                   <div class="space-y-1.5">
-                    <Label>Password</Label>
+                    <Label>Kata Sandi</Label>
                     <Input type="password" v-model="createForm.password" placeholder="Min. 6 karakter" :disabled="createSaving" autocomplete="new-password" />
                     <p v-if="createErrors.password" class="text-xs text-destructive">{{ createErrors.password }}</p>
                   </div>

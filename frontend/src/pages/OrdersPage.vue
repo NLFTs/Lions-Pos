@@ -354,7 +354,7 @@ onMounted(() => {
           </div>
           <div v-else-if="filteredOrders.length === 0" class="flex flex-col items-center justify-center py-24 text-muted-foreground">
             <ShoppingBag class="h-10 w-10 mb-3 opacity-20" />
-            <p class="text-sm font-medium">Belum ada data order.</p>
+            <p class="text-sm font-medium">Belum ada data pembelian.</p>
           </div>
           <div v-else>
             <!-- Mobile -->

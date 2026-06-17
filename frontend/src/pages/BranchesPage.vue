@@ -612,12 +612,12 @@ onMounted(fetchBranches)
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div class="space-y-1.5">
-                    <Label>Username <span class="text-destructive">*</span></Label>
+                    <Label>Nama Pengguna <span class="text-destructive">*</span></Label>
                     <Input v-model="createForm.username" placeholder="nairha" :disabled="createSaving" autocomplete="off" />
                     <p v-if="createErrors.username" class="text-xs text-destructive">{{ createErrors.username }}</p>
                   </div>
                   <div class="space-y-1.5">
-                    <Label>Password <span class="text-destructive">*</span></Label>
+                    <Label>Kata Sandi<span class="text-destructive">*</span></Label>
                     <Input type="password" v-model="createForm.password" placeholder="Min. 6 karakter" :disabled="createSaving" autocomplete="new-password" />
                     <p v-if="createErrors.password" class="text-xs text-destructive">{{ createErrors.password }}</p>
                   </div>
@@ -885,8 +885,8 @@ onMounted(fetchBranches)
                       <Input v-model="credForm.username" :placeholder="currentManager.username" :disabled="credSaving" autocomplete="off" />
                     </div>
                     <div class="space-y-1.5">
-                      <Label>Password Baru <span class="text-xs text-muted-foreground">(min. 6 karakter)</span></Label>
-                      <Input type="password" v-model="credForm.password" placeholder="Password baru..." :disabled="credSaving" autocomplete="new-password" />
+                      <Label>Kata Sandi Baru <span class="text-xs text-muted-foreground">(min. 6 karakter)</span></Label>
+                      <Input type="password" v-model="credForm.password" placeholder="Kata Sandi baru..." :disabled="credSaving" autocomplete="new-password" />
                     </div>
                     <div class="flex justify-end">
                       <Button @click="saveCredentials" :disabled="credSaving" class="bg-primary hover:bg-primary/90 gap-2">

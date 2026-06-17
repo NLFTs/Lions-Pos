@@ -457,7 +457,7 @@ onMounted(async () => {
           <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
           <Button v-if="can('purchase_order.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus class="h-4 w-4" />
-            <span>Buat PO</span>
+            <span>Buat Pembelian</span>
           </Button>
         </div>
       </div>
@@ -472,10 +472,10 @@ onMounted(async () => {
             <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
               <ClipboardList class="h-7 w-7 opacity-40" />
             </div>
-            <p class="text-sm font-medium">Belum ada Purchase Order.</p>
+            <p class="text-sm font-medium">Belum ada Pembelian.</p>
             <Button v-if="can('purchase_order.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
               <Plus class="h-3.5 w-3.5 mr-1.5" />
-              Buat PO Pertama
+              Buat Pembelian Pertama
             </Button>
           </div>
 
@@ -641,7 +641,7 @@ onMounted(async () => {
             
             <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
               <div>
-                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Purchase Order' : 'Detail Pembelian' }}</h3>
+                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Pembelian' : 'Detail Pembelian' }}</h3>
                 <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke distributor secara efisien.</p>
               </div>
               <Button variant="ghost" size="icon" @click="showDrawer = false">
@@ -658,9 +658,9 @@ onMounted(async () => {
                     <Truck class="h-3 w-3" /> Informasi Dasar
                   </h4>
                   <div class="space-y-1.5">
-                    <Label>Pilih Supplier <span class="text-destructive">*</span></Label>
+                    <Label>Pilih Distributor <span class="text-destructive">*</span></Label>
                     <select v-model="form.supplierId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                      <option value="" disabled>Pilih supplier...</option>
+                      <option value="" disabled>Pilih Agen/Distributor...</option>
                       <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
                     </select>
                   </div>
@@ -698,7 +698,7 @@ onMounted(async () => {
 
                   <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                      <Label>Tanggal Order</Label>
+                      <Label>Tanggal Pemesanan</Label>
                       <Input v-model="form.orderDate" type="date" class="h-9" />
                     </div>
                     <div class="space-y-1.5">
@@ -711,10 +711,10 @@ onMounted(async () => {
                 <div class="space-y-4">
                   <div class="flex items-center justify-between">
                     <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                      <Package class="h-3 w-3" /> Item Pesanan
+                      <Package class="h-3 w-3" /> Barang Pesanan
                     </h4>
                     <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
-                      <Plus class="h-3 w-3 mr-1" /> Tambah Item
+                      <Plus class="h-3 w-3 mr-1" /> Tambah Barang
                     </Button>
                   </div>
 
@@ -768,7 +768,7 @@ onMounted(async () => {
                   <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
                   <Button class="flex-1" @click="savePO" :disabled="saving">
                     <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                    Simpan Order
+                    Simpan
                   </Button>
                 </div>
               </div>
