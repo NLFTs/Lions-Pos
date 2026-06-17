@@ -10,9 +10,9 @@ public class ReturnRequest {
     
     // Lokasi tujuan return: "WAREHOUSE" atau "BRANCH"
     private String returnLocationType;
-    
-    // ID gudang atau cabang tujuan
     private Long returnLocationId;
+    private Boolean isDefective = false;
+    private String defectiveNote;
 
     @Data
     public static class ReturnItemRequest {

@@ -152,4 +152,21 @@ public class StockBalanceController {
                 request.getFromLocationType(), request.getFromLocationId(), request.getToLocationType(), request.getToLocationId(), request.getQty());
         return ResponseBuilder.ok(stockBalanceService.transferStock(request));
     }
+
+    @GetMapping("/quarantine")
+    @PreAuthorize("hasAuthority('stock_balance.index')")
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> getQuarantine() {
+        log.info("[GET] /api/v1/stock-balances/quarantine");
+        return ResponseBuilder.ok(stockBalanceService.findQuarantineStock());
+    }
+
+    @PostMapping("/{id}/dispose")
+    @PreAuthorize("hasAuthority('stock_balance.update')")
+    public ResponseEntity<ResData<StockBalanceResponse>> dispose(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long qty,
+            @RequestParam(required = false) String notes) {
+        log.info("[POST] /api/v1/stock-balances/{}/dispose qty={} notes={}", id, qty, notes);
+        return ResponseBuilder.ok(stockBalanceService.disposeQuarantine(id, qty, notes));
+    }
 }       

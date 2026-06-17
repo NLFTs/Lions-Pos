@@ -443,36 +443,39 @@ public class OrdersService {
         BigDecimal totalRefund = BigDecimal.ZERO;
 
         // ── Tentukan lokasi tujuan return ──────────────────────────────────────
-        // Default: kembalikan ke BRANCH asal order
         String targetLocationType;
         Long targetLocationId;
+        boolean isDefective = Boolean.TRUE.equals(request.getIsDefective());
 
-        String reqLocationType = request.getReturnLocationType();
-        Long reqLocationId = request.getReturnLocationId();
-
-        if (reqLocationType != null && !reqLocationType.isBlank() && reqLocationId != null) {
-            String upperType = reqLocationType.toUpperCase();
-            if (!upperType.equals("BRANCH") && !upperType.equals("WAREHOUSE")) {
-                throw new RuntimeException("returnLocationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
-            }
-            if (upperType.equals("WAREHOUSE")) {
-                // Validasi warehouse milik partner yang sama
-                warehousesRepository.findById(reqLocationId)
-                        .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
-            } else {
-                // Validasi branch milik partner yang sama
-                branchesRepository.findById(reqLocationId)
-                        .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
-            }
-            targetLocationType = upperType;
-            targetLocationId = reqLocationId;
+        if (isDefective) {
+            targetLocationType = "QUARANTINE";
+            targetLocationId = order.getPartner().getId();
         } else {
-            // Fallback ke branch asal order
-            targetLocationType = "BRANCH";
-            targetLocationId = order.getBranch().getId();
+            String reqLocationType = request.getReturnLocationType();
+            Long reqLocationId = request.getReturnLocationId();
+
+            if (reqLocationType != null && !reqLocationType.isBlank() && reqLocationId != null) {
+                String upperType = reqLocationType.toUpperCase();
+                if (!upperType.equals("BRANCH") && !upperType.equals("WAREHOUSE")) {
+                    throw new RuntimeException("returnLocationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
+                }
+                if (upperType.equals("WAREHOUSE")) {
+                    warehousesRepository.findById(reqLocationId)
+                            .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
+                } else {
+                    branchesRepository.findById(reqLocationId)
+                            .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+                }
+                targetLocationType = upperType;
+                targetLocationId = reqLocationId;
+            } else {
+                targetLocationType = "BRANCH";
+                targetLocationId = order.getBranch().getId();
+            }
         }
 
-        String targetLocationLabel = targetLocationType.equals("WAREHOUSE") ? "Gudang" : "Cabang";
+        String targetLocationLabel = isDefective ? "Karantina"
+                : (targetLocationType.equals("WAREHOUSE") ? "Gudang" : "Cabang");
 
         for (ReturnRequest.ReturnItemRequest itemReq : request.getItems()) {
             OrderItems orderItem = order.getItems().stream()
@@ -487,19 +490,29 @@ public class OrdersService {
                 throw new RuntimeException("Qty retur (" + itemReq.getQtyReturn() + ") melebihi qty order ("
                         + orderItem.getQty() + ") untuk produk: " + orderItem.getProductName());
             }
-
-            // Kembalikan barang retur konsumen ke lokasi yang dipilih (gudang atau cabang)
-            stockBalanceService.adjustStock(orderItem.getProduct().getId(), targetLocationType, targetLocationId, itemReq.getQtyReturn());
-            
-            stockMutationService.recordMutation(
-                    orderItem.getProduct(), order.getPartner(), "RETURN", 
-                    null, null, targetLocationType, targetLocationId,
-                    itemReq.getQtyReturn(), "ORDER", order.getId(),
-                    "Retur Barang Penjualan Order #" + order.getOrderNumber()
-                            + " ke " + targetLocationLabel + " (id=" + targetLocationId + ")"
-                            + (itemReq.getReason() != null ? " - Alasan: " + itemReq.getReason() : ""), 
-                    currentUser
-            );
+            if (isDefective) {
+                stockBalanceService.addToQuarantine(
+                        orderItem.getProduct().getId(),
+                        order.getPartner().getId(),
+                        itemReq.getQtyReturn(),
+                        order.getId(),
+                        "Retur Barang Rusak/Expired Order #" + order.getOrderNumber()
+                                + (request.getDefectiveNote() != null ? " - " + request.getDefectiveNote() : "")
+                                + (itemReq.getReason() != null ? " | Alasan: " + itemReq.getReason() : ""),
+                        currentUser
+                );
+            } else {
+                stockBalanceService.adjustStock(orderItem.getProduct().getId(), targetLocationType, targetLocationId, itemReq.getQtyReturn());
+                stockMutationService.recordMutation(
+                        orderItem.getProduct(), order.getPartner(), "RETURN",
+                        null, null, targetLocationType, targetLocationId,
+                        itemReq.getQtyReturn(), "ORDER", order.getId(),
+                        "Retur Barang Penjualan Order #" + order.getOrderNumber()
+                                + " ke " + targetLocationLabel + " (id=" + targetLocationId + ")"
+                                + (itemReq.getReason() != null ? " - Alasan: " + itemReq.getReason() : ""),
+                        currentUser
+                );
+            }
 
             // Simpan returnQty dan returnReason ke OrderItems untuk riwayat
             orderItem.setReturnQty(itemReq.getQtyReturn());

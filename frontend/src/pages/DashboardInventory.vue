@@ -356,7 +356,7 @@ onMounted(async () => {
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-red-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
               <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Produk Rusak</span>
+                <span class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">Produk Tidak Layak Jual</span>
                 <div class="w-7 h-7 rounded-lg bg-red-500/10 text-red-500 flex items-center justify-center">
                   <AlertTriangle class="w-4 h-4" />
                 </div>

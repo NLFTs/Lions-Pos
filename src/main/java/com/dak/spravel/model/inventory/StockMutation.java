@@ -38,11 +38,11 @@ public class StockMutation {
     private Type type;
 
     public enum Type {
-        SALE_OUT, PURCHASE_IN, TRANSFER, ADJUSTMENT, RETURN
+        SALE_OUT, PURCHASE_IN, TRANSFER, ADJUSTMENT, RETURN, QUARANTINE_IN, QUARANTINE_DISPOSE
     }
 
     public enum Location {
-        BRANCH, WAREHOUSE
+        BRANCH, WAREHOUSE, QUARANTINE
     }
 
     // "branch" | "warehouse" | null

@@ -49,6 +49,8 @@ const submittingReturn = ref(false)
 // Return location
 const returnLocationType = ref('BRANCH') // 'BRANCH' atau 'WAREHOUSE'
 const returnLocationId = ref(null)
+const isDefective = ref(false)
+const defectiveNote = ref('')
 const warehouses = ref([])
 const branchesList = ref([])
 const loadingLocations = ref(false)
@@ -130,9 +132,10 @@ async function verifyTransfer(paymentId) {
 function openReturnModal(order) {
   returnItems.value = (order.items || []).map(i => ({ ...i, returnQty: 0 }))
   returnReason.value = ''
-  // Default ke branch asal order
   returnLocationType.value = 'BRANCH'
   returnLocationId.value = order.branch?.id || order.branchId || null
+  isDefective.value = false
+  defectiveNote.value = ''
   showReturnModal.value = true
   fetchLocations()
 }
@@ -159,18 +162,23 @@ async function fetchLocations() {
 async function submitReturn() {
   const toReturn = returnItems.value.filter(i => i.returnQty > 0)
   if (!toReturn.length) { toast.error('Pilih minimal satu item untuk diretur.'); return }
-  if (returnLocationType.value === 'WAREHOUSE' && !returnReason.value?.trim()) {
-    toast.error('Alasan retur wajib diisi saat mengembalikan ke gudang.'); return
+  if (!isDefective.value) {
+    if (returnLocationType.value === 'WAREHOUSE' && !returnReason.value?.trim()) {
+      toast.error('Alasan retur wajib diisi saat mengembalikan ke gudang.'); return
+    }
+    if (!returnLocationId.value) { toast.error('Pilih tujuan lokasi pengembalian stok.'); return }
   }
-  if (!returnLocationId.value) { toast.error('Pilih tujuan lokasi pengembalian stok.'); return }
   submittingReturn.value = true
   try {
     await api.post(`/api/v1/orders/${detailDrawer.value.order.id}/return`, {
       items: toReturn.map(i => ({ orderItemId: i.id, qtyReturn: i.returnQty, reason: returnReason.value || null })),
-      returnLocationType: returnLocationType.value,
-      returnLocationId: returnLocationId.value
+      isDefective: isDefective.value,
+      defectiveNote: isDefective.value ? (defectiveNote.value?.trim() || null) : null,
+      returnLocationType: isDefective.value ? null : returnLocationType.value,
+      returnLocationId: isDefective.value ? null : returnLocationId.value
     })
-    const dest = returnLocationType.value === 'WAREHOUSE' ? 'gudang' : 'cabang'
+    const dest = isDefective.value ? 'karantina (tidak layak jual)'
+      : returnLocationType.value === 'WAREHOUSE' ? 'gudang' : 'cabang'
     toast.success(`Retur berhasil diproses. Stok dikembalikan ke ${dest}.`)
     closeReturnModal()
     await fetchOrders()
@@ -552,8 +560,39 @@ onMounted(fetchOrders)
                 </div>
               </div>
 
+              
+              <div class="space-y-2">
+                <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Kondisi Barang</p>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" @click="isDefective = false"
+                    :class="['h-11 rounded-xl border-2 text-sm font-bold flex items-center justify-center gap-2 transition-all',
+                      !isDefective
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-500'
+                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300']">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    Layak Jual
+                  </button>
+                  <button type="button" @click="isDefective = true"
+                    :class="['h-11 rounded-xl border-2 text-sm font-bold flex items-center justify-center gap-2 transition-all',
+                      isDefective
+                        ? 'border-red-500 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 dark:border-red-500'
+                        : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300']">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                    Tidak Layak
+                  </button>
+                </div>
+                <div v-if="isDefective" class="space-y-2">
+                  <div class="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 text-[11px] text-red-700 dark:text-red-400 border border-red-100 dark:border-red-800/40">
+                    <svg class="h-3.5 w-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                    <span>Barang akan masuk ke <strong>Karantina</strong> dan <strong>tidak</strong> kembali ke stok jual. Bisa di-dispose ke supplier dari halaman Saldo Stok.</span>
+                  </div>
+                  <input v-model="defectiveNote" placeholder="Keterangan kerusakan (opsional, cth: expired, bocor, pecah)"
+                    class="w-full h-9 rounded-xl border border-red-200 dark:border-red-800/40 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-red-400/30" />
+                </div>
+              </div>
+
               <!-- ── Tujuan Pengembalian Stok ── -->
-              <div class="space-y-3">
+              <div v-if="!isDefective" class="space-y-3">
                 <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Tujuan Pengembalian Stok <span class="text-destructive normal-case">*</span></p>
                 <!-- Toggle BRANCH / WAREHOUSE -->
                 <div class="grid grid-cols-2 gap-2">
@@ -624,13 +663,13 @@ onMounted(fetchOrders)
                 </div>
               </div>
 
-              <div class="space-y-2">
+              <div v-if="!isDefective" class="space-y-2">
                 <p class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
                   Alasan Retur
                   <span v-if="returnLocationType === 'WAREHOUSE'" class="text-destructive normal-case"> *</span>
                   <span v-else class="normal-case font-normal text-zinc-400"> (opsional)</span>
                 </p>
-                <textarea v-model="returnReason" rows="3" placeholder="Contoh: Expired, Barang rusak, Salah produk, Kemasan bocor..."
+                <textarea v-model="returnReason" rows="3" placeholder="Contoh: Salah produk, Kemasan bocor..."
                   class="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none" />
                 <p class="text-[10px] text-muted-foreground">
                   <span v-if="returnLocationType === 'WAREHOUSE'">Alasan wajib diisi saat mengembalikan ke gudang.</span>
@@ -643,10 +682,11 @@ onMounted(fetchOrders)
                 Batal
               </button>
               <button @click="submitReturn" :disabled="submittingReturn"
-                class="flex-1 h-11 rounded-[14px] bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
+                :class="['flex-1 h-11 rounded-[14px] text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50',
+                  isDefective ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700']">
                 <Loader2 v-if="submittingReturn" class="h-4 w-4 animate-spin" />
                 <RotateCcw v-else class="h-4 w-4" />
-                Proses Retur
+                {{ isDefective ? 'Retur ke Karantina' : 'Proses Retur' }}
               </button>
             </div>
           </div>
