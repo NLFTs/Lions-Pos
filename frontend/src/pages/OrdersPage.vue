@@ -111,16 +111,16 @@ function openDetail(order) { detailDrawer.value = { show: true, order } }
 function closeDetail() { detailDrawer.value.show = false }
 
 async function cancelOrder(order) {
-  const ok = await confirm({ title: 'Batalkan Order?', description: `Order ${order.orderNumber} akan dibatalkan dan stok dikembalikan.` })
+  const ok = await confirm({ title: 'Batalkan Pesanan?', description: `Pesanan ${order.orderNumber} akan dibatalkan dan stok dikembalikan.` })
   if (!ok) return
   actionLoading.value = true
   try {
     await api.patch(`/api/v1/orders/${order.id}/cancel`)
-    toast.success('Order berhasil dibatalkan.')
+    toast.success('Pesanan berhasil dibatalkan.')
     await fetchOrders()
     closeDetail()
   } catch (err) {
-    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal membatalkan order.')
+    toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal membatalkan pesanan.')
   } finally { actionLoading.value = false }
 }
 
@@ -593,7 +593,7 @@ onMounted(() => {
                 :disabled="actionLoading"
                 @click="cancelOrder(detailDrawer.order)"
                 class="w-full h-10 rounded-xl border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50">
-                <Ban class="h-4 w-4" /> Batalkan Order
+                <Ban class="h-4 w-4" /> Batalkan Pesanan
               </button>
             </div>
           </div>
