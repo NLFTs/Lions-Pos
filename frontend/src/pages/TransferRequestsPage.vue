@@ -437,11 +437,11 @@ onMounted(fetchData)
                       <div class="grid grid-cols-2 gap-2 mb-2">
                         <button type="button" @click="form.fromLocationType = 'warehouse'; form.fromLocationId = ''"
                           :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                          <Warehouse class="h-3 w-3" /> WAREHOUSE
+                          <Warehouse class="h-3 w-3" /> GUDANG
                         </button>
                         <button type="button" @click="form.fromLocationType = 'branch'; form.fromLocationId = ''"
                           :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                          <Building2 class="h-3 w-3" /> BRANCH
+                          <Building2 class="h-3 w-3" /> CABANG
                         </button>
                       </div>
                       <select :key="form.fromLocationType + locations.length" v-model="form.fromLocationId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
@@ -470,11 +470,11 @@ onMounted(fetchData)
                         <div class="grid grid-cols-2 gap-2 mb-2">
                           <button type="button" @click="form.toLocationType = 'warehouse'; form.toLocationId = ''"
                             :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Warehouse class="h-3 w-3" /> WAREHOUSE
+                            <Warehouse class="h-3 w-3" /> GUDANG
                           </button>
                           <button type="button" @click="form.toLocationType = 'branch'; form.toLocationId = ''"
                             :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Building2 class="h-3 w-3" /> BRANCH
+                            <Building2 class="h-3 w-3" /> CABANG
                           </button>
                         </div>
                         <select :key="form.toLocationType + locations.length" v-model="form.toLocationId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">

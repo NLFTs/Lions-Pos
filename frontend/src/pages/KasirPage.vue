@@ -740,7 +740,7 @@ function avatarStyle(name = '') {
                     </div>
                   </div>
                   <div class="flex gap-2">
-                    <Input v-model="voucherCode" placeholder="Masukkan kode voucher..." class="h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" @keyup.enter="applyVoucher" />
+                    <Input v-model="voucherCode" placeholder="Masukkan kode voucer..." class="h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" @keyup.enter="applyVoucher" />
                     <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm" @click="applyVoucher">Pakai</Button>
                   </div>
                 </div>

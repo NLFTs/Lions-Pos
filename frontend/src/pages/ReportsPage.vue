@@ -261,32 +261,43 @@ function processData() {
   const filterDate = new Date()
   filterDate.setDate(now.getDate() - days)
 
-  // Helper untuk membersihkan "Rp 3.200.000" menjadi angka murni 3200000
-  const cleanNumber = (val) => {
-    if (!val) return 0
-    if (typeof val === 'number') return val
-    // Hapus semua karakter selain angka
-    const clean = val.toString().replace(/[^0-9]/g, '')
-    return parseInt(clean) || 0
+  // 🌟 Fungsi pembersih angka yang jauh lebih aman & fleksibel
+  const safeNumber = (val) => {
+    if (val === undefined || val === null) return 0
+    if (typeof val === 'number') return val // Jika sudah angka murni, langsung kembalikan
+    
+    // Jika bentuknya string, bersihkan dulu teks Rp dan titiknya
+    const clean = val.toString().replace(/[^0-9.-]/g, '')
+    return parseFloat(clean) || 0
   }
 
+  // Filter pesanan berdasarkan tanggal (Logika asli kamu yang sudah work)
   const filteredOrders = rawOrders.value.filter(o => {
     if (!o.createdAt) return false
     return new Date(o.createdAt) >= filterDate
   })
   
-  // Hitung Statistik dengan data yang sudah dibersihkan
-  const totalRevenue = filteredOrders.reduce((sum, o) => sum + cleanNumber(o.total), 0)
+  // 1. Hitung Statistik Utama
+  const totalRevenue = filteredOrders.reduce((sum, o) => sum + safeNumber(o.total), 0)
   const totalOrders = filteredOrders.length
   const avgOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
-  const activeProducts = rawProducts.value.filter(p => p.isActive).length
+  
+  // 🌟 Perbaikan pembacaan PRODUK AKTIF agar tidak 0
+  const activeProducts = rawProducts.value.filter(p => {
+    return p.isActive === true || 
+           p.isActive === 1 || 
+           p.is_active === true || 
+           p.is_active === 1 ||
+           p.status?.toLowerCase() === 'active' ||
+           p.status?.toLowerCase() === 'aktif'
+  }).length
 
   stats.value[0].value = formatCurrency(totalRevenue)
   stats.value[1].value = totalOrders.toString()
   stats.value[2].value = formatCurrency(avgOrder)
   stats.value[3].value = activeProducts.toString()
 
-  // Ambil label tanggal untuk chart
+  // 2. Pemetaan Grafik Tren / Line Chart
   const dateLabels = []
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date()
@@ -296,14 +307,17 @@ function processData() {
 
   lineChartData.value.labels = dateLabels.map(d => d.split('-').slice(1).reverse().join('/'))
   lineChartData.value.datasets[0].data = dateLabels.map(date => 
-    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + cleanNumber(o.total), 0) / 1000000
+    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + safeNumber(o.total), 0) / 1000000
   )
   lineChartData.value.datasets[1].data = dateLabels.map(date => 
     filteredOrders.filter(o => o.createdAt?.startsWith(date)).length
   )
 
-  // Distribusi Metode Pembayaran
-  const cashCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'cash' || o.payment?.method?.toLowerCase() === 'tunai').length
+  // 3. Distribusi Metode Pembayaran
+  const cashCount = filteredOrders.filter(o => {
+    const m = o.payment?.method?.toLowerCase()
+    return m === 'cash' || m === 'tunai'
+  }).length
   const transferCount = filteredOrders.filter(o => o.payment?.method?.toLowerCase() === 'transfer').length
   const totalWithPayment = cashCount + transferCount
   
@@ -315,12 +329,12 @@ function processData() {
     paymentDist.value[1].percentage = 0
   }
 
-  // Hitung Ulang Produk Terlaris
+  // 4. Hitung Ulang Daftar 5 Produk Terlaris
   const productSales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
-        const pid = item.product?.id || item.productId
+        const pid = item.product?.id || item.productId || item.product_id
         if (!pid) return
         if (!productSales[pid]) {
           productSales[pid] = { 
@@ -331,7 +345,7 @@ function processData() {
           }
         }
         productSales[pid].sold += (parseInt(item.qty) || 0)
-        productSales[pid].revenue += cleanNumber(item.subtotal)
+        productSales[pid].revenue += safeNumber(item.subtotal || item.price * item.qty)
       })
     }
   })
@@ -344,13 +358,13 @@ function processData() {
       revenue: formatCurrency(p.revenue)
     }))
 
-  // Bar Chart: Top 5 Kategori
+  // 5. Grafik Batang / Bar Chart Kategori
   const categorySales = {}
   filteredOrders.forEach(order => {
     if (order.items) {
       order.items.forEach(item => {
         const cat = item.product?.category?.name || item.category || 'Lainnya'
-        categorySales[cat] = (categorySales[cat] || 0) + cleanNumber(item.subtotal)
+        categorySales[cat] = (categorySales[cat] || 0) + safeNumber(item.subtotal || item.price * item.qty)
       })
     }
   })
