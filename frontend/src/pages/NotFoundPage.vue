@@ -31,46 +31,67 @@ const goHome = () => router.push('/')
 
 <template>
   <LandingLayout>
-    <Navbar
-      brand-name="gaptek"
-      :nav-items="navigationItems"
-      @navigate="handleNavigation"
-    >
+    <Navbar brand-name="gaptek" :nav-items="navigationItems" @navigate="handleNavigation" class="bg-black border-b border-zinc-900">
       <template #logo>
-        <div class="h-full w-full bg-zinc-100 flex items-center justify-center">
-          <Zap class="h-4 w-4 text-zinc-900" />
+        <div class="h-6 w-6 bg-white rounded-full flex items-center justify-center">
+          <Zap class="h-3 w-3 text-black" />
         </div>
-      </template>
-      <template #actions>
-        <Button class="font-bold px-6 py-2 rounded-xl bg-zinc-100 text-zinc-900 hover:bg-white transition-all active:scale-95" @click="goHome">
-          Kembali ke Beranda
-        </Button>
       </template>
     </Navbar>
 
-    <main class="relative flex-grow flex flex-col items-center justify-center text-center px-6 py-24">
-      <div class="max-w-3xl mx-auto space-y-10">
-        <div class="inline-flex items-center justify-center gap-3 text-primary text-sm font-semibold uppercase tracking-[0.3em] mb-6">
-          <Zap class="w-5 h-5" />
-          404 - Halaman Tidak Ditemukan
-        </div>
+    <main class="relative flex-grow flex flex-col items-center justify-center text-center px-6 py-32 bg-black overflow-hidden">
+      
+      <!-- SVG 404 yang Lebih Terlihat -->
+      <div class="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+        <svg viewBox="0 0 400 200" class="w-[70%] max-w-3xl">
+          <!-- Definisi Gradient untuk efek mengkilap -->
+          <defs>
+            <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.15" />
+              <stop offset="100%" style="stop-color:#4f4f4f;stop-opacity:0.05" />
+            </linearGradient>
+          </defs>
+          
+          <!-- Angka dengan Gradient dan Border -->
+          <text 
+            x="50%" y="50%" 
+            dominant-baseline="middle" 
+            text-anchor="middle" 
+            font-weight="900" 
+            font-size="160" 
+            font-family="sans-serif"
+            fill="url(#glowGradient)"
+            stroke="rgba(255,255,255,0.08)"
+            stroke-width="2"
+          >
+            404
+          </text>
+        </svg>
+      </div>
 
-        <h1 class="text-6xl md:text-7xl font-bold text-white tracking-tight leading-tight">
-          Ups, sepertinya alamat yang dicari tidak ada.
+      <!-- Content Utama -->
+      <div class="relative z-10 max-w-xl mx-auto space-y-6">
+        <h1 class="text-6xl font-bold text-white tracking-tighter">
+          Halaman tidak ditemukan.
         </h1>
-
-        <p class="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-          Halaman yang Anda buka mungkin telah dipindahkan, salah ketik, atau belum dibuat.
-          Kembali ke beranda untuk melanjutkan tanpa perlu login.
+        
+        <p class="text-zinc-400 text-lg max-w-md mx-auto">
+          Ups, sepertinya Anda tersesat. Halaman ini mungkin telah dipindahkan atau tidak lagi tersedia.
         </p>
 
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-          <Button class="h-14 px-8 rounded-2xl bg-white text-zinc-900 hover:bg-zinc-100 transition-all font-semibold" @click="goHome">
-            Ke Beranda
-          </Button>
-          <Button class="h-14 px-8 rounded-2xl bg-zinc-900/70 text-white border border-white/10 hover:bg-zinc-800 transition-all font-semibold" @click="router.push('/about')">
-            Pelajari Gaptek
-          </Button>
+        <div class="flex items-center justify-center pt-8">
+            <button 
+                @click="goHome" 
+                class="relative px-8 py-3 bg-white text-black text-sm font-semibold overflow-hidden transition-all duration-300 shadow-[0_0_25px_rgba(255,255,255,0.15)] group"
+            >
+                <!-- Efek Cahaya Merah Berjalan -->
+                <span class="absolute inset-0 w-0 bg-red-600 transition-all duration-700 ease-out group-hover:w-full"></span>
+                
+                <!-- Teks Tombol -->
+                <span class="relative z-10 group-hover:text-white transition-colors duration-300">
+                Kembali ke Beranda
+                </span>
+            </button>
         </div>
       </div>
     </main>
