@@ -289,12 +289,13 @@ export const routes = [
           target += '/'
         }
         window.location.href = target
-    }
+      }
     }
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/login',
+    name: 'not-found',
+    component: () => import('@/pages/NotFoundPage.vue'),
   },
 ]
 
