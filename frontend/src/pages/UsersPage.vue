@@ -16,7 +16,7 @@ import api from '@/lib/api'
 import {
   Plus, Pencil, Trash2, Loader2, X, Shield, Eye, EyeOff,
   Check, ChevronDown, Filter,
-  ArrowLeft, Users
+  ArrowLeft, Users, Search
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
@@ -45,7 +45,7 @@ const filterRef   = ref(null)
 // ─── Form ─────────────────────────────────────────────────────────────────────
 const form = ref({
   id: null, username: '', fullname: '', email: '',
-  password: '', roleIds: [],
+  password: '', roleIds: [], partnerId: null, // <-- Dipastikan partnerId ada di model form
 })
 const formErrors  = ref({})
 const formError   = ref(null)
@@ -54,6 +54,64 @@ const showPass    = ref(false)
 const avatarPreview = ref(null)
 const avatarFile  = ref(null)
 const avatarInput = ref(null)
+
+// ─── Partner ──────────────────────────────────────────────────────────────────
+const partners = ref([])
+const loadingPartners = ref(false)
+const showPartnerDropdown = ref(false)
+const partnerSearchQuery = ref('')
+const partnerDropdownRef = ref(null)
+
+const editModePartnerName = ref('')
+
+const selectedPartnerName = computed(() => {
+  if (form.value.partnerId && partners.value.length > 0) {
+    const found = partners.value.find(p => p.id === form.value.partnerId)
+    if (found) return found.name || found.partnerName || ''
+  }
+  return editModePartnerName.value || ''
+})
+
+watch(() => form.value.partnerId, (newId) => {
+  if (newId && partners.value.length > 0) {
+    const found = partners.value.find(p => p.id === newId)
+    if (found) {
+      editModePartnerName.value = found.name || found.partnerName || ''
+    }
+  }
+}, { Liquorice: true })
+
+// Filter pencarian internal dropdown partner
+const filteredPartners = computed(() => {
+  if (!partnerSearchQuery.value) return partners.value
+  const q = partnerSearchQuery.value.toLowerCase()
+  return partners.value.filter(p => {
+    const name = p.name || p.partnerName || ''
+    return name.toLowerCase().includes(q)
+  })
+})
+
+async function fetchPartners() {
+  loadingPartners.value = true
+  try {
+    const res = await api.get('/api/v1/partners')
+    const pData = res.data?.data
+    partners.value = Array.isArray(pData) ? pData : (pData?.content || [])
+  } catch (err) {
+    console.error('Gagal fetch partners:', err.message)
+    if (err.response?.status !== 401 && err.response?.status !== 403) {
+      toast.error('Gagal memuat data partner dari backend')
+    }
+  } finally {
+    loadingPartners.value = false
+  }
+}
+
+function selectPartner(partner) {
+  form.value.partnerId = partner.id
+  showPartnerDropdown.value = false
+  partnerSearchQuery.value = ''
+}
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
 const deleting    = ref(false)
@@ -160,15 +218,12 @@ function getUserRoleBadge(u) {
     return { ...ROLE_BADGE['branch-manager'], sub: u.branchName || null }
   if (isWarehouseManagerRole(u))
     return { ...ROLE_BADGE['warehouse-manager'], sub: u.warehouseName || null }
-  // Karyawan cabang (termasuk kasir)
   if (slugs.includes('kasir'))
     return { ...ROLE_BADGE['kasir'], sub: u.branchName || null }
   if (slugs.some(s => s === 'karyawan-cabang' || s === 'staff-branch'))
     return { ...ROLE_BADGE['staff-branch'], sub: u.branchName || null }
-  // Karyawan gudang
   if (slugs.some(s => s === 'karyawan-gudang' || s === 'staff-warehouse'))
     return { ...ROLE_BADGE['staff-warehouse'], sub: u.warehouseName || null }
-  // Fallback: ada di cabang tapi tanpa role spesifik
   if (u.branchId && u.branchName)
     return { ...ROLE_BADGE['staff-branch'], sub: u.branchName }
   if (u.warehouseId && u.warehouseName)
@@ -229,25 +284,43 @@ async function fetchRoles() {
   } catch { roles.value = [] }
 }
 
-// ─── Form ─────────────────────────────────────────────────────────────────────
+// ─── Form Actions ─────────────────────────────────────────────────────────────
 function openCreate() {
-  form.value = { id: null, username: '', fullname: '', email: '', password: '', roleIds: [] }
+  form.value = { id: null, username: '', fullname: '', email: '', password: '', roleIds: [], partnerId: null }
   formErrors.value = {}; formError.value = null
   avatarPreview.value = null; avatarFile.value = null; showPass.value = false
   formMode.value = 'create'; view.value = 'form'
+  editModePartnerName.value = ''
   fetchRoles()
+
+  if (isAdmin.value) {
+    fetchPartners()
+  }
 }
 
 function openEdit(u) {
+  // SINKRONISASI RELASI OBJEK DARI BACKEND
   form.value = {
-    id: u.id, username: u.username, fullname: u.fullname || '',
-    email: u.email || '', password: '',
+    id: u.id, 
+    username: u.username, 
+    fullname: u.fullname || '',
+    email: u.email || '', 
+    password: '',
     roleIds: (u.roles || []).map(r => r.id),
+    partnerId: u.partner?.id || u.partnerId || null // Ambil ID dari u.partner objek
   }
+  
+  // Ambil Name dari objek u.partner asli bawaan list data table lu
+  editModePartnerName.value = u.partner?.name || u.partner?.partnerName || ''
+
   formErrors.value = {}; formError.value = null
   avatarPreview.value = u.avatar || null; avatarFile.value = null; showPass.value = false
   formMode.value = 'edit'; view.value = 'form'
+  
   fetchRoles()
+  if (isAdmin.value) {
+    fetchPartners()
+  }
 }
 
 function toggleRole(id) {
@@ -299,6 +372,7 @@ async function saveUser() {
       fullname: form.value.fullname || null,
       email: form.value.email,
       roleIds: form.value.roleIds.length > 0 ? form.value.roleIds : undefined,
+      partnerId: form.value.partnerId,
     }
     if (avatarUrl !== undefined) payload.avatar = avatarUrl
     if (formMode.value === 'create') payload.password = form.value.password
@@ -343,10 +417,22 @@ async function confirmDelete() {
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function handleOutsideClick(e) {
-  if (filterRef.value && !filterRef.value.contains(e.target)) filterOpen.value = false
+  if (filterRef.value && !filterRef.value.contains(e.target)) {
+    filterOpen.value = false
+  }
+  if (partnerDropdownRef.value && !partnerDropdownRef.value.contains(e.target)) {
+    showPartnerDropdown.value = false
+  }
 }
-onMounted(() => { fetchUsers(); fetchRoles(); document.addEventListener('click', handleOutsideClick) })
-onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
+
+onMounted(() => {
+  fetchUsers();
+  fetchRoles();
+  document.addEventListener('click', handleOutsideClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
+})
 
 const PALETTE = [
   { bg: '#dbeafe', color: '#1d4ed8' }, { bg: '#dcfce7', color: '#15803d' },
@@ -368,21 +454,18 @@ function initials(u) {
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
       <Transition name="fade" mode="out-in">
 
-        <!-- ══════════════════════ LIST VIEW ══════════════════════ -->
         <div v-if="view === 'list'" key="list" class="flex flex-col gap-6">
 
-          <!-- Header -->
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 class="text-2xl font-bold tracking-tight">Pengguna</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, perizinan , dan penempatan lokasi.</p>
+              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, perizinan, dan penempatan lokasi.</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
                 <DataTableSearch v-model="searchQuery" placeholder="Cari nama, username..." />
               </div>
 
-              <!-- Filter -->
               <div ref="filterRef" class="relative flex-1 sm:flex-none">
                 <button @click="filterOpen = !filterOpen"
                   class="w-full flex items-center justify-center gap-2 h-9 px-3 rounded-md border border-border bg-background hover:bg-accent text-foreground text-sm font-medium transition-colors">
@@ -418,7 +501,6 @@ function initials(u) {
             </div>
           </div>
 
-          <!-- Table Card -->
           <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
             <CardContent class="p-0">
               <div v-if="loading" class="flex flex-col items-center justify-center py-24 gap-3">
@@ -435,7 +517,6 @@ function initials(u) {
                 </Button>
               </div>
               <div v-else>
-                <!-- Mobile Cards -->
                 <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
                   <div v-for="u in pagedUsers" :key="u.id" class="p-4 flex items-center gap-3 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors" @click="openEdit(u)">
                     <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0" :style="avatarStyle(u.fullname || u.username)">
@@ -454,7 +535,6 @@ function initials(u) {
                   </div>
                 </div>
 
-                <!-- Desktop Table -->
                 <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-sm">
                     <thead>
@@ -531,10 +611,8 @@ function initials(u) {
           </Card>
         </div>
 
-        <!-- ══════════════════════ FORM VIEW ══════════════════════ -->
         <div v-else-if="view === 'form'" key="form" class="flex flex-col gap-6 max-w-2xl">
 
-          <!-- Header -->
           <div class="flex items-center gap-4">
             <Button variant="ghost" size="icon" class="h-9 w-9 shrink-0" @click="view = 'list'"><ArrowLeft class="h-4 w-4" /></Button>
             <div>
@@ -549,10 +627,8 @@ function initials(u) {
 
           <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
 
-          <!-- Avatar + Identitas -->
           <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
             <CardContent class="p-6 space-y-5">
-              <!-- Avatar -->
               <div class="flex items-center gap-4 p-4 rounded-xl bg-muted/40 border border-border">
                 <div class="relative shrink-0 group cursor-pointer" @click="avatarInput?.click()">
                   <img v-if="avatarPreview" :src="avatarPreview" class="w-16 h-16 rounded-full object-cover border-2 border-border" />
@@ -574,23 +650,81 @@ function initials(u) {
                 <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="handleAvatarChange" />
               </div>
 
-              <!-- Fields -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                   <Label>Username <span class="text-destructive">*</span></Label>
-                  <Input v-model="form.username" placeholder="nairha" :disabled="saving" autocomplete="off" />
+                  <Input v-model="form.username" placeholder="Masukkan username" :disabled="saving" autocomplete="off" />
                   <p v-if="formErrors.username" class="text-xs text-destructive">{{ formErrors.username }}</p>
                 </div>
                 <div class="space-y-1.5">
                   <Label>Nama Lengkap</Label>
-                  <Input v-model="form.fullname" placeholder="Nairha" :disabled="saving" />
+                  <Input v-model="form.fullname" placeholder="Masukkan nama lengkap" :disabled="saving" />
                 </div>
               </div>
 
               <div class="space-y-1.5">
                 <Label>Email <span class="text-destructive">*</span></Label>
-                <Input v-model="form.email" placeholder="nairha@nlfts.dev" :disabled="saving" />
+                <Input v-model="form.email" placeholder="Masukkan email" :disabled="saving" />
                 <p v-if="formErrors.email" class="text-xs text-destructive">{{ formErrors.email }}</p>
+              </div>
+
+              <div v-if="isAdmin" class="space-y-1.5 relative" ref="partnerDropdownRef">
+                <Label>Mitra <span class="text-destructive">*</span></Label>
+                <button
+                  type="button"
+                  :disabled="saving"
+                  @click.stop="showPartnerDropdown = !showPartnerDropdown" 
+                  class="flex items-center justify-between w-full h-9 px-3 text-sm font-normal bg-background border border-input shadow-sm rounded-md hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-all text-left outline-none cursor-pointer relative z-10"
+                >
+                  <span :class="form.partnerId ? 'text-foreground' : 'text-muted-foreground'">
+                    {{ selectedPartnerName || 'Pilih mitra tujuan...' }}
+                  </span>
+                  <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 shrink-0" :class="{ 'rotate-180': showPartnerDropdown }" />
+                </button>
+
+                <p v-if="formErrors.partnerId" class="text-xs text-destructive">{{ formErrors.partnerId }}</p>
+
+                <Transition name="dropdown">
+                  <div v-if="showPartnerDropdown" class="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl overflow-hidden p-1 flex flex-col gap-0.5">
+                    
+                    <div class="p-1 border-b border-zinc-100 dark:border-zinc-800/60 mb-1 flex items-center gap-2">
+                      <Search class="h-3.5 w-3.5 text-zinc-400 shrink-0 ml-1.5" />
+                      <input 
+                        v-model="partnerSearchQuery"
+                        placeholder="Cari partner..." 
+                        class="w-full bg-transparent border-none text-[12px] font-medium focus:outline-none p-1 text-zinc-800 dark:text-zinc-200"
+                        @click.stop
+                      />
+                    </div>
+
+                    <div class="max-h-[180px] overflow-y-auto no-scrollbar flex flex-col gap-0.5">
+                      <div v-if="loadingPartners" class="py-6 flex flex-col items-center justify-center gap-2 text-zinc-400">
+                        <Loader2 class="h-4 w-4 animate-spin text-zinc-500" />
+                        <span class="text-[11px] font-medium italic">Memuat data partner...</span>
+                      </div>
+
+                      <template v-else>
+                        <button
+                          v-for="partner in filteredPartners"
+                          :key="partner.id"
+                          type="button"
+                          @click="selectPartner(partner)"
+                          class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-[12px] transition-colors font-medium"
+                          :class="form.partnerId === partner.id
+                            ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold'
+                            : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60'"
+                        >
+                          <span class="truncate">{{ partner.name || partner.partnerName }}</span>
+                          <Check v-if="form.partnerId === partner.id" class="h-3.5 w-3.5 shrink-0" />
+                        </button>
+
+                        <div v-if="filteredPartners.length === 0" class="py-4 text-center text-[11px] text-zinc-400 font-medium italic">
+                          Partner tidak ditemukan.
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </Transition>
               </div>
 
               <div class="space-y-1.5">
@@ -611,7 +745,6 @@ function initials(u) {
             </CardContent>
           </Card>
 
-          <!-- Actions -->
           <div class="flex justify-end gap-3">
             <Button variant="outline" @click="view = 'list'" :disabled="saving">Batal</Button>
             <Button @click="saveUser" :disabled="saving" class="bg-primary hover:bg-primary/90 min-w-[120px]">
@@ -624,7 +757,6 @@ function initials(u) {
       </Transition>
     </div>
 
-    <!-- Delete Modal -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
