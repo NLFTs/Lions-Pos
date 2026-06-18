@@ -326,7 +326,7 @@ onMounted(() => {
         </div>
         <div class="flex items-center gap-2 w-full md:w-auto">
           <div class="w-full sm:w-64">
-            <DataTableSearch v-model="searchQuery" placeholder="Cari pesanan, kasir atau cabang..." />
+            <DataTableSearch v-model="searchQuery" placeholder="Cari Riwayat Pesanan" />
           </div>
           <CustomSelect
             v-model="branchFilter"

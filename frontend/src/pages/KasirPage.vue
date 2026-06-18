@@ -7,7 +7,8 @@ import Label from '@/components/ui/Label.vue'
 import { 
   Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
   Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
-  Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin, Tag, Percent
+  Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin, Tag, Percent, AlertTriangle,
+  Clock, Pause, Play
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -116,6 +117,7 @@ async function fetchData() {
 
 onMounted(() => {
   fetchData()
+  fetchTodayOrders()
   document.addEventListener('click', handleBranchOutsideClick)
 })
 
@@ -125,7 +127,10 @@ onBeforeUnmount(() => {
 
 // Reload stok saat branch berubah
 watch(selectedBranchId, (newId) => {
-  if (newId) fetchStockBalances(newId)
+  if (newId) {
+    fetchStockBalances(newId)
+    showStockWarning.value = true
+  }
 })
 
 async function fetchStockBalances(branchId) {
@@ -146,7 +151,63 @@ function getStock(productId) {
   return stockBalances.value[String(productId)] ?? null
 }
 
-// ─── Computed ─────────────────────────────────────────────────────────────────
+//  Stok Warning 
+const LOW_STOCK_THRESHOLD = 5
+
+const lowStockProducts = computed(() => {
+  return products.value.filter(p => {
+    const stock = getStock(p.id)
+    return stock !== null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
+  })
+})
+
+const outOfStockProducts = computed(() => {
+  return products.value.filter(p => {
+    const stock = getStock(p.id)
+    return stock !== null && stock <= 0
+  })
+})
+
+const showStockWarning = ref(true)
+
+//  Transaksi Hari Ini 
+const showTodayPanel = ref(false)
+const todayOrders = ref([])
+const loadingToday = ref(false)
+
+async function fetchTodayOrders() {
+  loadingToday.value = true
+  try {
+    const url = '/api/v1/orders'
+    const res = await api.get(url)
+    const data = res.data?.data ?? res.data
+    const all = Array.isArray(data) ? data : (data?.content || [])
+    const today = new Date().toDateString()
+    todayOrders.value = all.filter(o => {
+      const d = o.createdAt ? new Date(o.createdAt).toDateString() : null
+      return d === today
+    }).sort((a, b) => (b.id || 0) - (a.id || 0))
+  } catch {
+    todayOrders.value = []
+  } finally {
+    loadingToday.value = false
+  }
+}
+
+const todaySummary = computed(() => {
+  const paid = todayOrders.value.filter(o => o.status?.toUpperCase() === 'PAID')
+  const total = paid.reduce((s, o) => s + (Number(o.total) || 0), 0)
+  const cash = paid.filter(o => o.payments?.some(p => p.method === 'CASH')).length
+  const transfer = paid.filter(o => o.payments?.some(p => p.method === 'TRANSFER')).length
+  return { count: paid.length, total, cash, transfer }
+})
+
+function toggleTodayPanel() {
+  showTodayPanel.value = !showTodayPanel.value
+  if (showTodayPanel.value) fetchTodayOrders()
+}
+
+//  Computed
 const uniqueCategories = computed(() => {
   const names = categories.value.map(c => c.name).filter(Boolean).sort()
   return ['Semua', ...new Set(names)]
@@ -167,7 +228,7 @@ const filteredProducts = computed(() => {
   return result
 })
 
-// ─── Cart Logic ──────────────────────────────────────────────────────────────
+//Cart Logic
 function addToCart(product) {
   const stock = getStock(product.id)
   const existing = cart.value.find(item => item.id === product.id)
@@ -190,7 +251,7 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-// ... logic qty modifier, format currency tetap utuh ...
+//  logic qty modifier, format currency tetap utuh
 function increaseQty(item) {
   const stock = getStock(item.id)
   if (stock !== null && item.qty >= stock) {
@@ -336,6 +397,19 @@ const referenceNo = ref('')
 const buyerName = ref('')
 const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
 
+//  Split Payment
+const isSplitPayment = ref(false)
+const splitCashAmount = ref('')
+const splitTransferAmount = ref('')
+const splitBankName = ref('')
+const splitReferenceNo = ref('')
+
+const splitCashNum = computed(() => Number(splitCashAmount.value) || 0)
+const splitTransferNum = computed(() => Number(splitTransferAmount.value) || 0)
+const splitTotal = computed(() => splitCashNum.value + splitTransferNum.value)
+const splitValid = computed(() => splitTotal.value >= total.value && splitCashNum.value > 0 && splitTransferNum.value > 0)
+const splitChange = computed(() => Math.max(0, splitTotal.value - total.value))
+
 function onCashTenderedInput(e) {
   const raw = e.target.value.replace(/\D/g, '') // hanya angka
   cashTendered.value = raw
@@ -368,6 +442,11 @@ function openPayment() {
   manualDiscountValue.value = ''
   manualDiscountDisplay.value = ''
   manualDiscountNote.value = ''
+  isSplitPayment.value = false
+  splitCashAmount.value = ''
+  splitTransferAmount.value = ''
+  splitBankName.value = ''
+  splitReferenceNo.value = ''
 }
 
 function closePayment() {
@@ -379,6 +458,54 @@ function closeReceipt() {
   lastOrder.value = null
   confirmingTransfer.value = false
   if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
+}
+
+//  Hold Order
+const heldOrders = ref(JSON.parse(localStorage.getItem('pos_held_orders') || '[]'))
+const showHeldPanel = ref(false)
+
+function saveHeldToStorage() {
+  localStorage.setItem('pos_held_orders', JSON.stringify(heldOrders.value))
+}
+
+function holdOrder() {
+  if (!cart.value.length) { toast.error('Keranjang kosong, tidak ada yang bisa ditahan.'); return }
+  const held = {
+    id: Date.now(),
+    label: `Order #${heldOrders.value.length + 1}`,
+    cart: JSON.parse(JSON.stringify(cart.value)),
+    voucherCode: voucherCode.value,
+    appliedVoucher: appliedVoucher.value ? JSON.parse(JSON.stringify(appliedVoucher.value)) : null,
+    buyerName: buyerName.value,
+    savedAt: new Date().toISOString(),
+    branchId: selectedBranchId.value,
+  }
+  heldOrders.value.push(held)
+  saveHeldToStorage()
+  cart.value = []
+  appliedVoucher.value = null
+  voucherCode.value = ''
+  buyerName.value = ''
+  toast.success(`Order ditahan. Lanjutkan kapan saja.`)
+}
+
+function restoreHeldOrder(held) {
+  if (cart.value.length > 0) {
+    const ok = window.confirm('Keranjang aktif akan digantikan oleh order yang ditahan. Lanjutkan?')
+    if (!ok) return
+  }
+  cart.value = held.cart
+  voucherCode.value = held.voucherCode || ''
+  appliedVoucher.value = held.appliedVoucher || null
+  buyerName.value = held.buyerName || ''
+  deleteHeldOrder(held.id)
+  showHeldPanel.value = false
+  toast.success(`Order "${held.label}" dipulihkan.`)
+}
+
+function deleteHeldOrder(id) {
+  heldOrders.value = heldOrders.value.filter(h => h.id !== id)
+  saveHeldToStorage()
 }
 
 const confirmingTransfer = ref(false)
@@ -404,7 +531,87 @@ async function confirmTransferFromReceipt() {
 }
 
 function printReceipt() {
-  window.print()
+  if (!lastOrder.value) return
+  const o = lastOrder.value
+  const pay = o.payments?.[0]
+  const isCash = pay?.method === 'CASH'
+  const items = (o.items || []).map(i =>
+    `<tr>
+      <td style="padding:1px 0;max-width:140px;word-break:break-word">${i.productName || 'Produk'}</td>
+      <td style="padding:1px 4px;text-align:center;white-space:nowrap">${i.qty}</td>
+      <td style="padding:1px 0;text-align:right;white-space:nowrap">${fmt(i.subtotal)}</td>
+    </tr>`
+  ).join('')
+
+  const html = `<!DOCTYPE html><html><head>
+    <meta charset="utf-8"/>
+    <title>Struk - ${o.orderNumber}</title>
+    <style>
+      @page { size: 80mm auto; margin: 4mm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Courier New', monospace; font-size: 11px; color: #000; width: 72mm; margin: 0 auto; }
+      .center { text-align: center; }
+      .bold { font-weight: bold; }
+      .lg { font-size: 14px; }
+      .divider { border-top: 1px dashed #000; margin: 4px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      th { font-weight: bold; border-bottom: 1px solid #000; padding: 2px 0; }
+      .total-row td { font-weight: bold; font-size: 13px; padding-top: 4px; }
+    </style>
+  </head><body>
+    <div class="center bold lg">${o.branchName || 'KASIR'}</div>
+    <div class="center" style="font-size:10px;margin-bottom:2px">${o.branchName || ''}</div>
+    <div class="divider"></div>
+    <div style="font-size:10px">
+      <div>No. Order : <b>${o.orderNumber}</b></div>
+      <div>Tanggal   : ${new Date(o.createdAt).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+      <div>Kasir     : ${o.cashierName || '-'}</div>
+      ${o.buyerName ? `<div>Pembeli   : ${o.buyerName}</div>` : ''}
+    </div>
+    <div class="divider"></div>
+    <table>
+      <thead><tr>
+        <th style="text-align:left">Item</th>
+        <th>Qty</th>
+        <th style="text-align:right">Total</th>
+      </tr></thead>
+      <tbody>${items}</tbody>
+    </table>
+    <div class="divider"></div>
+    <table>
+      <tr><td>Subtotal</td><td style="text-align:right">${fmt(o.subtotal)}</td></tr>
+      ${o.discountAmount > 0 ? `<tr><td>Diskon</td><td style="text-align:right">-${fmt(o.discountAmount)}</td></tr>` : ''}
+      <tr class="total-row"><td>TOTAL</td><td style="text-align:right">${fmt(o.total)}</td></tr>
+    </table>
+    ${isCash ? `
+    <div class="divider"></div>
+    <table>
+      <tr><td>Tunai</td><td style="text-align:right">${fmt(pay.cashTendered)}</td></tr>
+      <tr class="total-row"><td>Kembalian</td><td style="text-align:right">${fmt(pay.changeDue)}</td></tr>
+    </table>` : `
+    <div class="divider"></div>
+    <div style="font-size:10px">
+      <div>Metode : Transfer Bank</div>
+      ${pay?.bankName ? `<div>Bank   : ${pay.bankName}</div>` : ''}
+      ${pay?.referenceNo ? `<div>Ref.   : ${pay.referenceNo}</div>` : ''}
+    </div>`}
+    <div class="divider"></div>
+    <div class="center" style="font-size:10px;margin-top:4px">Terima kasih atas kunjungan Anda</div>
+    <div class="center bold" style="font-size:11px;margin:4px 0;letter-spacing:2px">${o.orderNumber}</div>
+    <div class="center" style="font-size:9px;color:#555">**** Simpan struk ini sebagai bukti ****</div>
+  </body></html>`
+
+  const win = window.open('', '_blank', 'width=340,height=600')
+  if (!win) { toast.error('Pop-up diblokir browser. Izinkan pop-up untuk mencetak struk.'); return }
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { win.print(); win.close() }, 350)
+}
+
+function fmt(v) {
+  if (v == null) return 'Rp 0'
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v)
 }
 
 function copyOrderSummary() {
@@ -435,13 +642,19 @@ function copyOrderSummary() {
 }
 
 async function checkout() {
-  if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
-    toast.error('Uang yang diberikan kurang!')
-    return 
-  }
-  if (payMethod.value === 'transfer' && !referenceNo.value) { 
-    toast.error('Nomor referensi wajib diisi!')
-    return 
+  // Validasi split payment
+  if (isSplitPayment.value) {
+    if (splitCashNum.value <= 0) { toast.error('Nominal tunai untuk split payment wajib diisi.'); return }
+    if (splitTransferNum.value <= 0) { toast.error('Nominal transfer untuk split payment wajib diisi.'); return }
+    if (!splitReferenceNo.value) { toast.error('Nomor referensi transfer wajib diisi.'); return }
+    if (splitTotal.value < total.value) { toast.error('Total pembayaran kurang dari total tagihan.'); return }
+  } else {
+    if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) {
+      toast.error('Uang yang diberikan kurang!'); return
+    }
+    if (payMethod.value === 'transfer' && !referenceNo.value) {
+      toast.error('Nomor referensi wajib diisi!'); return
+    }
   }
 
   for (const item of cart.value) {
@@ -458,7 +671,7 @@ async function checkout() {
 
   processingCheckout.value = true
   try {
-    const payload = {
+    const basePayload = {
       branchId: selectedBranchId.value,
       orderNumber: `ORD-${Date.now()}`,
       voucherId: appliedVoucher.value?.id,
@@ -472,22 +685,35 @@ async function checkout() {
         qty: item.qty,
         unitPrice: item.base_price || item.basePrice || item.price
       })),
-      payment: {
-        method: payMethod.value.toUpperCase(),
-        amount: total.value,
-        cashTendered: payMethod.value === 'cash' ? Number(cashTendered.value) : total.value,
-        changeDue: payMethod.value === 'cash' ? changeDue.value : 0,
-        bankName: bankName.value,
-        referenceNo: referenceNo.value
-      }
     }
+
+    // Split payment: kirim array payments
+    const payload = isSplitPayment.value
+      ? {
+          ...basePayload,
+          payments: [
+            { method: 'CASH', amount: splitCashNum.value, cashTendered: splitCashNum.value, changeDue: splitChange.value },
+            { method: 'TRANSFER', amount: splitTransferNum.value, bankName: splitBankName.value, referenceNo: splitReferenceNo.value }
+          ]
+        }
+      : {
+          ...basePayload,
+          payment: {
+            method: payMethod.value.toUpperCase(),
+            amount: total.value,
+            cashTendered: payMethod.value === 'cash' ? Number(cashTendered.value) : total.value,
+            changeDue: payMethod.value === 'cash' ? changeDue.value : 0,
+            bankName: bankName.value,
+            referenceNo: referenceNo.value
+          }
+        }
 
     const response = await api.post('/api/v1/orders', payload)
 
     lastOrder.value = response.data?.data || {
       orderNumber: payload.orderNumber,
       total: total.value,
-      payments: [{ method: payload.payment.method, cashTendered: payload.payment.cashTendered, changeDue: payload.payment.changeDue }]
+      payments: isSplitPayment.value ? payload.payments : [payload.payment]
     }
 
     cart.value = []
@@ -508,6 +734,9 @@ async function checkout() {
         stockBalances.value[key] = Math.max(0, Number(current) - item.qty)
       }
     })
+
+    // Refresh data transaksi hari ini agar Total Order, Omzet, dan Riwayat langsung terupdate
+    fetchTodayOrders()
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
     const msg = err.response?.data?.data?.message || err.response?.data?.message || err.message || 'Gagal memproses transaksi.'
@@ -589,7 +818,6 @@ function avatarStyle(name = '') {
                 </div>
               </Transition>
             </div>
-            
           </div>
           
           <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
@@ -602,6 +830,45 @@ function avatarStyle(name = '') {
               <Scan class="h-3.5 w-3.5" /> Scan
             </Button>
           </div>
+
+          <Transition name="slide-down">
+            <div v-if="showStockWarning && (lowStockProducts.length > 0 || outOfStockProducts.length > 0)"
+              class="mb-2 rounded-xl border overflow-hidden"
+              :class="outOfStockProducts.length > 0
+                ? 'border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/20'
+                : 'border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20'">
+              <div class="flex items-start gap-2.5 px-3.5 py-2.5">
+                <AlertTriangle :class="['h-4 w-4 mt-0.5 shrink-0',
+                  outOfStockProducts.length > 0 ? 'text-red-500' : 'text-amber-500']" />
+                <div class="flex-1 min-w-0">
+                  <p :class="['text-[12px] font-bold',
+                    outOfStockProducts.length > 0 ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400']">
+                    <span v-if="outOfStockProducts.length > 0">{{ outOfStockProducts.length }} produk habis</span>
+                    <span v-if="outOfStockProducts.length > 0 && lowStockProducts.length > 0">, </span>
+                    <span v-if="lowStockProducts.length > 0">{{ lowStockProducts.length }} produk hampir habis (≤ {{ LOW_STOCK_THRESHOLD }})</span>
+                  </p>
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <span v-for="p in [...outOfStockProducts, ...lowStockProducts].slice(0, 5)" :key="p.id"
+                      :class="['text-[10px] font-semibold px-1.5 py-0.5 rounded-md truncate max-w-[140px]',
+                        getStock(p.id) <= 0
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400']">
+                      {{ p.name }}
+                      <span class="opacity-70">({{ getStock(p.id) <= 0 ? 'Habis' : getStock(p.id) }})</span>
+                    </span>
+                    <span v-if="(outOfStockProducts.length + lowStockProducts.length) > 5"
+                      class="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-500">
+                      +{{ (outOfStockProducts.length + lowStockProducts.length) - 5 }} lainnya
+                    </span>
+                  </div>
+                </div>
+                <button @click="showStockWarning = false"
+                  class="shrink-0 p-0.5 rounded text-zinc-400 hover:text-zinc-600 transition-colors">
+                  <X class="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </Transition>
 
           <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
             <button v-for="cat in uniqueCategories" :key="cat"
@@ -670,11 +937,115 @@ function avatarStyle(name = '') {
             <h2 class="text-[15px] lg:text-lg font-black text-zinc-900 dark:text-white">Pesanan</h2>
             <span class="text-[10px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2.5 py-1 rounded-full">{{ totalItems }}</span>
           </div>
-          <button v-if="cart.length" class="text-[11px] font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-md" @click="cart = []">Kosongkan</button>
+          <div class="flex items-center gap-1.5">
+            <button v-if="cart.length && !showTodayPanel"
+              @click="holdOrder"
+              class="text-[11px] font-bold px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100 transition-colors flex items-center gap-1">
+              <Pause class="h-3 w-3" /> Tahan
+            </button>
+            <button v-if="heldOrders.length > 0"
+              @click="showHeldPanel = !showHeldPanel; showTodayPanel = false"
+              :class="['relative text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors flex items-center gap-1',
+                showHeldPanel ? 'bg-amber-500 text-white' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 hover:bg-amber-100']">
+              <Clock class="h-3 w-3" />
+              <span>{{ heldOrders.length }}</span>
+            </button>
+            <button @click="toggleTodayPanel(); showHeldPanel = false"
+              :class="['text-[11px] font-bold px-2.5 py-1 rounded-md transition-colors flex items-center gap-1',
+                showTodayPanel ? 'bg-primary/10 text-primary' : 'text-zinc-500 hover:text-zinc-700 bg-zinc-100 dark:bg-zinc-800']">
+              <ReceiptText class="h-3.5 w-3.5" />
+            </button>
+            <button v-if="cart.length && !showTodayPanel && !showHeldPanel" class="text-[11px] font-bold text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-500/10 px-2.5 py-1 rounded-md" @click="cart = []">Kosongkan</button>
+          </div>
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar bg-zinc-50/50 dark:bg-[#09090b]/50 p-3 lg:p-5">
-          <div v-if="!cart.length" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+
+          <template v-if="showTodayPanel">
+            <div v-if="loadingToday" class="h-full flex items-center justify-center">
+              <Loader2 class="h-6 w-6 animate-spin text-primary/40" />
+            </div>
+            <div v-else class="flex flex-col gap-3">
+              <div class="grid grid-cols-2 gap-2">
+                <div class="bg-white dark:bg-zinc-900 rounded-[14px] p-3 border border-zinc-200/60 dark:border-zinc-800">
+                  <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Order</p>
+                  <p class="text-xl font-black text-zinc-900 dark:text-white mt-0.5">{{ todaySummary.count }}</p>
+                </div>
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 rounded-[14px] p-3 border border-emerald-100 dark:border-emerald-800/40">
+                  <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Omzet</p>
+                  <p class="text-[13px] font-black text-emerald-700 dark:text-emerald-400 mt-0.5 leading-tight">{{ formatCurrency(todaySummary.total) }}</p>
+                </div>
+                <div class="bg-white dark:bg-zinc-900 rounded-[14px] p-3 border border-zinc-200/60 dark:border-zinc-800 col-span-2 flex items-center justify-between">
+                  <div class="flex items-center gap-2 text-[11px] font-semibold text-zinc-500">
+                    <Banknote class="h-3.5 w-3.5" /> Tunai: <span class="text-zinc-800 dark:text-zinc-200">{{ todaySummary.cash }} order</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[11px] font-semibold text-zinc-500">
+                    <ArrowRightLeft class="h-3.5 w-3.5" /> Transfer: <span class="text-zinc-800 dark:text-zinc-200">{{ todaySummary.transfer }} order</span>
+                  </div>
+                </div>
+              </div>
+              <!-- List order hari ini -->
+              <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">Riwayat</p>
+              <div v-if="todayOrders.length === 0" class="flex flex-col items-center justify-center py-8 text-zinc-400 gap-2">
+                <ShoppingBag class="h-8 w-8 opacity-30" />
+                <p class="text-[12px] font-medium">Belum ada transaksi hari ini</p>
+              </div>
+              <div v-for="o in todayOrders" :key="o.id"
+                class="bg-white dark:bg-zinc-900 rounded-[14px] p-3 border border-zinc-200/60 dark:border-zinc-800 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-[11px] font-mono font-bold text-primary truncate">{{ o.orderNumber }}</p>
+                  <p class="text-[10px] text-zinc-400 mt-0.5">{{ o.buyerName || o.cashierName || '-' }} · {{ new Date(o.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-[12px] font-black text-zinc-900 dark:text-zinc-100">{{ formatCurrency(o.total) }}</p>
+                  <span :class="['text-[9px] font-bold px-1.5 py-0.5 rounded',
+                    o.status === 'PAID' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' :
+                    o.status === 'RETURN' ? 'bg-violet-50 text-violet-600 dark:bg-violet-900/20' :
+                    'bg-zinc-100 text-zinc-500']">
+                    {{ o.status === 'PAID' ? 'Lunas' : o.status === 'RETURN' ? 'Retur' : o.status }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="showHeldPanel">
+            <div class="flex flex-col gap-3">
+              <p class="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider px-1 flex items-center gap-1.5">
+                <Clock class="h-3.5 w-3.5" /> Order Ditahan ({{ heldOrders.length }})
+              </p>
+              <div v-if="heldOrders.length === 0" class="flex flex-col items-center justify-center py-8 text-zinc-400 gap-2">
+                <Clock class="h-8 w-8 opacity-30" />
+                <p class="text-[12px] font-medium">Belum ada order yang ditahan</p>
+              </div>
+              <div v-for="held in heldOrders" :key="held.id"
+                class="bg-white dark:bg-zinc-900 rounded-[14px] border border-amber-200/60 dark:border-amber-800/30 p-3 flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-[12px] font-black text-zinc-900 dark:text-zinc-100">{{ held.label }}</p>
+                    <p class="text-[10px] text-zinc-400">{{ held.cart.length }} item · {{ new Date(held.savedAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) }}</p>
+                  </div>
+                  <button @click="deleteHeldOrder(held.id)" class="p-1.5 text-zinc-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <X class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <span v-for="item in held.cart.slice(0, 3)" :key="item.id"
+                    class="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 truncate max-w-[100px]">
+                    {{ item.name }} ×{{ item.qty }}
+                  </span>
+                  <span v-if="held.cart.length > 3" class="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-400">
+                    +{{ held.cart.length - 3 }} lainnya
+                  </span>
+                </div>
+                <button @click="restoreHeldOrder(held)"
+                  class="w-full h-8 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-black flex items-center justify-center gap-1.5 transition-colors">
+                  <Play class="h-3 w-3" /> Lanjutkan Order Ini
+                </button>
+              </div>
+            </div>
+          </template>
+          <template v-else>          <div v-if="!cart.length" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
              <div class="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center"><ShoppingCart class="h-6 w-6 opacity-40" /></div>
              <p class="text-[13px] font-semibold">Belum ada pesanan</p>
           </div>
@@ -684,7 +1055,13 @@ function avatarStyle(name = '') {
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0 pt-0.5">
                     <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                      <p class="text-[11px] font-bold text-primary">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
+                      <span v-if="getStock(item.id) !== null && getStock(item.id) <= LOW_STOCK_THRESHOLD && getStock(item.id) > 0"
+                        class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
+                        Sisa {{ getStock(item.id) }}
+                      </span>
+                    </div>
                   </div>
                   <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
                     <Trash2 class="h-[14px] w-[14px]" />
@@ -709,6 +1086,7 @@ function avatarStyle(name = '') {
               </div>
             </TransitionGroup>
           </div>
+          </template>
         </div>
 
         <div class="p-4 lg:p-5 bg-white dark:bg-[#09090b] border-t border-zinc-100 dark:border-zinc-800 shrink-0 z-10 relative">
@@ -841,17 +1219,63 @@ function avatarStyle(name = '') {
               </div>
 
               <div class="flex flex-col gap-2">
-                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
-                  <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'cash' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>
+                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
+                  <button @click="isSplitPayment = false; payMethod = 'cash'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', !isSplitPayment && payMethod === 'cash' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
                     <Banknote class="h-[14px] w-[14px]" />Tunai
                   </button>
-                  <button @click="payMethod = 'transfer'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'transfer' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
+                  <button @click="isSplitPayment = false; payMethod = 'transfer'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', !isSplitPayment && payMethod === 'transfer' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
                     <ArrowRightLeft class="h-[14px] w-[14px]" />Transfer
+                  </button>
+                  <button @click="isSplitPayment = true" :class="['flex-1 py-2.5 text-[11px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all', isSplitPayment ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
+                    <Plus class="h-[13px] w-[13px]" />Split
                   </button>
                 </div>
               </div>
 
-              <div class="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div v-if="isSplitPayment" class="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 text-[11px]">
+                  <span class="font-bold text-blue-700 dark:text-blue-400">Total Tagihan</span>
+                  <span class="font-black text-blue-700 dark:text-blue-400">{{ formatCurrency(total) }}</span>
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-[12px] font-bold text-zinc-600 flex items-center gap-1.5"><Banknote class="h-3.5 w-3.5" /> Nominal Tunai</label>
+                  <div class="relative">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-zinc-400">Rp</span>
+                    <input v-model="splitCashAmount" type="number" min="0" placeholder="0"
+                      class="pl-10 h-11 w-full text-base font-bold rounded-[12px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-[12px] font-bold text-zinc-600 flex items-center gap-1.5"><ArrowRightLeft class="h-3.5 w-3.5" /> Nominal Transfer</label>
+                  <div class="relative">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-zinc-400">Rp</span>
+                    <input v-model="splitTransferAmount" type="number" min="0" placeholder="0"
+                      class="pl-10 h-11 w-full text-base font-bold rounded-[12px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-zinc-500">Bank</label>
+                    <input v-model="splitBankName" placeholder="BCA, Mandiri..." class="h-9 w-full rounded-[10px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="text-[11px] font-semibold text-zinc-500">No. Referensi *</label>
+                    <input v-model="splitReferenceNo" placeholder="Nomor transfer" class="h-9 w-full rounded-[10px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                </div>
+                <div v-if="splitTotal > 0" :class="['flex items-center justify-between px-3 py-2 rounded-xl text-[12px]',
+                  splitValid ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40' : 'bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/40']">
+                  <span :class="splitValid ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-red-600 font-bold'">
+                    {{ splitValid ? (splitChange > 0 ? `Kembalian` : 'Pas') : 'Kurang' }}
+                  </span>
+                  <span :class="splitValid ? 'font-black text-emerald-700 dark:text-emerald-400' : 'font-black text-red-600'">
+                    {{ splitValid ? (splitChange > 0 ? formatCurrency(splitChange) : '✓') : formatCurrency(total - splitTotal) }}
+                  </span>
+                </div>
+              </div>
+
+              <div v-if="!isSplitPayment" class="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                 <template v-if="payMethod === 'cash'">
                   <div class="space-y-2">
                     <label class="text-[13px] font-bold text-zinc-700 dark:text-zinc-300">Uang Diterima</label>
@@ -893,7 +1317,8 @@ function avatarStyle(name = '') {
             </div>
 
             <div class="px-6 py-5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 mt-auto">
-              <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout" :disabled="processingCheckout">
+              <Button class="w-full h-12 font-bold text-[14px] rounded-[14px] shadow-lg shadow-primary/20" @click="checkout"
+                :disabled="processingCheckout || (isSplitPayment && !splitValid)">
                 <Loader2 v-if="processingCheckout" class="h-4 w-4 mr-2 animate-spin" />
                 <Check v-else class="h-[18px] w-[18px] mr-2" /> Konfirmasi Pembayaran
               </Button>
@@ -1011,6 +1436,9 @@ function avatarStyle(name = '') {
 
 .list-enter-active, .list-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px) scale(0.98); }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-8px); max-height: 0; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

@@ -23,6 +23,7 @@ public class OrdersRequest {
 
     private List<OrderItemRequest> items;
     private PaymentRequest payment;
+    private List<PaymentRequest> payments;
 
     @Data
     public static class OrderItemRequest {
