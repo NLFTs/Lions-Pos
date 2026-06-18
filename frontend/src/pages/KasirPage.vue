@@ -77,12 +77,10 @@ async function fetchData() {
 
     // Branches
     if (userBranchId) {
-      // Karyawan cabang — kunci ke cabangnya sendiri, tidak perlu data dari server
       branches.value = [{ id: userBranchId, name: authStore.user?.branchName || 'Cabang Aktif' }]
       selectedBranchId.value = userBranchId
       await fetchStockBalances(userBranchId)
     } else {
-      // Admin / Owner — load semua cabang
       const bData = resB?.data?.data
       const bArr = Array.isArray(bData) ? bData : (bData?.content || [])
       const seen = new Set()
@@ -104,7 +102,6 @@ async function fetchData() {
     loading.value = false
   }
 
-  // Voucher dimuat terpisah
   try {
     const resV = await api.get('/api/v1/vouchers')
     vouchers.value = Array.isArray(resV.data) ? resV.data : (resV.data?.data || [])
@@ -122,7 +119,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleBranchOutsideClick)
 })
 
-// Reload stok saat branch berubah
 watch(selectedBranchId, (newId) => {
   if (newId) fetchStockBalances(newId)
 })
@@ -180,7 +176,12 @@ function addToCart(product) {
   if (existing) {
     existing.qty++
   } else {
-    cart.value.push({ ...product, qty: 1 })
+    cart.value.push({
+      ...product,
+      qty: 1,
+      itemDiscountType: 'FLAT',
+      itemDiscountValue: 0,
+    })
   }
 }
 
@@ -189,7 +190,6 @@ function getCartQty(id) {
   return item ? item.qty : 0
 }
 
-// ... logic qty modifier, format currency tetap utuh ...
 function increaseQty(item) {
   const stock = getStock(item.id)
   if (stock !== null && item.qty >= stock) {
@@ -223,10 +223,39 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
 }
 
+// ─── Diskon Per Item: helper kalkulasi ───────────────────────────────────────
+function getItemUnitPrice(item) {
+  return Number(item.base_price || item.basePrice || item.price || 0)
+}
+
+function getItemDiscountPerUnit(item) {
+  const unitPrice = getItemUnitPrice(item)
+  const val = Number(item.itemDiscountValue) || 0
+  if (val <= 0) return 0
+  if (item.itemDiscountType === 'PERCENT') {
+    const pct = Math.min(val, 100)
+    return Math.round(unitPrice * pct / 100)
+  }
+  return Math.min(val, unitPrice)
+}
+
+function getItemDiscountTotal(item) {
+  return getItemDiscountPerUnit(item) * item.qty
+}
+
+function getItemNetUnitPrice(item) {
+  return Math.max(0, getItemUnitPrice(item) - getItemDiscountPerUnit(item))
+}
+
+const totalItemDiscount = computed(() => {
+  return cart.value.reduce((s, i) => s + getItemDiscountTotal(i), 0)
+})
+
 const totalItems = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
+
 const subtotal = computed(() => {
   return cart.value.reduce((s, i) => {
-    const price = Number(i.base_price || i.basePrice || i.price || 0)
+    const price = getItemUnitPrice(i)
     return s + price * i.qty
   }, 0)
 })
@@ -234,9 +263,9 @@ const subtotal = computed(() => {
 // ─── Voucher Logic ───────────────────────────────────────────────────────────
 const voucherCode = ref('')
 const appliedVoucher = ref(null)
-const showVoucherDropdown = ref(false);
-const voucherInputRef = ref(null);
-const focusedVoucherIndex = ref(-1);
+const showVoucherDropdown = ref(false)
+const voucherInputRef = ref(null)
+const focusedVoucherIndex = ref(-1)
 
 function handleVoucherBlur() {
   setTimeout(() => {
@@ -304,22 +333,16 @@ function handleVoucherKeyDown(e) {
   }
 }
 
-
-// ─── Diskon Manual ───────────────────────────────────────────────────────────
-const manualDiscountType = ref('FLAT') // 'FLAT' | 'PERCENT'
-const manualDiscountValue = ref('')     // raw number string
+// ─── Diskon Manual (Keseluruhan) ─────────────────────────────────────────────
+const manualDiscountType = ref('FLAT')
+const manualDiscountValue = ref('')
 const manualDiscountNote = ref('')
-
-// Display value untuk mode FLAT — format ribuan tanpa Rp
 const manualDiscountDisplay = ref('')
 
 function onManualDiscountInput(e) {
-  const raw = e.target.value.replace(/\D/g, '') // hanya angka
+  const raw = e.target.value.replace(/\D/g, '')
   manualDiscountValue.value = raw
-  manualDiscountDisplay.value = raw
-    ? Number(raw).toLocaleString('id-ID')
-    : ''
-  // Paksa value di elemen kembali ke format agar kursor tidak lompat
+  manualDiscountDisplay.value = raw ? Number(raw).toLocaleString('id-ID') : ''
   e.target.value = manualDiscountDisplay.value
 }
 
@@ -370,7 +393,6 @@ function removeVoucher() { appliedVoucher.value = null; voucherCode.value = '' }
 
 const discountAmount = computed(() => {
   let d = 0
-  // Diskon voucher
   if (appliedVoucher.value) {
     const v = appliedVoucher.value
     const type = (v.discountType || v.discount_type || '').toString().toUpperCase()
@@ -388,30 +410,55 @@ const discountAmount = computed(() => {
       d = Math.round(d)
     }
   }
-  // Diskon manual — ditambahkan di atas diskon voucher
   d += manualDiscountAmount.value
-  // Tidak boleh melebihi subtotal
   return Math.min(d, subtotal.value)
 })
-const total = computed(() => Math.max(0, subtotal.value - discountAmount.value))
 
-// ... checkout logic tetep aman di bawah ...
+// ✅ FIX: Math.round() untuk hindari floating point error akibat kalkulasi diskon per item + diskon keseluruhan
+const total = computed(() => {
+  return Math.max(0, Math.round(subtotal.value - totalItemDiscount.value - discountAmount.value))
+})
+
+// ─── Diskon Per Item: state UI popover ───────────────────────────────────────
+const openItemDiscountId = ref(null)
+
+function toggleItemDiscount(item) {
+  openItemDiscountId.value = openItemDiscountId.value === item.id ? null : item.id
+}
+
+function onItemDiscountTypeChange(item, type) {
+  item.itemDiscountType = type
+  item.itemDiscountValue = 0
+}
+
+function onItemDiscountInput(item, e) {
+  if (item.itemDiscountType === 'PERCENT') {
+    let num = parseFloat(e.target.value)
+    if (isNaN(num) || num < 0) num = 0
+    if (num > 100) num = 100
+    item.itemDiscountValue = num
+  } else {
+    const raw = e.target.value.replace(/\D/g, '')
+    item.itemDiscountValue = raw ? Number(raw) : 0
+    e.target.value = raw ? Number(raw).toLocaleString('id-ID') : ''
+  }
+}
+
 const showPayment = ref(false)
 const payMethod = ref('cash')
 const cashTendered = ref('')
-const cashTenderedDisplay = ref('') // format ribuan untuk tampilan, cashTendered tetap angka bersih
+const cashTenderedDisplay = ref('')
 const bankName = ref('')
 const referenceNo = ref('')
 const buyerName = ref('')
-const changeDue = computed(() => Math.max(0, (Number(cashTendered.value) || 0) - total.value))
+
+// ✅ FIX: Math.round() pada changeDue agar konsisten dengan total yang sudah di-round
+const changeDue = computed(() => Math.max(0, Math.round((Number(cashTendered.value) || 0) - total.value)))
 
 function onCashTenderedInput(e) {
-  const raw = e.target.value.replace(/\D/g, '') // hanya angka
+  const raw = e.target.value.replace(/\D/g, '')
   cashTendered.value = raw
-  cashTenderedDisplay.value = raw
-    ? Number(raw).toLocaleString('id-ID')
-    : ''
-  // Paksa value di elemen kembali ke format agar kursor tidak lompat
+  cashTenderedDisplay.value = raw ? Number(raw).toLocaleString('id-ID') : ''
   e.target.value = cashTenderedDisplay.value
 }
 
@@ -491,7 +538,8 @@ function copyOrderSummary() {
     items || '  -',
     ``,
     `Subtotal  : ${formatCurrency(o.subtotal)}`,
-    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,    `Total     : ${formatCurrency(o.total)}`,
+    o.discountAmount > 0 ? `Diskon    : -${formatCurrency(o.discountAmount)}` : null,
+    `Total     : ${formatCurrency(o.total)}`,
     `Metode    : ${pay?.method === 'CASH' ? 'Tunai' : 'Transfer Bank'}`,
     pay?.method === 'CASH' ? `Kembalian : ${formatCurrency(pay.changeDue)}` : `Status    : Menunggu Konfirmasi`,
   ].filter(Boolean).join('\n')
@@ -505,7 +553,7 @@ function copyOrderSummary() {
 
 async function checkout() {
   if (payMethod.value === 'cash' && (Number(cashTendered.value) || 0) < total.value) { 
-    toast.error('Uang yang diberikan kurang!')
+    toast.error('Jumlah uang tunai yang dibayarkan tidak mencukupi.')
     return 
   }
   if (payMethod.value === 'transfer' && !referenceNo.value) { 
@@ -539,7 +587,10 @@ async function checkout() {
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
-        unitPrice: item.base_price || item.basePrice || item.price
+        unitPrice: getItemUnitPrice(item),
+        itemDiscountType: getItemDiscountPerUnit(item) > 0 ? item.itemDiscountType : null,
+        itemDiscountValue: getItemDiscountPerUnit(item) > 0 ? Number(item.itemDiscountValue) : null,
+        itemDiscountAmount: getItemDiscountTotal(item)
       })),
       payment: {
         method: payMethod.value.toUpperCase(),
@@ -753,12 +804,55 @@ function avatarStyle(name = '') {
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0 pt-0.5">
                     <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-                    <p class="text-[11px] font-bold text-primary mt-0.5">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                      <p class="text-[11px] font-bold text-primary">{{ formatCurrency(getItemNetUnitPrice(item)) }}</p>
+                      <p v-if="getItemDiscountPerUnit(item) > 0" class="text-[10px] font-bold text-zinc-400 line-through">
+                        {{ formatCurrency(getItemUnitPrice(item)) }}
+                      </p>
+                    </div>
                   </div>
-                  <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
-                    <Trash2 class="h-[14px] w-[14px]" />
-                  </button>
+                  <div class="flex items-center gap-1">
+                    <button
+                      class="shrink-0 p-1.5 rounded-lg transition-colors"
+                      :class="getItemDiscountPerUnit(item) > 0 ? 'text-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'text-zinc-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10'"
+                      @click="toggleItemDiscount(item)"
+                    >
+                      <Tag class="h-[14px] w-[14px]" />
+                    </button>
+                    <button class="shrink-0 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 p-1.5 rounded-lg transition-colors" @click="removeFromCart(item)">
+                      <Trash2 class="h-[14px] w-[14px]" />
+                    </button>
+                  </div>
                 </div>
+
+                <div v-if="openItemDiscountId === item.id" class="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-xl p-2.5 flex flex-col gap-2">
+                  <div class="flex rounded-[10px] bg-white dark:bg-zinc-800 p-0.5 border border-orange-100 dark:border-orange-800/30">
+                    <button @click="onItemDiscountTypeChange(item, 'FLAT')"
+                      :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'FLAT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
+                      Rp / unit
+                    </button>
+                    <button @click="onItemDiscountTypeChange(item, 'PERCENT')"
+                      :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'PERCENT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
+                      % / unit
+                    </button>
+                  </div>
+                  <div class="relative">
+                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] font-black text-zinc-400 select-none">
+                      {{ item.itemDiscountType === 'FLAT' ? 'Rp' : '%' }}
+                    </span>
+                    <input
+                      :value="item.itemDiscountType === 'FLAT' ? (item.itemDiscountValue ? Number(item.itemDiscountValue).toLocaleString('id-ID') : '') : item.itemDiscountValue"
+                      @input="e => onItemDiscountInput(item, e)"
+                      :inputmode="item.itemDiscountType === 'FLAT' ? 'numeric' : 'decimal'"
+                      placeholder="0"
+                      class="pl-8 h-8 w-full text-[12px] font-bold rounded-[8px] border border-orange-200 dark:border-orange-800/40 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-orange-300/40"
+                    />
+                  </div>
+                  <p v-if="getItemDiscountTotal(item) > 0" class="text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                    Potongan baris ini: -{{ formatCurrency(getItemDiscountTotal(item)) }}
+                  </p>
+                </div>
+
                 <div class="flex items-center justify-between">
                   <div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="decreaseQty(item)"><Minus class="h-3 w-3" /></button>
@@ -773,7 +867,7 @@ function avatarStyle(name = '') {
                     />
                     <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
                   </div>
-                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency((item.base_price || item.basePrice || item.price) * item.qty) }}</span>
+                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(getItemNetUnitPrice(item) * item.qty) }}</span>
                 </div>
               </div>
             </TransitionGroup>
@@ -812,6 +906,11 @@ function avatarStyle(name = '') {
                   <span>Subtotal Pesanan</span>
                   <span>{{ formatCurrency(subtotal) }}</span>
                 </div>
+
+                <div v-if="totalItemDiscount > 0" class="flex items-center justify-between text-[12px] font-bold text-orange-600 dark:text-orange-400">
+                  <span class="flex items-center gap-1.5"><Tag class="h-3 w-3" /> Diskon Per Item</span>
+                  <span>-{{ formatCurrency(totalItemDiscount) }}</span>
+                </div>
                 
                 <div class="bg-zinc-50 dark:bg-zinc-800/60 rounded-[16px] p-3 border border-zinc-200/60 dark:border-zinc-700/50">
                     <div v-if="appliedVoucher" class="flex items-center justify-between mb-2">
@@ -831,7 +930,7 @@ function avatarStyle(name = '') {
                     <div class="flex gap-2 relative">
                         <div class="relative flex-1">
                             <Input 
-                            ref="voucerInputRef"
+                            ref="voucherInputRef"
                             v-model="voucherCode" 
                             placeholder="Masukkan kode voucer..." 
                             class="w-full h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" 
@@ -841,14 +940,13 @@ function avatarStyle(name = '') {
                             @keyup.enter="focusedVoucherIndex === -1 ? applyVoucher() : null"
                             />
 
-                        <!-- DROPDOWN VOUCHER -->
                         <Transition name="dropdown">
                         <div 
                             v-if="showVoucherDropdown && filteredVouchers.length > 0" 
                             class="absolute left-0 right-0 z-50 top-[calc(100%+4px)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl max-h-[150px] overflow-y-auto p-1 flex flex-col gap-0.5 no-scrollbar"
                         >
                             <button
-                            v-for="v in filteredVouchers"
+                            v-for="(v, index) in filteredVouchers"
                             :key="v.id"
                             type="button"
                             class="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex justify-between items-center group"
@@ -877,13 +975,12 @@ function avatarStyle(name = '') {
                 </div>
               </div>
 
-              <!-- Diskon Manual -->
+              <!-- Diskon Manual (Keseluruhan) -->
               <div class="flex flex-col gap-2.5">
                 <div class="flex items-center gap-2">
                   <Tag class="h-[13px] w-[13px] text-orange-500" />
                   <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Diskon Manual <span class="normal-case font-normal">(opsional)</span></label>
                 </div>
-                <!-- Toggle Nominal / Persen -->
                 <div class="flex rounded-[12px] bg-zinc-100 dark:bg-zinc-800/80 p-0.5">
                   <button @click="onManualDiscountTypeChange('FLAT')"
                     :class="['flex-1 py-1.5 text-[12px] font-bold flex items-center justify-center gap-1.5 rounded-[10px] transition-all',
@@ -900,12 +997,10 @@ function avatarStyle(name = '') {
                     <Percent class="h-[11px] w-[11px]" /> Persentase (%)
                   </button>
                 </div>
-                <!-- Input nilai diskon -->
                 <div class="relative">
                   <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[14px] font-black text-zinc-400 select-none">
                     {{ manualDiscountType === 'FLAT' ? 'Rp' : '%' }}
                   </span>
-                  <!-- Mode FLAT: input teks dengan format ribuan -->
                   <input
                     v-if="manualDiscountType === 'FLAT'"
                     :value="manualDiscountDisplay"
@@ -914,7 +1009,6 @@ function avatarStyle(name = '') {
                     placeholder="0"
                     class="pl-10 h-11 w-full text-base font-bold rounded-[12px] border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-sm outline-none focus:ring-2 focus:ring-primary/20 tracking-wide"
                   />
-                  <!-- Mode PERCENT: input number biasa 0-100 -->
                   <Input
                     v-else
                     v-model="manualDiscountValue"
@@ -925,7 +1019,6 @@ function avatarStyle(name = '') {
                     placeholder="0 — 100"
                   />
                 </div>
-                <!-- Preview nilai diskon yang akan dipotong -->
                 <div v-if="manualDiscountAmount > 0"
                   class="flex items-center justify-between px-3 py-2.5 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/40">
                   <span class="text-[12px] font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
@@ -933,7 +1026,6 @@ function avatarStyle(name = '') {
                   </span>
                   <span class="text-[14px] font-black text-red-500">-{{ formatCurrency(manualDiscountAmount) }}</span>
                 </div>
-                <!-- Keterangan diskon opsional -->
                 <Input
                   v-model="manualDiscountNote"
                   placeholder="Keterangan (opsional, cth: diskon pelanggan tetap)"
@@ -948,7 +1040,8 @@ function avatarStyle(name = '') {
               </div>
 
               <div class="flex flex-col gap-2">
-                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
+                <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Metode Pembayaran</label>
+                <div class="flex rounded-[14px] bg-zinc-100 dark:bg-zinc-800/80 p-1">
                   <button @click="payMethod = 'cash'" :class="['flex-1 py-2.5 text-[13px] font-bold flex items-center justify-center gap-2 rounded-[10px] transition-all', payMethod === 'cash' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700']">
                     <Banknote class="h-[14px] w-[14px]" />Tunai
                   </button>

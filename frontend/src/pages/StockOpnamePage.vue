@@ -375,8 +375,8 @@ onMounted(fetchData)
                         :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
                         <Warehouse class="h-3.5 w-3.5" />GUDANG
                       </button>
-                      <button type="button" @click="form.location = 'branch'; form.locationId = ''; form.items = []"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'branch' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
+                      <button type="button" @click="form.location = 'cabang'; form.locationId = ''; form.items = []"
+                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'cabang' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
                         <Building2 class="h-3.5 w-3.5" />CABANG
                       </button>
                     </div>
