@@ -67,7 +67,7 @@ const formError = ref(null)
 const selectedOpname = ref(null)
 
 const emptyForm = () => ({
-  location: 'warehouse',
+  locationType: 'warehouse',
   locationId: '',
   date: new Date().toISOString().slice(0, 16),
   notes: '',
@@ -144,7 +144,7 @@ async function fetchLocationStock() {
   }
 }
 
-function openDetail(opname) {
+function openDetail(opname) {save
   selectedOpname.value = opname
   formMode.value = 'detail'
   showForm.value = true
@@ -155,10 +155,21 @@ function closeForm() { showForm.value = false }
 async function saveOpname() {
   if (!form.value.locationId) { formError.value = 'Lokasi wajib diisi.'; return }
   if (form.value.items.length === 0) { formError.value = 'Belum ada item. Gunakan "Tarik Stok" terlebih dahulu.'; return }
+  
   saving.value = true
   formError.value = null
+  
   try {
-    await api.post('/api/v1/stock-opnames', form.value)
+    const payload = {
+      partnerId: authStore.user?.partnerId || authStore.user?.partner?.id || null,
+      locationType: form.value.location ? form.value.location.toLowerCase() : null,
+      locationId: form.value.locationId,
+      date: form.value.date,
+      notes: form.value.notes,
+      items: form.value.items
+    }
+    await api.post('/api/v1/stock-opnames', payload)
+    
     toast.success('Stock Opname berhasil disimpan!')
     showForm.value = false
     fetchData()
@@ -364,8 +375,8 @@ onMounted(fetchData)
                         :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
                         <Warehouse class="h-3.5 w-3.5" />GUDANG
                       </button>
-                      <button type="button" @click="form.location = 'branch'; form.locationId = ''; form.items = []"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'branch' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
+                      <button type="button" @click="form.location = 'cabang'; form.locationId = ''; form.items = []"
+                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'cabang' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
                         <Building2 class="h-3.5 w-3.5" />CABANG
                       </button>
                     </div>
