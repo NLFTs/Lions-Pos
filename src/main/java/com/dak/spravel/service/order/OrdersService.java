@@ -344,14 +344,15 @@ public class OrdersService {
                 savedOrder.getPayments().add(payment);
             }
 
+            if (allCashVerified) {
                 savedOrder.setStatus(Orders.PaymentStatus.PAID);
                 // Potong stok jika semua lunas tunai
-                for (OrderItems item : orderItems) {
-                    stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
+                for (OrderItems orderItem : orderItems) {
+                    stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", branch.getId(), -orderItem.getQty());
                     stockMutationService.recordMutation(
-                            item.getProduct(), partner, "SALE_OUT",
+                            orderItem.getProduct(), partner, "SALE_OUT",
                             "BRANCH", branch.getId(), null, null,
-                            item.getQty(), "ORDER", savedOrder.getId(),
+                            orderItem.getQty(), "ORDER", savedOrder.getId(),
                             "Penjualan Kasir Order #" + savedOrder.getOrderNumber(), currentUser);
                 }
             } else {
