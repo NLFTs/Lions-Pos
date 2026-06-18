@@ -12,6 +12,7 @@ import {
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/lib/api'
+import StrukPrint from '@/components/StrukPrint.vue'
 
 const { toast } = useToast()
 const authStore = useAuthStore()
@@ -1088,6 +1089,12 @@ function avatarStyle(name = '') {
         </div>
       </Transition>
     </Teleport>
+    <StrukPrint
+      v-if="lastOrder"
+      :order="lastOrder"
+      :branch-name="selectedBranch?.name"
+      store-name="Gaptek"
+    />
   </AppLayout>
 </template>
 
