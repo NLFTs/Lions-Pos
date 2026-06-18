@@ -289,7 +289,7 @@ export const routes = [
           target += '/'
         }
         window.location.href = target
-      }
+    }
     }
   },
   {

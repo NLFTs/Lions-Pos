@@ -43,7 +43,7 @@
               <div v-for="(col, index) in item.menu" :key="index">
                 <h4 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">{{ col.title }}</h4>
                 <div class="flex flex-col gap-4">
-                  <a v-for="link in col.links" :key="link.name" href="#" class="group flex items-start gap-3 hover:opacity-80 transition-opacity">
+                  <a v-for="link in col.links" :key="link.name" :href="link.url" class="group flex items-start gap-3 hover:opacity-80 transition-opacity">
                     <component :is="link.icon" class="w-5 h-5 text-zinc-400 group-hover:text-white" />
                     <div>
                       <div class="text-sm font-medium text-white">{{ link.name }}</div>
@@ -79,29 +79,30 @@ const activeDropdown = ref(null)
 const navItems = ref([
   { 
     name: 'Solutions', 
+    url: '',
     hasDropdown: true,
     menu: [
       { 
         title: 'Fitur', 
         links: [
-          { name: 'Retail', desc: 'Menejemen Kasir dan Inventaris', icon: Receipt},
-          { name: 'Gudang', desc: 'Kelola gudang di berbagai lokasi', icon: Warehouse },
-          { name: 'Cabang', desc: 'Kelola lebih banyak cabang', icon: MapPinHouse },
-          { name: 'Voucher', desc: 'Kelola voucher dan promosi', icon: Ticket },
+          { name: 'Retail', desc: 'Menejemen Kasir dan Inventaris', icon: Receipt, url: '/docs/retail' },
+          { name: 'Gudang', desc: 'Kelola gudang di berbagai lokasi', icon: Warehouse, url: '/docs/warehouse' },
+          { name: 'Cabang', desc: 'Kelola lebih banyak cabang', icon: MapPinHouse, url: '/docs/branches' },
+          { name: 'Voucher', desc: 'Kelola voucher dan promosi', icon: Ticket, url: '/docs/vouchers' },
         ]
       },
       { 
         title: 'Tools', 
         links: [
-          { name: 'Laporan', desc: 'Buat laporan bisnis yang lengkap', icon: ChartBarBig },
-          { name: 'Riwayat Transaksi', desc: 'Pantau semua transaksi di berbagai lokasi', icon: History },
-          { name: 'Riwayat Mutasi Stok', desc: 'Pantau semua mutasi stok di berbagai lokasi', icon: ArrowLeftRight },
+          { name: 'Laporan', desc: 'Buat laporan bisnis yang lengkap', icon: ChartBarBig, url: '/docs/reports' },
+          { name: 'Riwayat Transaksi', desc: 'Pantau semua transaksi di berbagai lokasi', icon: History, url: '/docs/transaction-history' },
+          { name: 'Riwayat Mutasi Stok', desc: 'Pantau semua mutasi stok di berbagai lokasi', icon: ArrowLeftRight, url: '/docs/inventory-changes' },
         ]
       },
       { 
         title: 'Users', 
         links: [
-          { name: 'Karyawan', desc: 'Kelola banyak pengguna dalam 1', icon: Users }
+          { name: 'Karyawan', desc: 'Kelola banyak pengguna dalam 1', icon: Users, url: '/docs/users' }
         ]
       }
     ]
