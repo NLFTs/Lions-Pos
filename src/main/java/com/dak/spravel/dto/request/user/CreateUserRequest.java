@@ -6,7 +6,6 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request DTO for creating a user via POST endpoint.
@@ -34,8 +33,7 @@ public class CreateUserRequest {
 
     @Column(nullable = true)
     private Long warehouseId;
-
-    @JsonProperty("partner_id")
+    
     private Long partnerId;
 
     private List<Long> roleIds;

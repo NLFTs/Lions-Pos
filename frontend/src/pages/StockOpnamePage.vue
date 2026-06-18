@@ -67,7 +67,7 @@ const formError = ref(null)
 const selectedOpname = ref(null)
 
 const emptyForm = () => ({
-  location: 'warehouse',
+  locationType: 'warehouse',
   locationId: '',
   date: new Date().toISOString().slice(0, 16),
   notes: '',
@@ -144,7 +144,7 @@ async function fetchLocationStock() {
   }
 }
 
-function openDetail(opname) {
+function openDetail(opname) {save
   selectedOpname.value = opname
   formMode.value = 'detail'
   showForm.value = true
@@ -155,10 +155,21 @@ function closeForm() { showForm.value = false }
 async function saveOpname() {
   if (!form.value.locationId) { formError.value = 'Lokasi wajib diisi.'; return }
   if (form.value.items.length === 0) { formError.value = 'Belum ada item. Gunakan "Tarik Stok" terlebih dahulu.'; return }
+  
   saving.value = true
   formError.value = null
+  
   try {
-    await api.post('/api/v1/stock-opnames', form.value)
+    const payload = {
+      partnerId: authStore.user?.partnerId || authStore.user?.partner?.id || null,
+      locationType: form.value.location ? form.value.location.toLowerCase() : null,
+      locationId: form.value.locationId,
+      date: form.value.date,
+      notes: form.value.notes,
+      items: form.value.items
+    }
+    await api.post('/api/v1/stock-opnames', payload)
+    
     toast.success('Stock Opname berhasil disimpan!')
     showForm.value = false
     fetchData()

@@ -114,7 +114,6 @@ public class UserService {
     }
 
     // ─── CORE METHODS MANAGEMENT USER ────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public List<UserResponse> findAll() {
         User currentUser = getAuthenticatedUser();
@@ -184,11 +183,12 @@ public class UserService {
         if (request.getAvatar() != null) {
             user.setAvatar(request.getAvatar());
         }
+        
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setCreatedAt(LocalDateTime.now());
         user.setIsActive(true);
 
-        Partners targetPartner;
+        Partners targetPartner = null;
 
         // Validasi penentuan partner & penyematan role global
         if (currentUser.getPartner() != null) {
@@ -200,24 +200,26 @@ public class UserService {
             }
             // Role boleh kosong — user bisa dibuat tanpa role dulu
         } else {
-            if (request.getPartnerId() == null) {
-                throw new IllegalArgumentException("Super Admin wajib melampirkan target partnerId.");
-            }
-            targetPartner = partnerRepository.findById(request.getPartnerId())
+            if (request.getPartnerId() != null) {
+                targetPartner = partnerRepository.findById(request.getPartnerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Partner", request.getPartnerId()));
-            user.setPartner(targetPartner);
-
-            if (request.getRoleIds() == null || request.getRoleIds().isEmpty()) {
-                throw new IllegalArgumentException("Super Admin wajib melampirkan minimal satu target roleId.");
+                user.setPartner(targetPartner);
             }
-            user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         }
 
+        if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
+        } else {
+            user.setRoles(new HashSet<>()); // <-- Proteksi utama biar gak null pas di-stream!
+        }
+        
         // ─── BRANCH GUARD ───
         if (request.getBranchId() != null) {
             Branches branch = branchesRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
-            if (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId())) {
+            
+            // Tambah validasi targetPartner != null biar ga NullPointerException
+            if (targetPartner != null && (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId()))) {
                 throw new RuntimeException("Akses Ditolak: Cabang tidak sinkron dengan perusahaan target.");
             }
             user.setBranch(branch);
@@ -228,7 +230,9 @@ public class UserService {
         if (request.getWarehouseId() != null) {
             Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
-            if (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(targetPartner.getId())) {
+            
+            // Tambah validasi targetPartner != null biar ga NullPointerException
+            if (targetPartner != null && (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(targetPartner.getId()))) {
                 throw new RuntimeException("Akses Ditolak: Gudang tidak sinkron dengan perusahaan target.");
             }
             user.setWarehouse(warehouse);
@@ -284,7 +288,6 @@ public class UserService {
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
 
         if (Boolean.TRUE.equals(request.getClearBranch())) {
-            // Lepas dari cabang dan hapus semua role yang berhubungan dengan cabang
             user.setBranch(null);
             Set<Role> stripped = user.getRoles().stream()
                     .filter(r -> {

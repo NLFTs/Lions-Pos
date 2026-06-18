@@ -54,7 +54,6 @@ async function fetchData() {
     const isAdmin = authStore.isAdmin
     const userBranchId = authStore.user?.branchId
 
-    // Kalau karyawan cabang, skip fetch /branches — pakai branchId dari store langsung
     const shouldFetchBranches = isAdmin || !userBranchId
 
     const requests = [
@@ -235,6 +234,76 @@ const subtotal = computed(() => {
 // ─── Voucher Logic ───────────────────────────────────────────────────────────
 const voucherCode = ref('')
 const appliedVoucher = ref(null)
+const showVoucherDropdown = ref(false);
+const voucherInputRef = ref(null);
+const focusedVoucherIndex = ref(-1);
+
+function handleVoucherBlur() {
+  setTimeout(() => {
+    showVoucherDropdown.value = false
+    focusedVoucherIndex.value = -1
+  }, 200)
+}
+
+const filteredVouchers = computed(() => {
+  if (!voucherCode.value) return []
+  const q = voucherCode.value.toLowerCase()
+  return vouchers.value.filter(v => {
+    const active = v.isActive ?? v.is_active ?? true
+    if (!active) return false
+    return (
+      v.code.toLowerCase().includes(q) || 
+      (v.name && v.name.toLowerCase().includes(q))
+    )
+  })
+})
+
+watch(filteredVouchers, () => {
+  focusedVoucherIndex.value = -1
+})
+
+function selectVoucher(code) {
+  voucherCode.value = code
+  showVoucherDropdown.value = false
+  focusedVoucherIndex.value = -1
+  applyVoucher()
+  
+  if (voucherInputRef.value) {
+    const el = voucherInputRef.value.$el?.querySelector('input') || voucherInputRef.value
+    if (el && typeof el.blur === 'function') {
+      el.blur()
+    }
+  }
+}
+
+function handleVoucherKeyDown(e) {
+  if (!showVoucherDropdown.value || filteredVouchers.value.length === 0) return
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (focusedVoucherIndex.value < filteredVouchers.value.length - 1) {
+      focusedVoucherIndex.value++
+    } else {
+      focusedVoucherIndex.value = 0
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    if (focusedVoucherIndex.value > 0) {
+      focusedVoucherIndex.value--
+    } else {
+      focusedVoucherIndex.value = filteredVouchers.value.length - 1
+    }
+  } else if (e.key === 'Enter') {
+    if (focusedVoucherIndex.value >= 0 && focusedVoucherIndex.value < filteredVouchers.value.length) {
+      e.preventDefault() 
+      selectVoucher(filteredVouchers.value[focusedVoucherIndex.value].code)
+    }
+  } else if (e.key === 'Escape') {
+    showVoucherDropdown.value = false
+    focusedVoucherIndex.value = -1
+  }
+}
+
 
 // ─── Diskon Manual ───────────────────────────────────────────────────────────
 const manualDiscountType = ref('FLAT') // 'FLAT' | 'PERCENT'
@@ -745,23 +814,61 @@ function avatarStyle(name = '') {
                 </div>
                 
                 <div class="bg-zinc-50 dark:bg-zinc-800/60 rounded-[16px] p-3 border border-zinc-200/60 dark:border-zinc-700/50">
-                  <div v-if="appliedVoucher" class="flex items-center justify-between">
+                    <div v-if="appliedVoucher" class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-3">
-                      <div class="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Ticket class="w-[18px] h-[18px]" /></div>
-                      <div class="flex flex-col">
+                        <div class="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Ticket class="w-[18px] h-[18px]" /></div>
+                        <div class="flex flex-col">
                         <span class="text-[13px] font-black text-emerald-600">{{ appliedVoucher.code }}</span>
                         <span class="text-[10px] font-bold text-zinc-500">{{ appliedVoucher.name }}</span>
-                      </div>
+                        </div>
                     </div>
                     <div class="flex items-center gap-3">
-                      <span class="text-[13px] font-black text-red-500">-{{ formatCurrency(discountAmount) }}</span>
-                      <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
+                        <span class="text-[13px] font-black text-red-500">-{{ formatCurrency(discountAmount - manualDiscountAmount) }}</span>
+                        <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
                     </div>
-                  </div>
-                  <div class="flex gap-2">
-                    <Input v-model="voucherCode" placeholder="Masukkan kode voucer..." class="h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" @keyup.enter="applyVoucher" />
-                    <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm" @click="applyVoucher">Pakai</Button>
-                  </div>
+                    </div>
+                    
+                    <div class="flex gap-2 relative">
+                        <div class="relative flex-1">
+                            <Input 
+                            ref="voucerInputRef"
+                            v-model="voucherCode" 
+                            placeholder="Masukkan kode voucer..." 
+                            class="w-full h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" 
+                            @focus="showVoucherDropdown = true"
+                            @blur="handleVoucherBlur"
+                            @keydown="handleVoucherKeyDown"
+                            @keyup.enter="focusedVoucherIndex === -1 ? applyVoucher() : null"
+                            />
+
+                        <!-- DROPDOWN VOUCHER -->
+                        <Transition name="dropdown">
+                        <div 
+                            v-if="showVoucherDropdown && filteredVouchers.length > 0" 
+                            class="absolute left-0 right-0 z-50 top-[calc(100%+4px)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl max-h-[150px] overflow-y-auto p-1 flex flex-col gap-0.5 no-scrollbar"
+                        >
+                            <button
+                            v-for="v in filteredVouchers"
+                            :key="v.id"
+                            type="button"
+                            class="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex justify-between items-center group"
+                            :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-primary': index === focusedVoucherIndex }"
+                            @mousedown="selectVoucher(v.code)"  
+                            >
+                            <div class="flex flex-col min-w-0">
+                                <span class="text-[12px] font-black text-zinc-800 dark:text-zinc-200 uppercase group-hover:text-primary transition-colors">{{ v.code }}</span>
+                                <span class="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{{ v.name }}</span>
+                            </div>
+                            <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-md shrink-0">
+                                {{ v.discountType === 'PERCENT' || v.discount_type === 'PERCENT' ? `${v.discountValue ?? v.discount_value}%` : `-${formatCurrency(v.discountValue ?? v.discount_value)}` }}
+                            </span>
+                            </button>
+                        </div>
+                        </Transition>
+                    </div>
+
+                    <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm shrink-0" @click="applyVoucher">Pakai</Button>
+                    </div>
                 </div>
 
                 <div class="flex items-center justify-between text-[18px] font-black text-zinc-900 dark:text-white pt-2 border-t border-zinc-100 dark:border-zinc-800">
