@@ -94,18 +94,27 @@ public class UserService {
         }
     }
 
-    // KUNCI UTAMA: Validasi Role Sekarang Bersifat Global Khusus Buat Master Pusat
     private Set<Role> resolveRoles(List<Long> roleIds, User currentUser) {
         Set<Role> roles = new HashSet<>();
         for (Long roleId : roleIds) {
             Role role = roleRepository.findById(roleId)
                     .orElseThrow(() -> new ResourceNotFoundException("Role", roleId));
             
-            // PROTEKSI 1: Partner dilarang keras memakai atau menembak role master 'admin' atau 'super-admin'
+            // PROTEKSI 1: Partner dilarang keras menggunakan role pusat 'admin' atau 'super-admin'
             if (currentUser.getPartner() != null) {
                 String roleSlug = role.getSlug().toLowerCase();
                 if ("admin".equals(roleSlug) || "super-admin".equals(roleSlug)) {
                     throw new RuntimeException("Akses Ditolak: Hak istimewa ilegal! Anda tidak diizinkan menggunakan role pusat '" + role.getName() + "'.");
+                }
+                
+                // PROTEKSI 2: Mencegah Owner mendelegasikan peran 'owner' utama ke karyawan lain
+                if ("owner".equals(roleSlug)) {
+                    throw new RuntimeException("Akses Ditolak: Anda dilarang mendelegasikan peran pemilik (Owner) tambahan.");
+                }
+
+                // PROTEKSI 3: Pastikan role kustom yang ditugaskan benar-benar milik perusahaan partner ybs
+                if (role.getPartner() != null && !role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                    throw new RuntimeException("Akses Ditolak: Peran '" + role.getName() + "' milik mitra eksternal lain!");
                 }
             }
             roles.add(role);
@@ -190,15 +199,10 @@ public class UserService {
 
         Partners targetPartner = null;
 
-        // Validasi penentuan partner & penyematan role global
+        // Validasi penentuan partner
         if (currentUser.getPartner() != null) {
             targetPartner = currentUser.getPartner();
             user.setPartner(targetPartner);
-
-            if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-                user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
-            }
-            // Role boleh kosong — user bisa dibuat tanpa role dulu
         } else {
             if (request.getPartnerId() != null) {
                 targetPartner = partnerRepository.findById(request.getPartnerId())
@@ -207,10 +211,11 @@ public class UserService {
             }
         }
 
+        // Resolusi Peran (Roles)
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         } else {
-            user.setRoles(new HashSet<>()); // <-- Proteksi utama biar gak null pas di-stream!
+            user.setRoles(new HashSet<>());
         }
         
         // ─── BRANCH GUARD ───
@@ -218,7 +223,6 @@ public class UserService {
             Branches branch = branchesRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new ResourceNotFoundException("Branch", request.getBranchId()));
             
-            // Tambah validasi targetPartner != null biar ga NullPointerException
             if (targetPartner != null && (branch.getPartners() == null || !branch.getPartners().getId().equals(targetPartner.getId()))) {
                 throw new RuntimeException("Akses Ditolak: Cabang tidak sinkron dengan perusahaan target.");
             }
@@ -231,7 +235,6 @@ public class UserService {
             Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
                     .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
             
-            // Tambah validasi targetPartner != null biar ga NullPointerException
             if (targetPartner != null && (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(targetPartner.getId()))) {
                 throw new RuntimeException("Akses Ditolak: Gudang tidak sinkron dengan perusahaan target.");
             }
@@ -287,6 +290,7 @@ public class UserService {
 
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
 
+        // Mengosongkan Cabang
         if (Boolean.TRUE.equals(request.getClearBranch())) {
             user.setBranch(null);
             Set<Role> stripped = user.getRoles().stream()
@@ -301,8 +305,9 @@ public class UserService {
             user.setRoles(stripped);
             permissionCacheService.evict(user.getUsername());
         }
+        
+        // Mengosongkan Gudang
         if (Boolean.TRUE.equals(request.getClearWarehouse())) {
-            // Lepas dari gudang dan hapus semua role yang berhubungan dengan gudang
             user.setWarehouse(null);
             Set<Role> stripped = user.getRoles().stream()
                     .filter(r -> {
@@ -327,7 +332,6 @@ public class UserService {
             user.setBranch(branch);
             user.setWarehouse(null);
 
-            // Auto-assign role karyawan-cabang jika belum punya role apapun atau belum punya role cabang
             boolean alreadyHasBranchRole = user.getRoles().stream().anyMatch(r -> {
                 String s = r.getSlug().toLowerCase();
                 return s.equals("karyawan-cabang") || s.equals("pengelola-cabang")
@@ -353,7 +357,6 @@ public class UserService {
             user.setWarehouse(warehouse);
             user.setBranch(null);
 
-            // Auto-assign role karyawan-gudang jika belum punya role gudang
             boolean alreadyHasWarehouseRole = user.getRoles().stream().anyMatch(r -> {
                 String s = r.getSlug().toLowerCase();
                 return s.equals("karyawan-gudang") || s.equals("pengelola-gudang")
@@ -373,7 +376,6 @@ public class UserService {
             if (isSelfUpdate) {
                 throw new RuntimeException("Akses Ditolak: Demi keamanan, Anda tidak bisa memanipulasi Role Anda sendiri.");
             }
-            // Diubah: Kirim objek `currentUser` untuk mencegah suntikan role pusat
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
             permissionCacheService.evict(user.getUsername());
         }

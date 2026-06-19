@@ -45,7 +45,7 @@ const filterRef   = ref(null)
 // ─── Form ─────────────────────────────────────────────────────────────────────
 const form = ref({
   id: null, username: '', fullname: '', email: '',
-  password: '', roleIds: [], partnerId: null, // <-- Dipastikan partnerId ada di model form
+  password: '', roleIds: [], partnerId: null,
 })
 const formErrors  = ref({})
 const formError   = ref(null)
@@ -79,7 +79,7 @@ watch(() => form.value.partnerId, (newId) => {
       editModePartnerName.value = found.name || found.partnerName || ''
     }
   }
-}, { Liquorice: true })
+}, { immediate: true })
 
 // Filter pencarian internal dropdown partner
 const filteredPartners = computed(() => {
@@ -299,7 +299,6 @@ function openCreate() {
 }
 
 function openEdit(u) {
-  // SINKRONISASI RELASI OBJEK DARI BACKEND
   form.value = {
     id: u.id, 
     username: u.username, 
@@ -307,10 +306,9 @@ function openEdit(u) {
     email: u.email || '', 
     password: '',
     roleIds: (u.roles || []).map(r => r.id),
-    partnerId: u.partner?.id || u.partnerId || null // Ambil ID dari u.partner objek
+    partnerId: u.partner?.id || u.partnerId || null
   }
   
-  // Ambil Name dari objek u.partner asli bawaan list data table lu
   editModePartnerName.value = u.partner?.name || u.partner?.partnerName || ''
 
   formErrors.value = {}; formError.value = null
@@ -371,7 +369,7 @@ async function saveUser() {
       username: form.value.username,
       fullname: form.value.fullname || null,
       email: form.value.email,
-      roleIds: form.value.roleIds.length > 0 ? form.value.roleIds : undefined,
+      roleIds: form.value.roleIds,
       partnerId: form.value.partnerId,
     }
     if (avatarUrl !== undefined) payload.avatar = avatarUrl
@@ -459,7 +457,7 @@ function initials(u) {
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 class="text-2xl font-bold tracking-tight">Pengguna</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, perizinan, dan penempatan lokasi.</p>
+              <p class="text-muted-foreground text-sm mt-1">Kelola akun pengguna, perizinan, dan penempatan lokasi perusahaan.</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
@@ -617,7 +615,7 @@ function initials(u) {
             <Button variant="ghost" size="icon" class="h-9 w-9 shrink-0" @click="view = 'list'"><ArrowLeft class="h-4 w-4" /></Button>
             <div>
               <h1 class="text-xl font-bold tracking-tight">{{ formMode === 'create' ? 'Tambah Pengguna' : 'Edit Pengguna' }}</h1>
-              <p class="text-muted-foreground text-sm mt-0.5">{{ formMode === 'create' ? 'Buat akun pengguna baru. Role bisa ditetapkan kemudian.' : 'Perbarui informasi dan hak akses pengguna.' }}</p>
+              <p class="text-muted-foreground text-sm mt-0.5">{{ formMode === 'create' ? 'Buat akun pengguna baru secara manual.' : 'Perbarui informasi dan hak akses delegasi pengguna.' }}</p>
             </div>
             <Button v-if="formMode === 'edit' && can('user.delete')" variant="outline" size="sm" class="ml-auto text-destructive border-destructive/30 hover:bg-destructive/5 shrink-0"
               @click="doDelete(allUsers.find(u => u.id === form.id), $event)">
@@ -628,7 +626,9 @@ function initials(u) {
           <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
 
           <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <CardContent class="p-6 space-y-5">
+            <CardContent class="p-6 space-y-6">
+              
+              <!-- Profil Avatar -->
               <div class="flex items-center gap-4 p-4 rounded-xl bg-muted/40 border border-border">
                 <div class="relative shrink-0 group cursor-pointer" @click="avatarInput?.click()">
                   <img v-if="avatarPreview" :src="avatarPreview" class="w-16 h-16 rounded-full object-cover border-2 border-border" />
@@ -650,6 +650,7 @@ function initials(u) {
                 <input ref="avatarInput" type="file" accept="image/*" class="hidden" @change="handleAvatarChange" />
               </div>
 
+              <!-- Input Fields -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                   <Label>Username <span class="text-destructive">*</span></Label>
@@ -668,8 +669,9 @@ function initials(u) {
                 <p v-if="formErrors.email" class="text-xs text-destructive">{{ formErrors.email }}</p>
               </div>
 
+              <!-- Mitra (Hanya Terlihat untuk Admin Global) -->
               <div v-if="isAdmin" class="space-y-1.5 relative" ref="partnerDropdownRef">
-                <Label>Mitra <span class="text-destructive">*</span></Label>
+                <Label>Mitra Perusahaan <span class="text-destructive">*</span></Label>
                 <button
                   type="button"
                   :disabled="saving"
@@ -727,6 +729,7 @@ function initials(u) {
                 </Transition>
               </div>
 
+              <!-- Password -->
               <div class="space-y-1.5">
                 <Label>
                   Password
@@ -742,6 +745,51 @@ function initials(u) {
                 </div>
                 <p v-if="formErrors.password" class="text-xs text-destructive">{{ formErrors.password }}</p>
               </div>
+
+              <!-- PENUGASAN JABATAN / DELEGASI PERAN (Dinamis & Terisolasi) -->
+              <div class="border-t border-zinc-100 dark:border-zinc-800 pt-5 space-y-3">
+                <Label class="text-sm font-semibold flex items-center gap-2">
+                  <Shield class="h-4 w-4 text-primary" />
+                  <span>Delegasi Jabatan (Peran / Role)</span>
+                </Label>
+                <p class="text-xs text-muted-foreground leading-relaxed">
+                  Pilih satu atau beberapa peran hak akses kerja untuk akun ini. Hak akses yang tersedia adalah peran default sistem dan peran kustom buatan mitra Anda sendiri.
+                </p>
+
+                <div v-if="roles.length === 0" class="py-6 flex flex-col items-center justify-center text-center bg-zinc-50 dark:bg-zinc-900/40 border border-dashed rounded-xl">
+                  <Loader2 class="h-5 w-5 animate-spin text-muted-foreground/50 mb-2" />
+                  <p class="text-xs text-muted-foreground italic">Sedang memuat daftar peran kerja...</p>
+                </div>
+
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    v-for="role in roles"
+                    :key="role.id"
+                    type="button"
+                    @click="toggleRole(role.id)"
+                    class="flex items-start gap-3 p-3 rounded-xl border text-left transition-all outline-none"
+                    :class="form.roleIds.includes(role.id)
+                      ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary'
+                      : 'border-border bg-background hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50'"
+                  >
+                    <div 
+                      class="w-4 h-4 rounded mt-0.5 border flex items-center justify-center transition-colors shrink-0"
+                      :class="form.roleIds.includes(role.id) ? 'bg-primary border-primary text-primary-foreground' : 'border-zinc-300 dark:border-zinc-700 bg-background'"
+                    >
+                      <Check v-if="form.roleIds.includes(role.id)" class="h-3 w-3 stroke-[3]" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[12.5px] font-semibold leading-tight" :class="form.roleIds.includes(role.id) ? 'text-primary' : 'text-foreground'">
+                        {{ role.name }}
+                      </p>
+                      <p class="text-[10px] text-zinc-400 mt-0.5 truncate">
+                        {{ role.slug }}
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
             </CardContent>
           </Card>
 
@@ -757,6 +805,7 @@ function initials(u) {
       </Transition>
     </div>
 
+    <!-- Modal Hapus -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="deleteModal.show" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closeDeleteModal" />
@@ -768,12 +817,12 @@ function initials(u) {
               <div class="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0"><Trash2 class="h-5 w-5" /></div>
               <div>
                 <h3 class="text-base font-bold">Hapus Pengguna</h3>
-                <p class="text-xs text-muted-foreground">Tindakan ini tidak bisa dibatalkan.</p>
+                <p class="text-xs text-muted-foreground">Tindakan ini bersifat permanen.</p>
               </div>
             </div>
             <p class="text-sm text-muted-foreground mb-4">
               Anda akan menghapus akun <span class="font-bold text-foreground">{{ deleteModal.user?.fullname || deleteModal.user?.username }}</span>.
-              Semua data mutasi stok dan log yang terkait akan terpengaruh.
+              Semua log transaksi, mutasi gudang, dan aktivitas kerja yang terkait dengan akun ini akan terpengaruh.
             </p>
             <div class="space-y-2 mb-6">
               <Label class="text-xs text-muted-foreground">Ketik username untuk konfirmasi:</Label>

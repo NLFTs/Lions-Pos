@@ -1,4 +1,3 @@
-
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -42,6 +41,10 @@ import {
   Building2,
   Handshake,
   Bell,
+  Truck,
+  ClipboardList,
+  PackageSearch,
+  Repeat2,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -82,7 +85,7 @@ const INVENTORY_MENU_RAW = [
   { label: 'Dashboard Inventaris', icon: LayoutDashboard, to: '/dashboard/inventory',         permission: 'stock_balance.index' },
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
   { label: 'Pengecekan Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
-  { label: 'Transfer Stok',       icon: Repeat2,         to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
+  { label: 'Transfer Stok',       icon: Repeat2,          to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
 ]
 
 // Filter inventory menu berdasarkan permission user saat ini
@@ -108,13 +111,6 @@ const isAboutModalOpen = ref(false)
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
 }
-
-import {
-  Truck,
-  ClipboardList,
-  PackageSearch,
-  Repeat2,
-} from 'lucide-vue-next'
 
 // ─── Menu Groups (dengan section header) ────────────────────────────────────
 const MENU_GROUPS = [
@@ -180,8 +176,6 @@ const MENU_GROUPS = [
   },
 ]
 
-// PROFILE_MENU_ITEMS removed
-
 // Filter menu by permission
 function filterMenu(groups) {
   const isAdmin = auth.isAdmin
@@ -190,12 +184,6 @@ function filterMenu(groups) {
   const hasPartner = !!(user.value?.partner || user.value?.partnerId)
 
   return groups.reduce((acc, group) => {
-    
-    // ─── VALIDASI LEVEL GROUP (KONTROL AKSES) ───────────────────────────
-    if (group.label === 'Kontrol Akses' && hasPartner) {
-      return acc
-    }
-    // ────────────────────────────────────────────────────────────────────
 
     const filteredItems = group.items.reduce((items, item) => {
       
@@ -279,8 +267,6 @@ watch(() => route.path, (path) => {
   sidebarOpen.value = false
 }, { immediate: true })
 
-// handleProfileMenuAction removed
-
 // ─── User Info ────────────────────────────────────────────────────────
 const displayName = computed(() => user.value?.fullname || user.value?.username || 'User')
 const displayEmail = computed(() => user.value?.username || '')
@@ -315,7 +301,7 @@ const userPlan = computed(() => (user.value?.plan || 'basic').toLowerCase())
 const planConfig = computed(() => {
   switch (userPlan.value) {
     case 'enterprise': return { label: 'Enterprise', dotClass: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]' }
-    case 'pro':        return { label: 'Pro',        dotClass: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' }
+    case 'pro':        return { label: 'Pro',      dotClass: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' }
     default:           return { label: 'Basic',      dotClass: 'bg-zinc-400' }
   }
 })
@@ -327,14 +313,6 @@ const upgradeConfig = computed(() => {
     case 'pro':        return { label: 'Upgrade ke Enterprise', to: '/pricing?plan=enterprise' }
     default:           return null  // enterprise — tidak perlu upgrade
   }
-})
-
-// ─── Language Switcher ────────────────────────────────────────────────
-
-// Get active color based on theme
-const activeLanguageColor = computed(() => {
-  // Use primary color from theme
-  return 'text-[var(--primary)]'
 })
 
 // Theme Preference State (system | light | dark)
@@ -481,9 +459,6 @@ function handleGlobalKeydown(e) {
 import api from '@/lib/api'
 
 // ─── Role Helpers ─────────────────────────────────────────────────────────
-// Super Admin Pusat: role slug "admin" atau "super-admin", TANPA partnerId
-// Owner/Admin Mitra: role slug "owner" atau "admin-partner", DENGAN partnerId
-
 function hasRole(roleSlug) {
   const roles = user.value?.roles || []
   return roles.some(r => {
@@ -529,7 +504,6 @@ let notifPollingInterval = null
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 async function fetchNotifications() {
-  // Tidak perlu fetch jika super admin global
   if (!auth.user?.partnerId && auth.isAdmin) return
   try {
     const [stockRes, ordersRes] = await Promise.all([
@@ -589,14 +563,12 @@ async function fetchNotifications() {
       }
     }
 
-    // Simpan yang belum ada (berdasarkan id), preserve read status
     const existingIds = new Set(notifications.value.map(n => n.id))
     newNotifs.forEach(n => {
       if (!existingIds.has(n.id)) {
         notifications.value.unshift(n)
       }
     })
-    // Hapus notif yang sudah tidak relevan
     notifications.value = notifications.value.filter(n =>
       newNotifs.some(nn => nn.id === n.id)
     )
@@ -613,7 +585,7 @@ function clearNotifications() {
 
 function startNotificationPolling() {
   fetchNotifications()
-  notifPollingInterval = setInterval(fetchNotifications, 60000) // setiap 1 menit
+  notifPollingInterval = setInterval(fetchNotifications, 60000)
 }
 
 function stopNotificationPolling() {
@@ -679,10 +651,10 @@ function isLocationActive(type, id) {
         <div class="flex items-center gap-2.5 overflow-hidden">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
             <img 
-            src="/gaptek-hit.png" 
-            alt="Logo Gaptek" 
-            class="h-8 w-8 object-contain"
-          />
+              src="/gaptek-hit.png" 
+              alt="Logo Gaptek" 
+              class="h-8 w-8 object-contain"
+            />
           </div>
           <span class="text-lg font-bold tracking-tight whitespace-nowrap transition-opacity duration-200">
             GAPTEK
@@ -747,7 +719,7 @@ function isLocationActive(type, id) {
         </div>
       </div>
 
-      <!-- ─── BODY: Sidebar Panels (Fade+Blur, no unmount = no scroll reset) ── -->
+      <!-- ─── BODY: Sidebar Panels ── -->
       <nav class="flex-1 overflow-hidden relative">
 
         <!-- ══════════ PANEL 1: Main Sidebar ══════════ -->
@@ -937,14 +909,12 @@ function isLocationActive(type, id) {
               class="flex w-full items-center gap-2 rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors outline-none"
             >
               <div class="relative w-8 h-8 shrink-0">
-                <!-- Fallback: generated avatar berwarna berdasarkan nama -->
                 <div
                   class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-white/20"
                   :style="avatarStyle"
                 >
                   {{ userInitial }}
                 </div>
-                <!-- Avatar gambar asli — overlay di atas fallback jika ada -->
                 <img
                   v-if="userAvatar"
                   :src="userAvatar"
@@ -1064,7 +1034,6 @@ function isLocationActive(type, id) {
     <!-- ═══════════════════════════════════════════════════════════ MAIN ════════ -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
       <!-- ─── CLEAN TOP BAR ─────────────────────────────────────────────────────── -->
-      <!-- Header: warna SAMA dengan sidebar (zinc-950) → menyatu jadi satu zona gelap -->
       <header class="relative flex h-12 shrink-0 items-center justify-between bg-white dark:bg-zinc-950 px-4">
         <!-- Left: Toggle Sidebar -->
         <div class="flex items-center gap-4 w-1/3">
@@ -1105,7 +1074,7 @@ function isLocationActive(type, id) {
                   <div class="flex items-center gap-2">
                     <Bell class="w-3.5 h-3.5 text-zinc-500" />
                     <span class="text-[13px] font-bold">Notifikasi</span>
-                    <span v-if="unreadCount > 0" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                    <span v-if="unreadCount > 0" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-550 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
                       {{ unreadCount }} baru
                     </span>
                   </div>
@@ -1159,7 +1128,6 @@ function isLocationActive(type, id) {
       </header>
 
       <!-- ─── PAGE CONTENT ────────────────────────────────────────────────── -->
-      <!-- Main: sedikit lebih terang + rounded-tl-2xl → kurva melengkung di perbatasan header↔content -->
       <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-100 dark:bg-zinc-900 rounded-tl-2xl scroll-smooth overscroll-contain shadow-[inset_1px_1px_0_rgba(255,255,255,0.04)]">
         <!-- Page content wrapper -->
         <div class="p-5">

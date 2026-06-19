@@ -32,6 +32,8 @@ public class RoleService {
     private final PermissionRepository permissionRepository;
     private final PermissionCacheService permissionCacheService;
 
+    // ─── UTILS AUTENTIKASI ───────────────────────────────────────────────────
+
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
@@ -41,7 +43,6 @@ public class RoleService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // Validasi Permission Dinamis dari DB
     private void checkPermission(User user, String permissionSlug) {
         boolean hasPerm = user.getRoles().stream()
                 .filter(role -> role.getPermissions() != null)
@@ -53,37 +54,89 @@ public class RoleService {
         }
     }
 
-    // Helper untuk cek status Owner
     private boolean isOwner(User user) {
         return user.getRoles().stream().anyMatch(role -> role.getSlug().equalsIgnoreCase("owner"));
     }
 
-    // Helper untuk cek status Superadmin / Admin
     private boolean isAdminOrSuperadmin(User user) {
         return user.getRoles().stream().anyMatch(role -> 
             role.getSlug().equalsIgnoreCase("super-admin") || role.getSlug().equalsIgnoreCase("admin")
         );
     }
 
-    // ─── INDEX ───────────────────────────────────────────────────────────────
+    /**
+     * Helper untuk memvalidasi pendelegasian hak akses secara turun-temurun.
+     * Mencegah Owner memberikan hak akses kepada perannya yang dia sendiri tidak memilikinya.
+     */
+    private void validatePermissionDelegation(User currentUser, Set<Permission> requestedPerms) {
+        if (isOwner(currentUser)) {
+            Set<String> ownerPermSlugs = currentUser.getRoles().stream()
+                    .filter(r -> r.getPermissions() != null)
+                    .flatMap(r -> r.getPermissions().stream())
+                    .map(p -> p.getSlug().toLowerCase())
+                    .collect(Collectors.toSet());
+
+            for (Permission p : requestedPerms) {
+                if (!ownerPermSlugs.contains(p.getSlug().toLowerCase())) {
+                    throw new RuntimeException("Akses Ditolak: Anda tidak berhak mendelegasikan hak akses '" 
+                            + p.getName() + "' karena Anda sendiri tidak memilikinya.");
+                }
+            }
+        }
+    }
+
+    /**
+     * Memformat slug secara aman agar terisolasi per partner mitra.
+     * Contoh: "kasir" menjadi "partner-3-kasir".
+     */
+    private String resolveSafeSlug(User currentUser, String requestedSlug) {
+        String cleanSlug = requestedSlug.toLowerCase().trim().replaceAll("[^a-z0-9-]", "-");
+        if (currentUser.getPartner() != null) {
+            String prefix = "partner-" + currentUser.getPartner().getId() + "-";
+            if (!cleanSlug.startsWith(prefix)) {
+                return prefix + cleanSlug;
+            }
+        }
+        return cleanSlug;
+    }
+
+    // ─── INDEX ROLE ──────────────────────────────────────────────────────────
+
     public List<RoleResponse> findAll() {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.index"); 
 
-        // Jika dia Owner -> hanya melihat list external dan bukan owner
+        // Jika Owner -> Hanya melihat role eksternal bawaan sistem ATAU role kustom buatan mitranya sendiri
         if (isOwner(currentUser)) {
-            return roleRepository.findExternalRolesExceptOwner().stream().map(this::toResponse).toList();
+            Long partnerId = currentUser.getPartner() != null ? currentUser.getPartner().getId() : null;
+            return roleRepository.findAll().stream()
+                    .filter(role -> {
+                        // Harus bertipe EXTERNAL
+                        if (role.getType() != Role.Type.EXTERNAL) return false;
+                        // Tidak boleh melihat/mengedit role 'owner' utama sistem untuk proteksi
+                        if (role.getSlug().equalsIgnoreCase("owner")) return false;
+
+                        // Jika kustom buatan partner, pastikan id partner cocok
+                        if (role.getPartner() != null) {
+                            return partnerId != null && role.getPartner().getId().equals(partnerId);
+                        }
+                        // Jika partner null, berarti ini role default sistem (bisa dipakai bersama)
+                        return true;
+                    })
+                    .map(this::toResponse)
+                    .toList();
         }
         
-        // Jika Superadmin / Admin -> melihat semuanya
+        // Jika Superadmin / Admin -> Melihat semua role secara global
         if (isAdminOrSuperadmin(currentUser)) {
             return roleRepository.findAll().stream().map(this::toResponse).toList();
         }
 
-        throw new RuntimeException("Akses Ditolak: Role Anda tidak dikenali untuk memuat data ini.");
+        throw new RuntimeException("Akses Ditolak: Peran akun Anda tidak dikenali untuk melihat data ini.");
     }
 
-    // ─── SHOW ────────────────────────────────────────────────────────────────
+    // ─── SHOW ROLE ───────────────────────────────────────────────────────────
+
     public RoleResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.show");
@@ -91,102 +144,140 @@ public class RoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
         
-        // Proteksi Tambahan: Jika dia Owner, pastikan data yang di-show bukan data 'owner' atau internal
+        // Validasi batasan Owner
         if (isOwner(currentUser)) {
-            if (role.getSlug().equalsIgnoreCase("owner") || role.getType() != Role.Type.EXTERNAL) {
-                throw new RuntimeException("Akses Ditolak: Anda tidak berhak melihat detail role ini.");
+            if (role.getType() != Role.Type.EXTERNAL || role.getSlug().equalsIgnoreCase("owner")) {
+                throw new RuntimeException("Akses Ditolak: Anda tidak memiliki wewenang melihat detail role ini.");
+            }
+            if (role.getPartner() != null) {
+                if (currentUser.getPartner() == null || !role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                    throw new RuntimeException("Akses Ditolak: Peran kustom ini milik mitra perusahaan lain.");
+                }
             }
         }
         
         return toResponse(role);
     }
 
-    // ─── STORE (MUTASI DATA BANNED FOR OWNER) ────────────────────────────────
+    // ─── CREATE ROLE (DINAMIS & AMAN UNTUK OWNER) ────────────────────────────
+
     @Transactional
     public RoleResponse create(CreateRoleRequest request) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.store"); 
 
-        if (isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Owner hanya memiliki akses read-only (Index & Show).");
-        }
-
-        boolean slugExists = roleRepository.existsBySlug(request.getSlug());
-        if (slugExists) {
-            throw new IllegalArgumentException("Role slug '" + request.getSlug() + "' already exists global system scope");
+        String safeSlug = resolveSafeSlug(currentUser, request.getSlug());
+        
+        if (roleRepository.existsBySlug(safeSlug)) {
+            throw new IllegalArgumentException("Kode peran '" + request.getSlug() + "' sudah terdaftar di sistem.");
         }
 
         Role role = new Role();
         role.setName(request.getName());
-        role.setSlug(request.getSlug());
+        role.setSlug(safeSlug);
         role.setType(Role.Type.EXTERNAL);        
         role.setCreatedBy(currentUser);
         role.setCreatedAt(LocalDateTime.now());
 
+        // Bind otomatis ke partner Owner
+        if (currentUser.getPartner() != null) {
+            role.setPartner(currentUser.getPartner());
+        }
+
+        // Set hak akses (Turun-temurun)
         if (request.getPermissionIds() != null && !request.getPermissionIds().isEmpty()) {
             Set<Permission> perms = new HashSet<>(permissionRepository.findAllById(request.getPermissionIds()));
+            validatePermissionDelegation(currentUser, perms);
             role.setPermissions(perms);
+        } else {
+            role.setPermissions(new HashSet<>());
         }
+
         return toResponse(roleRepository.save(role));
     }
 
-    // ─── UPDATE (MUTASI DATA BANNED FOR OWNER) ────────────────────────────────
+    // ─── UPDATE ROLE (DINAMIS & AMAN UNTUK OWNER) ────────────────────────────
+
     @Transactional
     public RoleResponse update(Long id, UpdateRoleRequest request) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.update");
 
-        if (isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Owner hanya memiliki akses read-only (Index & Show).");
-        }
-
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
 
-        if (request.getName() != null) role.setName(request.getName());
-        if (request.getSlug() != null && !request.getSlug().equals(role.getSlug())) {
-            if (roleRepository.existsBySlug(request.getSlug())) {
-                throw new IllegalArgumentException("Role slug '" + request.getSlug() + "' already exists");
+        // Validasi kepemilikan data bagi Owner
+        if (isOwner(currentUser)) {
+            if (role.getPartner() == null || !role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya diperbolehkan mengubah peran kustom perusahaan Anda sendiri.");
             }
-            role.setSlug(request.getSlug());
+        }
+
+        if (request.getName() != null) {
+            role.setName(request.getName());
+        }
+        
+        if (request.getSlug() != null && !request.getSlug().trim().isEmpty()) {
+            String safeSlug = resolveSafeSlug(currentUser, request.getSlug());
+            if (!safeSlug.equals(role.getSlug()) && roleRepository.existsBySlug(safeSlug)) {
+                throw new IllegalArgumentException("Kode peran '" + request.getSlug() + "' sudah digunakan.");
+            }
+            role.setSlug(safeSlug);
         }
         
         role.setUpdatedBy(currentUser);
         role.setUpdatedAt(LocalDateTime.now());
         
-        return toResponse(roleRepository.save(role));
+        Role savedRole = roleRepository.save(role);
+        permissionCacheService.evictAll();
+        return toResponse(savedRole);
     }
 
-    // ─── DELETE (MUTASI DATA BANNED FOR OWNER) ────────────────────────────────
+    // ─── DELETE ROLE ─────────────────────────────────────────────────────────
+
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.delete");
 
+        Role role = roleRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", id));
+
+        // Validasi kepemilikan data bagi Owner
         if (isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Owner hanya memiliki akses read-only (Index & Show).");
+            if (role.getPartner() == null || !role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda dilarang menghapus peran sistem default atau milik perusahaan lain.");
+            }
         }
 
         roleRepository.deleteById(id);
         permissionCacheService.evictAll();
     }
 
-    // ─── ASSIGN PERMISSIONS (MUTASI DATA BANNED FOR OWNER) ────────────────────
+    // ─── ASSIGN PERMISSIONS (MATRIKS HAK AKSES) ─────────────────────────────
+
     @Transactional
     public RoleResponse assignPermissions(Long id, AssignPermissionsRequest request) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.update"); 
 
-        if (isOwner(currentUser)) {
-            throw new RuntimeException("Akses Ditolak: Owner tidak diizinkan mengubah hak akses (Matrix Permission).");
-        }
-
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", id));
+
+        // Validasi kepemilikan data bagi Owner
+        if (isOwner(currentUser)) {
+            if (role.getPartner() == null || !role.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya bisa menyunting hak akses milik perusahaan Anda.");
+            }
+        }
 
         Set<Permission> perms = request.getPermissionIds() != null
                 ? new HashSet<>(permissionRepository.findAllById(request.getPermissionIds()))
                 : new HashSet<>();
+
+        // Validasi hak akses turun-temurun
+        validatePermissionDelegation(currentUser, perms);
+
         role.setPermissions(perms);
         role.setUpdatedBy(currentUser);
         role.setUpdatedAt(LocalDateTime.now());
@@ -196,15 +287,32 @@ public class RoleService {
         return toResponse(savedRole);
     }
 
+    // ─── GROUPED PERMISSIONS LIST (TURUN-TEMURUN GUARDED) ────────────────────
+
+    @Transactional(readOnly = true)
     public Map<String, List<PermissionResponse>> getAllPermissionsGrouped() {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "role.show"); 
         
         Set<String> blacklistedModules = Set.of("partner", "permission", "module", "log");
 
+        // Jika Owner, ambil semua ID permission yang dimiliki Owner itu sendiri
+        Set<Long> ownerPermissionIds = isOwner(currentUser) 
+            ? currentUser.getRoles().stream()
+                .filter(r -> r.getPermissions() != null)
+                .flatMap(r -> r.getPermissions().stream())
+                .map(Permission::getId)
+                .collect(Collectors.toSet())
+            : new HashSet<>();
+
         return permissionRepository.findAll().stream()
                 .filter(p -> {
                     if (isOwner(currentUser)) {
+                        // Saringan 1: Owner tidak boleh mendelegasikan permission di luar kepemilikannya sendiri
+                        if (!ownerPermissionIds.contains(p.getId())) {
+                            return false;
+                        }
+                        // Saringan 2: Hilangkan modul internal pusat
                         String moduleSlug = p.getModule().getSlug().toLowerCase();
                         return !blacklistedModules.contains(moduleSlug);
                     }
@@ -213,6 +321,8 @@ public class RoleService {
                 .map(this::toPermissionResponse)
                 .collect(Collectors.groupingBy(PermissionResponse::getModuleSlug));
     }
+
+    // ─── MAPPERS ─────────────────────────────────────────────────────────────
 
     private RoleResponse toResponse(Role role) {
         RoleResponse res = new RoleResponse();
