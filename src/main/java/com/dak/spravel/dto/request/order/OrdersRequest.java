@@ -30,6 +30,9 @@ public class OrdersRequest {
         private Long productId;
         private Long qty;
         private BigDecimal unitPrice;
+        private String itemDiscountType;
+        private BigDecimal itemDiscountValue;
+        private BigDecimal itemDiscountAmount;
     }
 
     @Data

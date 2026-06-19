@@ -1174,18 +1174,38 @@ function avatarStyle(name = '') {
           <div v-else class="flex flex-col gap-2.5">
             <TransitionGroup name="list">
               <div v-for="item in cart" :key="item.id" class="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-[16px] p-3 flex flex-col gap-3 shadow-sm hover:border-zinc-300 transition-colors">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex-1 min-w-0 pt-0.5">
-                    <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-                    <div class="flex items-center gap-1.5 mt-0.5">
-                      <p class="text-[11px] font-bold text-primary">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
-                      <span v-if="getStock(item.id) !== null && getStock(item.id) <= LOW_STOCK_THRESHOLD && getStock(item.id) > 0"
-                        class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
-                        Sisa {{ getStock(item.id) }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+               <div class="flex items-start justify-between gap-3">
+  <div class="flex-1 min-w-0 pt-0.5">
+    <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
+    <div class="flex items-center gap-1.5 mt-0.5">
+      <p class="text-[11px] font-bold text-primary">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
+      <span v-if="getStock(item.id) !== null && getStock(item.id) <= LOW_STOCK_THRESHOLD && getStock(item.id) > 0"
+        class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
+        Sisa {{ getStock(item.id) }}
+      </span>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-1 shrink-0">
+    <button
+      @click="toggleItemDiscount(item)"
+      :class="['p-1.5 rounded-lg transition-colors',
+        openItemDiscountId === item.id
+          ? 'bg-orange-500 text-white'
+          : getItemDiscountPerUnit(item) > 0
+            ? 'bg-orange-100 text-orange-500 dark:bg-orange-900/20 dark:text-orange-400'
+            : 'text-zinc-300 hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20']"
+      title="Diskon per item">
+      <Tag class="h-3.5 w-3.5" />
+    </button>
+    <button
+      @click="removeFromCart(item)"
+      class="p-1.5 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+      title="Hapus item">
+      <Trash2 class="h-3.5 w-3.5" />
+    </button>
+  </div>
+</div>
 
                 <div v-if="openItemDiscountId === item.id" class="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-xl p-2.5 flex flex-col gap-2">
                   <div class="flex rounded-[10px] bg-white dark:bg-zinc-800 p-0.5 border border-orange-100 dark:border-orange-800/30">

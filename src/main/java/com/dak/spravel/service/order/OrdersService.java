@@ -221,20 +221,29 @@ public class OrdersService {
         List<OrderItems> orderItems = new ArrayList<>();
 
         for (OrdersRequest.OrderItemRequest itemReq : request.getItems()) {
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", itemReq.getProductId()));
-            
-            OrderItems item = new OrderItems();
-            item.setOrder(savedOrder);
-            item.setProduct(product);
-            item.setProductName(product.getName());
-            item.setQty(itemReq.getQty());
-            item.setUnitPrice(itemReq.getUnitPrice());
-            item.setSubtotal(itemReq.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQty())));
-            
-            subtotal = subtotal.add(item.getSubtotal());
-            orderItems.add(item);
-        }
+    Product product = productRepository.findById(itemReq.getProductId())
+            .orElseThrow(() -> new ResourceNotFoundException("Product", itemReq.getProductId()));
+
+    BigDecimal lineGross = itemReq.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQty()));
+    BigDecimal lineDiscount = itemReq.getItemDiscountAmount() != null
+            ? itemReq.getItemDiscountAmount()
+            : BigDecimal.ZERO;
+    lineDiscount = lineDiscount.max(BigDecimal.ZERO).min(lineGross);
+
+    OrderItems item = new OrderItems();
+    item.setOrder(savedOrder);
+    item.setProduct(product);
+    item.setProductName(product.getName());
+    item.setQty(itemReq.getQty());
+    item.setUnitPrice(itemReq.getUnitPrice());
+    item.setItemDiscountType(itemReq.getItemDiscountType());
+    item.setItemDiscountValue(itemReq.getItemDiscountValue());
+    item.setItemDiscountAmount(lineDiscount);
+    item.setSubtotal(lineGross.subtract(lineDiscount));
+
+    subtotal = subtotal.add(item.getSubtotal());
+    orderItems.add(item);
+}
         orderItemsRepository.saveAll(orderItems);
         savedOrder.setItems(orderItems);
 
