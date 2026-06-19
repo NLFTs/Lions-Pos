@@ -1142,6 +1142,7 @@ function isLocationActive(type, id) {
       @close="isAboutModalOpen = false" 
     />
   </div>
+
 </template>
 
 <style>

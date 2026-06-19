@@ -103,13 +103,7 @@ onMounted(async () => {
       ease: 'expo.out'
     }, '-=0.55')
 
-    // Wave float halus di baris 1
-    tl.to(chars1, {
-      y: (i) => Math.sin(i * 1.0) * 3,
-      duration: 3,
-      stagger: { each: 0.06, repeat: -1, yoyo: true },
-      ease: 'sine.inOut'
-    }, '+=0.3')
+    // Wave float removed to keep characters upright and still
 
   } catch (err) {
     h1.style.opacity = '1'
@@ -119,66 +113,100 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="relative flex-grow flex flex-col items-center pt-24 pb-48 px-6 overflow-hidden z-10">
-    <!-- Background Gradient Blinds -->
-    <div class="absolute inset-0 z-0 opacity-100 pointer-events-none">
-      <GradientBlinds
-        :gradient-colors="['#1EA03F', '#182FFF']"
-        :angle="0"
-        :noise="0.3"
-        :blind-count="12"
-        :blind-min-width="50"
-        :spotlight-radius="0.5"
-        :spotlight-softness="1"
-        :spotlight-opacity="1"
-        :mouse-dampening="0.15"
-        :distort-amount="0"
-        shine-direction="left"
-        mix-blend-mode="screen"
-      />
-    </div>
+  <main class="relative flex-grow flex items-center pt-24 pb-48 px-6 overflow-hidden z-10">
+  <!-- Background -->
+  <div class="absolute inset-0 z-0 pointer-events-none">
     
-    <div class="relative z-10 space-y-10 max-w-5xl mx-auto text-center">
+    <!-- Layer 1 -->
+    <div
+      class="absolute inset-0"
+      style="
+        background:
+          radial-gradient(
+            circle at top left,
+            rgba(28,1,54,0.9) 0%,
+            rgba(28,1,54,0.45) 20%,
+            rgba(0,0,0,1) 50%
+          );
+      "
+    ></div>
+
+    <!-- Layer 2 -->
+    <div
+      class="absolute inset-0 bg-center bg-cover opacity-40"
+      style="
+        background-image: url('/box-bg.png');
+      "
+    ></div>
+
+    <!-- Overlay -->
+    <div class="absolute inset-0 bg-black/30"></div>
+  </div>
+
+  <div class="relative z-10 max-w-5xl w-full mx-auto">
+    <div class="space-y-8 max-w-3xl text-left">
+      
       <!-- Headline -->
       <h1
         ref="headlineRef"
-        class="text-6xl md:text-8xl font-medium font-serif tracking-tight text-white leading-[1.05]"
+        class="text-5xl md:text-7xl font-medium font-serif tracking-tight text-white leading-[1.05]"
         style="opacity: 0;"
       >
-        <span id="hero-line1" class="block">Platform All-in-One</span>
-        <span id="hero-line2" class="block">
-          untuk <span class="italic text-white">Retail &amp; F&amp;B</span> modern
+        <span id="hero-line1" class="block">
+          Platform All-in-One
         </span>
+
+        <span id="hero-line2" class="block">
+          <span class="italic text-white">
+            Retail &amp; F&amp;B <span class="text-indigo-500">modern</span>
+            </span>
+          </span>
       </h1>
 
       <!-- Subheadline -->
-      <p class="text-lg md:text-xl text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed">
-        Manajemen bertenaga AI yang membantu Anda <br class="hidden md:block" />
+      <p
+        class="text-base md:text-lg text-zinc-400 font-medium max-w-xl leading-relaxed"
+      >
+        Manajemen bertenaga AI yang membantu Anda
         membangun bisnis lebih cepat dan terorganisir.
       </p>
 
       <!-- CTA Buttons -->
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+      <div class="flex flex-col sm:flex-row items-start gap-4 pt-2">
         <Button
-          class="h-12 px-8 rounded-full bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
+          class="h-12 px-8 bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-medium"
           @click="navigateToLogin"
         >
           Masuk
         </Button>
+
         <Button
           variant="ghost"
-          class="h-12 px-8 rounded-full border border-zinc-800 text-white hover:bg-zinc-900 transition-colors duration-300"
+          class="h-12 px-8 border border-zinc-800 text-white hover:bg-zinc-900 transition-colors duration-300"
         >
           Lihat Demo
         </Button>
       </div>
+
     </div>
-  </main>
+  </div>
+</main>
 </template>
 
 <style scoped>
 .hero-char,
 .hero-word {
   will-change: transform;
+}
+
+main {
+  font-family: 'Roobert', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+h1 {
+  font-family: 'Roobert', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 300 !important;
+  font-size: 80px !important;
+  line-height: 1.02 !important;
 }
 </style>
