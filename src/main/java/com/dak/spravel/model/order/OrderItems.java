@@ -45,10 +45,18 @@ public class OrderItems {
     @Column(nullable = false)
     private BigDecimal subtotal;
 
+    @Column(name = "item_discount_type")
+    private String itemDiscountType;
+
+    @Column(name = "item_discount_value")
+    private BigDecimal itemDiscountValue;
+
+    @Column(name = "item_discount_amount")
+    private BigDecimal itemDiscountAmount;
+
     @Column(name = "return_qty")
     private Long returnQty;
 
     @Column(name = "return_reason", columnDefinition = "TEXT")
     private String returnReason;
 }
-
