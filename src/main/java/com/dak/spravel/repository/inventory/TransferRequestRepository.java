@@ -2,11 +2,11 @@ package com.dak.spravel.repository.inventory;
 
 import java.util.List;
 import java.util.Optional;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.dak.spravel.model.inventory.TransferRequest;
@@ -28,4 +28,7 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
 
     @Query("SELECT tr FROM TransferRequest tr LEFT JOIN FETCH tr.items WHERE tr.id = :id")
     Optional<TransferRequest> findByIdWithItems(Long id);
+
+    @Query(value = "SELECT COUNT(*) FROM branch_warehouses WHERE branches_id = :branchId AND warehouses_id = :warehouseId", nativeQuery = true)
+    Object countBranchWarehouseLink(@Param("branchId") Long branchId, @Param("warehouseId") Long warehouseId);
 }

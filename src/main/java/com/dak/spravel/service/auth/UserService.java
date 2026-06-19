@@ -10,13 +10,11 @@ import com.dak.spravel.model.auth.Role;
 import com.dak.spravel.model.auth.User;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
-import com.dak.spravel.model.inventory.Warehouses;
 import com.dak.spravel.repository.auth.RoleRepository;
 import com.dak.spravel.repository.auth.TokenRepository;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.common.PartnerRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
-import com.dak.spravel.repository.inventory.WarehousesRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,14 +42,13 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final PermissionCacheService permissionCacheService;
     private final BranchesRepository branchesRepository;
-    private final WarehousesRepository warehousesRepository;
     private final PartnerRepository partnerRepository;
     private final TokenRepository tokenRepository;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
 
-    // ─── FILE SYSTEM UTILS ──────────────────────────────────────────────────
+    // ─── UTILS UNTUK MANAJEMEN FILE SISTEM ───────────────────────────────────
 
     private void deleteFileDisk(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return;
@@ -227,19 +224,6 @@ public class UserService {
                 throw new RuntimeException("Akses Ditolak: Cabang tidak sinkron dengan perusahaan target.");
             }
             user.setBranch(branch);
-            user.setWarehouse(null);
-        }
-
-        // ─── WAREHOUSE GUARD ───
-        if (request.getWarehouseId() != null) {
-            Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
-            
-            if (targetPartner != null && (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(targetPartner.getId()))) {
-                throw new RuntimeException("Akses Ditolak: Gudang tidak sinkron dengan perusahaan target.");
-            }
-            user.setWarehouse(warehouse);
-            user.setBranch(null);
         }
 
         return toResponse(userRepository.save(user));
@@ -290,7 +274,7 @@ public class UserService {
 
         Partners partnerContext = currentUser.getPartner() != null ? currentUser.getPartner() : user.getPartner();
 
-        // Mengosongkan Cabang
+        // Mengosongkan Cabang Kerja
         if (Boolean.TRUE.equals(request.getClearBranch())) {
             user.setBranch(null);
             Set<Role> stripped = user.getRoles().stream()
@@ -306,22 +290,6 @@ public class UserService {
             permissionCacheService.evict(user.getUsername());
         }
         
-        // Mengosongkan Gudang
-        if (Boolean.TRUE.equals(request.getClearWarehouse())) {
-            user.setWarehouse(null);
-            Set<Role> stripped = user.getRoles().stream()
-                    .filter(r -> {
-                        String slug = r.getSlug().toLowerCase();
-                        return !slug.equals("karyawan-gudang")
-                            && !slug.equals("staff-warehouse")
-                            && !slug.equals("pengelola-gudang")
-                            && !slug.equals("warehouse-manager");
-                    })
-                    .collect(java.util.stream.Collectors.toSet());
-            user.setRoles(stripped);
-            permissionCacheService.evict(user.getUsername());
-        }
-        
         // Update Cabang Kerja — otomatis assign role karyawan-cabang
         if (request.getBranchId() != null) {
             Branches branch = branchesRepository.findById(request.getBranchId())
@@ -330,7 +298,6 @@ public class UserService {
                 throw new RuntimeException("Cabang tidak cocok dengan tenant.");
             }
             user.setBranch(branch);
-            user.setWarehouse(null);
 
             boolean alreadyHasBranchRole = user.getRoles().stream().anyMatch(r -> {
                 String s = r.getSlug().toLowerCase();
@@ -339,31 +306,6 @@ public class UserService {
             });
             if (!alreadyHasBranchRole && !UserRoleUtil.hasPrivilegedRole(user)) {
                 roleRepository.findBySlug("karyawan-cabang").ifPresent(staffRole -> {
-                    Set<Role> newRoles = new HashSet<>(user.getRoles());
-                    newRoles.add(staffRole);
-                    user.setRoles(newRoles);
-                });
-            }
-            permissionCacheService.evict(user.getUsername());
-        }
-
-        // Update Gudang Kerja — otomatis assign role karyawan-gudang
-        if (request.getWarehouseId() != null) {
-            Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehouseId()));
-            if (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(partnerContext.getId())) {
-                throw new RuntimeException("Gudang tidak cocok dengan tenant.");
-            }
-            user.setWarehouse(warehouse);
-            user.setBranch(null);
-
-            boolean alreadyHasWarehouseRole = user.getRoles().stream().anyMatch(r -> {
-                String s = r.getSlug().toLowerCase();
-                return s.equals("karyawan-gudang") || s.equals("pengelola-gudang")
-                    || s.equals("staff-warehouse");
-            });
-            if (!alreadyHasWarehouseRole && !UserRoleUtil.hasPrivilegedRole(user)) {
-                roleRepository.findBySlug("karyawan-gudang").ifPresent(staffRole -> {
                     Set<Role> newRoles = new HashSet<>(user.getRoles());
                     newRoles.add(staffRole);
                     user.setRoles(newRoles);
@@ -403,7 +345,7 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
         if (currentUser.getId().equals(id)) {
-            throw new RuntimeException("Akses Ditolak: Tindakan bunuh diri ilegal! Anda dilarang menghapus akun sendiri wkwk.");
+            throw new RuntimeException("Akses Ditolak: Tindakan bunuh diri ilegal! Anda dilarang menghapus akun sendiri.");
         }
 
         if (currentUser.getPartner() != null) {
@@ -456,11 +398,6 @@ public class UserService {
         if (user.getBranch() != null) {
             res.setBranchId(user.getBranch().getId());
             res.setBranchName(user.getBranch().getName());
-        }
-
-        if (user.getWarehouse() != null) {
-            res.setWarehouseId(user.getWarehouse().getId());
-            res.setWarehouseName(user.getWarehouse().getName());
         }
 
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {

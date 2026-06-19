@@ -167,7 +167,7 @@ const modules = computed(() => {
   return keys.sort()
 })
 
-// Module Labels Translation for Owner view
+// Module Labels Translation for Owner view (Fallback automatically uses the raw backend key if not mapped)
 const MODULE_LABELS = {
   partner: 'Kemitraan (Partner)',
   branch: 'Manajemen Cabang',
@@ -191,54 +191,6 @@ const MODULE_LABELS = {
   order: 'Riwayat Pesanan',
   order_item: 'Item Pesanan',
   voucher: 'Manajemen Voucer & Diskon'
-}
-
-// Preset configurations for easy role creation for Owner
-const PRESETS = [
-  {
-    name: 'Admin Partner',
-    icon: UserCheck,
-    description: 'Akses penuh operasional kecuali modul rahasia pusat.',
-    modules: ['branch', 'warehouse', 'branch_warehouse', 'stock_balance', 'stock_mutation', 'stock_opname', 'category', 'produk', 'product_photo', 'role', 'user', 'dashboard', 'pos', 'report', 'transfer_request', 'purchase_order', 'purchase_receipt', 'supplier', 'order', 'order_item', 'voucher']
-  },
-  {
-    name: 'Kepala Cabang (Branch Manager)',
-    icon: Store,
-    description: 'Mengelola operasional cabang, penjualan POS, kasir, voucher, dan stok cabang.',
-    modules: ['branch', 'branch_warehouse', 'stock_balance', 'stock_mutation', 'stock_opname', 'category', 'produk', 'product_photo', 'pos', 'order', 'order_item', 'voucher']
-  },
-  {
-    name: 'Kepala Gudang (Warehouse Manager)',
-    icon: Warehouse,
-    description: 'Mengelola penerimaan produk dari supplier, pengadaan stok, dan gudang pusat.',
-    modules: ['warehouse', 'branch_warehouse', 'stock_balance', 'stock_mutation', 'stock_opname', 'transfer_request', 'purchase_order', 'purchase_receipt', 'supplier']
-  },
-  {
-    name: 'Kasir Utama',
-    icon: ShoppingCart,
-    description: 'Hanya diizinkan membuka sistem Kasir (POS), melihat produk, dan mencetak voucer.',
-    modules: ['pos', 'order', 'order_item', 'produk', 'category', 'voucher']
-  }
-]
-
-// Apply preset configuration instantly
-function applyPreset(preset) {
-  selectedPermIds.value = new Set()
-  
-  preset.modules.forEach(mod => {
-    // Select all permissions within this module
-    const list = permissionsMap.value[mod] || []
-    list.forEach(p => {
-      selectedPermIds.value.add(p.id)
-    })
-  })
-  
-  // Suggest a suitable Role Name
-  if (modalMode.value === 'create') {
-    form.value.name = preset.name
-    onNameInput()
-  }
-  toast.success(`Preset "${preset.name}" berhasil diterapkan!`)
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
@@ -282,12 +234,17 @@ function getPermission(module, action) {
   return list.find((p) => p.slug === `${module}.${action}`) || null
 }
 
+// Count total actions inside a specific module dynamically from API metadata
+function totalActionsInModule(module) {
+  return permissionsMap.value[module]?.length || 0
+}
+
 function isChecked(module, action) {
   const p = getPermission(module, action)
   return p ? selectedPermIds.value.has(p.id) : false
 }
 
-// Toggle single permission (Only for super admin mode)
+// Toggle single permission
 function togglePerm(module, action) {
   if (!canManage.value) return
   const p = getPermission(module, action)
@@ -301,17 +258,15 @@ function togglePerm(module, action) {
   selectedPermIds.value = next
 }
 
-// Toggle Simplified Module Checkbox: If checked, it populates all actions [index, show, store, update, delete]
+// Toggle Simplified Module Checkbox
 function toggleSimplifiedModule(module) {
   const list = permissionsMap.value[module] || []
   const allChecked = list.every((p) => selectedPermIds.value.has(p.id))
   const next = new Set(selectedPermIds.value)
   
   if (allChecked) {
-    // If all are checked, uncheck everything in this module
     list.forEach((p) => next.delete(p.id))
   } else {
-    // Check all actions inside this module completely
     list.forEach((p) => next.add(p.id))
   }
   selectedPermIds.value = next
@@ -430,7 +385,6 @@ async function doDelete(role) {
           </p>
         </div>
         
-        <!-- Bulk Delete -->
         <Button 
           v-if="selectedIds.length > 0" 
           variant="destructive" 
@@ -477,7 +431,6 @@ async function doDelete(role) {
           </div>
 
           <div v-else>
-            <!-- Mobile View List -->
             <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
               <div
                 v-for="role in paginatedRoles"
@@ -516,15 +469,19 @@ async function doDelete(role) {
                     </Button>
                   </div>
                 </div>
+                
                 <div class="flex items-center justify-between mt-1">
-                  <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Tipe Peran</span>
-                  <span v-if="role.slug.startsWith('partner-')" class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">Kustom</span>
-                  <span v-else class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">Bawaan</span>
+                  <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium border border-primary/10">
+                    <ShieldCheck class="h-2.5 w-2.5" />
+                    {{ permCountFor(role) }} hak akses
+                  </span>
+                  
+                  <span v-if="role.slug && role.slug.startsWith('partner-')" class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-100">Kustom Mitra</span>
+                  <span v-else class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">Bawaan Sistem</span>
                 </div>
               </div>
             </div>
 
-            <!-- Desktop Table View -->
             <div class="hidden md:block overflow-x-auto">
               <table class="w-full text-sm">
                 <thead>
@@ -562,7 +519,7 @@ async function doDelete(role) {
                     <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ role.name }}</td>
                     <td class="px-5 py-3 font-mono text-xs text-muted-foreground">{{ role.slug }}</td>
                     <td class="px-5 py-3">
-                      <span v-if="role.slug.startsWith('partner-')" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span v-if="role.slug && role.slug.startsWith('partner-')" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                         Kustom Mitra
                       </span>
                       <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
@@ -618,7 +575,6 @@ async function doDelete(role) {
       </Card>
     </div>
 
-    <!-- Drawer Panel -->
     <Teleport to="body">
       <Transition name="fade">
         <div
@@ -678,7 +634,6 @@ async function doDelete(role) {
                 <span class="text-sm text-muted-foreground">Memuat data hak akses…</span>
               </div>
 
-              <!-- 2. CONDITIONAL VIEW: OWNER SIMPLIFIED VIEW (v-if) -->
               <div v-else-if="isOwner" class="space-y-2">
                 <div class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Daftar Modul Operasional</div>
                 <div class="grid grid-cols-1 gap-2">
@@ -689,14 +644,13 @@ async function doDelete(role) {
                   >
                     <div class="flex flex-col">
                       <span class="font-semibold text-xs text-zinc-900 dark:text-zinc-50 capitalize">
-                        {{ MODULE_LABELS[module] || module }}
+                        {{ MODULE_LABELS[module] || module.replace('_', ' ') }}
                       </span>
                       <span class="text-[10px] text-zinc-400 font-mono mt-0.5">
-                        Meliputi hak akses: {{ module }}.[index, show, store, update, delete]
+                        Meliputi {{ totalActionsInModule(module) }} hak akses di modul ini
                       </span>
                     </div>
 
-                    <!-- Single Checkbox: Toggles ALL permissions in this module automatically! -->
                     <button 
                       type="button"
                       @click="toggleSimplifiedModule(module)"
@@ -714,7 +668,6 @@ async function doDelete(role) {
                 </div>
               </div>
 
-              <!-- 3. CONDITIONAL VIEW: DETAILED ACTION MATRIX FOR CENTRAL ADMINS (v-else) -->
               <div v-else class="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                 <div class="overflow-x-auto">
                   <table class="w-full text-xs">
@@ -729,7 +682,7 @@ async function doDelete(role) {
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
                       <tr v-for="module in modules" :key="module" class="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
-                        <td class="px-4 py-3 font-medium capitalize text-zinc-900 dark:text-zinc-100">{{ module }}</td>
+                        <td class="px-4 py-3 font-medium capitalize text-zinc-900 dark:text-zinc-100">{{ module.replace('_', ' ') }}</td>
                         <td v-for="action in ACTIONS" :key="action" class="px-2 py-4 text-center">
                           <div v-if="getPermission(module, action)" class="flex justify-center">
                             <button 

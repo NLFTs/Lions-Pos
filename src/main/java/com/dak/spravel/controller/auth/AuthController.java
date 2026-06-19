@@ -84,11 +84,6 @@ public class AuthController {
             me.setBranchName(user.getBranch().getName());
         }
 
-        if (user.getWarehouse() != null) {
-            me.setWarehouseId(user.getWarehouse().getId());
-            me.setWarehouseName(user.getWarehouse().getName());
-        }
-
         if (user.getPartner() != null) {
             me.setPartnerId(user.getPartner().getId());
             me.setPartnerName(user.getPartner().getName());

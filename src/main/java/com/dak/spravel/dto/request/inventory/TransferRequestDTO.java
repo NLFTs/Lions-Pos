@@ -14,20 +14,16 @@ public class TransferRequestDTO {
     private Long partnerId;
 
     @NotBlank(message = "From location type tidak boleh kosong")
-    @JsonProperty("from_location_type")
-    private String fromLocationType; // "branch" atau "warehouse"
+    private String fromLocationType;
 
 
     @NotNull(message = "From location ID tidak boleh kosong")
-    @JsonProperty("from_location_id")
     private Long fromLocationId;
 
     @NotBlank(message = "To location type tidak boleh kosong")
-    @JsonProperty("to_location_type")
     private String toLocationType;
 
     @NotNull(message = "To location ID tidak boleh kosong")
-    @JsonProperty("to_location_id")
     private Long toLocationId;
 
     private String notes; // opsional
