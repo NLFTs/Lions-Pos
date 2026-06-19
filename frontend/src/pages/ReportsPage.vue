@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import api from '@/lib/api'
 import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable' // 🌟 Baris impor tabel yang bersih
+import autoTable from 'jspdf-autotable'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -47,7 +47,20 @@ ChartJS.register(
 
 // --- Filter State ---
 const activeFilter = ref('30 hari')
-const filters = ['7 hari', '14 hari', '30 hari']
+const filters = ['7 hari', '14 hari', '30 hari', '3 bulan', '6 bulan', '1 tahun']
+
+// Filter cabang 
+const selectedBranchId = ref('all')
+const branches = ref([])
+
+async function fetchBranches() {
+  if (!isAdmin.value) return
+  try {
+    const res = await api.get('/api/v1/branches/admin')
+    const raw = res.data?.data
+    branches.value = Array.isArray(raw) ? raw : (raw?.content || [])
+  } catch { /* non-critical */ }
+}
 
 // --- Stats State ---
 const stats = ref([
@@ -107,11 +120,30 @@ const paymentDist = ref([
   { name: 'Transfer', percentage: 0, color: 'bg-blue-500' }
 ])
 
+// Perbandingan antar cabang
+const branchCompareData = ref({
+  labels: [],
+  datasets: [{
+    label: 'Omzet (juta)',
+    data: [],
+    backgroundColor: ['#0f172a', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#ec4899'],
+    borderRadius: 6,
+  }]
+})
+
 // ==========================================
 // 🛠️ TAMBAHAN: FUNGSI EKSPOR DATA CSV
 // ==========================================
 const exportToCSV = () => {
-  const days = parseInt(activeFilter.value)
+  const filterLabel = activeFilter.value
+  let days = 30
+  if (filterLabel === '7 hari') days = 7
+  else if (filterLabel === '14 hari') days = 14
+  else if (filterLabel === '30 hari') days = 30
+  else if (filterLabel === '3 bulan') days = 90
+  else if (filterLabel === '6 bulan') days = 180
+  else if (filterLabel === '1 tahun') days = 365
+
   const now = new Date()
   const filterDate = new Date()
   filterDate.setDate(now.getDate() - days)
@@ -256,9 +288,20 @@ async function fetchData() {
   }
 }
 function processData() {
-  const days = parseInt(activeFilter.value)
+  const filterLabel = activeFilter.value
   const now = new Date()
   const filterDate = new Date()
+
+  let days = 30
+  let groupByMonth = false
+
+  if (filterLabel === '7 hari') { days = 7 }
+  else if (filterLabel === '14 hari') { days = 14 }
+  else if (filterLabel === '30 hari') { days = 30 }
+  else if (filterLabel === '3 bulan') { days = 90; groupByMonth = true }
+  else if (filterLabel === '6 bulan') { days = 180; groupByMonth = true }
+  else if (filterLabel === '1 tahun') { days = 365; groupByMonth = true }
+
   filterDate.setDate(now.getDate() - days)
 
   // 🌟 Fungsi pembersih angka yang jauh lebih aman & fleksibel
@@ -274,7 +317,13 @@ function processData() {
   // Filter pesanan berdasarkan tanggal (Logika asli kamu yang sudah work)
   const filteredOrders = rawOrders.value.filter(o => {
     if (!o.createdAt) return false
-    return new Date(o.createdAt) >= filterDate
+    if (new Date(o.createdAt) < filterDate) return false
+    // Filter cabang jika dipilih
+    if (selectedBranchId.value !== 'all') {
+      const bId = o.branchId || o.branch?.id
+      if (String(bId) !== String(selectedBranchId.value)) return false
+    }
+    return true
   })
   
   // 1. Hitung Statistik Utama
@@ -305,13 +354,32 @@ function processData() {
     dateLabels.push(d.toISOString().split('T')[0])
   }
 
-  lineChartData.value.labels = dateLabels.map(d => d.split('-').slice(1).reverse().join('/'))
-  lineChartData.value.datasets[0].data = dateLabels.map(date => 
-    filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + safeNumber(o.total), 0) / 1000000
-  )
-  lineChartData.value.datasets[1].data = dateLabels.map(date => 
-    filteredOrders.filter(o => o.createdAt?.startsWith(date)).length
-  )
+  if (groupByMonth) {
+    // Group by month
+    const monthMap = {}
+    filteredOrders.forEach(o => {
+      if (!o.createdAt) return
+      const m = o.createdAt.slice(0, 7) // "2025-01"
+      if (!monthMap[m]) monthMap[m] = { revenue: 0, orders: 0 }
+      monthMap[m].revenue += safeNumber(o.total)
+      monthMap[m].orders += 1
+    })
+    const months = Object.keys(monthMap).sort()
+    lineChartData.value.labels = months.map(m => {
+      const [y, mo] = m.split('-')
+      return `${mo}/${y.slice(2)}`
+    })
+    lineChartData.value.datasets[0].data = months.map(m => monthMap[m].revenue / 1000000)
+    lineChartData.value.datasets[1].data = months.map(m => monthMap[m].orders)
+  } else {
+    lineChartData.value.labels = dateLabels.map(d => d.split('-').slice(1).reverse().join('/'))
+    lineChartData.value.datasets[0].data = dateLabels.map(date =>
+      filteredOrders.filter(o => o.createdAt?.startsWith(date)).reduce((sum, o) => sum + safeNumber(o.total), 0) / 1000000
+    )
+    lineChartData.value.datasets[1].data = dateLabels.map(date =>
+      filteredOrders.filter(o => o.createdAt?.startsWith(date)).length
+    )
+  }
 
   // 3. Distribusi Metode Pembayaran
   const cashCount = filteredOrders.filter(o => {
@@ -375,6 +443,21 @@ function processData() {
 
   barChartData.value.labels = sortedCats.map(c => c[0])
   barChartData.value.datasets[0].data = sortedCats.map(c => c[1] / 1000000)
+
+  // 6. Perbandingan omzet antar cabang (hanya saat 'all' atau admin)
+  if (isAdmin.value) {
+    const branchRevMap = {}
+    rawOrders.value.filter(o => {
+      if (!o.createdAt) return false
+      return new Date(o.createdAt) >= filterDate
+    }).forEach(o => {
+      const bName = o.branchName || o.branch?.name || 'Tanpa Cabang'
+      branchRevMap[bName] = (branchRevMap[bName] || 0) + safeNumber(o.total)
+    })
+    const sortedBranches = Object.entries(branchRevMap).sort((a, b) => b[1] - a[1]).slice(0, 7)
+    branchCompareData.value.labels = sortedBranches.map(b => b[0])
+    branchCompareData.value.datasets[0].data = sortedBranches.map(b => b[1] / 1000000)
+  }
 }
 
 function formatCurrency(v) {
@@ -382,7 +465,11 @@ function formatCurrency(v) {
 }
 
 watch(activeFilter, processData)
-onMounted(fetchData)
+watch(selectedBranchId, processData)
+onMounted(async () => {
+  await fetchBranches()
+  fetchData()
+})
 
 const lineChartOptions = {
   responsive: true,
@@ -419,6 +506,7 @@ const barChartOptions = {
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
+          <!-- Filter periode -->
           <div class="flex items-center bg-zinc-100/80 dark:bg-zinc-900/80 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800 backdrop-blur-sm">
             <button 
               v-for="filter in filters" 
@@ -432,6 +520,13 @@ const barChartOptions = {
               {{ filter }}
             </button>
           </div>
+
+          <select v-if="isAdmin && branches.length > 0"
+            v-model="selectedBranchId"
+            class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 text-zinc-700 dark:text-zinc-300 transition-colors">
+            <option value="all">Semua Cabang</option>
+            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+          </select>
 
           <div class="flex items-center gap-2">
             <button @click="exportToCSV" class="flex items-center gap-2 px-4 py-2 text-[11px] font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm group">
@@ -527,6 +622,19 @@ const barChartOptions = {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div v-if="isAdmin && branchCompareData.labels.length > 0"
+        class="bg-card border border-zinc-100 dark:border-zinc-800/60 rounded-2xl p-8 shadow-sm">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h3 class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em] mb-1.5">PERBANDINGAN</h3>
+            <h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-50">Omzet per Cabang</h2>
+          </div>
+        </div>
+        <div class="h-[280px] w-full">
+          <Bar :data="branchCompareData" :options="barChartOptions" />
         </div>
       </div>
 

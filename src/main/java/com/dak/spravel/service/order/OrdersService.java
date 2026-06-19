@@ -294,60 +294,71 @@ public class OrdersService {
         ordersRepository.save(savedOrder);
 
         // Payment Processing Engine Gateway
-        if (request.getPayment() != null) {
-            Payments payment = new Payments();
-            payment.setOrder(savedOrder);
-            payment.setMethod(Payments.Method.valueOf(request.getPayment().getMethod().toUpperCase()));
-            payment.setAmount(savedOrder.getTotal());
+        List<OrdersRequest.PaymentRequest> paymentRequests = new java.util.ArrayList<>();
+        if (request.getPayments() != null && !request.getPayments().isEmpty()) {
+            paymentRequests.addAll(request.getPayments());
+        } else if (request.getPayment() != null) {
+            paymentRequests.add(request.getPayment());
+        }
 
-            if (request.getPayment().getMethod().equalsIgnoreCase("CASH")) {
-                BigDecimal cashTendered = request.getPayment().getCashTendered();
+        if (!paymentRequests.isEmpty()) {
+            // Validasi total split payment harus >= total order
+            BigDecimal totalPaid = paymentRequests.stream()
+                    .map(p -> p.getAmount() != null ? p.getAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                if (cashTendered == null) {
-                    throw new RuntimeException("Jumlah uang tunai (Cash Tendered) wajib diisi.");
-                }
-
-                if (cashTendered.compareTo(savedOrder.getTotal()) < 0) {
-                    throw new RuntimeException("Gagal: Jumlah uang tunai yang dibayarkan tidak mencukupi.");
-                }
-
-                payment.setCashTendered(cashTendered);
-                payment.setChangeDue(cashTendered.subtract(savedOrder.getTotal()));
-                payment.setStatus(Payments.Status.VERIFIED);
-                savedOrder.setStatus(Orders.PaymentStatus.PAID);
-
-                // POTONG STOK REAL-TIME HANYA JIKA METODE TUNAI LUNAS (CASH PAID)
-                for (OrderItems item : orderItems) {
-                    stockBalanceService.adjustStock(item.getProduct().getId(), "BRANCH", branch.getId(), -item.getQty());
-                    stockMutationService.recordMutation(
-                            item.getProduct(), partner, "SALE_OUT",
-                            "BRANCH", branch.getId(), null, null,
-                            item.getQty(), "ORDER", savedOrder.getId(),
-                            "Penjualan Kasir Order #" + savedOrder.getOrderNumber(), currentUser);
-                }
-
-            } else if (request.getPayment().getMethod().equalsIgnoreCase("TRANSFER")) {
-                payment.setCashTendered(BigDecimal.ZERO);
-                payment.setChangeDue(BigDecimal.ZERO);
-                payment.setBankName(request.getPayment().getBankName());
-                payment.setReferenceNo(request.getPayment().getReferenceNo());
-                payment.setStatus(Payments.Status.PENDING);
-                
-                // Invoice transfer tetap DRAFT sampai divalidasi manual di back-office. Stok berkurang pas verifikasi.
-                savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
-
-            } else {
-                throw new RuntimeException("Metode pembayaran tidak valid.");
+            if (totalPaid.compareTo(savedOrder.getTotal()) < 0) {
+                throw new RuntimeException("Total pembayaran (" + totalPaid + ") kurang dari total order (" + savedOrder.getTotal() + ").");
             }
 
-            payment.setCreatedAt(LocalDateTime.now());
-            payment.setOrder(savedOrder);
-            paymentsRepository.save(payment);
-            
+            boolean allCashVerified = true;
             if (savedOrder.getPayments() == null) {
                 savedOrder.setPayments(new HashSet<>());
             }
-            savedOrder.getPayments().add(payment);
+
+            for (OrdersRequest.PaymentRequest payReq : paymentRequests) {
+                Payments payment = new Payments();
+                payment.setOrder(savedOrder);
+                payment.setMethod(Payments.Method.valueOf(payReq.getMethod().toUpperCase()));
+                payment.setAmount(payReq.getAmount() != null ? payReq.getAmount() : BigDecimal.ZERO);
+
+                if (payReq.getMethod().equalsIgnoreCase("CASH")) {
+                    BigDecimal cashTendered = payReq.getCashTendered();
+                    if (cashTendered == null) cashTendered = payReq.getAmount();
+                    payment.setCashTendered(cashTendered);
+                    payment.setChangeDue(cashTendered.subtract(payReq.getAmount()).max(BigDecimal.ZERO));
+                    payment.setStatus(Payments.Status.VERIFIED);
+                } else if (payReq.getMethod().equalsIgnoreCase("TRANSFER")) {
+                    payment.setCashTendered(BigDecimal.ZERO);
+                    payment.setChangeDue(BigDecimal.ZERO);
+                    payment.setBankName(payReq.getBankName());
+                    payment.setReferenceNo(payReq.getReferenceNo());
+                    payment.setStatus(Payments.Status.PENDING);
+                    allCashVerified = false;
+                } else {
+                    throw new RuntimeException("Metode pembayaran tidak valid: " + payReq.getMethod());
+                }
+
+                payment.setCreatedAt(LocalDateTime.now());
+                paymentsRepository.save(payment);
+                savedOrder.getPayments().add(payment);
+            }
+
+            if (allCashVerified) {
+                savedOrder.setStatus(Orders.PaymentStatus.PAID);
+                // Potong stok jika semua lunas tunai
+                for (OrderItems orderItem : orderItems) {
+                    stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", branch.getId(), -orderItem.getQty());
+                    stockMutationService.recordMutation(
+                            orderItem.getProduct(), partner, "SALE_OUT",
+                            "BRANCH", branch.getId(), null, null,
+                            orderItem.getQty(), "ORDER", savedOrder.getId(),
+                            "Penjualan Kasir Order #" + savedOrder.getOrderNumber(), currentUser);
+                }
+            } else {
+                savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
+            }
+
             ordersRepository.save(savedOrder);
         }
 

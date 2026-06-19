@@ -520,15 +520,117 @@ async function fetchPartnerLocations() {
   }
 }
 
+//  Notifikasi Real-time
+const notifications = ref([])
+const showNotifPanel = ref(false)
+const LOW_STOCK_THRESHOLD = 5
+let notifPollingInterval = null
+
+const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+
+async function fetchNotifications() {
+  // Tidak perlu fetch jika super admin global
+  if (!auth.user?.partnerId && auth.isAdmin) return
+  try {
+    const [stockRes, ordersRes] = await Promise.all([
+      api.get('/api/v1/stock-balances').catch(() => null),
+      api.get('/api/v1/orders').catch(() => null),
+    ])
+
+    const newNotifs = []
+
+    // Cek stok hampir habis
+    if (stockRes) {
+      const balances = stockRes.data?.data || []
+      const branchBalances = balances.filter(b =>
+        (b.locationType || '').toUpperCase() === 'BRANCH' && b.qty !== null
+      )
+      branchBalances.forEach(b => {
+        if (b.qty <= 0) {
+          newNotifs.push({
+            id: `stock-out-${b.id}`,
+            type: 'error',
+            title: 'Stok Habis',
+            message: `${b.product?.name} di ${b.locationType} sudah habis.`,
+            time: new Date(),
+            read: false,
+            to: '/dashboard/stock-balances'
+          })
+        } else if (b.qty <= LOW_STOCK_THRESHOLD) {
+          newNotifs.push({
+            id: `stock-low-${b.id}`,
+            type: 'warning',
+            title: 'Stok Hampir Habis',
+            message: `${b.product?.name} tersisa ${b.qty} pcs.`,
+            time: new Date(),
+            read: false,
+            to: '/dashboard/stock-balances'
+          })
+        }
+      })
+    }
+
+    // Cek order transfer pending
+    if (ordersRes && (auth.isAdmin || isOwnerPartner.value)) {
+      const orders = ordersRes.data?.data || []
+      const pendingTransfers = orders.filter(o =>
+        o.payments?.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')
+      )
+      if (pendingTransfers.length > 0) {
+        newNotifs.push({
+          id: `transfer-pending-${pendingTransfers.length}`,
+          type: 'info',
+          title: 'Transfer Menunggu Konfirmasi',
+          message: `${pendingTransfers.length} order transfer belum dikonfirmasi.`,
+          time: new Date(),
+          read: false,
+          to: '/dashboard/orders'
+        })
+      }
+    }
+
+    // Simpan yang belum ada (berdasarkan id), preserve read status
+    const existingIds = new Set(notifications.value.map(n => n.id))
+    newNotifs.forEach(n => {
+      if (!existingIds.has(n.id)) {
+        notifications.value.unshift(n)
+      }
+    })
+    // Hapus notif yang sudah tidak relevan
+    notifications.value = notifications.value.filter(n =>
+      newNotifs.some(nn => nn.id === n.id)
+    )
+  } catch { /* silent */ }
+}
+
+function markAllRead() {
+  notifications.value.forEach(n => n.read = true)
+}
+
+function clearNotifications() {
+  notifications.value = []
+}
+
+function startNotificationPolling() {
+  fetchNotifications()
+  notifPollingInterval = setInterval(fetchNotifications, 60000) // setiap 1 menit
+}
+
+function stopNotificationPolling() {
+  if (notifPollingInterval) clearInterval(notifPollingInterval)
+}
+
 onMounted(() => {
   expandActiveParents()
   window.addEventListener('keydown', handleGlobalKeydown)
   auth.fetchMe()
   fetchPartnerLocations()
+  startNotificationPolling()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  stopNotificationPolling()
 })
 
 function isLocationActive(type, id) {
@@ -980,16 +1082,79 @@ function isLocationActive(type, id) {
           {{ currentPageTitle }}
         </div>
 
-        <!-- Right: Language + Help -->
         <div class="flex items-center justify-end gap-3 w-1/3">
+          <div class="relative">
+            <button
+              @click="showNotifPanel = !showNotifPanel"
+              class="relative p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
+              title="Notifikasi"
+            >
+              <Bell class="w-4 h-4" :class="unreadCount > 0 ? 'text-primary' : ''" />
+              <span v-if="unreadCount > 0"
+                class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center leading-none">
+                {{ unreadCount > 9 ? '9+' : unreadCount }}
+              </span>
+            </button>
 
-          <!-- Help Button -->
-          <button
-            class="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
-            title="Help"
-          >
-            <Bell class="w-4 h-4" />
-          </button>
+            <div v-if="showNotifPanel" class="fixed inset-0 z-40" @click="showNotifPanel = false" />
+
+            <Transition name="notif-panel">
+              <div v-if="showNotifPanel"
+                class="absolute right-0 top-full mt-2 z-50 w-[340px] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                  <div class="flex items-center gap-2">
+                    <Bell class="w-3.5 h-3.5 text-zinc-500" />
+                    <span class="text-[13px] font-bold">Notifikasi</span>
+                    <span v-if="unreadCount > 0" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                      {{ unreadCount }} baru
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button v-if="notifications.length > 0" @click="markAllRead"
+                      class="text-[10px] font-semibold text-primary hover:underline">
+                      Tandai semua dibaca
+                    </button>
+                    <button v-if="notifications.length > 0" @click="clearNotifications"
+                      class="text-[10px] font-semibold text-zinc-400 hover:text-red-500">
+                      Hapus semua
+                    </button>
+                  </div>
+                </div>
+
+                <div class="max-h-[380px] overflow-y-auto">
+                  <div v-if="notifications.length === 0"
+                    class="flex flex-col items-center justify-center py-10 text-zinc-400 gap-2">
+                    <Bell class="w-8 h-8 opacity-20" />
+                    <p class="text-xs font-medium">Tidak ada notifikasi</p>
+                  </div>
+                  <div v-for="n in notifications" :key="n.id"
+                    @click="router.push(n.to || '#'); showNotifPanel = false; n.read = true"
+                    :class="['flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-zinc-100 dark:border-zinc-800/60 last:border-0',
+                      n.read ? 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40' : 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20']">
+                    <div :class="['w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
+                      n.type === 'error' ? 'bg-red-100 dark:bg-red-900/30' :
+                      n.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                      'bg-blue-100 dark:bg-blue-900/30']">
+                      <svg v-if="n.type === 'error' || n.type === 'warning'" class="w-4 h-4"
+                        :class="n.type === 'error' ? 'text-red-500' : 'text-amber-500'"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      <Bell v-else class="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[12px] font-bold text-zinc-900 dark:text-zinc-100">{{ n.title }}</p>
+                      <p class="text-[11px] text-zinc-500 mt-0.5 leading-snug">{{ n.message }}</p>
+                    </div>
+                    <div v-if="!n.read" class="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                  </div>
+                </div>
+                <div v-if="notifications.length > 0" class="px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                  <p class="text-[10px] text-zinc-400 text-center">Diperbarui setiap 1 menit</p>
+                </div>
+              </div>
+            </Transition>
+          </div>
         </div>
       </header>
 
@@ -1058,5 +1223,14 @@ function isLocationActive(type, id) {
 /* Smooth transitions */
 html {
   transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+/* Notification panel transition */
+.notif-panel-enter-active, .notif-panel-leave-active {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.notif-panel-enter-from, .notif-panel-leave-to {
+  opacity: 0;
+  transform: scale(0.97) translateY(-6px);
 }
 </style>
