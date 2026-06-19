@@ -150,13 +150,6 @@ public class StockMutationService {
                         (m.getFromLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getFromLocationId())) ||
                         (m.getToLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getToLocationId()))
                     ).toList();
-        } else if (currentUser.getWarehouse() != null) {
-            Long warehouseId = currentUser.getWarehouse().getId();
-            data = data.stream()
-                    .filter(m ->
-                        (m.getFromLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getFromLocationId())) ||
-                        (m.getToLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getToLocationId()))
-                    ).toList();
         }
 
         return data.stream().map(this::mapToResponse).toList();
@@ -180,13 +173,6 @@ public class StockMutationService {
                     .filter(m ->
                         (m.getFromLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getFromLocationId())) ||
                         (m.getToLocationType() == StockMutation.Location.BRANCH && branchId.equals(m.getToLocationId()))
-                    ).toList();
-        } else if (currentUser.getWarehouse() != null) {
-            Long warehouseId = currentUser.getWarehouse().getId();
-            all = all.stream()
-                    .filter(m ->
-                        (m.getFromLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getFromLocationId())) ||
-                        (m.getToLocationType() == StockMutation.Location.WAREHOUSE && warehouseId.equals(m.getToLocationId()))
                     ).toList();
         }
 

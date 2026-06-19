@@ -177,26 +177,6 @@ public class PartnerSeeder {
             userRepository.save(u);
         });
 
-        // ── 4f. User Gudang: gudangnlfts ──────────────────────────────────────
-        // 1. Ambil template pengelola-gudang dari seeder template
-        var templateGudang = PartnerRoleTemplateSeeder.TEMPLATES.stream()
-            .filter(t -> t.slug().equals("pengelola-gudang"))
-            .findFirst()
-            .orElseThrow(() -> new RuntimeException("Template pengelola-gudang tidak ditemukan"));
-
-        // 2. Buat role spesifik untuk partner ini berdasarkan template tersebut
-        Role roleGudangAsli = createPartnerRoleIfNotExists(
-            templateGudang.slug(),
-            templateGudang.name(),
-            partner,
-            adminPartner,
-            templateGudang.perms() // Mengambil String[] permissions dari record template
-        );
-
-        createWarehouseUserIfNotExists(
-            "gudangnlfts", "Pengelola Gudang Pusat NLFTs", "gudang@nlfts.co.id",
-            "12345678", partner, gudang, roleGudangAsli);
-
         // ── 5. Branch ↔ Warehouse mapping ────────────────────────────────────
         if (!branchWarehousesRepository.existsByBranchesAndWarehouses(cabang, gudang)) {
             BranchWarehouses bw = new BranchWarehouses();
@@ -472,25 +452,6 @@ public class PartnerSeeder {
     /**
      * Buat user gudang dengan role per-partner (bukan role global).
      */
-    private User createWarehouseUserIfNotExists(String username, String fullname, String email,
-            String rawPassword, Partners partner, Warehouses warehouse, Role role) {
-        Optional<User> existing = userRepository.findByUsername(username);
-        if (existing.isPresent()) {
-            log.info("[PartnerSeeder] User '{}' sudah ada, skip.", username);
-            return existing.get();
-        }
-
-        User user = new User();
-        user.setUsername(username);
-        user.setFullname(fullname);
-        user.setEmail(email);
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setPartner(partner);
-        user.setWarehouse(warehouse);
-        user.setRoles(new HashSet<>());
-        user.getRoles().add(role);
-        return userRepository.save(user);
-    }
 
     /**
      * Buat role per-partner dengan permission slugs yang diberikan.

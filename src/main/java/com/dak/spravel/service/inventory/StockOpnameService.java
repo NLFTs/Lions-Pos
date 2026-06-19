@@ -106,12 +106,6 @@ public class StockOpnameService {
                             && user.getBranch().getId().equals(o.getLocationId()))
                     .toList();
         }
-        if (user.getWarehouse() != null) {
-            return data.stream()
-                    .filter(o -> "WAREHOUSE".equalsIgnoreCase(o.getLocation())
-                            && user.getWarehouse().getId().equals(o.getLocationId()))
-                    .toList();
-        }
         return data; // owner/admin partner: lihat semua
     }
 
@@ -123,11 +117,7 @@ public class StockOpnameService {
             if (!"BRANCH".equalsIgnoreCase(locationType) || !user.getBranch().getId().equals(locationId)) {
                 throw new RuntimeException("Akses Ditolak: Opname ini bukan milik cabang Anda.");
             }
-        } else if (user.getWarehouse() != null) {
-            if (!"WAREHOUSE".equalsIgnoreCase(locationType) || !user.getWarehouse().getId().equals(locationId)) {
-                throw new RuntimeException("Akses Ditolak: Opname ini bukan milik gudang Anda.");
-            }
-        }
+        } 
     }
 
     // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────

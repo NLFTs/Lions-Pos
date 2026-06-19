@@ -66,23 +66,6 @@ public class WarehousesController {
         return ResponseBuilder.ok(warehousesService.update(id, request));
     }
     
-    @GetMapping("/{id}/users")
-    @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<List<com.dak.spravel.dto.response.UserResponse>>> getUsersByWarehouse(@PathVariable Long id) {
-        log.info("[GET] /api/v1/warehouses/{}/users", id);
-        return ResponseBuilder.ok(warehousesService.getUsersByWarehouse(id));
-    }
-
-    @PutMapping("/{id}/manager")
-    @PreAuthorize("hasAuthority('warehouse.update')")
-    public ResponseEntity<ResData<WarehouseResponse>> transferManager(
-            @PathVariable Long id,
-            @RequestBody java.util.Map<String, Long> body) {
-        Long newManagerId = body.get("userId");
-        log.info("[PUT] /api/v1/warehouses/{}/manager userId={}", id, newManagerId);
-        return ResponseBuilder.ok(warehousesService.transferManager(id, newManagerId));
-    }
-
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('warehouse.index')")
     public ResponseEntity<ResData<Page<WarehouseResponse>>> findPageByPartner(

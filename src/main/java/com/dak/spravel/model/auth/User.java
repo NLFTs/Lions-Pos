@@ -2,7 +2,6 @@ package com.dak.spravel.model.auth;
 
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.model.inventory.Branches;
-import com.dak.spravel.model.inventory.Warehouses;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
@@ -51,10 +50,6 @@ public class User {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", referencedColumnName = "id")
     private Branches branch;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "warehouse_id", referencedColumnName = "id")
-    private Warehouses warehouse;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
