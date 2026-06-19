@@ -194,25 +194,53 @@ public class StockBalanceService {
 
     public List<StockBalanceResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.index"); // Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index"); 
 
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll().stream().map(this::mapToResponse).toList();
         }
+        
         return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId()).stream()
                 .map(this::mapToResponse).toList();
     }
 
     public Page<StockBalanceResponse> findAll(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.index"); // Cukup cek permission slug
+        checkPermission(currentUser, "stock_balance.index");
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll(pageable).map(this::mapToResponse);
         }
+
+        List<String> roleSlugs = currentUser.getRoles().stream()
+                .map(role -> role.getSlug().toLowerCase())
+                .toList();
+
+    if (roleSlugs.stream().anyMatch(slug -> slug.contains("warehouse") || slug.contains("pengelola-gudang"))) {
+            if (currentUser.getWarehouse() == null) {
+                throw new RuntimeException("Akses ditolak: anda tidak terasosiasi gudang");
+            }
+
+            return stockBalanceRepository.findByLocationTypeAndLocationId("WAREHOUSE", 
+                currentUser.getWarehouse().getId(), 
+                pageable).
+                map(this::mapToResponse);
+        }
+
+        if (roleSlugs.stream().anyMatch(slug -> slug.contains("cabang") || slug.contains("pengelola-cabang"))) {
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Akses ditolak: anda tidak terasosiasi cabang");
+            }
+
+            return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", 
+                currentUser.getBranch().getId(), 
+                pageable).
+                map(this::mapToResponse);
+        }
+
         return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageable)
-                .map(this::mapToResponse);
+                    .map(this::mapToResponse);
     }
 
     public List<StockLocationSummaryResponse> findStockSummary() {
@@ -261,6 +289,7 @@ public class StockBalanceService {
     public StockBalanceResponse findById(Long id) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.show");
+        
         return mapToResponse(getValidatedStockBalance(id, currentUser));
     }
 
@@ -340,7 +369,7 @@ public class StockBalanceService {
     @Transactional
     public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_balance.store"); // Hilang sudah barier kaku employee!
+        checkPermission(currentUser, "stock_balance.store"); 
 
         Partners partner = currentUser.getPartner();
         validateLocation(request.getLocationType(), request.getLocationId(), partner);
@@ -389,7 +418,6 @@ public class StockBalanceService {
 
     @Transactional
     public void adjustStock(Long productId, String locationType, Long locationId, Long adjustment) {
-        // Method internal/sistem (biasanya dipicu dari transaksi kasir/opname yang udah lolos auth controller)
         StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                 productId, locationType.toUpperCase(), locationId
         ).orElseThrow(() -> new RuntimeException("Stock tidak ditemukan untuk product id=" + productId));

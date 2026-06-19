@@ -23,8 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 
+import lombok.RequiredArgsConstructor;
 /**
  * Provides full CRUD operations for roles plus permission assignment
  * and available permissions listing. Purely decoupled from authentication layer.
@@ -34,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/api/v1/roles")
 @RequiredArgsConstructor
 public class RoleController {
+    
     private final RoleService roleService;
 
     /**

@@ -14,7 +14,7 @@ import Alert from '@/components/ui/Alert.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import api from '@/lib/api'
 import {
-  Plus, Trash2, Loader2, ArrowLeft, Warehouse,
+  Plus, Trash2, Loader2, ArrowLeft, Warehouse, Building2,
   MapPin, Shield, Check, Users, ArrowRightLeft, KeyRound,
   UserCheck, UserX
 } from 'lucide-vue-next'
@@ -45,6 +45,13 @@ const pageSize         = ref(10)
 const selectedIds      = ref([])
 const selectedWarehouse = ref(null)
 const detailLoading    = ref(false)
+
+// ─── Relational Many-to-Many State (Gudang -> Cabang) ─────────────────────────
+const linkedBranches       = ref([]) // Holds linked BranchWarehouses data
+const allBranchesList      = ref([]) // All branches belonging to partner for assign options
+const assignBranchId       = ref(null)
+const assignBranchSaving   = ref(false)
+const assignBranchError    = ref(null)
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredWarehouses = computed(() => {
@@ -102,6 +109,12 @@ const availableForTransfer = computed(() => {
   })
 })
 
+// Filter out branches that are already connected to this warehouse
+const branchesAvailableToLink = computed(() => {
+  const linkedIds = linkedBranches.value.map(item => item.branches?.id)
+  return allBranchesList.value.filter(b => !linkedIds.includes(b.id))
+})
+
 watch([searchQuery, page, pageSize], () => { selectedIds.value = [] })
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
@@ -128,6 +141,30 @@ async function fetchWarehouseUsers(whId) {
   } catch (err) {
     console.error('[Warehouse] gagal fetch users:', err.response?.data || err.message)
     warehouseUsers.value = []
+  }
+}
+
+// Fetch linked branches via the many-to-many relationship table
+async function fetchLinkedBranches(whId) {
+  try {
+    const res = await api.get(`/api/v1/branch-warehouses/warehouse/${whId}`)
+    linkedBranches.value = res.data?.data || res.data || []
+  } catch (err) {
+    console.error('[Warehouse] Gagal memuat cabang terkait:', err)
+    linkedBranches.value = []
+  }
+}
+
+// Fetch all branches of the partner for mapping select choices
+async function fetchAllBranchesList() {
+  try {
+    const url = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
+    const res = await api.get(url)
+    const raw = res.data?.data || res.data || []
+    allBranchesList.value = Array.isArray(raw) ? raw : (raw?.content || [])
+  } catch (err) {
+    console.error('[Warehouse] Gagal memuat semua daftar cabang:', err)
+    allBranchesList.value = []
   }
 }
 
@@ -172,7 +209,15 @@ async function openDetail(w) {
   addStaffId.value = null
   addStaffError.value = null
   activePanel.value = 'info'
-  await Promise.all([fetchWarehouseUsers(w.id), fetchAllUsers(), fetchRoles()])
+  
+  // Simultaneously fetch user context, roles, and relational branches
+  await Promise.all([
+    fetchWarehouseUsers(w.id),
+    fetchAllUsers(),
+    fetchRoles(),
+    fetchLinkedBranches(w.id),
+    fetchAllBranchesList()
+  ])
   detailLoading.value = false
 }
 
@@ -247,11 +292,6 @@ function openCreate() {
   createErrors.value = {}; createError.value = null
   view.value = 'create'; fetchRoles()
 }
-function toggleRole(id) {
-  const idx = createForm.value.roleIds.indexOf(id)
-  if (idx === -1) createForm.value.roleIds.push(id)
-  else createForm.value.roleIds.splice(idx, 1)
-}
 function validateCreate() {
   createErrors.value = {}
   let ok = true
@@ -262,30 +302,63 @@ function validateCreate() {
 }
 async function saveWarehouse() {
   if (!validateCreate()) return
-    createSaving.value = true
-    createError.value = null
-    try {
-      await api.post('/api/v1/warehouses', {
-        name: createForm.value.name,
-        address: createForm.value.address,
-        username: createForm.value.username,
-        password: createForm.value.password,
-      })
-      toast.success('Gudang berhasil ditambahkan!')
-      view.value = 'list'
-      fetchWarehouses()
-    } catch (err) {
-      createError.value = err.response?.data?.message || 'Gagal menyimpan gudang.'
-    } finally {
-      createSaving.value = false
-    }
+  createSaving.value = true
+  createError.value = null
+  try {
+    await api.post('/api/v1/warehouses', {
+      name: createForm.value.name,
+      address: createForm.value.address,
+      username: createForm.value.username,
+      password: createForm.value.password,
+    })
+    toast.success('Gudang berhasil ditambahkan!')
+    view.value = 'list'
+    fetchWarehouses()
+  } catch (err) {
+    createError.value = err.response?.data?.message || 'Gagal menyimpan gudang.'
+  } finally {
+    createSaving.value = false
+  }
+}
+
+// ─── Relational Many-to-Many Assign / Unassign Cabang ───────────────────────
+async function doAssignBranch() {
+  if (!assignBranchId.value) return
+  assignBranchError.value = null
+  assignBranchSaving.value = true
+  try {
+    await api.post('/api/v1/branch-warehouses', {
+      branchesId: assignBranchId.value,
+      warehousesId: selectedWarehouse.value.id
+    })
+    toast.success('Cabang berhasil dihubungkan dengan gudang ini!')
+    assignBranchId.value = null
+    await fetchLinkedBranches(selectedWarehouse.value.id)
+  } catch (err) {
+    assignBranchError.value = err.response?.data?.message || 'Gagal menghubungkan cabang.'
+  } finally {
+    assignBranchSaving.value = false
+  }
+}
+
+async function doUnassignBranch(relationId) {
+  const ok = await confirm({
+    title: 'Putus Hubungan Cabang',
+    description: 'Apakah Anda yakin ingin memutuskan hubungan cabang dengan gudang ini?',
+    confirmLabel: 'Putuskan',
+    cancelLabel: 'Batal'
+  })
+  if (!ok) return
+  try {
+    await api.delete(`/api/v1/branch-warehouses/${relationId}`)
+    toast.success('Hubungan cabang berhasil diputuskan!')
+    await fetchLinkedBranches(selectedWarehouse.value.id)
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal memutuskan hubungan cabang.')
+  }
 }
 
 // ─── Add Staff to Warehouse ───────────────────────────────────────────────────
-// User tersedia untuk ditambahkan ke gudang:
-// - Bukan owner/admin
-// - Belum di gudang manapun dan belum di cabang manapun
-// - Karyawan cabang (punya role karyawan-cabang) tidak bisa masuk gudang
 const staffAvailable = computed(() => {
   return allUsers.value.filter(u => {
     const isOwner = (u.roles || []).some(r =>
@@ -540,9 +613,9 @@ onMounted(fetchWarehouses)
 
               <!-- Roles — hanya tampil jika username diisi -->
               <div class="mt-3 flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                  <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <svg class="h-3 w-3 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
+                <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <svg class="h-3 w-3 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
                 <p class="text-xs text-primary font-medium">Role <span class="font-bold">Pengelola Gudang</span> akan diberikan otomatis ke akun ini.</p>
               </div>
             </CardContent>
@@ -573,9 +646,9 @@ onMounted(fetchWarehouses)
             </Button>
           </div>
 
-          <!-- Tabs -->
+          <!-- Tabs (Include "Cabang Terkait" (branches) for managing relational links) -->
           <div class="flex gap-1 p-1 bg-muted/50 dark:bg-zinc-900/50 rounded-lg w-fit border border-border overflow-x-auto">
-            <button v-for="tab in [{id:'info',label:'Info'},{id:'staff',label:'Karyawan'},{id:'transfer',label:'Transfer Pengelola'},{id:'credentials',label:'Ubah Kredensial'}]"
+            <button v-for="tab in [{id:'info',label:'Info'},{id:'staff',label:'Karyawan'},{id:'branches',label:'Cabang Terkait'},{id:'transfer',label:'Transfer Pengelola'},{id:'credentials',label:'Ubah Kredensial'}]"
               :key="tab.id" @click="activePanel = tab.id"
               class="px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap"
               :class="activePanel === tab.id ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'">
@@ -662,6 +735,77 @@ onMounted(fetchWarehouses)
                   <div class="flex justify-end">
                     <Button @click="doAddStaff" :disabled="!addStaffId || addStaffSaving" class="bg-primary hover:bg-primary/90 gap-2">
                       <Loader2 v-if="addStaffSaving" class="h-4 w-4 animate-spin" /><Plus v-else class="h-4 w-4" /> Tambah ke Gudang
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <!-- TAB CABANG TERKAIT (Many-to-Many Connection Manager) -->
+            <div v-else-if="activePanel === 'branches'" class="flex flex-col gap-4 max-w-2xl">
+              <!-- Linked Branches List -->
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-semibold text-foreground">Cabang yang Terhubung</p>
+                <Badge variant="secondary">{{ linkedBranches.length }} cabang</Badge>
+              </div>
+              <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <CardContent class="p-0">
+                  <div v-if="linkedBranches.length === 0" class="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <Building2 class="h-7 w-7 opacity-30 mb-2" />
+                    <p class="text-sm">Gudang ini belum dihubungkan ke cabang manapun.</p>
+                  </div>
+                  <div v-else class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                    <div v-for="item in linkedBranches" :key="item.id" class="flex items-center justify-between gap-3 px-4 py-3.5">
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm shrink-0">
+                          {{ item.branches?.name?.charAt(0).toUpperCase() }}
+                        </div>
+                        <div>
+                          <p class="font-semibold text-sm text-zinc-900 dark:text-zinc-50">{{ item.branches?.name }}</p>
+                          <p class="text-xs text-muted-foreground max-w-md truncate">{{ item.branches?.address || 'Belum ada alamat' }}</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" class="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/5 shrink-0" @click="doUnassignBranch(item.id)">
+                        <UserX class="h-3.5 w-3.5 mr-1" /> Putus Hubungan
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <!-- Relate a New Branch Section -->
+              <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <CardContent class="p-5 space-y-4">
+                  <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hubungkan Cabang Baru</p>
+                  <Alert v-if="assignBranchError" variant="destructive">{{ assignBranchError }}</Alert>
+                  
+                  <div v-if="branchesAvailableToLink.length === 0" class="text-sm text-muted-foreground italic py-2">
+                    Semua cabang partner telah terhubung dengan gudang ini.
+                  </div>
+                  <div v-else class="rounded-lg border border-input overflow-hidden max-h-60 overflow-y-auto">
+                    <div class="divide-y divide-border">
+                      <button v-for="b in branchesAvailableToLink" :key="b.id" type="button" 
+                        @click="assignBranchId = assignBranchId === b.id ? null : b.id"
+                        class="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left outline-none"
+                        :class="assignBranchId === b.id ? 'bg-primary/5' : ''">
+                        <div class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
+                          {{ b.name?.charAt(0).toUpperCase() }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <p class="font-medium text-sm text-zinc-900 dark:text-zinc-100">{{ b.name }}</p>
+                          <p class="text-xs text-muted-foreground truncate">{{ b.address || 'Belum ada alamat' }}</p>
+                        </div>
+                        <div class="h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all" 
+                          :class="assignBranchId === b.id ? 'border-primary' : 'border-zinc-300 dark:border-zinc-600'">
+                          <div v-if="assignBranchId === b.id" class="w-2 h-2 rounded-full bg-primary" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex justify-end">
+                    <Button @click="doAssignBranch" :disabled="!assignBranchId || assignBranchSaving" class="bg-primary hover:bg-primary/90 gap-2">
+                      <Loader2 v-if="assignBranchSaving" class="h-4 w-4 animate-spin" />
+                      <Plus v-else class="h-4 w-4" /> Hubungkan Cabang
                     </Button>
                   </div>
                 </CardContent>
@@ -766,3 +910,23 @@ onMounted(fetchWarehouses)
     </Teleport>
   </AppLayout>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.scale-enter-active,
+.scale-leave-active {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+}
+.scale-enter-from,
+.scale-leave-to {
+  transform: scale(0.95);
+  opacity: 0;
+}
+</style>
