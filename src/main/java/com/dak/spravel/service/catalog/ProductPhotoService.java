@@ -153,6 +153,7 @@ public class ProductPhotoService {
         photo.setUrl(request.getUrl());
         photo.setIsPrimary(request.getIsPrimary() != null ? request.getIsPrimary() : false);
         photo.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
+        photo.setCreatedBy(currentUser);
 
         return productPhotoRepository.save(photo);
     }

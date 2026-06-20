@@ -141,13 +141,9 @@ public class BranchWarehousesService {
         Warehouses warehouse = warehousesRepository.findById(request.getWarehousesId())
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse", request.getWarehousesId()));
 
-        // Validasi kepemilikan relasi data (hanya jika dia staff partner, super admin bypass)
         if (partner != null) {
             if (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId())) {
                 throw new RuntimeException("Branch bukan milik partner Anda.");
-            }
-            if (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(partner.getId())) {
-                throw new RuntimeException("Warehouse bukan milik partner Anda.");
             }
         }
 

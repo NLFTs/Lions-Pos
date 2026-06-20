@@ -14,7 +14,6 @@ import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -232,7 +231,7 @@ public class BranchesService {
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }
@@ -245,7 +244,7 @@ public class BranchesService {
         Branches branch = getValidatedBranch(id, currentUser);
         branch.setIsActive(false);
         branch.setDeletedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setDeletedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }
@@ -258,7 +257,7 @@ public class BranchesService {
         Branches branch = getValidatedBranch(id, currentUser);
         branch.setIsActive(true);
         branch.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }

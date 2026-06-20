@@ -218,6 +218,7 @@ public class PurchaseOrderService {
         po.setExpectedDate(request.getExpectedDate());
         po.setNotes(request.getNotes());
         po.setStatus(PurchaseOrder.Status.DRAFT);
+        po.setCreatedBy(currentUser);
 
         PurchaseOrder saved = purchaseOrderRepository.save(po);
 
@@ -259,6 +260,7 @@ public class PurchaseOrderService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setStatus(PurchaseOrder.Status.valueOf(status.toUpperCase()));
+        po.setUpdatedBy(currentUser);
         return purchaseOrderRepository.save(po);
     }
 
@@ -272,6 +274,7 @@ public class PurchaseOrderService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setDeletedAt(LocalDateTime.now());
+        po.setDeletedBy(currentUser);
         purchaseOrderRepository.save(po);
     }
 

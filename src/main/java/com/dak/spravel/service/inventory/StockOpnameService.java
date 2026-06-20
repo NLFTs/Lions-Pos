@@ -277,6 +277,8 @@ public class StockOpnameService {
                 item.setQtyPhysical(physical);
                 item.setQtyDifference(physical - systemQty);
                 item.setNotes(dto.getNotes());
+                item.setCountedBy(currentUser);
+                item.setCountedAt(LocalDateTime.now());
 
                 items.add(item);
             }
