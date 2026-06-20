@@ -320,7 +320,7 @@ async function updateTRStatus(id, newStatus) {
 
 const handleOutsideClick = (e) => {
   if (!e.target.closest('.custom-select-from')) showFromDropdown.value = false
-  if (!e.target.closest('.custom-select-to')) showToDropdown = false
+  if (!e.target.closest('.custom-select-to')) showToDropdown.value = false
   form.value.items.forEach((_, i) => {
     if (!e.target.closest(`.custom-select-prod-${i}`)) {
       showProductDropdowns.value[i] = false
