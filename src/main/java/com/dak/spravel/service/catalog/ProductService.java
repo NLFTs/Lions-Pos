@@ -16,7 +16,6 @@ import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductPhotoRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -266,7 +265,7 @@ public class ProductService {
         }
 
         product.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(product);
+        product.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(productRepository.save(product));
     }
@@ -280,7 +279,7 @@ public class ProductService {
         product.setIsActive(false);
 
         product.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(product);
+        product.setUpdatedAt(LocalDateTime.now());
         return mapToResponse(productRepository.save(product));
     }
 
@@ -293,7 +292,7 @@ public class ProductService {
         product.setIsActive(true);
 
         product.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(product);
+        product.setUpdatedAt(LocalDateTime.now());
         return mapToResponse(productRepository.save(product));
     }
 
@@ -306,20 +305,20 @@ public class ProductService {
         product.setTrackStock(true);
 
         product.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(product);
+        product.setUpdatedAt(LocalDateTime.now());
         return mapToResponse(productRepository.save(product));
     }
 
     @Transactional
     public ProductResponse setFalseTrackStock(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.update"); // Diubah murni ke permission update 
+        checkPermission(currentUser, "produk.update"); 
 
         Product product = getValidatedProduct(id, currentUser);
         product.setTrackStock(false);
 
         product.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(product);
+        product.setUpdatedAt(LocalDateTime.now());
         return mapToResponse(productRepository.save(product));
     }
 
