@@ -41,6 +41,10 @@ import {
   Building2,
   Handshake,
   Bell,
+  Truck,
+  ClipboardList,
+  PackageSearch,
+  Repeat2,
   Clock,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
