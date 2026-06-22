@@ -204,6 +204,17 @@ export const routes = [
     },
   },
   {
+    path: '/dashboard/shifts',
+    name: 'shifts',
+    component: () => import('@/pages/ShiftsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'shift.index',
+      pageTitle: 'Riwayat Shift',
+      pageSubtitle: 'Lihat riwayat shift dan omzet per kasir.',
+    },
+  },
+  {
     path: '/dashboard/suppliers',
     name: 'suppliers',
     component: () => import('@/pages/SuppliersPage.vue'),
@@ -270,6 +281,12 @@ export const routes = [
     },
   },
 
+  {
+    path: '/receipt/:orderNumber',
+    name: 'receipt',
+    component: () => import('@/pages/ReceiptPage.vue'),
+    // Tidak butuh auth — halaman publik untuk pelanggan
+  },
   {
     path: '/about',
     name: 'about',

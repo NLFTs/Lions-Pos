@@ -31,7 +31,7 @@ public class OrderItemsService {
     private final OrdersRepository ordersRepository;
     private final UserRepository userRepository;
 
-    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    //  PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS)
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

@@ -8,12 +8,13 @@ import {
   Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
   Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
   Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin, Tag, Percent, AlertTriangle,
-  Clock, Pause, Play
+  Clock, Pause, Play, LogIn, LogOut, UserCheck, MessageSquare, Star, Target, TrendingUp
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/lib/api'
 import StrukPrint from '@/components/StrukPrint.vue'
+import ShiftModal from '@/components/ShiftModal.vue'
 
 const { toast } = useToast()
 const authStore = useAuthStore()
@@ -44,10 +45,141 @@ const loading = ref(false)
 const processingCheckout = ref(false)
 const lastOrder = ref(null)
 const showReceipt = ref(false)
+const struk = ref(null) // ref ke komponen StrukPrint
 
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
 const cart = ref([])
+
+// ─── Produk Favorit ──────────────────────────────────────────────────────────
+const topProducts = ref([])
+const loadingTop = ref(false)
+const showFavorites = ref(false)
+
+async function fetchTopProducts() {
+  loadingTop.value = true
+  try {
+    const res = await api.get('/api/v1/orders')
+    const data = res.data?.data ?? res.data
+    const all = Array.isArray(data) ? data : (data?.content || [])
+    // Hitung frekuensi per produk dari semua order PAID
+    const freq = {}
+    all.filter(o => o.status?.toUpperCase() === 'PAID').forEach(o => {
+      (o.items || []).forEach(i => {
+        const key = i.productId || i.product?.id
+        if (!key) return
+        if (!freq[key]) freq[key] = { id: key, name: i.productName, count: 0 }
+        freq[key].count += (i.qty || 1)
+      })
+    })
+    topProducts.value = Object.values(freq)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8)
+  } catch {
+    topProducts.value = []
+  } finally {
+    loadingTop.value = false
+  }
+}
+
+// ─── Sales Target ─────────────────────────────────────────────────────────────
+const salesTarget = ref(Number(localStorage.getItem('pos_sales_target') || '0'))
+const showTargetEdit = ref(false)
+const targetInput = ref('')
+const currentMonthRevenue = ref(0)
+
+const targetProgress = computed(() => {
+  if (!salesTarget.value || salesTarget.value <= 0) return 0
+  return Math.min(100, Math.round((currentMonthRevenue.value / salesTarget.value) * 100))
+})
+
+async function fetchMonthRevenue() {
+  try {
+    const res = await api.get('/api/v1/orders')
+    const data = res.data?.data ?? res.data
+    const all = Array.isArray(data) ? data : (data?.content || [])
+    const now = new Date()
+    const revenue = all
+      .filter(o => {
+        if (o.status?.toUpperCase() !== 'PAID') return false
+        const d = o.createdAt ? new Date(o.createdAt) : null
+        return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      })
+      .reduce((s, o) => s + (Number(o.total) || 0), 0)
+    currentMonthRevenue.value = revenue
+  } catch { /* silent */ }
+}
+
+function saveTarget() {
+  const v = Number(targetInput.value.replace(/\D/g, ''))
+  salesTarget.value = v
+  localStorage.setItem('pos_sales_target', String(v))
+  showTargetEdit.value = false
+  targetInput.value = ''
+}
+
+// ─── Note per item ───────────────────────────────────────────────────────────
+const openItemNoteId = ref(null)
+
+function toggleItemNote(item) {
+  openItemNoteId.value = openItemNoteId.value === item.id ? null : item.id
+}
+
+// ─── Shift State ─────────────────────────────────────────────────────────────
+const activeShift = ref(null)
+const loadingShift = ref(false)
+const showShiftModal = ref(false)
+const shiftModalMode = ref('open') // 'open' | 'close'
+const closedShiftResult = ref(null) // data shift yang baru ditutup, untuk ringkasan
+
+async function fetchActiveShift() {
+  if (!selectedBranchId.value) return
+  loadingShift.value = true
+  try {
+    const res = await api.get(`/api/v1/shifts/active?branchId=${selectedBranchId.value}`)
+    activeShift.value = res.data?.data || null
+  } catch {
+    activeShift.value = null
+  } finally {
+    loadingShift.value = false
+  }
+}
+
+function openShiftModal(mode) {
+  shiftModalMode.value = mode
+  showShiftModal.value = true
+}
+
+async function handleShiftSubmitted(form) {
+  if (!selectedBranchId.value) { toast.error('Pilih cabang terlebih dahulu.'); return }
+  loadingShift.value = true
+  try {
+    if (shiftModalMode.value === 'open') {
+      const res = await api.post('/api/v1/shifts/open', {
+        branchId: selectedBranchId.value,
+        startingCash: form.startingCash ?? 0,
+        notes: form.notes || null,
+      })
+      activeShift.value = res.data?.data
+      toast.success('Shift berhasil dibuka!')
+      showShiftModal.value = false
+    } else {
+      const res = await api.patch(`/api/v1/shifts/${activeShift.value.id}/close`, {
+        closingNotes: form.closingNotes || null,
+      })
+      const d = res.data?.data
+      activeShift.value = null
+      closedShiftResult.value = d   // simpan ke state — ShiftModal akan tampilkan ringkasan
+      toast.success('Shift ditutup. Omzet berhasil dihitung!')
+      // modal TIDAK ditutup di sini — biarkan ShiftModal tampilkan halaman ringkasan
+    }
+  } catch (err) {
+    const msg = err.response?.data?.data?.message || err.response?.data?.message || err.message || 'Gagal proses shift.'
+    toast.error(msg)
+  } finally {
+    loadingShift.value = false
+  }
+}
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 async function fetchData() {
@@ -115,6 +247,8 @@ async function fetchData() {
 onMounted(() => {
   fetchData()
   fetchTodayOrders()
+  fetchTopProducts()
+  fetchMonthRevenue()
   document.addEventListener('click', handleBranchOutsideClick)
 })
 
@@ -125,6 +259,7 @@ onBeforeUnmount(() => {
 watch(selectedBranchId, (newId) => {
   if (newId) {
     fetchStockBalances(newId)
+    fetchActiveShift()
     showStockWarning.value = true
   }
 })
@@ -243,6 +378,7 @@ function addToCart(product) {
       qty: 1,
       itemDiscountType: 'FLAT',
       itemDiscountValue: 0,
+      itemNote: '',
     })
   }
 }
@@ -649,82 +785,7 @@ async function confirmTransferFromReceipt() {
 }
 
 function printReceipt() {
-  if (!lastOrder.value) return
-  const o = lastOrder.value
-  const pay = o.payments?.[0]
-  const isCash = pay?.method === 'CASH'
-  const items = (o.items || []).map(i =>
-    `<tr>
-      <td style="padding:1px 0;max-width:140px;word-break:break-word">${i.productName || 'Produk'}</td>
-      <td style="padding:1px 4px;text-align:center;white-space:nowrap">${i.qty}</td>
-      <td style="padding:1px 0;text-align:right;white-space:nowrap">${fmt(i.subtotal)}</td>
-    </tr>`
-  ).join('')
-
-  const html = `<!DOCTYPE html><html><head>
-    <meta charset="utf-8"/>
-    <title>Struk - ${o.orderNumber}</title>
-    <style>
-      @page { size: 80mm auto; margin: 4mm; }
-      * { box-sizing: border-box; }
-      body { font-family: 'Courier New', monospace; font-size: 11px; color: #000; width: 72mm; margin: 0 auto; }
-      .center { text-align: center; }
-      .bold { font-weight: bold; }
-      .lg { font-size: 14px; }
-      .divider { border-top: 1px dashed #000; margin: 4px 0; }
-      table { width: 100%; border-collapse: collapse; }
-      th { font-weight: bold; border-bottom: 1px solid #000; padding: 2px 0; }
-      .total-row td { font-weight: bold; font-size: 13px; padding-top: 4px; }
-    </style>
-  </head><body>
-    <div class="center bold lg">${o.branchName || 'KASIR'}</div>
-    <div class="center" style="font-size:10px;margin-bottom:2px">${o.branchName || ''}</div>
-    <div class="divider"></div>
-    <div style="font-size:10px">
-      <div>No. Order : <b>${o.orderNumber}</b></div>
-      <div>Tanggal   : ${new Date(o.createdAt).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
-      <div>Kasir     : ${o.cashierName || '-'}</div>
-      ${o.buyerName ? `<div>Pembeli   : ${o.buyerName}</div>` : ''}
-    </div>
-    <div class="divider"></div>
-    <table>
-      <thead><tr>
-        <th style="text-align:left">Item</th>
-        <th>Qty</th>
-        <th style="text-align:right">Total</th>
-      </tr></thead>
-      <tbody>${items}</tbody>
-    </table>
-    <div class="divider"></div>
-    <table>
-      <tr><td>Subtotal</td><td style="text-align:right">${fmt(o.subtotal)}</td></tr>
-      ${o.discountAmount > 0 ? `<tr><td>Diskon</td><td style="text-align:right">-${fmt(o.discountAmount)}</td></tr>` : ''}
-      <tr class="total-row"><td>TOTAL</td><td style="text-align:right">${fmt(o.total)}</td></tr>
-    </table>
-    ${isCash ? `
-    <div class="divider"></div>
-    <table>
-      <tr><td>Tunai</td><td style="text-align:right">${fmt(pay.cashTendered)}</td></tr>
-      <tr class="total-row"><td>Kembalian</td><td style="text-align:right">${fmt(pay.changeDue)}</td></tr>
-    </table>` : `
-    <div class="divider"></div>
-    <div style="font-size:10px">
-      <div>Metode : Transfer Bank</div>
-      ${pay?.bankName ? `<div>Bank   : ${pay.bankName}</div>` : ''}
-      ${pay?.referenceNo ? `<div>Ref.   : ${pay.referenceNo}</div>` : ''}
-    </div>`}
-    <div class="divider"></div>
-    <div class="center" style="font-size:10px;margin-top:4px">Terima kasih atas kunjungan Anda</div>
-    <div class="center bold" style="font-size:11px;margin:4px 0;letter-spacing:2px">${o.orderNumber}</div>
-    <div class="center" style="font-size:9px;color:#555">**** Simpan struk ini sebagai bukti ****</div>
-  </body></html>`
-
-  const win = window.open('', '_blank', 'width=340,height=600')
-  if (!win) { toast.error('Pop-up diblokir browser. Izinkan pop-up untuk mencetak struk.'); return }
-  win.document.write(html)
-  win.document.close()
-  win.focus()
-  setTimeout(() => { win.print(); win.close() }, 350)
+  struk.value?.doPrint()
 }
 
 function fmt(v) {
@@ -805,7 +866,8 @@ async function checkout() {
         unitPrice: getItemUnitPrice(item),
         itemDiscountType: getItemDiscountPerUnit(item) > 0 ? item.itemDiscountType : null,
         itemDiscountValue: getItemDiscountPerUnit(item) > 0 ? Number(item.itemDiscountValue) : null,
-        itemDiscountAmount: getItemDiscountTotal(item)
+        itemDiscountAmount: getItemDiscountTotal(item),
+        itemNote: item.itemNote?.trim() || null,
       })),
     }
 
@@ -893,7 +955,37 @@ function avatarStyle(name = '') {
               <p class="text-xs text-zinc-500 font-medium mt-0.5">Point of Sale System v2.0</p>
             </div>
             
-            <div ref="branchDropdownRef" class="relative">
+            <!-- Shift Status Badge + Button -->
+            <div class="flex items-center gap-2">
+              <div v-if="loadingShift" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 text-[11px] font-bold">
+                <Loader2 class="h-3 w-3 animate-spin" /> Memuat shift...
+              </div>
+              <template v-else>
+                <!-- Shift Aktif -->
+                <div v-if="activeShift" class="flex items-center gap-2">
+                  <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30">
+                    <UserCheck class="h-3.5 w-3.5 text-emerald-500" />
+                    <span class="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">{{ activeShift.cashierUsername }}</span>
+                    <span class="text-[10px] text-emerald-500/70 font-medium">· shift aktif</span>
+                  </div>
+                  <button
+                    @click="openShiftModal('close')"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200/60 dark:border-red-800/30 text-red-600 dark:text-red-400 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                  >
+                    <LogOut class="h-3.5 w-3.5" /> Tutup Shift
+                  </button>
+                </div>
+                <!-- Tidak Ada Shift -->
+                <button
+                  v-else
+                  @click="openShiftModal('open')"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold transition-colors shadow-sm shadow-emerald-500/30"
+                >
+                  <LogIn class="h-3.5 w-3.5" /> Buka Shift
+                </button>
+              </template>
+
+              <div ref="branchDropdownRef" class="relative">
               
               <div 
                 v-if="authStore.user?.branchId"
@@ -940,7 +1032,11 @@ function avatarStyle(name = '') {
                 </div>
               </Transition>
             </div>
+            <!-- end branchDropdownRef -->
           </div>
+          <!-- end flex items-center gap-2 (shift + branch) -->
+          </div>
+          <!-- end flex items-center justify-between header -->
           
           <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
             <div class="flex-1 flex items-center pl-3">
@@ -992,20 +1088,106 @@ function avatarStyle(name = '') {
             </div>
           </Transition>
 
+          <!-- Sales Target Widget -->
+          <div v-if="salesTarget > 0 || showTargetEdit" class="mb-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 px-4 py-3">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-1.5">
+                <Target class="h-3.5 w-3.5 text-primary shrink-0" />
+                <span class="text-[11px] font-bold text-zinc-700 dark:text-zinc-200">Target Bulan Ini</span>
+              </div>
+              <button @click="showTargetEdit = !showTargetEdit; targetInput = salesTarget ? String(salesTarget) : ''"
+                class="text-[10px] font-bold text-zinc-400 hover:text-primary transition-colors px-2 py-0.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                {{ showTargetEdit ? 'Batal' : 'Ubah' }}
+              </button>
+            </div>
+            <template v-if="showTargetEdit">
+              <div class="flex gap-2">
+                <div class="relative flex-1">
+                  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-black text-zinc-400">Rp</span>
+                  <input v-model="targetInput" type="text" inputmode="numeric" placeholder="0"
+                    @input="e => targetInput = e.target.value.replace(/\D/g,'')"
+                    class="pl-8 h-8 w-full text-[12px] font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+                <button @click="saveTarget" class="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold">Simpan</button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="flex items-end justify-between mb-1.5">
+                <span class="text-[13px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(currentMonthRevenue) }}</span>
+                <span class="text-[11px] font-bold" :class="targetProgress >= 100 ? 'text-emerald-500' : 'text-zinc-400'">
+                  {{ targetProgress }}% dari {{ formatCurrency(salesTarget) }}
+                </span>
+              </div>
+              <div class="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all duration-700"
+                  :class="targetProgress >= 100 ? 'bg-emerald-500' : targetProgress >= 75 ? 'bg-primary' : targetProgress >= 50 ? 'bg-amber-400' : 'bg-red-400'"
+                  :style="{ width: targetProgress + '%' }"></div>
+              </div>
+              <p v-if="targetProgress >= 100" class="text-[10px] font-bold text-emerald-500 mt-1">🎉 Target bulan ini tercapai!</p>
+            </template>
+          </div>
+          <button v-else @click="showTargetEdit = true"
+            class="mb-3 w-full flex items-center justify-center gap-1.5 h-8 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 text-[11px] font-bold text-zinc-400 hover:text-primary hover:border-primary transition-colors">
+            <Target class="h-3.5 w-3.5" /> Set Target Omzet Bulan Ini
+          </button>
+
           <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+            <!-- Tab Favorit -->
+            <button
+              :class="['px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all border flex items-center gap-1.5',
+                showFavorites
+                  ? 'bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20'
+                  : 'bg-white border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 hover:bg-zinc-50']"
+              @click="showFavorites = !showFavorites; if(showFavorites && topProducts.length === 0) fetchTopProducts()">
+              <Star class="h-3 w-3" /> Favorit
+            </button>
             <button v-for="cat in uniqueCategories" :key="cat"
               class="px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all border"
-              :class="activeCategory === cat ? 'bg-zinc-900 border-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 shadow-md shadow-zinc-900/20' : 'bg-white border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 hover:bg-zinc-50'"
-              @click="activeCategory = cat">
+              :class="!showFavorites && activeCategory === cat ? 'bg-zinc-900 border-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 shadow-md shadow-zinc-900/20' : 'bg-white border-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-400 hover:bg-zinc-50'"
+              @click="showFavorites = false; activeCategory = cat">
               {{ cat }}
             </button>
           </div>
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+        <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
              <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3 text-primary" />
              <p class="text-[13px] font-medium italic">Menghubungkan ke sistem...</p>
+          </div>
+          <div v-else-if="showFavorites">
+            <div v-if="loadingTop" class="h-full flex flex-col items-center justify-center py-16 text-zinc-400 gap-3">
+              <Loader2 class="h-8 w-8 animate-spin opacity-20" />
+              <p class="text-[13px] font-medium">Memuat produk terlaris...</p>
+            </div>
+            <div v-else-if="topProducts.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-400 gap-2">
+              <Star class="h-10 w-10 opacity-20" />
+              <p class="text-[13px] font-medium">Belum ada data penjualan untuk analisis</p>
+            </div>
+            <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
+              <div v-for="(top, idx) in topProducts" :key="top.id"
+                class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden border border-amber-200/60 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                @click="addToCart(products.find(p => p.id == top.id) || { id: top.id, name: top.name, base_price: 0 })">
+                <!-- Rank badge -->
+                <div class="absolute top-2 left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black"
+                  :class="idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-zinc-300 text-zinc-700' : idx === 2 ? 'bg-amber-600 text-white' : 'bg-zinc-100 text-zinc-500'">
+                  {{ idx + 1 }}
+                </div>
+                <div v-if="getCartQty(top.id) > 0" class="absolute top-2 right-2 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
+                  {{ getCartQty(top.id) }}
+                </div>
+                <div class="aspect-square bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                  <span class="text-2xl font-black text-amber-600 dark:text-amber-400 opacity-80 uppercase">{{ top.name.charAt(0) }}</span>
+                </div>
+                <div class="p-3 flex flex-col gap-1">
+                  <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 line-clamp-2 leading-tight">{{ top.name }}</h4>
+                  <p class="text-[10px] font-bold text-amber-600 dark:text-amber-400">{{ top.count }}× terjual</p>
+                  <p class="text-[13px] font-black text-zinc-900 dark:text-white mt-auto">
+                    {{ formatCurrency(products.find(p => p.id == top.id)?.base_price || products.find(p => p.id == top.id)?.basePrice || products.find(p => p.id == top.id)?.price || 0) }}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
           <div v-else-if="filteredProducts.length === 0" class="h-full flex flex-col items-center justify-center text-zinc-400">
             <ShoppingBag class="h-12 w-12 opacity-20 mb-3" />
@@ -1199,6 +1381,17 @@ function avatarStyle(name = '') {
       <Tag class="h-3.5 w-3.5" />
     </button>
     <button
+      @click="toggleItemNote(item)"
+      :class="['p-1.5 rounded-lg transition-colors',
+        openItemNoteId === item.id
+          ? 'bg-blue-500 text-white'
+          : item.itemNote
+            ? 'bg-blue-100 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400'
+            : 'text-zinc-300 hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20']"
+      title="Catatan item">
+      <MessageSquare class="h-3.5 w-3.5" />
+    </button>
+    <button
       @click="removeFromCart(item)"
       class="p-1.5 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
       title="Hapus item">
@@ -1206,6 +1399,18 @@ function avatarStyle(name = '') {
     </button>
   </div>
 </div>
+
+                <div v-if="openItemNoteId === item.id" class="bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl p-2.5">
+                  <textarea
+                    v-model="item.itemNote"
+                    rows="2"
+                    placeholder="Catatan khusus item ini... (cth: tanpa bawang, extra pedas)"
+                    class="w-full text-[12px] font-medium rounded-lg border border-blue-200 dark:border-blue-800/40 bg-white dark:bg-zinc-800 px-2.5 py-2 outline-none focus:ring-2 focus:ring-blue-300/40 resize-none font-sans"
+                  />
+                  <p v-if="item.itemNote" class="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-1">
+                    ✓ Catatan akan tercetak di struk
+                  </p>
+                </div>
 
                 <div v-if="openItemDiscountId === item.id" class="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-xl p-2.5 flex flex-col gap-2">
                   <div class="flex rounded-[10px] bg-white dark:bg-zinc-800 p-0.5 border border-orange-100 dark:border-orange-800/30">
@@ -1611,10 +1816,23 @@ function avatarStyle(name = '') {
       </Transition>
     </Teleport>
     <StrukPrint
+      ref="struk"
       v-if="lastOrder"
       :order="lastOrder"
       :branch-name="selectedBranch?.name"
       store-name="Gaptek"
+    />
+
+    <!-- Shift Modal -->
+    <ShiftModal
+      :show="showShiftModal"
+      :mode="shiftModalMode"
+      :branch-id="selectedBranchId"
+      :branch-name="selectedBranch?.name || authStore.user?.branchName"
+      :active-shift="activeShift"
+      :closed-shift="closedShiftResult"
+      @close="showShiftModal = false; closedShiftResult = null"
+      @submitted="handleShiftSubmitted"
     />
   </AppLayout>
 </template>

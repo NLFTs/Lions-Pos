@@ -33,6 +33,7 @@ public class OrdersRequest {
         private String itemDiscountType;
         private BigDecimal itemDiscountValue;
         private BigDecimal itemDiscountAmount;
+        private String itemNote;
     }
 
     @Data

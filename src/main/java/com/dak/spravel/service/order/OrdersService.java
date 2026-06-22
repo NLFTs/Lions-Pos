@@ -240,6 +240,7 @@ public class OrdersService {
     item.setItemDiscountValue(itemReq.getItemDiscountValue());
     item.setItemDiscountAmount(lineDiscount);
     item.setSubtotal(lineGross.subtract(lineDiscount));
+    item.setItemNote(itemReq.getItemNote());
 
     subtotal = subtotal.add(item.getSubtotal());
     orderItems.add(item);
@@ -320,7 +321,7 @@ public class OrdersService {
                 throw new RuntimeException("Total pembayaran (" + totalPaid + ") kurang dari total order (" + savedOrder.getTotal() + ").");
             }
 
-            boolean allCashVerified = true;
+            boolean hasTransfer = false;
             if (savedOrder.getPayments() == null) {
                 savedOrder.setPayments(new HashSet<>());
             }
@@ -343,7 +344,7 @@ public class OrdersService {
                     payment.setBankName(payReq.getBankName());
                     payment.setReferenceNo(payReq.getReferenceNo());
                     payment.setStatus(Payments.Status.PENDING);
-                    allCashVerified = false;
+                    hasTransfer = true;
                 } else {
                     throw new RuntimeException("Metode pembayaran tidak valid: " + payReq.getMethod());
                 }
@@ -353,20 +354,19 @@ public class OrdersService {
                 savedOrder.getPayments().add(payment);
             }
 
-            if (allCashVerified) {
-                savedOrder.setStatus(Orders.PaymentStatus.PAID);
-                // Potong stok jika semua lunas tunai
-                for (OrderItems orderItem : orderItems) {
-                    stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", branch.getId(), -orderItem.getQty());
-                    stockMutationService.recordMutation(
-                            orderItem.getProduct(), partner, "SALE_OUT",
-                            "BRANCH", branch.getId(), null, null,
-                            orderItem.getQty(), "ORDER", savedOrder.getId(),
-                            "Penjualan Kasir Order #" + savedOrder.getOrderNumber(), currentUser);
-                }
-            } else {
-                savedOrder.setStatus(Orders.PaymentStatus.DRAFT);
+            for (OrderItems orderItem : orderItems) {
+                stockBalanceService.adjustStock(orderItem.getProduct().getId(), "BRANCH", branch.getId(), -orderItem.getQty());
+                stockMutationService.recordMutation(
+                        orderItem.getProduct(), partner, "SALE_OUT",
+                        "BRANCH", branch.getId(), null, null,
+                        orderItem.getQty(), "ORDER", savedOrder.getId(),
+                        "Penjualan Kasir Order #" + savedOrder.getOrderNumber()
+                                + (hasTransfer ? " (menunggu konfirmasi transfer)" : ""),
+                        currentUser);
             }
+
+            // Status order: PAID jika semua cash, DRAFT jika ada transfer pending
+            savedOrder.setStatus(hasTransfer ? Orders.PaymentStatus.DRAFT : Orders.PaymentStatus.PAID);
 
             ordersRepository.save(savedOrder);
         }
@@ -602,6 +602,7 @@ public class OrdersService {
                         .subtotal(item.getSubtotal())
                         .returnQty(item.getReturnQty())
                         .returnReason(item.getReturnReason())
+                        .itemNote(item.getItemNote())
                         .build()
         ).toList() : new ArrayList<>();
 

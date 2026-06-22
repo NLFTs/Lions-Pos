@@ -59,6 +59,7 @@ public class PermissionSeeder {
         {"order",             "Order",             "Manage orders"},
         {"order_item",        "Order Item",        "Manage order items"},
         {"voucher",           "Voucher",           "Manage vouchers and discounts"},
+        {"shift",             "Shift",             "Manage cashier shifts"},
     };
 
     // slug, name, moduleSlug
@@ -193,6 +194,10 @@ public class PermissionSeeder {
         {"voucher.store",  "Create Voucher",      "voucher"},
         {"voucher.update", "Update Voucher",      "voucher"},
         {"voucher.delete", "Delete Voucher",      "voucher"},
+
+        {"shift.index",  "View All Shifts",   "shift"},
+        {"shift.open",   "Open Cashier Shift", "shift"},
+        {"shift.close",  "Close Cashier Shift", "shift"},
     };
 
     @Transactional
