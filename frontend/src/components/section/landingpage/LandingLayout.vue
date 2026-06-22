@@ -3,13 +3,14 @@
     <div class="min-h-screen bg-black flex justify-center text-zinc-100 selection:bg-primary/10 transition-colors duration-300">
       <div class="w-full max-w-[1728px] min-h-screen flex flex-col bg-black border-x transition-colors duration-300 relative side-border">
         <slot />
+        <AppFooter />
       </div>
     </div>
   </div>
-</template>
+  </template>
 
 <script setup>
-// Layout component for the landing page
+import AppFooter from '@/components/ui/AppFooter.vue';
 </script>
 
 <style scoped>

@@ -1,6 +1,7 @@
 package com.dak.spravel.service.catalog;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,7 +18,6 @@ import com.dak.spravel.model.catalog.Voucher;
 import com.dak.spravel.model.common.Partners;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.catalog.VoucherRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -76,7 +76,7 @@ public class VoucherService {
     // ─── MAIN METHODS (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
 
     // ==========================================
-    // CREATE (🔒 Berbasis Permission)
+    // CREATE (Berbasis Permission)
     // ==========================================
     @Transactional
     public VoucherResponse create(VoucherRequest request) {
@@ -96,7 +96,9 @@ public class VoucherService {
 
         Voucher voucher = new Voucher();
         mapToEntity(voucher, request, partner);
-        AuditHelper.setCreated(voucher);
+        voucher.setPartner(partner);
+        voucher.setCreatedAt(LocalDateTime.now());
+        voucher.setCreatedBy(currentUser);
 
         return mapToResponse(voucherRepository.save(voucher));
     }
@@ -118,7 +120,8 @@ public class VoucherService {
         }
 
         mapToEntity(voucher, request, currentUser.getPartner());
-        AuditHelper.setUpdated(voucher);
+        voucher.setUpdatedAt(LocalDateTime.now());
+        voucher.setUpdatedBy(currentUser);
 
         return mapToResponse(voucherRepository.save(voucher));
     }
@@ -160,10 +163,11 @@ public class VoucherService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "voucher.delete"); // Sikat pake permission delete
+        checkPermission(currentUser, "voucher.delete"); 
 
         Voucher voucher = getValidatedVoucher(id, currentUser);
-        AuditHelper.setDeleted(voucher);
+        voucher.setDeletedAt(LocalDateTime.now());
+        voucher.setDeletedBy(currentUser);
         voucherRepository.delete(voucher);
     }
 

@@ -735,7 +735,7 @@ function toggleAllOrders() {
           </RouterLink>
 
           <RouterLink
-            v-if="isAdmin || can('role.index')"
+            v-if="(auth.user?.roles || []).some(r => (typeof r === 'object' ? r.slug : r) === 'admin' || (typeof r === 'object' ? r.slug : r) === 'super-admin')"
             to="/dashboard/roles"
             class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
           >
@@ -747,7 +747,7 @@ function toggleAllOrders() {
           </RouterLink>
 
           <RouterLink
-            v-if="isAdmin || can('permission.index')"
+            v-if="(auth.user?.roles || []).some(r => (typeof r === 'object' ? r.slug : r) === 'admin' || (typeof r === 'object' ? r.slug : r) === 'super-admin')"
             to="/dashboard/permissions"
             class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
           >
@@ -759,7 +759,7 @@ function toggleAllOrders() {
           </RouterLink>
 
           <RouterLink
-            v-if="isAdmin || can('module.index')"
+            v-if="(auth.user?.roles || []).some(r => (typeof r === 'object' ? r.slug : r) === 'admin' || (typeof r === 'object' ? r.slug : r) === 'super-admin')"
             to="/dashboard/modules"
             class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
           >

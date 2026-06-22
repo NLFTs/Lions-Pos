@@ -141,11 +141,6 @@ public class PurchaseReceiptService {
                         return po.getLocationType().equalsIgnoreCase("BRANCH")
                                 && po.getLocationId().equals(currentUser.getBranch().getId());
                     }
-                    if (currentUser.getWarehouse() != null) {
-                        // User gudang: hanya lihat receipt PO untuk gudangnya
-                        return po.getLocationType().equalsIgnoreCase("WAREHOUSE")
-                                && po.getLocationId().equals(currentUser.getWarehouse().getId());
-                    }
                     // Owner/admin partner: lihat semua receipt milik partner
                     return true;
                 })
@@ -191,12 +186,7 @@ public class PurchaseReceiptService {
                             || !po.getLocationId().equals(currentUser.getBranch().getId())) {
                         throw new RuntimeException("Akses Ditolak: Dokumen ini bukan milik cabang Anda.");
                     }
-                } else if (currentUser.getWarehouse() != null) {
-                    if (!po.getLocationType().equalsIgnoreCase("WAREHOUSE")
-                            || !po.getLocationId().equals(currentUser.getWarehouse().getId())) {
-                        throw new RuntimeException("Akses Ditolak: Dokumen ini bukan milik gudang Anda.");
-                    }
-                }
+                } 
             }
         }
 
@@ -225,10 +215,6 @@ public class PurchaseReceiptService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
 
-        // Branch/Warehouse Isolation Guard: strict — hanya bisa terima PO yang ditujukan ke lokasi sendiri
-        if (currentUser.getBranch() == null && currentUser.getWarehouse() == null) {
-            throw new RuntimeException("PO Hanya bisa diterima oleh penerima");
-        }
 
         if (currentUser.getBranch() != null) {
             // User cabang: hanya bisa terima PO untuk cabangnya sendiri
@@ -237,14 +223,7 @@ public class PurchaseReceiptService {
                     || !po.getLocationId().equals(currentUser.getBranch().getId())) {
                 throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang yang ditujukan ke cabang Anda.");
             }
-        } else if (currentUser.getWarehouse() != null) {
-            // User gudang: hanya bisa terima PO untuk gudangnya sendiri
-            if (po.getLocationType() == null
-                    || !po.getLocationType().equalsIgnoreCase("WAREHOUSE")
-                    || !po.getLocationId().equals(currentUser.getWarehouse().getId())) {
-                throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang yang ditujukan ke gudang Anda.");
-            }
-        }
+        } 
 
         if (po.getStatus() == PurchaseOrder.Status.DRAFT) {
             throw new RuntimeException("Purchase Order masih dalam status DRAFT. Kirim PO ke supplier terlebih dahulu.");

@@ -3,6 +3,8 @@ import { useRouter } from 'vue-router'
 import LandingLayout from '@/components/section/landingpage/LandingLayout.vue'
 import Navbar from '@/components/section/landingpage/Navbar.vue'
 import Hero from '@/components/section/landingpage/Hero.vue'
+import PointSection from '@/components/section/landingpage/PointSection.vue'
+import KelimaxSection from '@/components/section/landingpage/KelimaxSection.vue'
 import Button from '@/components/ui/Button.vue'
 import { Zap } from 'lucide-vue-next'
 
@@ -43,6 +45,10 @@ const navigateToLogin = () => router.push('/login')
 
     <!-- Hero Section -->
     <Hero />
+
+    <!-- Empty second section -->
+    <PointSection />
+    <KelimaxSection />
   </LandingLayout>
 </template>
 

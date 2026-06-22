@@ -9,6 +9,8 @@ import lombok.ToString;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.dak.spravel.model.common.Partners;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Data
 @NoArgsConstructor
@@ -27,6 +29,11 @@ public class Role {
 
     @Column(nullable = false)
     private String name;
+
+    @JoinColumn(name = "partner_id", referencedColumnName = "id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
+    private Partners partner;
 
     @Column
     private String description;

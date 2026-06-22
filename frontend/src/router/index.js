@@ -311,7 +311,8 @@ export const routes = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/login',
+    name: 'not-found',
+    component: () => import('@/pages/NotFoundPage.vue'),
   },
 ]
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
@@ -16,8 +16,8 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 import CustomSelect from '@/components/ui/CustomSelect.vue'
 import api from '@/lib/api'
 import {
-  Plus, Loader2, Repeat2, Eye, Check, Warehouse, Building2,
-  ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send
+  Plus, Loader2, Repeat2, Eye, Check, Building2,
+  ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send, ChevronDown
 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -25,45 +25,39 @@ const { toast } = useToast()
 const authStore = useAuthStore()
 
 const isAdmin = computed(() => authStore.isAdmin)
-
 const currentBranchId = computed(() => authStore.user?.branchId || authStore.user?.branch?.id || null)
-const currentWarehouseId = computed(() => authStore.user?.warehouseId || authStore.user?.warehouse?.id || null)
 
-const isStaff = computed(() => {
-  return !!(currentBranchId.value || currentWarehouseId.value) || authStore.user?.roles?.includes('pengelola-gudang')
+// Pengguna dikira sebagai pengelola cawangan (Staff Lapangan) jika mempunyai penetapan ID cawangan
+const isBranchManager = computed(() => {
+  return !!currentBranchId.value || authStore.user?.roles?.includes('pengelola-cabang')
 })
 
-const isOwner = computed(() => !currentBranchId.value && !currentWarehouseId.value && !authStore.user?.roles?.includes('pengelola-gudang'))
+const isOwner = computed(() => {
+  const roles = authStore.user?.roles || []
+  return roles.includes('owner') || roles.includes('admin-partners') || (!currentBranchId.value && !roles.includes('pengelola-cabang'))
+})
+
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
 const userLocationName = computed(() => {
   if (currentBranchId.value) return authStore.user.branchName || authStore.user?.branch?.name || ''
-  if (currentWarehouseId.value) return authStore.user.warehouseName || authStore.user?.warehouse?.name || ''
-  if (authStore.user?.roles?.includes('pengelola-gudang')) return 'Gudang Pusat'
   return ''
 })
 
+// Logik kelayakan penerima barang di cawangan tujuan (mesti pengelola cawangan destinasi)
 const isTargetReceiver = computed(() => {
   if (!selectedTR.value) return false
-  const toType = String(selectedTR.value.toLocationType || '').toLowerCase()
   const toId = String(selectedTR.value.toLocationId || '')
   const myBranchId = String(currentBranchId.value || '')
-  const myWarehouseId = String(currentWarehouseId.value || '')
-  if (myBranchId && toType === 'branch') return myBranchId === toId
-  if (myWarehouseId && toType === 'warehouse') return myWarehouseId === toId
-  return false
+  return isBranchManager.value && myBranchId === toId
 })
 
+// Logik kelayakan pengirim barang dari cawangan asal (mesti pengelola cawangan asal)
 const isSourceSender = computed(() => {
   if (!selectedTR.value) return false
-  const fromType = String(selectedTR.value.fromLocationType || '').toLowerCase()
   const fromId = String(selectedTR.value.fromLocationId || '')
   const myBranchId = String(currentBranchId.value || '')
-  let myWarehouseId = String(currentWarehouseId.value || '')
-  if (!myWarehouseId && authStore.user?.roles?.includes('pengelola-gudang')) myWarehouseId = '1'
-  if (myBranchId && fromType === 'branch') return myBranchId === fromId
-  if (myWarehouseId && fromType === 'warehouse') return myWarehouseId === fromId
-  return false
+  return isBranchManager.value && myBranchId === fromId
 })
 
 const transfers = ref([])
@@ -75,15 +69,20 @@ const pageSize = ref(10)
 
 const statusOptions = [
   { value: 'all', label: 'Semua Status' },
-  { value: 'pending', label: 'Menunggu' },
+  { value: 'pending', label: 'Menunggu Kelulusan' },
   { value: 'approved', label: 'Disetujui' },
-  { value: 'in_transit', label: 'Dalam Kirim' },
+  { value: 'in_transit', label: 'Dalam Penghantaran' },
   { value: 'received', label: 'Diterima' },
   { value: 'cancelled', label: 'Batal' }
 ]
 
-const locations = ref([])
+const branches = ref([])
 const products = ref([])
+
+// State kawalan tetingkap dropdown custom
+const showFromDropdown = ref(false)
+const showToDropdown = ref(false)
+const showProductDropdowns = ref([])
 
 const filteredTRs = computed(() => {
   let r = transfers.value
@@ -111,7 +110,7 @@ const selectedTR = ref(null)
 const updatingStatus = ref(false)
 
 const emptyForm = () => ({
-  fromLocationType: 'warehouse',
+  fromLocationType: 'branch',
   fromLocationId: '',
   toLocationType: 'branch',
   toLocationId: '',
@@ -120,6 +119,30 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
+
+function extractArray(response) {
+  if (!response) return []
+  if (Array.isArray(response)) return response
+  if (response.data && Array.isArray(response.data)) return response.data
+  const innerData = response.data?.data || response.data
+  if (Array.isArray(innerData)) return innerData
+  if (innerData && Array.isArray(innerData.content)) return innerData.content
+  return []
+}
+
+// Menapis senarai cawangan asal yang boleh dipilih (tidak boleh memilih cawangan sendiri sebagai sumber jika cawangan itu destinasi)
+const availableFromLocations = computed(() => {
+  const targetId = form.value.toLocationId
+  if (!targetId) return branches.value
+  return branches.value.filter(loc => String(loc.id) !== String(targetId))
+})
+
+// Menapis senarai cawangan tujuan yang boleh dipilih
+const availableToLocations = computed(() => {
+  const sourceId = form.value.fromLocationId
+  if (!sourceId) return branches.value
+  return branches.value.filter(loc => String(loc.id) !== String(sourceId))
+})
 
 async function fetchData() {
   loading.value = true
@@ -130,24 +153,24 @@ async function fetchData() {
     const raw = Array.isArray(data) ? data : (data?.content || [])
     transfers.value = raw.map(t => ({
       ...t,
-      fromLocationType: t.from_location_type || t.fromLocationType,
-      fromLocationId: t.from_location_id || t.fromLocationId,
-      fromLocationName: t.from_location_name || t.fromLocationName || `${t.from_location_type || ''} #${t.from_location_id || ''}`,
-      toLocationType: t.to_location_type || t.toLocationType,
-      toLocationId: t.to_location_id || t.toLocationId,
-      toLocationName: t.to_location_name || t.toLocationName || `${t.to_location_type || ''} #${t.to_location_id || ''}`,
+      fromLocationType: 'branch',
+      fromLocationId: t.fromLocationId || t.from_location_id,
+      fromLocationName: t.fromLocationName || t.from_location_name || `Cawangan #${t.fromLocationId || ''}`,
+      toLocationType: 'branch',
+      toLocationId: t.toLocationId || t.to_location_id,
+      toLocationName: t.toLocationName || t.to_location_name || `Cawangan #${t.toLocationId || ''}`,
       status: t.status ? t.status.toLowerCase() : t.status,
-      createdAt: t.created_at || t.createdAt,
-      createdBy: t.created_by || t.createdBy,
-      requestedBy: t.created_by || t.createdBy,
+      createdAt: t.createdAt || t.created_at,
+      createdBy: t.createdBy || t.created_by,
+      requestedBy: t.createdBy || t.created_by || t.requestedBy || t.requested_by,
       items: (t.items || []).map(item => ({
         ...item,
-        qtyRequested: item.qty_requested ?? item.qtyRequested,
-        qtyReceived: item.qty_received ?? item.qtyReceived,
+        qtyRequested: item.qtyRequested ?? item.qty_requested,
+        qtyReceived: item.qtyReceived ?? item.qty_received,
       }))
     }))
   } catch (err) {
-    toast.error('Gagal memuat data transfer stok.')
+    toast.error('Gagal memuatkan data pemindahan stok.')
   } finally {
     loading.value = false
   }
@@ -156,35 +179,30 @@ async function fetchData() {
 async function loadFormOptions() {
   try {
     const urlB = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const urlW = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
     const urlP = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
-    const [resB, resW, resP] = await Promise.all([api.get(urlB), api.get(urlW), api.get(urlP)])
-    const brRaw = isAdmin.value ? resB.data : (resB.data?.data || [])
-    const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
-    const whRaw = resW.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
-    const pRaw = resP.data?.data
-    const pArr = pRaw && pRaw.content ? pRaw.content : (Array.isArray(pRaw) ? pRaw : [])
-    locations.value = [...brArr.map(x => ({ ...x, type: 'branch' })), ...whArr.map(x => ({ ...x, type: 'warehouse' }))]
-    products.value = pArr
+    
+    const [resB, resP] = await Promise.all([
+      api.get(urlB),
+      api.get(urlP)
+    ])
+
+    branches.value = extractArray(resB)
+    products.value = extractArray(resP)
   } catch (err) {
-    toast.error('Gagal memuat opsi form.')
+    toast.error('Gagal memuatkan pilihan borang.')
   }
 }
 
 async function openCreate() {
   form.value = emptyForm()
-  if (authStore.user?.branchId) {
+  
+  if (currentBranchId.value) {
     form.value.toLocationType = 'branch'
-    form.value.toLocationId = authStore.user.branchId
-    form.value.fromLocationType = 'warehouse'
-    form.value.fromLocationId = ''
-  } else if (authStore.user?.warehouseId) {
-    form.value.toLocationType = 'warehouse'
-    form.value.toLocationId = authStore.user.warehouseId
+    form.value.toLocationId = currentBranchId.value
     form.value.fromLocationType = 'branch'
     form.value.fromLocationId = ''
   }
+
   formMode.value = 'create'
   formError.value = null
   showForm.value = true
@@ -197,42 +215,68 @@ function openDetail(tr) {
   showForm.value = true
 }
 
-function closeForm() { showForm.value = false }
-function addItem() { form.value.items.push({ productId: '', qtyRequested: 1 }) }
-function removeItem(index) { form.value.items.splice(index, 1) }
+function closeForm() {
+  showForm.value = false
+}
+
+function addItem() {
+  form.value.items.push({ productId: '', qtyRequested: 1 })
+}
+
+function removeItem(index) {
+  form.value.items.splice(index, 1)
+}
 
 async function saveTR() {
-  if (!form.value.fromLocationId || !form.value.toLocationId) { formError.value = 'Asal dan Tujuan wajib diisi.'; return }
-  if (String(form.value.fromLocationId) === String(form.value.toLocationId) && form.value.fromLocationType === form.value.toLocationType) {
-    formError.value = 'Lokasi asal dan tujuan tidak boleh sama.'; return
+  if (!form.value.fromLocationId || !form.value.toLocationId) { 
+    formError.value = 'Cawangan Asal dan Tujuan wajib diisi.'; 
+    return 
   }
+  
+  if (String(form.value.fromLocationId) === String(form.value.toLocationId)) {
+    formError.value = 'Cawangan asal dan tujuan tidak boleh sama.'; 
+    return
+  }
+
   if (!form.value.items.length || form.value.items.some(i => !i.productId)) {
-    formError.value = 'Minimal satu item produk wajib dipilih.'; return
+    formError.value = 'Sila pilih sekurang-kurangnya satu produk.'; 
+    return
   }
+
   saving.value = true
   formError.value = null
   try {
     const payload = {
-      from_location_type: form.value.fromLocationType,
+      fromLocationType: 'BRANCH',
+      from_location_type: 'BRANCH',
+      fromLocationId: Number(form.value.fromLocationId),
       from_location_id: Number(form.value.fromLocationId),
-      to_location_type: form.value.toLocationType,
+      toLocationType: 'BRANCH',
+      to_location_type: 'BRANCH',
+      toLocationId: Number(form.value.toLocationId),
       to_location_id: Number(form.value.toLocationId),
       notes: form.value.notes,
-      items: form.value.items.map(i => ({ product_id: Number(i.productId), qty_requested: Number(i.qtyRequested) }))
+      items: form.value.items.map(i => ({ 
+        productId: Number(i.productId), 
+        product_id: Number(i.productId),
+        qtyRequested: Number(i.qtyRequested),
+        qty_requested: Number(i.qtyRequested)
+      }))
     }
+
     await api.post('/api/v1/transfer-requests', payload)
-    toast.success('Permintaan transfer berhasil dibuat!')
+    toast.success('Permintaan pemindahan stok berjaya dihantar!')
     showForm.value = false
     fetchData()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Gagal menyimpan transfer request.'
+    formError.value = err.response?.data?.message || 'Gagal menghantar permintaan pemindahan.'
   } finally {
     saving.value = false
   }
 }
 
 function formatDate(dt) {
-  return dt ? new Date(dt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
+  return dt ? new Date(dt).toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
 }
 
 function statusColor(s) {
@@ -246,7 +290,7 @@ function statusColor(s) {
 }
 
 function statusLabel(s) {
-  const m = { pending: 'Menunggu', approved: 'Disetujui', in_transit: 'Dalam Kirim', received: 'Diterima', cancelled: 'Batal' }
+  const m = { pending: 'Menunggu Kelulusan', approved: 'Disetujui', in_transit: 'Dalam Penghantaran', received: 'Diterima', cancelled: 'Batal' }
   return m[s] || s
 }
 
@@ -255,24 +299,43 @@ async function updateTRStatus(id, newStatus) {
   try {
     if (newStatus.toLowerCase() === 'received') {
       const payloadItems = (selectedTR.value?.items || []).map(item => ({
+        productId: item.product?.id || item.productId,
         product_id: item.product?.id || item.productId,
+        qtyRequested: item.qtyRequested,
         qty_requested: item.qtyRequested
       }))
       await api.patch(`/api/v1/transfer-requests/${id}/receive`, payloadItems)
     } else {
       await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus.toUpperCase()}`)
     }
-    toast.success('Status transfer berhasil diubah!')
+    toast.success('Status pemindahan stok berjaya dikemas kini!')
     showForm.value = false
     fetchData()
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal mengubah status transfer.')
+    toast.error(err.response?.data?.message || 'Gagal mengemas kini status pemindahan.')
   } finally {
     updatingStatus.value = false
   }
 }
 
-onMounted(fetchData)
+const handleOutsideClick = (e) => {
+  if (!e.target.closest('.custom-select-from')) showFromDropdown.value = false
+  if (!e.target.closest('.custom-select-to')) showToDropdown.value = false
+  form.value.items.forEach((_, i) => {
+    if (!e.target.closest(`.custom-select-prod-${i}`)) {
+      showProductDropdowns.value[i] = false
+    }
+  })
+}
+
+onMounted(() => {
+  fetchData()
+  window.addEventListener('click', handleOutsideClick)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', handleOutsideClick)
+})
 </script>
 
 <template>
@@ -280,20 +343,20 @@ onMounted(fetchData)
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
       <Transition name="fade" mode="out-in">
 
-        <!-- ─── Table View ─── -->
+        <!-- ─── Paparan Utama: Senarai Permintaan Transfer ─── -->
         <div v-if="!showForm" key="table-view" class="flex flex-col gap-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Transfer Stok</h1>
-              <p class="text-muted-foreground text-sm mt-1">Kelola pergerakan barang antar gudang dan cabang.</p>
+              <h1 class="text-2xl font-bold tracking-tight">Pemindahan Stok Cawangan</h1>
+              <p class="text-muted-foreground text-sm mt-1">Urus aliran mutasi pergerakan barangan antara cawangan perniagaan.</p>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
-                <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi asal/tujuan..." />
+                <DataTableSearch v-model="searchQuery" placeholder="Cari cawangan asal/tujuan..." />
               </div>
-              <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-44" />
+              <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-48" />
               <Button v-if="can('transfer_request.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Plus class="h-4 w-4" /><span>Buat Transfer</span>
+                <Plus class="h-4 w-4" /><span>Minta Transfer</span>
               </Button>
             </div>
           </div>
@@ -307,14 +370,14 @@ onMounted(fetchData)
                 <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Repeat2 class="h-7 w-7 opacity-40" />
                 </div>
-                <p class="text-sm font-medium">Belum ada permintaan transfer.</p>
+                <p class="text-sm font-medium">Tiada rekod pemindahan stok ditemui.</p>
                 <Button v-if="can('transfer_request.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
-                  <Plus class="h-3.5 w-3.5 mr-1.5" />Mulai Transfer
+                  <Plus class="h-3.5 w-3.5 mr-1.5" />Buat Permintaan Pertama
                 </Button>
               </div>
 
               <div v-else>
-                <!-- Mobile -->
+                <!-- Versi Mudah Alih (Mobile) -->
                 <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
                   <div v-for="tr in paginatedTRs" :key="tr.id" class="p-4 flex flex-col gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="openDetail(tr)">
                     <div class="flex justify-between items-center">
@@ -326,23 +389,23 @@ onMounted(fetchData)
                       <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(tr.status)]" variant="outline">{{ statusLabel(tr.status) }}</Badge>
                     </div>
                     <div class="flex justify-between items-center text-[10px] text-muted-foreground">
-                      <div class="flex items-center gap-1.5"><Package class="h-3 w-3" /> {{ tr.items?.length || 0 }} Item</div>
-                      <div class="flex items-center gap-1.5"><Calendar class="h-3 w-3" /> {{ formatDate(tr.createdAt) }}</div>
+                      <div class="flex items-center gap-1.5"><Package class="h-3.5 w-3.5" /> {{ tr.items?.length || 0 }} Jenis Item</div>
+                      <div class="flex items-center gap-1.5"><Calendar class="h-3.5 w-3.5" /> {{ formatDate(tr.createdAt) }}</div>
                     </div>
                   </div>
                 </div>
 
-                <!-- Desktop -->
+                <!-- Versi Desktop (Table) -->
                 <div class="hidden md:block overflow-x-auto">
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                        <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Asal → Tujuan</th>
-                        <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Item</th>
+                        <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Cawangan Pembekal (Asal) → Penerima (Tujuan)</th>
+                        <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Kuantiti Barang</th>
                         <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
-                        <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Diajukan Oleh</th>
-                        <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tanggal</th>
-                        <th class="pr-5 py-3 text-right"></th>
+                        <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Dibuat Oleh</th>
+                        <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Tarikh Permintaan</th>
+                        <th class="pr-5 py-3 text-right">Tindakan</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -350,20 +413,18 @@ onMounted(fetchData)
                         <td class="pl-5 py-4">
                           <div class="flex items-center gap-3">
                             <div class="flex flex-col items-center gap-0.5 shrink-0">
-                              <Warehouse v-if="tr.fromLocationType === 'warehouse'" class="h-3.5 w-3.5 text-zinc-400" />
-                              <Building2 v-else class="h-3.5 w-3.5 text-zinc-400" />
-                              <div class="w-px h-2 bg-zinc-200 dark:bg-zinc-700"></div>
-                              <Warehouse v-if="tr.toLocationType === 'warehouse'" class="h-3.5 w-3.5 text-primary" />
-                              <Building2 v-else class="h-3.5 w-3.5 text-primary" />
+                              <Building2 class="h-4 w-4 text-zinc-400" />
+                              <div class="w-px h-3.5 bg-zinc-200 dark:bg-zinc-700"></div>
+                              <Building2 class="h-4 w-4 text-primary" />
                             </div>
-                            <div class="flex flex-col gap-1">
+                            <div class="flex flex-col gap-0.5">
                               <span class="text-xs font-medium text-muted-foreground">{{ tr.fromLocationName }}</span>
                               <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ tr.toLocationName }}</span>
                             </div>
                           </div>
                         </td>
                         <td class="py-4 text-center">
-                          <div class="inline-flex items-center justify-center px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold">{{ tr.items?.length || 0 }} ITEM</div>
+                          <div class="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold">{{ tr.items?.length || 0 }} ITEM</div>
                         </td>
                         <td class="py-4 text-center">
                           <Badge :class="['text-[9px] uppercase tracking-widest font-bold px-2 py-1', statusColor(tr.status)]" variant="outline">{{ statusLabel(tr.status) }}</Badge>
@@ -386,10 +447,8 @@ onMounted(fetchData)
           </Card>
         </div>
 
-        <!-- ─── Inline Form / Detail View ─── -->
+        <!-- ─── Paparan Borang: Detail / Tambah Permintaan ─── -->
         <div v-else key="form-view" class="flex flex-col gap-6">
-
-          <!-- Header -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
             <div class="flex items-center gap-3">
               <Button variant="outline" size="icon" @click="closeForm" :disabled="saving || updatingStatus" class="h-9 w-9 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
@@ -397,19 +456,16 @@ onMounted(fetchData)
               </Button>
               <div>
                 <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
-                  <span>{{ formMode === 'create' ? 'Buat Transfer Stok' : 'Detail Transfer' }}</span>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
-                    {{ formMode === 'create' ? 'Baru' : 'Detail' }}
-                  </span>
+                  <span>{{ formMode === 'create' ? 'Borang Permintaan Pemindahan' : 'Perincian Pemindahan Stok' }}</span>
                 </h2>
-                <p class="text-xs text-muted-foreground mt-0.5">{{ formMode === 'create' ? 'Atur mutasi barang antar lokasi bisnis.' : 'Informasi dan status permintaan transfer.' }}</p>
+                <p class="text-xs text-muted-foreground mt-0.5">{{ formMode === 'create' ? 'Lakukan mutasi inventori antara cawangan.' : 'Semakan maklumat dan kemas kini status aliran pemindahan.' }}</p>
               </div>
             </div>
             <div v-if="formMode === 'create'" class="flex items-center gap-3 w-full sm:w-auto">
               <Button variant="outline" @click="closeForm" :disabled="saving" class="flex-1 sm:flex-none">Batal</Button>
               <Button @click="saveTR" :disabled="saving" class="flex-1 sm:flex-none bg-primary text-primary-foreground hover:bg-primary/95 shadow-md shadow-primary/20">
                 <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                <span>Kirim Permintaan</span>
+                <span>Hantar Permintaan</span>
               </Button>
             </div>
             <div v-else class="flex items-center gap-3 w-full sm:w-auto">
@@ -417,37 +473,41 @@ onMounted(fetchData)
             </div>
           </div>
 
-          <!-- CREATE FORM -->
+          <!-- BORANG TAMBAH TRANSFER STOK BARU (Hanya sesama Cawangan) -->
           <template v-if="formMode === 'create'">
             <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
-              <!-- Route + Notes -->
+              
               <div class="lg:col-span-7 space-y-4">
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-5">
                     <div class="flex items-center gap-2 border-b pb-3 border-zinc-100 dark:border-zinc-800">
                       <ArrowRight class="h-4 w-4 text-primary" />
-                      <h4 class="text-sm font-bold uppercase tracking-widest text-primary">Rute Mutasi</h4>
+                      <h4 class="text-sm font-bold uppercase tracking-widest text-primary">Rute Pemindahan</h4>
                     </div>
 
-                    <!-- From -->
+                    <!-- Cawangan Asal (Sumber Stok) -->
                     <div class="space-y-2">
-                      <Label class="text-xs font-bold">Dari (Asal Sumber Barang) <span class="text-destructive">*</span></Label>
-                      <div class="grid grid-cols-2 gap-2 mb-2">
-                        <button type="button" @click="form.fromLocationType = 'warehouse'; form.fromLocationId = ''"
-                          :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                          <Warehouse class="h-3 w-3" /> GUDANG
+                      <Label class="text-xs font-bold">Cawangan Pembekal (Sumber Stok) <span class="text-destructive">*</span></Label>
+                      <div class="relative custom-select-from">
+                        <button type="button" @click="showFromDropdown = !showFromDropdown" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between text-left transition-all duration-150">
+                          <span :class="form.fromLocationId ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-muted-foreground'">
+                            {{ branches.find(b => b.id === form.fromLocationId)?.name || 'Pilih cawangan pembekal asal...' }}
+                          </span>
+                          <ChevronDown class="h-4 w-4 text-zinc-400 transition-transform duration-200" :class="{ 'rotate-180': showFromDropdown }" />
                         </button>
-                        <button type="button" @click="form.fromLocationType = 'branch'; form.fromLocationId = ''"
-                          :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.fromLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                          <Building2 class="h-3 w-3" /> CABANG
-                        </button>
+                        <Transition name="dropdown">
+                          <div v-if="showFromDropdown" class="absolute z-50 mt-1.5 w-full bg-background border border-input rounded-md shadow-lg max-h-60 overflow-y-auto py-1">
+                            <div v-if="availableFromLocations.length === 0" class="px-3 py-2.5 text-xs text-muted-foreground text-center">
+                              Tiada cawangan tersedia
+                            </div>
+                            <button v-for="l in availableFromLocations" :key="l.id" type="button" @click="form.fromLocationId = l.id; showFromDropdown = false" class="w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-center justify-between">
+                              <span>{{ l.name }}</span>
+                              <Check v-if="form.fromLocationId === l.id" class="h-4 w-4 text-primary" />
+                            </button>
+                          </div>
+                        </Transition>
                       </div>
-                      <select :key="form.fromLocationType + locations.length" v-model="form.fromLocationId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                        <option value="" disabled>Pilih lokasi asal sumber barang...</option>
-                        <option v-for="l in locations.filter(x => x.type === form.fromLocationType)" :key="l.id" :value="l.id">{{ l.name }}</option>
-                      </select>
                     </div>
 
                     <div class="flex justify-center -my-2">
@@ -456,31 +516,37 @@ onMounted(fetchData)
                       </div>
                     </div>
 
-                    <!-- To -->
+                    <!-- Cawangan Tujuan (Destinasi/Pemohon) -->
                     <div class="space-y-2">
-                      <Label class="text-xs font-bold">Ke (Tujuan Meminta) <span class="text-destructive">*</span></Label>
-                      <div v-if="isStaff" class="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm">
+                      <Label class="text-xs font-bold">Cawangan Penerima (Destinasi) <span class="text-destructive">*</span></Label>
+                      <!-- Jika login sebagai pengelola cawangan, automatik isi cawangan pengguna sendiri -->
+                      <div v-if="isBranchManager" class="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm">
                         <div class="p-2 rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-500"><Building2 class="h-4 w-4" /></div>
                         <div class="flex flex-col">
                           <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ userLocationName }}</span>
-                          <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Lokasi Anda (Tujuan Permintaan)</span>
+                          <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Lokasi Cawangan Anda</span>
                         </div>
                       </div>
                       <div v-else>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                          <button type="button" @click="form.toLocationType = 'warehouse'; form.toLocationId = ''"
-                            :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Warehouse class="h-3 w-3" /> GUDANG
+                        <div class="relative custom-select-to">
+                          <button type="button" @click="showToDropdown = !showToDropdown" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between text-left transition-all duration-150">
+                            <span :class="form.toLocationId ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-muted-foreground'">
+                              {{ branches.find(b => b.id === form.toLocationId)?.name || 'Pilih cawangan penerima tujuan...' }}
+                            </span>
+                            <ChevronDown class="h-4 w-4 text-zinc-400 transition-transform duration-200" :class="{ 'rotate-180': showToDropdown }" />
                           </button>
-                          <button type="button" @click="form.toLocationType = 'branch'; form.toLocationId = ''"
-                            :class="['flex items-center justify-center gap-2 h-8 rounded-md border text-[10px] font-bold transition-all', form.toLocationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-950' : 'bg-white border-zinc-200 hover:bg-zinc-50 dark:bg-zinc-950 dark:border-zinc-800']">
-                            <Building2 class="h-3 w-3" /> CABANG
-                          </button>
+                          <Transition name="dropdown">
+                            <div v-if="showToDropdown" class="absolute z-50 mt-1.5 w-full bg-background border border-input rounded-md shadow-lg max-h-60 overflow-y-auto py-1">
+                              <div v-if="availableToLocations.length === 0" class="px-3 py-2.5 text-xs text-muted-foreground text-center">
+                                Tiada cawangan tersedia
+                              </div>
+                              <button v-for="l in availableToLocations" :key="l.id" type="button" @click="form.toLocationId = l.id; showToDropdown = false" class="w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-center justify-between">
+                                <span>{{ l.name }}</span>
+                                <Check v-if="form.toLocationId === l.id" class="h-4 w-4 text-primary" />
+                              </button>
+                            </div>
+                          </Transition>
                         </div>
-                        <select :key="form.toLocationType + locations.length" v-model="form.toLocationId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                          <option value="" disabled>Pilih lokasi tujuan permintaan...</option>
-                          <option v-for="l in locations.filter(x => x.type === form.toLocationType)" :key="l.id" :value="l.id">{{ l.name }}</option>
-                        </select>
                       </div>
                     </div>
                   </CardContent>
@@ -488,25 +554,26 @@ onMounted(fetchData)
 
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-3">
-                    <Label class="text-xs font-bold uppercase tracking-widest text-zinc-500">Catatan</Label>
-                    <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Alasan transfer atau instruksi..." />
+                    <Label class="text-xs font-bold uppercase tracking-widest text-zinc-500">Catatan Ringkas / Nota</Label>
+                    <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Tulis alasan pemindahan stok atau arahan logistik..." />
                   </CardContent>
                 </Card>
               </div>
 
-              <!-- Items -->
+              <!-- Ruangan Item Produk -->
               <div class="lg:col-span-5">
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-4">
                     <div class="flex items-center justify-between border-b pb-3 border-zinc-100 dark:border-zinc-800">
                       <div class="flex items-center gap-2">
                         <Package class="h-4 w-4 text-zinc-400" />
-                        <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Item Transfer</h4>
+                        <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Senarai Barangan</h4>
                       </div>
                       <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
                         <Plus class="h-3 w-3 mr-1" /> Tambah Item
                       </Button>
                     </div>
+
                     <div class="space-y-3">
                       <div v-for="(item, i) in form.items" :key="i" class="relative p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group">
                         <Button v-if="form.items.length > 1" variant="ghost" size="icon" class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" @click="removeItem(i)">
@@ -514,14 +581,29 @@ onMounted(fetchData)
                         </Button>
                         <div class="grid grid-cols-4 gap-3">
                           <div class="col-span-3 space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Produk</Label>
-                            <select v-model="item.productId" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none">
-                              <option value="" disabled>Pilih produk...</option>
-                              <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
-                            </select>
+                            <Label class="text-[10px] text-zinc-500">Nama Produk</Label>
+                            <div :class="`relative custom-select-prod-${i}`">
+                              <button type="button" @click="showProductDropdowns[i] = !showProductDropdowns[i]" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none flex items-center justify-between text-left transition-all duration-150">
+                                <span :class="item.productId ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-muted-foreground'">
+                                  {{ products.find(p => p.id === item.productId)?.name || 'Pilih produk...' }}
+                                </span>
+                                <ChevronDown class="h-3.5 w-3.5 text-zinc-400" />
+                              </button>
+                              <Transition name="dropdown">
+                                <div v-if="showProductDropdowns[i]" class="absolute z-50 mt-1 w-full bg-background border border-input rounded-md shadow-lg max-h-48 overflow-y-auto py-1">
+                                  <div v-if="products.length === 0" class="px-2 py-1.5 text-[10px] text-muted-foreground text-center">
+                                    Tiada produk didaftarkan
+                                  </div>
+                                  <button v-for="p in products" :key="p.id" type="button" @click="item.productId = p.id; showProductDropdowns[i] = false" class="w-full px-2 py-1.5 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-center justify-between">
+                                    <span>{{ p.name }}</span>
+                                    <Check v-if="item.productId === p.id" class="h-3.5 w-3.5 text-primary" />
+                                  </button>
+                                </div>
+                              </Transition>
+                            </div>
                           </div>
                           <div class="col-span-1 space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Qty</Label>
+                            <Label class="text-[10px] text-zinc-500">Kuantiti</Label>
                             <Input v-model.number="item.qtyRequested" type="number" min="1" class="h-8 text-xs text-center" />
                           </div>
                         </div>
@@ -533,24 +615,23 @@ onMounted(fetchData)
             </div>
           </template>
 
-          <!-- DETAIL VIEW -->
+          <!-- PAPARAN MAKLUMAT TERPERINCI PERMINTAAN SEDIA ADA -->
           <template v-else-if="selectedTR">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
-              <!-- Left: Info + Status Actions -->
+              
               <div class="lg:col-span-7 space-y-4">
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-4">
                     <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
                       <div class="flex items-center gap-4">
                         <div class="flex flex-col items-center">
-                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase">{{ selectedTR.fromLocationType }}</Badge>
-                          <span class="text-xs font-bold max-w-[110px] truncate">{{ selectedTR.fromLocationName }}</span>
+                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase bg-white dark:bg-zinc-950">Asal</Badge>
+                          <span class="text-xs font-bold max-w-[120px] truncate">{{ selectedTR.fromLocationName }}</span>
                         </div>
                         <ArrowRight class="h-4 w-4 text-primary shrink-0" />
                         <div class="flex flex-col items-center">
-                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase">{{ selectedTR.toLocationType }}</Badge>
-                          <span class="text-xs font-bold max-w-[110px] truncate">{{ selectedTR.toLocationName }}</span>
+                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase bg-white dark:bg-zinc-950">Tujuan</Badge>
+                          <span class="text-xs font-bold max-w-[120px] truncate">{{ selectedTR.toLocationName }}</span>
                         </div>
                       </div>
                       <Badge :class="['text-[9px] uppercase tracking-widest font-bold px-2 py-1', statusColor(selectedTR.status)]" variant="outline">{{ statusLabel(selectedTR.status) }}</Badge>
@@ -559,74 +640,83 @@ onMounted(fetchData)
                     <div class="grid grid-cols-2 gap-4">
                       <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
                         <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Diajukan Oleh</p>
-                        <p class="font-medium text-xs">{{ selectedTR.requestedBy?.username || '-' }}</p>
+                        <p class="font-semibold text-xs">{{ selectedTR.requestedBy?.username || '-' }}</p>
                       </div>
                       <div class="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-card">
-                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Tanggal</p>
-                        <p class="font-medium text-xs">{{ formatDate(selectedTR.createdAt) }}</p>
+                        <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Tarikh Permintaan</p>
+                        <p class="font-semibold text-xs">{{ formatDate(selectedTR.createdAt) }}</p>
                       </div>
                     </div>
 
                     <div v-if="selectedTR.notes" class="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                      <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Catatan</p>
-                      <p class="text-xs italic">{{ selectedTR.notes }}</p>
+                      <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Nota Catatan</p>
+                      <p class="text-xs italic text-zinc-700 dark:text-zinc-300">"{{ selectedTR.notes }}"</p>
                     </div>
                   </CardContent>
                 </Card>
 
+                <!-- Tombol Tindakan Aliran Status (Mengikut Keizinan Baru) -->
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-3">
-                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b pb-2 border-zinc-100 dark:border-zinc-800">Aksi Status</p>
+                    <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b pb-2 border-zinc-100 dark:border-zinc-800">Tindakan Kelulusan & Logistik</p>
                     <div class="flex flex-col gap-2">
-                      <Button v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-primary text-primary-foreground font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'approved')">
+                      
+                      <!-- 1. Owner/Admin-Partners meluluskan request pemindahan -->
+                      <Button v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'approved')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Check v-else class="h-4 w-4 mr-2" />Setujui Transfer (Owner)
+                        <Check v-else class="h-4 w-4 mr-2" />Luluskan Pemindahan (Owner / Admin-Partners)
                       </Button>
-                      <Button v-if="selectedTR.status === 'approved' && isStaff && isSourceSender && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'in_transit')">
+
+                      <!-- 2. Pengelola cawangan asal menghantar barang ke destinasi -->
+                      <Button v-if="selectedTR.status === 'approved' && isBranchManager && isSourceSender && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'in_transit')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Send v-else class="h-4 w-4 mr-2" />Kirim Barang
+                        <Send v-else class="h-4 w-4 mr-2" />Mulakan Penghantaran (Cawangan Asal)
                       </Button>
-                      <Button v-if="selectedTR.status === 'in_transit' && isStaff && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'RECEIVED')">
+
+                      <!-- 3. Pengelola cawangan destinasi mengesahkan penerimaan stok -->
+                      <Button v-if="selectedTR.status === 'in_transit' && isBranchManager && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'RECEIVED')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Check v-else class="h-4 w-4 mr-2" />Terima Barang (Received)
+                        <Check v-else class="h-4 w-4 mr-2" />Sahkan Penerimaan Stok (Cawangan Tujuan)
                       </Button>
-                      <div v-if="selectedTR.status === 'pending' && isStaff" class="w-full text-center py-2.5 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
-                        ⌛ Menunggu persetujuan Owner Pusat...
+
+                      <!-- Makluman Interaktif Status Semasa -->
+                      <div v-if="selectedTR.status === 'pending' && isBranchManager" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
+                        ⌛ Menunggu kelulusan daripada pihak Owner Pusat...
                       </div>
-                      <div v-if="selectedTR.status === 'approved' && isStaff && isTargetReceiver" class="w-full text-center py-2.5 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
-                        📦 Disetujui! Menunggu lokasi asal mengirim barang...
+                      <div v-if="selectedTR.status === 'approved' && isBranchManager && isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
+                        📦 Telah diluluskan! Menunggu cawangan asal memulakan penghantaran barang...
                       </div>
-                      <div v-if="selectedTR.status === 'in_transit' && isStaff && !isTargetReceiver" class="w-full text-center py-2.5 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50">
-                        🚚 Barang sedang dalam perjalanan ke lokasi tujuan...
+                      <div v-if="selectedTR.status === 'in_transit' && isBranchManager && !isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50">
+                        🚚 Barangan sedang dalam perjalanan menuju ke destinasi penerima...
                       </div>
-                      <div v-if="selectedTR.status === 'cancelled'" class="w-full text-center py-2.5 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50">
-                        ❌ Permintaan transfer ini telah dibatalkan.
+                      <div v-if="selectedTR.status === 'cancelled'" class="w-full text-center py-3 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50">
+                        ❌ Permintaan pemindahan ini telah dibatalkan.
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <!-- Right: Items List -->
+              <!-- Senarai Barang di Sebelah Kanan -->
               <div class="lg:col-span-5">
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-4">
                     <div class="flex items-center gap-2 border-b pb-3 border-zinc-100 dark:border-zinc-800">
                       <Package class="h-4 w-4 text-zinc-400" />
-                      <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Daftar Barang</h4>
+                      <h4 class="text-xs font-bold uppercase tracking-widest text-zinc-500">Perincian Barangan</h4>
                     </div>
                     <div class="space-y-2">
                       <div v-for="(item, i) in selectedTR.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
                         <div class="flex items-center gap-3">
-                          <Package class="h-4 w-4 text-zinc-400" />
+                          <Package class="h-4.5 w-4.5 text-zinc-400" />
                           <div>
-                            <p class="text-xs font-semibold">{{ item.product?.name || `Produk #${item.productId}` }}</p>
-                            <p class="text-[9px] text-muted-foreground">SKU: {{ item.product?.sku || '-' }}</p>
+                            <p class="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{{ item.product?.name || `Produk #${item.productId}` }}</p>
+                            <p class="text-[9px] text-muted-foreground font-bold uppercase">SKU: {{ item.product?.sku || '-' }}</p>
                           </div>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right shrink-0">
                           <p class="text-xs font-bold">{{ item.qtyRequested }} <span class="text-[9px] text-muted-foreground font-normal">PCS</span></p>
-                          <p v-if="item.qtyReceived != null" class="text-[9px] text-emerald-600 font-bold">Diterima: {{ item.qtyReceived }}</p>
+                          <p v-if="item.qtyReceived != null" class="text-[9px] text-emerald-600 font-bold">Diterima: {{ item.qtyReceived }} PCS</p>
                         </div>
                       </div>
                     </div>
@@ -645,4 +735,12 @@ onMounted(fetchData)
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.dropdown-enter-active, .dropdown-leave-active {
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dropdown-enter-from, .dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
 </style>

@@ -4,8 +4,6 @@ import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
-import CardHeader from '@/components/ui/CardHeader.vue'
-import CardTitle from '@/components/ui/CardTitle.vue'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
@@ -14,7 +12,10 @@ import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import api from '@/lib/api'
-import { Plus, Pencil, Trash2, ShieldCheck, Loader2, X, LayoutGrid, ChevronDown, Check } from 'lucide-vue-next'
+import { 
+  Plus, Pencil, Trash2, ShieldCheck, Loader2, X, LayoutGrid, 
+  ChevronDown, Check, ShieldAlert, Sparkles, UserCheck, Warehouse, Store, ShoppingCart 
+} from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
@@ -23,7 +24,7 @@ const { toast } = useToast()
 const { confirm } = useConfirm()
 const authStore = useAuthStore()
 
-// ─── 🛡️ GUARD CONFIGURATION DIRECT SLUG CHECK ────────────────────────────────
+// ─── 🛡️ SECURITY ROLE CHECKS ──────────────────────────────────────────────────
 const isCentralAdmin = computed(() => {
   const userRoles = authStore.user?.roles || []
   return userRoles.some(role => {
@@ -31,6 +32,27 @@ const isCentralAdmin = computed(() => {
     return slug === 'admin' || slug === 'super-admin'
   })
 })
+
+const isOwner = computed(() => {
+  const userRoles = authStore.user?.roles || []
+  return userRoles.some(role => {
+    const slug = typeof role === 'object' ? role.slug : role
+    return slug === 'owner'
+  })
+})
+
+// Can view and manage roles if user is Central Admin OR Owner
+const canManage = computed(() => isCentralAdmin.value || isOwner.value)
+
+// Check if a role can be edited/deleted by the current user
+function canEditRole(role) {
+  if (isCentralAdmin.value) return true
+  if (isOwner.value) {
+    // Owner can only edit/delete their own custom partner roles
+    return role.slug && role.slug.startsWith('partner-')
+  }
+  return false
+}
 
 // ─── Selection State ──────────────────────────────────────────────────────────
 const selectedIds = ref([])
@@ -48,14 +70,15 @@ function toggleSelectAll() {
     selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
   } else {
     visible.forEach(r => {
-      if (!selectedIds.value.includes(r.id)) {
+      if (!selectedIds.value.includes(r.id) && canEditRole(r)) {
         selectedIds.value.push(r.id)
       }
     })
   }
 }
 
-function toggleSelect(id) {
+function toggleSelect(id, role) {
+  if (!canEditRole(role)) return
   const index = selectedIds.value.indexOf(id)
   if (index === -1) {
     selectedIds.value.push(id)
@@ -70,7 +93,7 @@ async function bulkDelete() {
 
   const ok = await confirm({
     title: 'Hapus Role Terpilih',
-    description: `Apakah Anda yakin ingin menghapus ${count} role terpilih secara permanen?`,
+    description: `Apakah Anda yakin ingin menghapus ${count} role kustom terpilih secara permanen?`,
     confirmLabel: 'Hapus',
     cancelLabel: 'Batal',
   })
@@ -115,7 +138,6 @@ const paginatedRoles = computed(() => {
   return filteredRoles.value.slice(start, start + pageSize.value)
 })
 
-// 💡 PERBAIKAN: Bersihkan selectedIds di sini agar tidak balapan dengan rendering table
 watch(searchQuery, () => {
   page.value = 1
   selectedIds.value = []
@@ -133,11 +155,52 @@ const selectedPermIds = ref(new Set())
 // Ordered actions for matrix header columns
 const ACTIONS = ['index', 'show', 'store', 'update', 'delete']
 
-// Sorted module keys
-const modules = computed(() => Object.keys(permissionsMap.value).sort())
+// Blacklisted modules for Owner to secure system endpoints
+const OWNER_BLACKLISTED_MODULES = ['module', 'permission', 'log']
+
+// Get filtered modules list (Hiding permission, module, log for owners)
+const modules = computed(() => {
+  const keys = Object.keys(permissionsMap.value)
+  if (isOwner.value) {
+    return keys.filter(key => !OWNER_BLACKLISTED_MODULES.includes(key.toLowerCase())).sort()
+  }
+  return keys.sort()
+})
+
+// Module Labels Translation for Owner view (Fallback automatically uses the raw backend key if not mapped)
+const MODULE_LABELS = {
+  partner: 'Kemitraan (Partner)',
+  branch: 'Manajemen Cabang',
+  warehouse: 'Manajemen Gudang',
+  branch_warehouse: 'Inventaris Cabang & Gudang',
+  stock_balance: 'Stok Balance',
+  stock_mutation: 'Pergerakan Stok',
+  stock_opname: 'Pengecekan Stok (Opname)',
+  category: 'Kategori Produk',
+  produk: 'Produk Utama',
+  product_photo: 'Foto Produk',
+  role: 'Manajemen Jabatan (Role)',
+  user: 'Manajemen Pengguna (User)',
+  dashboard: 'Metrik Dashboard',
+  pos: 'Sistem Kasir (POS)',
+  report: 'Wawasan Bisnis & Laporan',
+  transfer_request: 'Transfer Stok',
+  purchase_order: 'Pembelian (Purchase Order)',
+  purchase_receipt: 'Penerimaan Pembelian',
+  supplier: 'Supplier & Distributor',
+  order: 'Riwayat Pesanan',
+  order_item: 'Item Pesanan',
+  voucher: 'Manajemen Voucer & Diskon'
+}
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 async function fetchRoles() {
+  if (!canManage.value) {
+    toast.error('Akses Ditolak: Anda tidak diizinkan mengakses halaman ini!')
+    window.location.href = '/dashboard'
+    return
+  }
+
   loading.value = true
   error.value = null
   try {
@@ -171,14 +234,19 @@ function getPermission(module, action) {
   return list.find((p) => p.slug === `${module}.${action}`) || null
 }
 
-// Menangani sinkronisasi checklist checkbox agar aman di UI
+// Count total actions inside a specific module dynamically from API metadata
+function totalActionsInModule(module) {
+  return permissionsMap.value[module]?.length || 0
+}
+
 function isChecked(module, action) {
   const p = getPermission(module, action)
   return p ? selectedPermIds.value.has(p.id) : false
 }
 
+// Toggle single permission
 function togglePerm(module, action) {
-  if (!isCentralAdmin.value) return
+  if (!canManage.value) return
   const p = getPermission(module, action)
   if (!p) return
   const next = new Set(selectedPermIds.value)
@@ -190,17 +258,23 @@ function togglePerm(module, action) {
   selectedPermIds.value = next
 }
 
-function toggleAllInModule(module) {
-  if (!isCentralAdmin.value) return
+// Toggle Simplified Module Checkbox
+function toggleSimplifiedModule(module) {
   const list = permissionsMap.value[module] || []
   const allChecked = list.every((p) => selectedPermIds.value.has(p.id))
   const next = new Set(selectedPermIds.value)
+  
   if (allChecked) {
     list.forEach((p) => next.delete(p.id))
   } else {
     list.forEach((p) => next.add(p.id))
   }
   selectedPermIds.value = next
+}
+
+function toggleAllInModule(module) {
+  if (!canManage.value) return
+  toggleSimplifiedModule(module)
 }
 
 function isModuleAllChecked(module) {
@@ -303,11 +377,24 @@ async function doDelete(role) {
 <template>
   <AppLayout>
     <div class="pb-6">
-      <div class="mb-6">
-        <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Hak akses</h1>
-        <p class="text-xs text-zinc-500 mt-0.5">
-          Kelola hak akses
-        </p>
+      <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-zinc-900">Manajemen Hak Akses (Role)</h1>
+          <p class="text-xs text-zinc-500 mt-0.5">
+            {{ isOwner ? 'Kelola peran jabatan kustom untuk operasional perusahaan Anda.' : 'Kelola hak akses sistem secara global.' }}
+          </p>
+        </div>
+        
+        <Button 
+          v-if="selectedIds.length > 0" 
+          variant="destructive" 
+          size="sm" 
+          @click="bulkDelete"
+          class="flex items-center gap-2 self-start sm:self-auto animate-in fade-in zoom-in-95"
+        >
+          <Trash2 class="h-4 w-4" />
+          <span>Hapus Terpilih ({{ selectedIds.length }})</span>
+        </Button>
       </div>
 
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -323,7 +410,7 @@ async function doDelete(role) {
             <span>Sesuaikan Kolom</span>
             <ChevronDown class="h-3 w-3 text-zinc-400" />
           </Button>
-          <Button v-if="can('role.store') && isCentralAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
+          <Button v-if="can('role.store') && canManage" @click="openCreate" size="sm" class="flex-1 sm:flex-none bg-primary hover:bg-primary/90 flex items-center justify-center gap-2">
             <Plus class="h-4 w-4" />
             <span>Tambah Role</span>
           </Button>
@@ -332,122 +419,160 @@ async function doDelete(role) {
 
       <Alert v-if="error" variant="destructive" class="mb-4">{{ error }}</Alert>
 
-    <Card>
-      <CardContent class="p-0">
-        <div v-if="loading" class="flex items-center justify-center py-20">
-          <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
+      <Card>
+        <CardContent class="p-0">
+          <div v-if="loading" class="flex items-center justify-center py-20">
+            <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
 
-        <div v-else-if="filteredRoles.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <ShieldCheck class="h-10 w-10 mb-3 opacity-40" />
-          <p class="text-sm">Belum ada role.</p>
-        </div>
+          <div v-else-if="filteredRoles.length === 0" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <ShieldCheck class="h-10 w-10 mb-3 opacity-40" />
+            <p class="text-sm">Belum ada role.</p>
+          </div>
 
-        <div v-else>
-          <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
-            <div
-              v-for="role in paginatedRoles"
-              :key="'mobile-' + role.id"
-              class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex items-center gap-3">
-                  <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 border border-zinc-200 dark:border-zinc-800/50">
-                    <ShieldCheck class="h-5 w-5" />
+          <div v-else>
+            <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
+              <div
+                v-for="role in paginatedRoles"
+                :key="'mobile-' + role.id"
+                class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-bold shrink-0 border border-zinc-200 dark:border-zinc-800/50">
+                      <ShieldCheck class="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100 leading-tight">{{ role.name }}</h4>
+                      <span class="font-mono text-[10px] text-zinc-400 mt-1 block">{{ role.slug }}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h4 class="font-medium text-sm text-zinc-900 dark:text-zinc-100 leading-tight">{{ role.name }}</h4>
-                    <span class="font-mono text-[10px] text-zinc-400 mt-1 block">{{ role.slug }}</span>
+                  
+                  <div class="flex items-center gap-1 shrink-0">
+                    <Button
+                      v-if="can('role.update') && canEditRole(role)"
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="openEdit(role)"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      v-if="can('role.delete') && canEditRole(role)"
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
+                      @click="doDelete(role)"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
                 
-                <div class="flex items-center gap-1 shrink-0">
-                  <Button
-                    v-if="can('role.update') && isCentralAdmin"
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50"
-                    @click="openEdit(role)"
-                  >
-                    <Pencil class="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    v-if="can('role.delete') && isCentralAdmin"
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 text-zinc-400 hover:text-destructive bg-zinc-50 dark:bg-zinc-800/50"
-                    @click="doDelete(role)"
-                  >
-                    <Trash2 class="h-3.5 w-3.5" />
-                  </Button>
+                <div class="flex items-center justify-between mt-1">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[10px] font-medium border border-primary/10">
+                    <ShieldCheck class="h-2.5 w-2.5" />
+                    {{ permCountFor(role) }} hak akses
+                  </span>
+                  
+                  <span v-if="role.slug && role.slug.startsWith('partner-')" class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-100">Kustom Mitra</span>
+                  <span v-else class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium border border-blue-100">Bawaan Sistem</span>
                 </div>
               </div>
-              <div class="flex items-center justify-between mt-1">
-                <span class="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">Hak Akses</span>
-                <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-[10px] font-semibold border border-primary/10">
-                  <ShieldCheck class="h-3 w-3" />
-                  {{ permCountFor(role) }} hak akses
-                </span>
-              </div>
+            </div>
+
+            <div class="hidden md:block overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b bg-muted/40">
+                    <th class="px-5 py-3 text-left w-12">
+                      <input 
+                        type="checkbox" 
+                        :checked="isAllSelected" 
+                        @change="toggleSelectAll"
+                        class="rounded border-zinc-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      />
+                    </th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Role</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Kode Slug</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tipe</th>
+                    <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Hak Akses</th>
+                    <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="role in paginatedRoles"
+                    :key="role.id"
+                    class="border-b last:border-0 hover:bg-muted/30 transition-colors"
+                  >
+                    <td class="px-5 py-3">
+                      <input 
+                        type="checkbox" 
+                        :checked="selectedIds.includes(role.id)" 
+                        :disabled="!canEditRole(role)"
+                        @change="toggleSelect(role.id, role)"
+                        class="rounded border-zinc-300 text-primary focus:ring-primary h-4 w-4 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                    </td>
+                    <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ role.name }}</td>
+                    <td class="px-5 py-3 font-mono text-xs text-muted-foreground">{{ role.slug }}</td>
+                    <td class="px-5 py-3">
+                      <span v-if="role.slug && role.slug.startsWith('partner-')" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Kustom Mitra
+                      </span>
+                      <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        Bawaan Sistem
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium border border-primary/10">
+                        <ShieldCheck class="h-3 w-3" />
+                        {{ permCountFor(role) }} hak akses
+                      </span>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <div class="flex justify-end gap-1">
+                        <Button 
+                          v-if="can('role.update') && canEditRole(role)" 
+                          variant="ghost" 
+                          size="icon" 
+                          class="h-8 w-8 text-zinc-400 hover:text-zinc-700" 
+                          @click="openEdit(role)"
+                        >
+                          <Pencil class="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          v-if="can('role.delete') && canEditRole(role)"
+                          variant="ghost"
+                          size="icon"
+                          class="h-8 w-8 text-zinc-400 hover:text-destructive"
+                          @click="doDelete(role)"
+                        >
+                          <Trash2 class="h-3.5 w-3.5" />
+                        </Button>
+                        <span v-if="!canEditRole(role)" class="text-xs text-zinc-400 italic font-medium px-2 py-1 select-none">
+                          Terkunci
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div class="hidden md:block overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b bg-muted/40">
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Role</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Slug</th>
-                  <th class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Hak Akses</th>
-                  <th class="px-5 py-3 text-right font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="role in paginatedRoles"
-                  :key="role.id"
-                  class="border-b last:border-0 hover:bg-muted/30 transition-colors"
-                >
-                  <td class="px-5 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ role.name }}</td>
-                  <td class="px-5 py-3 font-mono text-xs text-muted-foreground">{{ role.slug }}</td>
-                  <td class="px-5 py-3">
-                    <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium border border-primary/10">
-                      <ShieldCheck class="h-3 w-3" />
-                      {{ permCountFor(role) }} hak akses
-                    </span>
-                  </td>
-                  <td class="px-5 py-3 text-right">
-                    <div class="flex justify-end gap-1">
-                      <Button v-if="can('role.update') && isCentralAdmin" variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openEdit(role)">
-                        <Pencil class="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        v-if="can('role.delete') && isCentralAdmin"
-                        variant="ghost"
-                        size="icon"
-                        class="h-8 w-8 text-zinc-400 hover:text-destructive"
-                        @click="doDelete(role)"
-                      >
-                        <Trash2 class="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <DataTablePagination
-          v-if="filteredRoles.length > 0 && !loading"
-          :page="page"
-          :page-size="pageSize"
-          :total="filteredRoles.length"
-          @update:page="page = $event; selectedIds = []"
-          @update:page-size="pageSize = $event; page = 1; selectedIds = []"
-        />
-      </CardContent>
-    </Card>
+          
+          <DataTablePagination
+            v-if="filteredRoles.length > 0 && !loading"
+            :page="page"
+            :page-size="pageSize"
+            :total="filteredRoles.length"
+            @update:page="page = $event; selectedIds = []"
+            @update:page-size="pageSize = $event; page = 1; selectedIds = []"
+          />
+        </CardContent>
+      </Card>
     </div>
 
     <Teleport to="body">
@@ -462,15 +587,15 @@ async function doDelete(role) {
       <Transition name="slide-right">
         <div
           v-if="showDrawer"
-          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[500px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
+          class="fixed inset-y-0 right-0 z-[50] flex flex-col w-full sm:max-w-[580px] h-full bg-card shadow-2xl sm:border-l overflow-hidden"
         >
           <div class="flex items-center justify-between px-6 py-4 border-b shrink-0">
             <div>
-              <h3 class="font-semibold text-base">
-                {{ modalMode === 'create' ? 'Tambah Role' : 'Edit Role' }}
+              <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-50">
+                {{ modalMode === 'create' ? 'Tambah Role Kustom' : 'Edit Role Kustom' }}
               </h3>
               <p class="text-xs text-muted-foreground mt-0.5">
-                {{ modalMode === 'create' ? 'Isi detail role dan pilih permission.' : 'Perbarui informasi role dan permission.' }}
+                {{ modalMode === 'create' ? 'Buat peran kerja kustom dan delegasikan hak akses.' : 'Perbarui informasi peran kerja kustom.' }}
               </p>
             </div>
             <Button variant="ghost" size="icon" @click="closeDrawer">
@@ -482,29 +607,65 @@ async function doDelete(role) {
             <Alert v-if="formError" variant="destructive">
               <p class="text-sm">{{ formError }}</p>
             </Alert>
-
+            
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <Label for="roleName">Nama Role <span class="text-destructive">*</span></Label>
-                <Input id="roleName" v-model="form.name" placeholder="Contoh: Editor" @input="onNameInput" :disabled="saving || !isCentralAdmin" />
+                <Label for="roleName" class="text-xs font-semibold">Nama Role <span class="text-destructive">*</span></Label>
+                <Input id="roleName" v-model="form.name" placeholder="Contoh: Admin Kasir" @input="onNameInput" :disabled="saving || !canManage" />
               </div>
               <div class="space-y-1.5">
-                <Label for="roleSlug">Slug</Label>
-                <Input id="roleSlug" v-model="form.slug" placeholder="contoh-role" class="font-mono text-xs" :disabled="saving || !isCentralAdmin" />
+                <Label for="roleSlug" class="text-xs font-semibold">Slug Peran</Label>
+                <div class="relative">
+                  <Input id="roleSlug" v-model="form.slug" placeholder="contoh-kasir" class="font-mono text-xs pr-10" :disabled="saving || !canManage" />
+                </div>
               </div>
             </div>
 
             <div class="space-y-3">
               <div class="flex items-center justify-between">
-                <Label class="text-sm font-semibold">Hak Akses (Permissions)</Label>
+                <Label class="text-sm font-semibold">Pengaturan Hak Akses (Permissions)</Label>
                 <span class="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  {{ selectedPermIds.size }} dipilih
+                  {{ selectedPermIds.size }} izin dipilih
                 </span>
               </div>
 
               <div v-if="modules.length === 0" class="flex items-center justify-center py-10 border rounded-lg bg-muted/20">
                 <Loader2 class="h-5 w-5 animate-spin text-muted-foreground/50 mr-2" />
                 <span class="text-sm text-muted-foreground">Memuat data hak akses…</span>
+              </div>
+
+              <div v-else-if="isOwner" class="space-y-2">
+                <div class="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-2">Daftar Modul Operasional</div>
+                <div class="grid grid-cols-1 gap-2">
+                  <div 
+                    v-for="module in modules" 
+                    :key="module"
+                    class="flex items-center justify-between p-3 border rounded-xl hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors"
+                  >
+                    <div class="flex flex-col">
+                      <span class="font-semibold text-xs text-zinc-900 dark:text-zinc-50 capitalize">
+                        {{ MODULE_LABELS[module] || module.replace('_', ' ') }}
+                      </span>
+                      <span class="text-[10px] text-zinc-400 font-mono mt-0.5">
+                        Meliputi {{ totalActionsInModule(module) }} hak akses di modul ini
+                      </span>
+                    </div>
+
+                    <button 
+                      type="button"
+                      @click="toggleSimplifiedModule(module)"
+                      class="h-7 w-7 rounded-lg flex items-center justify-center border transition-all duration-200"
+                      :class="isModuleAllChecked(module)
+                        ? 'bg-primary border-primary text-white shadow-sm shadow-primary/20' 
+                        : isModuleSomeChecked(module)
+                        ? 'bg-amber-100 border-amber-300 text-amber-700'
+                        : 'bg-transparent border-zinc-200 dark:border-zinc-800 hover:border-zinc-400'"
+                    >
+                      <Check v-if="isModuleAllChecked(module)" class="h-4 w-4 stroke-[3]" />
+                      <div v-else-if="isModuleSomeChecked(module)" class="h-2 w-2 rounded-full bg-amber-600" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div v-else class="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
@@ -521,13 +682,13 @@ async function doDelete(role) {
                     </thead>
                     <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800/60">
                       <tr v-for="module in modules" :key="module" class="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
-                        <td class="px-4 py-3 font-medium capitalize text-zinc-900 dark:text-zinc-100">{{ module }}</td>
+                        <td class="px-4 py-3 font-medium capitalize text-zinc-900 dark:text-zinc-100">{{ module.replace('_', ' ') }}</td>
                         <td v-for="action in ACTIONS" :key="action" class="px-2 py-4 text-center">
                           <div v-if="getPermission(module, action)" class="flex justify-center">
                             <button 
                               type="button"
                               @click="togglePerm(module, action)"
-                              :disabled="!isCentralAdmin"
+                              :disabled="!canManage"
                               class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
                               :class="isChecked(module, action) 
                                 ? 'bg-primary/10 border-primary shadow-sm' 
@@ -548,7 +709,7 @@ async function doDelete(role) {
                             <button 
                               type="button"
                               @click="toggleAllInModule(module)"
-                              :disabled="!isCentralAdmin"
+                              :disabled="!canManage"
                               class="h-6 w-6 rounded-md flex items-center justify-center transition-all duration-200"
                               :class="isModuleAllChecked(module) 
                                 ? 'bg-primary/10 border-primary shadow-sm' 
@@ -573,7 +734,7 @@ async function doDelete(role) {
 
           <div class="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
             <Button variant="outline" @click="closeDrawer" :disabled="saving">Batal</Button>
-            <Button v-if="isCentralAdmin" @click="saveRole" :disabled="saving">
+            <Button v-if="canManage" @click="saveRole" :disabled="saving" class="bg-primary hover:bg-primary/90 text-white flex items-center justify-center">
               <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
               {{ modalMode === 'create' ? 'Simpan Role' : 'Simpan Perubahan' }}
             </Button>

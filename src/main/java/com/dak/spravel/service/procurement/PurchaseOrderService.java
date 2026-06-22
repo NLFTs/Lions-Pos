@@ -144,15 +144,6 @@ public class PurchaseOrderService {
                     .toList();
         }
 
-        // Warehouse isolation: user gudang hanya lihat PO untuk gudangnya
-        if (currentUser.getWarehouse() != null) {
-            final Long warehouseId = currentUser.getWarehouse().getId();
-            return partnerPOs.stream()
-                    .filter(po -> "WAREHOUSE".equalsIgnoreCase(po.getLocationType())
-                            && warehouseId.equals(po.getLocationId()))
-                    .toList();
-        }
-
         // Owner/admin partner: lihat semua PO milik partner
         return partnerPOs;
     }
@@ -170,7 +161,7 @@ public class PurchaseOrderService {
         }
 
         // Untuk branch/warehouse user, ambil semua dulu lalu filter (karena filter lokasi tidak ada di repo)
-        if (currentUser.getBranch() != null || currentUser.getWarehouse() != null) {
+        if (currentUser.getBranch() != null) {
             List<PurchaseOrder> filtered = findAll(); // reuse logic di atas
             int start = (int) pageable.getOffset();
             int end = Math.min(start + pageable.getPageSize(), filtered.size());
@@ -227,6 +218,7 @@ public class PurchaseOrderService {
         po.setExpectedDate(request.getExpectedDate());
         po.setNotes(request.getNotes());
         po.setStatus(PurchaseOrder.Status.DRAFT);
+        po.setCreatedBy(currentUser);
 
         PurchaseOrder saved = purchaseOrderRepository.save(po);
 
@@ -268,6 +260,7 @@ public class PurchaseOrderService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setStatus(PurchaseOrder.Status.valueOf(status.toUpperCase()));
+        po.setUpdatedBy(currentUser);
         return purchaseOrderRepository.save(po);
     }
 
@@ -281,6 +274,7 @@ public class PurchaseOrderService {
 
         PurchaseOrder po = getValidatedPurchaseOrder(id, currentUser);
         po.setDeletedAt(LocalDateTime.now());
+        po.setDeletedBy(currentUser);
         purchaseOrderRepository.save(po);
     }
 

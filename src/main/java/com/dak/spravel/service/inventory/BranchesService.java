@@ -14,7 +14,6 @@ import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.BranchesRepository;
-import com.dak.spravel.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -232,7 +231,7 @@ public class BranchesService {
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }
@@ -245,7 +244,7 @@ public class BranchesService {
         Branches branch = getValidatedBranch(id, currentUser);
         branch.setIsActive(false);
         branch.setDeletedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setDeletedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }
@@ -258,7 +257,7 @@ public class BranchesService {
         Branches branch = getValidatedBranch(id, currentUser);
         branch.setIsActive(true);
         branch.setUpdatedBy(currentUser);
-        AuditHelper.setUpdated(branch);
+        branch.setUpdatedAt(LocalDateTime.now());
 
         return mapToResponse(branchesRepository.save(branch));
     }
@@ -303,12 +302,9 @@ public class BranchesService {
             }
         }
 
-        // Guard: user tidak boleh sudah jadi pengelola cabang/gudang lain
+        // Guard: user tidak boleh sudah jadi pengelola cabang lain
         if (newManager.getBranch() != null && !newManager.getBranch().getId().equals(branchId)) {
             throw new RuntimeException("User ini sudah menjadi pengelola cabang lain: " + newManager.getBranch().getName());
-        }
-        if (newManager.getWarehouse() != null) {
-            throw new RuntimeException("User ini sudah menjadi pengelola gudang: " + newManager.getWarehouse().getName());
         }
 
         // Guard: hanya karyawan biasa yang boleh ditunjuk (bukan owner/admin/pengelola lain)
@@ -342,7 +338,6 @@ public class BranchesService {
                             || "staff-branch".equalsIgnoreCase(r.getSlug()));
         newManager.setRoles(newRoles);
         newManager.setBranch(branch);
-        newManager.setWarehouse(null);
         userRepository.save(newManager);
         permissionCacheService.evict(newManager.getUsername());
 
@@ -362,10 +357,6 @@ public class BranchesService {
         if (user.getBranch() != null) {
             res.setBranchId(user.getBranch().getId());
             res.setBranchName(user.getBranch().getName());
-        }
-        if (user.getWarehouse() != null) {
-            res.setWarehouseId(user.getWarehouse().getId());
-            res.setWarehouseName(user.getWarehouse().getName());
         }
         List<UserResponse.RoleData> roleDataList = user.getRoles().stream().map(role -> {
             UserResponse.RoleData rd = new UserResponse.RoleData();
