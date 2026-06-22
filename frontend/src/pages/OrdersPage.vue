@@ -202,9 +202,114 @@ async function submitReturn() {
 }
 
 function printReceipt(order) {
-  window.print()
-}
+  if (!order) return
 
+  const itemsHtml = order.items.map(item => `
+    <tr style="font-size: 11px;">
+      <td style="padding: 3px 0; max-width: 150px; word-break: break-word;">
+        ${item.productName || item.product?.name || 'Produk'}<br>
+        <span style="color: #666;">${item.qty} x ${formatCurrency(item.unitPrice)}</span>
+      </td>
+      <td style="text-align: right; vertical-align: top; padding: 3px 0;">
+        ${formatCurrency(item.subtotal)}
+      </td>
+    </tr>
+  `).join('')
+
+  const receiptContent = `
+    <html>
+    <head>
+      <title>Struk - ${order.orderNumber}</title>
+      <style>
+        * { box-sizing: border-box; }
+        @page {
+          size: 80mm auto;
+          margin: 4mm 3mm;
+        }
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          width: 74mm;
+          max-width: 74mm;
+          margin: 0 auto;
+          padding: 0;
+          font-size: 12px;
+          color: #000;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .center { text-align: center; }
+        .right { text-align: right; }
+        .line { border-top: 1px dashed #000; margin: 5px 0; }
+        table { width: 100%; border-collapse: collapse; }
+      </style>
+    </head>
+    <body>
+      <div class="center">
+        <h3 style="margin: 0 0 4px 0; font-size: 14px;">GAPTEK RETAIL &amp; F&amp;B</h3>
+        <p style="margin: 0; font-size: 10px;">${order.branchName || order.branch?.name || 'Cabang POS'}</p>
+      </div>
+      <div class="line"></div>
+      <div style="font-size: 11px; line-height: 1.5;">
+        <div><b>No:</b> ${order.orderNumber}</div>
+        <div><b>Waktu:</b> ${formatDate(order.createdAt)}</div>
+        <div><b>Kasir:</b> ${order.cashierName || order.createdBy?.username || '-'}</div>
+        <div><b>Pelanggan:</b> ${order.buyerName || '-'}</div>
+      </div>
+      <div class="line"></div>
+      <table>${itemsHtml}</table>
+      <div class="line"></div>
+      <table style="font-size: 11px;">
+        <tr><td>Subtotal:</td><td class="right">${formatCurrency(order.subtotal)}</td></tr>
+        ${order.discountAmount > 0 ? `<tr><td>Diskon:</td><td class="right">-${formatCurrency(order.discountAmount)}</td></tr>` : ''}
+        <tr style="font-weight: bold; font-size: 13px;">
+          <td style="padding-top: 4px;">TOTAL:</td>
+          <td class="right" style="padding-top: 4px;">${formatCurrency(order.total)}</td>
+        </tr>
+      </table>
+      ${order.payments?.length ? `
+        <div class="line"></div>
+        <table style="font-size: 11px;">
+          ${order.payments.map(p => `
+            <tr><td>Metode:</td><td class="right">${p.method === 'CASH' ? 'Tunai' : 'Transfer'}</td></tr>
+            ${p.method === 'CASH' && p.cashTendered ? `
+              <tr><td>Diterima:</td><td class="right">${formatCurrency(p.cashTendered)}</td></tr>
+              <tr><td style="font-weight:bold;">Kembalian:</td><td class="right" style="font-weight:bold;">${formatCurrency(p.changeDue || 0)}</td></tr>
+            ` : ''}
+          `).join('')}
+        </table>
+      ` : ''}
+      <div class="line"></div>
+      <div class="center" style="margin-top: 10px; font-size: 10px;">
+        Terima Kasih Atas Kunjungan Anda<br>
+        Aplikasi POS terintegrasi oleh Gaptek
+      </div>
+    </body>
+    </html>
+  `
+
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;'
+  document.body.appendChild(iframe)
+
+  const doc = iframe.contentWindow.document
+  doc.open()
+  doc.write(receiptContent)
+  doc.close()
+
+  // ✅ Tunggu konten render dulu, baru print
+  iframe.onload = () => {
+    setTimeout(() => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      // ✅ Hapus iframe SETELAH print dialog ditutup user
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe)
+        }
+      }, 2000)
+    }, 300)
+  }
+}
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatCurrency(v) {
   if (v == null) return '-'
