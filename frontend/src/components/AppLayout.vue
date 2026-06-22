@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { usePermission } from '@/composables/usePermission'
 import { useConfirmStore } from '@/stores/confirm'
-import { useNotificationStore } from '@/stores/notifications'
+// import { useNotificationStore } from '@/stores/notifications'
 import { useRoute, useRouter } from 'vue-router'
 import {
   LogOut,
@@ -171,7 +171,7 @@ const MENU_GROUPS = [
   {
     label: 'Data Master',
     items: [
-      { label: 'Notifikasi', icon: Bell, to: '/dashboard/notifications', permission: null },
+      // { label: 'Notifikasi', icon: Bell, to: '/dashboard/notifications', permission: null },
       { label: 'Log Audit', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
     ],
   },
@@ -504,46 +504,46 @@ async function fetchPartnerLocations() {
   }
 }
 
-// ─── Notification Store ───────────────────────────────────────────────────
-const notifStore = useNotificationStore()
-const showNotifPanel = ref(false)
+// // ─── Notification Store ───────────────────────────────────────────────────
+// const notifStore = useNotificationStore()
+// const showNotifPanel = ref(false)
 
-const notifications = computed(() => notifStore.items)
-const unreadCount = computed(() => notifStore.unreadCount)
+// const notifications = computed(() => notifStore.items)
+// const unreadCount = computed(() => notifStore.unreadCount)
 
-function markAllRead() {
-  notifStore.markAllRead()
-}
+// function markAllRead() {
+//   notifStore.markAllRead()
+// }
 
-function clearNotifications() {
-  notifStore.clear()
-}
+// function clearNotifications() {
+//   notifStore.clear()
+// }
 
-function handleNotifClick(n) {
-  notifStore.markOneRead(n.id)
-  if (n.routeTo) router.push(n.routeTo)
-  showNotifPanel.value = false
-}
+// function handleNotifClick(n) {
+//   notifStore.markOneRead(n.id)
+//   if (n.routeTo) router.push(n.routeTo)
+//   showNotifPanel.value = false
+// }
 
-onMounted(() => {
-  expandActiveParents()
-  window.addEventListener('keydown', handleGlobalKeydown)
-  auth.fetchMe()
-  fetchPartnerLocations()
-  notifStore.startPolling(60_000)
-})
+// onMounted(() => {
+//   expandActiveParents()
+//   window.addEventListener('keydown', handleGlobalKeydown)
+//   auth.fetchMe()
+//   fetchPartnerLocations()
+//   notifStore.startPolling(60_000)
+// })
 
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
-  notifStore.stopPolling()
-})
+// onBeforeUnmount(() => {
+//   window.removeEventListener('keydown', handleGlobalKeydown)
+//   notifStore.stopPolling()
+// })
 
-function isLocationActive(type, id) {
-  return route.path === '/dashboard/inventory' && 
-         route.query.locationType === type && 
-         Number(route.query.locationId) === id
-}
-</script>
+// function isLocationActive(type, id) {
+//   return route.path === '/dashboard/inventory' && 
+//          route.query.locationType === type && 
+//          Number(route.query.locationId) === id
+// }
+// </script>
 
 <template>
   <div class="flex h-screen bg-white dark:bg-zinc-950 text-foreground transition-colors duration-200 overflow-hidden">
