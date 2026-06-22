@@ -44,6 +44,40 @@ const pageSize = ref(10)
 const detailDrawer = ref({ show: false, order: null })
 const actionLoading = ref(false)
 
+// Filter tanggal
+const dateFilter = ref('today') // 'today' | 'yesterday' | 'week' | 'month' | 'custom'
+const dateFrom = ref('')
+const dateTo = ref('')
+
+function getDateRange(filter) {
+  const now = new Date()
+  const startOf = (d) => { d.setHours(0,0,0,0); return d }
+  const endOf   = (d) => { d.setHours(23,59,59,999); return d }
+  switch (filter) {
+    case 'today':
+      return { from: startOf(new Date(now)), to: endOf(new Date(now)) }
+    case 'yesterday': {
+      const y = new Date(now); y.setDate(y.getDate() - 1)
+      return { from: startOf(y), to: endOf(new Date(y)) }
+    }
+    case 'week': {
+      const w = new Date(now); w.setDate(w.getDate() - 6)
+      return { from: startOf(w), to: endOf(new Date(now)) }
+    }
+    case 'month': {
+      const m = new Date(now); m.setDate(m.getDate() - 29)
+      return { from: startOf(m), to: endOf(new Date(now)) }
+    }
+    case 'custom':
+      return {
+        from: dateFrom.value ? new Date(dateFrom.value + 'T00:00:00') : null,
+        to:   dateTo.value   ? new Date(dateTo.value   + 'T23:59:59') : null,
+      }
+    default:
+      return { from: null, to: null }
+  }
+}
+
 // Return modal
 const showReturnModal = ref(false)
 const returnItems = ref([])
@@ -90,6 +124,17 @@ const filteredOrders = computed(() => {
     result = result.filter(o => {
       const bId = o.branchId || o.branch?.id
       return String(bId) === String(branchFilter.value)
+    })
+  }
+  // Filter tanggal
+  const range = getDateRange(dateFilter.value)
+  if (range.from || range.to) {
+    result = result.filter(o => {
+      if (!o.createdAt) return false
+      const d = new Date(o.createdAt)
+      if (range.from && d < range.from) return false
+      if (range.to   && d > range.to)   return false
+      return true
     })
   }
   if (searchQuery.value) {
@@ -292,7 +337,7 @@ async function fetchBranches() {
   }
 }
 
-watch([statusFilter, branchFilter, searchQuery], () => { page.value = 1 })
+watch([statusFilter, branchFilter, searchQuery, dateFilter, dateFrom, dateTo], () => { page.value = 1 })
 
 // Filter Cabang
 const statusOptions = computed(() => [
@@ -343,6 +388,43 @@ onMounted(() => {
             class="w-full sm:w-40"
           />
         </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Quick date pills -->
+        <div class="flex items-center gap-1 flex-wrap">
+          <button v-for="opt in [
+            { value: 'today',     label: 'Hari Ini' },
+            { value: 'yesterday', label: 'Kemarin' },
+            { value: 'week',      label: '7 Hari' },
+            { value: 'month',     label: '30 Hari' },
+            { value: 'custom',    label: 'Custom' },
+          ]" :key="opt.value"
+            @click="dateFilter = opt.value"
+            :class="['px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all border',
+              dateFilter === opt.value
+                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-100'
+                : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-400']">
+            {{ opt.label }}
+          </button>
+        </div>
+
+        <!-- Custom date inputs -->
+        <Transition name="slide-down">
+          <div v-if="dateFilter === 'custom'" class="flex items-center gap-2">
+            <input type="date" v-model="dateFrom"
+              class="h-8 px-2.5 text-[12px] font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-primary/20" />
+            <span class="text-[11px] text-zinc-400 font-medium">s/d</span>
+            <input type="date" v-model="dateTo"
+              class="h-8 px-2.5 text-[12px] font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 outline-none focus:ring-2 focus:ring-primary/20" />
+          </div>
+        </Transition>
+
+        <!-- Spacer + result count -->
+        <span class="ml-auto text-[11px] font-medium text-zinc-400">
+          {{ filteredOrders.length }} transaksi ditemukan
+        </span>
       </div>
 
       <!-- Table Card -->
@@ -783,4 +865,6 @@ onMounted(() => {
 .slide-right-enter-from, .slide-right-leave-to { transform: translateX(100%); }
 .scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
+.slide-down-enter-active, .slide-down-leave-active { transition: all 0.2s ease; }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-6px); }
 </style>

@@ -22,8 +22,6 @@ import com.dak.spravel.model.order.Payments;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.repository.order.PaymentsRepository;
-import com.dak.spravel.service.inventory.StockBalanceService;
-import com.dak.spravel.service.inventory.StockMutationService;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -33,8 +31,6 @@ public class PaymentsService {
     private final PaymentsRepository paymentsRepository;
     private final OrdersRepository ordersRepository;
     private final UserRepository userRepository;
-    private final StockBalanceService stockBalanceService;
-    private final StockMutationService stockMutationService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -272,38 +268,11 @@ public class PaymentsService {
         payment.setUpdatedAt(LocalDateTime.now());
         payment.setUpdatedBy(currentUser);
 
-        // Update status invoice order induk menjadi PAID setelah valid
         Orders order = payment.getOrder();
         if (order != null) {
             order.setStatus(Orders.PaymentStatus.PAID);
             order.setUpdatedAt(LocalDateTime.now());
             order.setUpdatedBy(currentUser);
-
-            // POTONG STOK SEARA REAL-TIME SAAT SETELAH APPROVAL TRANSFER TERVERIFIKASI
-            if (order.getBranch() != null && order.getPartner() != null) {
-                for (com.dak.spravel.model.order.OrderItems item : order.getItems()) {
-                    stockBalanceService.adjustStock(
-                            item.getProduct().getId(),
-                            "BRANCH",
-                            order.getBranch().getId(),
-                            -item.getQty()
-                    );
-                    
-                    // Catat ke dalam baris histori mutasi inventori Spravel
-                    stockMutationService.recordMutation(
-                            item.getProduct(),
-                            order.getPartner(),
-                            "SALE_OUT",
-                            "BRANCH", order.getBranch().getId(),
-                            null, null,
-                            item.getQty(),
-                            "ORDER", order.getId(),
-                            "Order #" + order.getOrderNumber() + " (Transfer Payment Verified By " + currentUser.getUsername() + ")",
-                            currentUser
-                    );
-                }
-            }
-
             ordersRepository.save(order);
         }
 

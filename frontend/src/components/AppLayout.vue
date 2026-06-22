@@ -42,6 +42,7 @@ import {
   Building2,
   Handshake,
   Bell,
+  Clock,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -132,6 +133,7 @@ const MENU_GROUPS = [
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: 'pos.index' },
       { label: 'Riwayat Pesanan', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
+      { label: 'Riwayat Shift', icon: Clock, to: '/dashboard/shifts', permission: 'shift.index' },
     ],
   },
   {
@@ -1068,7 +1070,7 @@ function isLocationActive(type, id) {
       <header class="relative flex h-12 shrink-0 items-center justify-between bg-white dark:bg-zinc-950 px-4">
         <!-- Left: Toggle Sidebar -->
         <div class="flex items-center gap-4 w-1/3">
-          <button
+          j<button
             @click="toggleSidebar"
             class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors lg:hidden"
             title="Toggle sidebar"

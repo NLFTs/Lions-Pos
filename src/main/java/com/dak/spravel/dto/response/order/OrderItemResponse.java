@@ -20,4 +20,5 @@ public class OrderItemResponse {
     private BigDecimal subtotal;
     private Long returnQty;
     private String returnReason;
+    private String itemNote;
 }

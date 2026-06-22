@@ -59,4 +59,7 @@ public class OrderItems {
 
     @Column(name = "return_reason", columnDefinition = "TEXT")
     private String returnReason;
+
+    @Column(name = "item_note", columnDefinition = "TEXT")
+    private String itemNote;
 }
