@@ -22,4 +22,5 @@ public interface StockOpnameRepository extends JpaRepository<StockOpname, Long> 
     Page<StockOpname> findByPartnerIdAndDeletedAtIsNull(Long partnerId, Pageable pageable);
 
     Page<StockOpname> findByDeletedAtIsNull(Pageable pageable);
+
 }

@@ -45,18 +45,24 @@ public class StockBalanceController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('stock_balance.index')")
-    public ResponseEntity<ResData<List<StockBalanceResponse>>> index() {
-        log.info("[GET] /api/v1/stock-balances");
+    public ResponseEntity<ResData<List<StockBalanceResponse>>> index(
+            @RequestParam(required = false) String locationType,
+            @RequestParam(required = false) Long locationId) {
+        log.info("[GET] /api/v1/stock-balances locationType={} locationId={}", locationType, locationId);
+        if (locationType != null && locationId != null) {
+            return ResponseBuilder.ok(stockBalanceService.findByLocation(locationType, locationId));
+        }
         return ResponseBuilder.ok(stockBalanceService.findAll());
     }
 
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('stock_balance.index')")
     public ResponseEntity<ResData<Page<StockBalanceResponse>>> paginated(
+            @RequestParam(required = false) Long branchId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         log.info("[GET] /api/v1/stock-balances/page page={} size={}", page, size);
-        return ResponseBuilder.ok(stockBalanceService.findAll(page, size));
+        return ResponseBuilder.ok(stockBalanceService.findAll(branchId ,page, size));
     }
 
     @GetMapping("/summary")

@@ -24,20 +24,11 @@ public interface BranchWarehousesRepository extends JpaRepository<BranchWarehous
 
     boolean existsByBranchesAndWarehouses(Branches branch, Warehouses warehouse);
 
-    @Query("SELECT bw.warehouses FROM BranchWarehouses bw " +
-            "WHERE bw.branches.id = :branchId " +
-            "AND bw.warehouses.deletedAt IS NULL " +
+    @Query("SELECT bw.warehouses FROM BranchWarehouses bw " + "WHERE bw.branches.id = :branchId " + "AND bw.warehouses.deletedAt IS NULL " +
             "AND (:partnerId IS NULL OR bw.warehouses.partners.id = :partnerId)")
-    List<Warehouses> findWarehousesByBranchIdAndPartner(
-            @Param("branchId") Long branchId, 
-            @Param("partnerId") Long partnerId);
+    List<Warehouses> findWarehousesByBranchIdAndPartner(@Param("branchId") Long branchId, @Param("partnerId") Long partnerId);
 
-    @Query("SELECT bw.warehouses FROM BranchWarehouses bw " +
-            "WHERE bw.branches.id = :branchId " +
-            "AND bw.warehouses.deletedAt IS NULL " +
+    @Query("SELECT bw.warehouses FROM BranchWarehouses bw " + "WHERE bw.branches.id = :branchId " + "AND bw.warehouses.deletedAt IS NULL " +
             "AND (:partnerId IS NULL OR bw.warehouses.partners.id = :partnerId)")
-    Page<Warehouses> findWarehousesByBranchIdAndPartner(
-            @Param("branchId") Long branchId,
-            @Param("partnerId") Long partnerId,
-            Pageable pageable);
+    Page<Warehouses> findWarehousesByBranchIdAndPartner(@Param("branchId") Long branchId, @Param("partnerId") Long partnerId, Pageable pageable);
 }

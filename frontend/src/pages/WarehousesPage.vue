@@ -102,7 +102,6 @@ async function fetchWarehouses() {
   }
 }
 
-// Fetch linked branches via the many-to-many relationship table
 async function fetchLinkedBranches(whId) {
   try {
     const res = await api.get(`/api/v1/branch-warehouses/warehouse/${whId}`)
@@ -113,7 +112,6 @@ async function fetchLinkedBranches(whId) {
   }
 }
 
-// Fetch all branches of the partner for mapping select choices
 async function fetchAllBranchesList() {
   try {
     const url = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
@@ -164,7 +162,6 @@ async function openDetail(w) {
   editErrors.value = {}; editError.value = null
   activePanel.value = 'info'
   
-  // Simultaneously fetch relational branches mapping only
   await Promise.all([
     fetchLinkedBranches(w.id),
     fetchAllBranchesList()

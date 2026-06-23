@@ -182,7 +182,6 @@ public class TransferRequestService {
         tr.setPartner(partner);
 
         if (currentUser.getBranch() != null) {
-            // Pengelola Cabang mengajukan request dengan destinasi otomatis terkunci pada cabangnya sendiri
             tr.setToLocationType(TransferRequest.Location.BRANCH);
             tr.setToLocationId(currentUser.getBranch().getId());
 
@@ -191,9 +190,7 @@ public class TransferRequestService {
             }
             tr.setFromLocationType(TransferRequest.Location.valueOf(request.getFromLocationType().toUpperCase()));
             tr.setFromLocationId(request.getFromLocationId());
-
         } else {
-            // Owner Pusat / Admin bebas mengatur rute asal & tujuan (Cabang/Gudang)
             if (request.getFromLocationType() == null || request.getFromLocationId() == null ||
                 request.getToLocationType() == null || request.getToLocationId() == null) {
                 throw new RuntimeException("Lokasi asal dan lokasi tujuan wajib diisi lengkap.");
@@ -208,10 +205,23 @@ public class TransferRequestService {
             throw new RuntimeException("Lokasi asal dan lokasi tujuan tidak boleh sama.");
         }
 
-        // Lakukan validasi keberadaan lokasi & hak kepemilikan tenant
         validateLocations(tr.getFromLocationType(), tr.getFromLocationId(), tr.getToLocationType(), tr.getToLocationId(), partner);
 
-        tr.setStatus(TransferRequest.Status.PENDING);
+        boolean isManagerOrOwner = currentUser.getBranch() != null || 
+                                    currentUser.getRoles().stream().anyMatch(r -> r.getSlug().contains("owner") || r.getSlug().contains("pengelola-cabang"));
+        
+        boolean isInterBranch = (tr.getFromLocationType() == TransferRequest.Location.BRANCH && tr.getToLocationType() == TransferRequest.Location.BRANCH);
+
+        if (isManagerOrOwner && !isInterBranch) {
+            // Pengelola Cabang / Owner & rutenya melibatkan gudang -> Auto Approved!
+            tr.setStatus(TransferRequest.Status.APPROVED);
+            tr.setApprovedAt(LocalDateTime.now());
+            tr.setApprovedByUser(currentUser);
+        } else {
+            // Staff biasa, atau rutenya Cabang ke Cabang -> Harus disetujui Owner
+            tr.setStatus(TransferRequest.Status.PENDING);
+        }
+
         tr.setRequestedAt(LocalDateTime.now());
         tr.setCreatedAt(LocalDateTime.now());
         tr.setCreatedBy(currentUser);
@@ -242,18 +252,22 @@ public class TransferRequestService {
         TransferRequest.Status newStatus = TransferRequest.Status.valueOf(status.toUpperCase());
         
         if (newStatus == TransferRequest.Status.APPROVED) {
-            if (currentUser.getBranch() != null || !currentUser.getRoles().stream().anyMatch(r -> r.getName().equals("pengelola-cabang"))) {
-                throw new RuntimeException("Akses Ditolak: Staff Lapangan tidak berhak menyetujui rute transfer ini. Hanya pengelola cabang dan owner pusat.");
+            // Izinkan jika user adalah owner, atau dia pengelola cabang (slug mengandung 'pengelola-cabang')
+            boolean allowedToApprove = currentUser.getRoles().stream()
+                    .anyMatch(r -> r.getSlug().contains("owner") || r.getSlug().contains("pengelola-cabang") || r.getSlug().contains("admin"));
+            
+            if (!allowedToApprove) {
+                throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang dan Owner Pusat yang berhak menyetujui transfer ini.");
             }
             tr.setApprovedAt(LocalDateTime.now());
             tr.setApprovedByUser(currentUser);
         }
         else if (newStatus == TransferRequest.Status.IN_TRANSIT) {
             if (tr.getStatus() != TransferRequest.Status.APPROVED) {
-                throw new RuntimeException("Gagal: Dokumen pemindahan stok belum disetujui oleh pengelola cabang dan owner pusat.");
+                throw new RuntimeException("Gagal: Dokumen pemindahan stok belum disetujui.");
             }
 
-            // PROSES PEMOTONGAN FISIK STOK DI LOKASI ASAL (DINAMIS: CABANG MAUPUN GUDANG)
+            // PROSES PEMOTONGAN FISIK STOK DI LOKASI ASAL
             List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
             for (TransferRequestItem item : trItems) {
                 var stockAsalOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
@@ -263,22 +277,25 @@ public class TransferRequestService {
                 );
 
                 if (stockAsalOpt.isEmpty()) {
-                    throw new RuntimeException("Gagal Kirim: Saldo baki baki stok produk di lokasi asal belum di-inisialisasi.");
+                    throw new RuntimeException("Gagal Kirim: Saldo baki stok produk di lokasi asal belum di-inisialisasi.");
                 }
 
                 var stockAsal = stockAsalOpt.get();
                 long qtyToSend = item.getQtyRequested();
 
                 if (stockAsal.getQty() < qtyToSend) {
-                    throw new RuntimeException("Gagal Kirim: Saldo stok di lokasi asal tidak mencukupi untuk dikirim. Sisa saat ini: " + stockAsal.getQty());
+                    throw new RuntimeException("Gagal Kirim: Saldo stok di lokasi asal tidak mencukupi. Sisa saat ini: " + stockAsal.getQty());
                 }
 
                 stockAsal.setQty(stockAsal.getQty() - qtyToSend);
                 stockBalanceRepository.save(stockAsal);
             }
         } 
+        else if (newStatus == TransferRequest.Status.CANCELLED) {
+            // Izinkan pembatalan oleh pemilik dokumen / pengelola
+        }
         else {
-            if (currentUser.getBranch() != null) {
+            if (currentUser.getBranch() != null && !currentUser.getRoles().stream().anyMatch(r -> r.getSlug().contains("pengelola"))) {
                 throw new RuntimeException("Akses Ditolak: Anda tidak memiliki wewenang untuk mengubah status ini.");
             }
         }

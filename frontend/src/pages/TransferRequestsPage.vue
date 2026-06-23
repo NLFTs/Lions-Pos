@@ -326,20 +326,50 @@ async function updateTRStatus(id, newStatus) {
   updatingStatus.value = true
   try {
     if (newStatus.toLowerCase() === 'received') {
-      const payloadItems = (selectedTR.value?.items || []).map(item => ({
-        productId: item.product?.id || item.productId,
-        product_id: item.product?.id || item.productId,
-        qtyRequested: item.qtyRequested,
-        qty_requested: item.qtyRequested
-      }))
+      
+      const currentItems = selectedTR.value?.items || []
+      
+      console.log("🔍 [DEBUG INTERNALS] Isi raw items dari selectedTR:", currentItems)
+
+      const payloadItems = currentItems.map(item => {
+        const idTerdeteksi = 
+          item.product?.id || 
+          item.productId || 
+          item.product_id || 
+          item.idProduct;
+        
+        const qty = Number(item.qtyRequested || item.qty_requested || item.qty || 0);
+        return {
+          productId: idTerdeteksi ? Number(idTerdeteksi) : null,
+          product_id: idTerdeteksi ? Number(idTerdeteksi) : null,
+          
+          qtyRequested: qty,
+          qty_requested: qty,
+          
+          qtyReceived: qty,
+          qty_received: qty,
+          notes: item.notes || ''
+        }
+      })
+
+      console.log(" [FINAL PAYLOAD TO JAVA]:", JSON.stringify(payloadItems, null, 2))
+
+      if (payloadItems.some(i => i.productId === null || isNaN(i.productId))) {
+        toast.error('Gagal: ID Produk tidak terdeteksi. Silakan buka F12 Console untuk cek struktur data.')
+        updatingStatus.value = false
+        return
+      }
+
       await api.patch(`/api/v1/transfer-requests/${id}/receive`, payloadItems)
     } else {
       await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus.toUpperCase()}`)
     }
+    
     toast.success('Status pemindahan stok berjaya dikemas kini!')
     showForm.value = false
     fetchData()
   } catch (err) {
+    console.error("❌ Error pas update status:", err)
     toast.error(err.response?.data?.message || 'Gagal mengemas kini status pemindahan.')
   } finally {
     updatingStatus.value = false
@@ -744,28 +774,30 @@ onUnmounted(() => {
                   <CardContent class="p-5 space-y-3">
                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b pb-2 border-zinc-100 dark:border-zinc-800">Tindakan Kelulusan & Logistik</p>
                     <div class="flex flex-col gap-2">
-                      
-                      <!-- 1. Owner meluluskan request pemindahan -->
-                      <Button v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'approved')">
+        
+                      <Button 
+                        v-if="selectedTR.status === 'pending' && (isOwner || (isBranchManager && isTargetReceiver)) && can('transfer_request.update') && !isSuperAdmin" 
+                        class="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90" 
+                        :disabled="updatingStatus" 
+                        @click="updateTRStatus(selectedTR.id, 'approved')"
+                      >
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Check v-else class="h-4 w-4 mr-2" />Luluskan Pemindahan (Owner / Admin-Partners)
+                        <Check v-else class="h-4 w-4 mr-2" />
+                        <span>Setujui Permintaan Pemindahan {{ isOwner ? '(Owner)' : '(Cabang Penerima)' }}</span>
                       </Button>
-
-                      <!-- 2. Pengelola asal memproses kiriman barang -->
+                
                       <Button v-if="selectedTR.status === 'approved' && isBranchManager && isSourceSender && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'in_transit')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Send v-else class="h-4 w-4 mr-2" />Kirimkan (Lokasi Asal)
                       </Button>
-
-                      <!-- 3. Pengelola penerima mengonfirmasi penerimaan barang -->
+                
                       <Button v-if="selectedTR.status === 'in_transit' && isBranchManager && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'RECEIVED')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />Sahkan Penerimaan Stok (Lokasi Tujuan)
                       </Button>
-
-                      <!-- Makluman Interaktif Status Semasa -->
-                      <div v-if="selectedTR.status === 'pending' && isBranchManager" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
-                        ⌛ Menunggu persetujuan daripada pihak Owner Pusat...
+                
+                      <div v-if="selectedTR.status === 'pending' && isBranchManager && !isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
+                         Adil & Aman: Menunggu persetujuan dari Cabang Tujuan atau Owner Pusat...
                       </div>
                       <div v-if="selectedTR.status === 'approved' && isBranchManager && isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
                         📦 Telah disetujui! Menunggu cawangan asal memulakan penghantaran barang...
