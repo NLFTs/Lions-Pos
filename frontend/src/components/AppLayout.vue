@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { usePermission } from '@/composables/usePermission'
 import { useConfirmStore } from '@/stores/confirm'
-// import { useNotificationStore } from '@/stores/notifications'
 import { useRoute, useRouter } from 'vue-router'
 import {
   LogOut,
@@ -46,7 +45,6 @@ import {
   ClipboardList,
   PackageSearch,
   Repeat2,
-  Clock,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -75,12 +73,10 @@ const { can } = usePermission()
 const route = useRoute()
 const router = useRouter()
 const confirmStore = useConfirmStore()
+const userRole = ref('pengelola-cabang');
 
 // Sidebar state (mobile only)
 const sidebarOpen = ref(false)
-
-// Mobile: state untuk expand warna tema di panel inline
-const mobileThemeExpanded = ref(false)
 
 // Sub-sidebar state: 'main' | 'inventory'
 const activeSidebar = ref('main')
@@ -133,7 +129,6 @@ const MENU_GROUPS = [
     items: [
       { label: 'Kasir', icon: ShoppingCart, to: '/dashboard/kasir', permission: 'pos.index' },
       { label: 'Riwayat Pesanan', icon: ScrollText, to: '/dashboard/orders', permission: 'order.index' },
-      { label: 'Riwayat Shift', icon: Clock, to: '/dashboard/shifts', permission: 'shift.index' },
     ],
   },
   {
@@ -155,7 +150,7 @@ const MENU_GROUPS = [
     label: 'Manajemen',
     items: [
       { label: 'Manajemen Pengguna', icon: Users, to: '/dashboard/users', permission: 'user.index' },
-      { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index' },
+      { label: 'Cabang',  icon: Building2, to: '/dashboard/branches',  permission: 'branch.index'},
       { label: 'Gudang',  icon: Warehouse, to: '/dashboard/warehouses', permission: 'warehouse.index' },
       { label: 'Voucer', icon: Ticket, to: '/dashboard/vouchers', permission: 'voucher.index' },
     ],
@@ -171,7 +166,6 @@ const MENU_GROUPS = [
   {
     label: 'Data Master',
     items: [
-      // { label: 'Notifikasi', icon: Bell, to: '/dashboard/notifications', permission: null },
       { label: 'Log Audit', icon: Activity, to: '/dashboard/logs', permission: 'log.index' },
     ],
   },
@@ -187,6 +181,13 @@ const MENU_GROUPS = [
 function filterMenu(groups) {
   const isAdmin = auth.isAdmin
   
+  // Ambil data roles langsung dari user store agar aman dari urutan inisialisasi fungsi
+  const userRoles = user.value?.roles || []
+  const isOwner = userRoles.some(r => {
+    const name = (typeof r === 'string' ? r : (r.name || r.slug || '')).toLowerCase()
+    return name === 'owner' || name === 'admin-partner'
+  })
+  
   // Memastikan status apakah user memiliki partner atau partnerId
   const hasPartner = !!(user.value?.partner || user.value?.partnerId)
 
@@ -194,12 +195,16 @@ function filterMenu(groups) {
 
     const filteredItems = group.items.reduce((items, item) => {
       
-      // VALIDASI LEVEL ITEM (Menu Mitra): Sembunyikan jika sudah punya partner
+      // PROTEKSI KHUSUS CABANG:
+      // Hanya Super Admin atau Owner yang boleh melihat menu Cabang
+      if (item.label === 'Cabang' && !isAdmin && !isOwner) {
+        return items
+      }
+      
       if (item.label === 'Mitra' && hasPartner) {
         return items
       }
 
-      // Support anyPermission: tampilkan jika punya salah satu
       if (item.anyPermission) {
         if (!isAdmin && !item.anyPermission.some(p => can(p))) return items
       } else if (item.permission && !isAdmin && !can(item.permission)) {
@@ -423,11 +428,9 @@ function openSearch() {
   isSearchOpen.value = true
   searchQuery.value = ''
   activeSearchIndex.value = 0
-  // Di mobile, sidebar punya animasi 300ms — tunggu sedikit lebih lama agar input sudah ter-render
-  const isMobile = window.innerWidth < 1024
   setTimeout(() => {
     if (searchInputRef.value) searchInputRef.value.focus()
-  }, isMobile ? 350 : 150)
+  }, 150)
 }
 
 function closeSearch() {
@@ -504,46 +507,12 @@ async function fetchPartnerLocations() {
   }
 }
 
-// // ─── Notification Store ───────────────────────────────────────────────────
-// const notifStore = useNotificationStore()
-// const showNotifPanel = ref(false)
-
-// const notifications = computed(() => notifStore.items)
-// const unreadCount = computed(() => notifStore.unreadCount)
-
-// function markAllRead() {
-//   notifStore.markAllRead()
-// }
-
-// function clearNotifications() {
-//   notifStore.clear()
-// }
-
-// function handleNotifClick(n) {
-//   notifStore.markOneRead(n.id)
-//   if (n.routeTo) router.push(n.routeTo)
-//   showNotifPanel.value = false
-// }
-
-// onMounted(() => {
-//   expandActiveParents()
-//   window.addEventListener('keydown', handleGlobalKeydown)
-//   auth.fetchMe()
-//   fetchPartnerLocations()
-//   notifStore.startPolling(60_000)
-// })
-
-// onBeforeUnmount(() => {
-//   window.removeEventListener('keydown', handleGlobalKeydown)
-//   notifStore.stopPolling()
-// })
-
-// function isLocationActive(type, id) {
-//   return route.path === '/dashboard/inventory' && 
-//          route.query.locationType === type && 
-//          Number(route.query.locationId) === id
-// }
-// </script>
+function isLocationActive(type, id) {
+  return route.path === '/dashboard/inventory' && 
+         route.query.locationType === type && 
+         Number(route.query.locationId) === id
+}
+</script>
 
 <template>
   <div class="flex h-screen bg-white dark:bg-zinc-950 text-foreground transition-colors duration-200 overflow-hidden">
@@ -561,26 +530,26 @@ async function fetchPartnerLocations() {
       @cancel="confirmStore.onCancel"
     />
 
-    <!-- Invisible Backdrop for Search to click outside — desktop only -->
-    <div v-if="isSearchOpen" class="fixed inset-0 z-40 hidden lg:block" @click="closeSearch"></div>
+    <!-- Invisible Backdrop for Search to click outside -->
+    <div v-if="isSearchOpen" class="fixed inset-0 z-40" @click="closeSearch"></div>
 
-    <!-- Mobile Sidebar Overlay — hanya untuk lg ke atas jika dibutuhkan -->
+    <!-- Mobile Sidebar Overlay -->
     <div
       v-if="sidebarOpen"
-      class="fixed inset-0 bg-black/50 z-40 lg:hidden"
+      class="fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity"
       @click="sidebarOpen = false"
     ></div>
 
     <!-- ═══════════════════════════════════════════════════════════ SIDEBAR ═══ -->
     <aside
-      class="flex flex-col bg-white dark:bg-zinc-950 shrink-0 transition-transform duration-300 ease-in-out lg:w-[280px] w-full"
+      class="flex flex-col bg-white dark:bg-zinc-950 shrink-0 transition-transform duration-300 ease-in-out w-[280px]"
       :class="[
         'fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0',
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       ]"
     >
       <!-- ─── HEADER: Logo ─────────────────────────────────────────────────── -->
-      <div class="flex h-12 items-center px-4 shrink-0 justify-between">
+      <div class="flex h-12 items-center px-4 shrink-0">
         <div class="flex items-center gap-2.5 overflow-hidden">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
             <img 
@@ -593,14 +562,6 @@ async function fetchPartnerLocations() {
             GAPTEK
           </span>
         </div>
-        <!-- Tombol close sidebar — hanya tampil di mobile -->
-        <button
-          @click="sidebarOpen = false"
-          class="lg:hidden p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
-          title="Tutup menu"
-        >
-          <PanelLeftClose class="w-5 h-5" />
-        </button>
       </div>
 
       <!-- ─── SEARCH COMPONENT (Outside scrollable nav) ──────────────────── -->
@@ -615,11 +576,9 @@ async function fetchPartnerLocations() {
           <span class="flex-1 text-left font-medium">Cari...</span>
           <kbd class="hidden lg:inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium rounded border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-500 shadow-sm">F</kbd>
         </button>
-
-        <!-- Opened State — DESKTOP: floating dropdown | MOBILE: inline (tidak pakai absolute) -->
-
-        <!-- Desktop: floating modal dropdown (lg+) -->
-        <div v-if="isSearchOpen" class="hidden lg:flex absolute top-4 left-3 w-[400px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#09090b] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-zinc-200 dark:border-zinc-800 overflow-hidden flex-col z-[60] animate-in fade-in zoom-in-95 duration-200">
+        
+        <!-- Opened State (Input + Dropdown) -->
+        <div v-else class="absolute top-4 left-3 w-[400px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#09090b] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col z-[60] animate-in fade-in zoom-in-95 duration-200">
           <!-- Search Input -->
           <div class="flex items-center px-3 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#09090b]">
             <Search class="w-4 h-4 text-zinc-500 shrink-0" />
@@ -634,8 +593,9 @@ async function fetchPartnerLocations() {
               @keydown.enter.prevent="selectActiveSearch"
               @keydown.esc="closeSearch"
             />
-            <kbd class="inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 cursor-pointer shadow-sm hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors" @click="closeSearch">Esc</kbd>
+            <kbd class="hidden sm:inline-flex items-center justify-center h-5 px-1.5 text-[10px] font-medium rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 cursor-pointer shadow-sm hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors" @click="closeSearch">Esc</kbd>
           </div>
+
           <!-- Results List -->
           <div class="max-h-[350px] overflow-y-auto p-1.5 custom-scrollbar bg-white dark:bg-[#09090b]">
             <div v-if="filteredSearchItems.length === 0" class="py-6 text-center text-sm text-zinc-500">
@@ -661,57 +621,8 @@ async function fetchPartnerLocations() {
         </div>
       </div>
 
-      <!-- ─── BODY: Sidebar Panels + Mobile Footer ── -->
-      <div class="flex-1 flex flex-col overflow-hidden">
-
-        <!-- Mobile: inline search panel (menggantikan nav saat search terbuka) -->
-        <div v-if="isSearchOpen" class="lg:hidden flex flex-col flex-1 overflow-hidden animate-in fade-in duration-150">
-        <!-- Search Input Bar -->
-        <div class="flex items-center gap-2 px-3 py-2.5 border-b border-zinc-200 dark:border-zinc-800">
-          <Search class="w-4 h-4 text-zinc-500 shrink-0" />
-          <input
-            ref="searchInputRef"
-            v-model="searchQuery"
-            type="text"
-            placeholder="Cari..."
-            class="flex-1 bg-transparent border-none outline-none focus:ring-0 focus:outline-none text-[14px] text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-500"
-            @keydown.down.prevent="navigateSearch(1)"
-            @keydown.up.prevent="navigateSearch(-1)"
-            @keydown.enter.prevent="selectActiveSearch"
-            @keydown.esc="closeSearch"
-          />
-          <button
-            @click="closeSearch"
-            class="text-[11px] font-semibold px-2 py-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
-          >Esc</button>
-        </div>
-
-        <!-- Results List — mengisi sisa tinggi sidebar -->
-        <div class="flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
-          <div v-if="filteredSearchItems.length === 0" class="py-10 text-center text-sm text-zinc-500">
-            Tidak ada hasil.
-          </div>
-          <button
-            v-for="(item, index) in filteredSearchItems"
-            :key="item.id"
-            @click="() => { router.push(item.to); closeSearch(); sidebarOpen = false; }"
-            @mouseenter="activeSearchIndex = index"
-            class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors outline-none"
-            :class="activeSearchIndex === index ? 'bg-zinc-100 dark:bg-zinc-800/80' : 'hover:bg-zinc-50 dark:hover:bg-zinc-900/50'"
-          >
-            <div class="w-9 h-9 rounded-lg border border-zinc-200/50 dark:border-zinc-800/50 bg-zinc-100 dark:bg-zinc-900/50 flex items-center justify-center shrink-0">
-              <component :is="item.icon" class="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
-            </div>
-            <div class="flex flex-col overflow-hidden">
-              <span class="text-[14px] font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-tight">{{ item.label }}</span>
-              <span class="text-[12px] text-zinc-500 truncate leading-snug mt-0.5">{{ item.subtitle }}</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <!-- Nav Menu -->
-      <nav class="flex-1 overflow-hidden relative" :class="{ 'hidden lg:block': isSearchOpen }">
+      <!-- ─── BODY: Sidebar Panels ── -->
+      <nav class="flex-1 overflow-hidden relative">
 
         <!-- ══════════ PANEL 1: Main Sidebar ══════════ -->
         <div
@@ -795,88 +706,6 @@ async function fetchPartnerLocations() {
               </template>
             </div>
           </template>
-
-          <!-- ══ MOBILE: Profile & Settings Panel — di bawah semua menu, dalam scroll area ══ -->
-          <div class="lg:hidden mt-4 pb-28">
-            <div class="border-t border-zinc-200 dark:border-zinc-800 pt-3">
-
-              <!-- Profile row -->
-              <div class="flex items-center justify-between px-2 py-2 mb-1">
-                <div class="flex items-center gap-2.5">
-                  <div class="relative w-8 h-8 shrink-0">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm border border-white/20" :style="avatarStyle">
-                      {{ userInitial }}
-                    </div>
-                    <img v-if="userAvatar" :src="userAvatar" :alt="displayName" class="w-8 h-8 rounded-full border border-border object-cover absolute inset-0" @error="(e) => e.target.style.display = 'none'" />
-                  </div>
-                  <div class="flex flex-col overflow-hidden">
-                    <span class="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 truncate leading-tight">{{ displayName }}</span>
-                    <span class="text-[11px] text-zinc-500 truncate">{{ displayEmail }}</span>
-                  </div>
-                </div>
-                <button @click="router.push('/dashboard/profile'); sidebarOpen = false" class="p-1.5 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                  <Settings class="w-4 h-4" />
-                </button>
-              </div>
-
-              <!-- Actions -->
-              <div class="space-y-0.5">
-
-                <!-- Beranda -->
-                <button @click="router.push('/'); sidebarOpen = false" class="flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                  <span>Beranda</span>
-                  <Home class="h-4 w-4 text-zinc-400" />
-                </button>
-
-                <!-- Warna Tema — expandable -->
-                <div>
-                  <button @click="mobileThemeExpanded = !mobileThemeExpanded" class="flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                    <span>Warna Tema</span>
-                    <ChevronDown class="h-4 w-4 text-zinc-400 transition-transform duration-200" :class="mobileThemeExpanded ? 'rotate-180' : ''" />
-                  </button>
-                  <div v-if="mobileThemeExpanded" class="mt-1 ml-3 pl-3 border-l border-zinc-200 dark:border-zinc-800 space-y-0.5 pb-1">
-                    <button v-for="themeOption in themeStore.themeLabels" :key="themeOption.key" @click="themeStore.setTheme(themeOption.key)" class="flex w-full items-center gap-2.5 px-2 py-2 rounded-md text-sm transition-colors" :class="themeStore.currentTheme === themeOption.key ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-900' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900/50'">
-                      <div class="w-3.5 h-3.5 rounded-full shrink-0 border border-zinc-200 dark:border-zinc-700" :style="{ backgroundColor: themeOption.color }"></div>
-                      <span class="flex-1 text-left">{{ themeOption.label }}</span>
-                      <Check v-if="themeStore.currentTheme === themeOption.key" class="w-3.5 h-3.5 shrink-0" />
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Mode Tampilan -->
-                <div class="flex items-center justify-between px-3 py-2.5 rounded-lg">
-                  <span class="text-sm text-zinc-700 dark:text-zinc-300">Mode Tampilan</span>
-                  <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                    <button @click="setThemePreference('light')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'light' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'" title="Siang"><Sun class="h-3.5 w-3.5" /></button>
-                    <button @click="setThemePreference('dark')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'dark' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'" title="Malam"><Moon class="h-3.5 w-3.5" /></button>
-                    <button @click="setThemePreference('system')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'system' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'" title="Sistem"><Monitor class="h-3.5 w-3.5" /></button>
-                  </div>
-                </div>
-
-                <!-- Keluar -->
-                <button @click="auth.logout()" class="flex w-full items-center justify-between px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                  <span>Keluar</span>
-                  <LogOut class="h-4 w-4" />
-                </button>
-              </div>
-
-              <!-- Upgrade Button -->
-              <div v-if="upgradeConfig" class="mt-2">
-                <router-link :to="upgradeConfig.to" @click="sidebarOpen = false">
-                  <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9">
-                    {{ upgradeConfig.label }}
-                  </Button>
-                </router-link>
-              </div>
-
-              <!-- Plan info -->
-              <div class="mt-3 flex items-center justify-between px-1 py-2 border-t border-zinc-100 dark:border-zinc-800/60">
-                <span class="text-[11px] font-medium text-zinc-500">Plan Saat Ini: <span class="font-semibold text-zinc-700 dark:text-zinc-300 capitalize">{{ planConfig.label }}</span></span>
-                <div :class="['h-2 w-2 rounded-full', planConfig.dotClass]"></div>
-              </div>
-
-            </div>
-          </div>
         </div>
 
         <!-- ══════════ PANEL 2: Inventory Sub-Sidebar ══════════ -->
@@ -974,8 +803,8 @@ async function fetchPartnerLocations() {
 
       </nav>
 
-      <!-- ─── FOOTER: Profile Button — DESKTOP ONLY ───────────────────────── -->
-      <div class="hidden lg:block p-2 shrink-0 relative z-30">
+      <!-- ─── FOOTER: Profile Button ───────────────────────────────────────── -->
+      <div class="p-2 shrink-0 relative z-30">
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <button
@@ -1005,6 +834,7 @@ async function fetchPartnerLocations() {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent side="top" align="start" :side-offset="8" class="w-[280px] p-0">
+            <!-- Header -->
             <div class="flex items-center justify-between px-3 py-3 border-b border-border">
               <div class="flex flex-col space-y-0.5">
                 <p class="text-sm font-semibold leading-none text-zinc-900 dark:text-zinc-100">{{ displayName }}</p>
@@ -1014,43 +844,83 @@ async function fetchPartnerLocations() {
                 <Settings class="h-4 w-4" />
               </button>
             </div>
+
+            <!-- Main actions -->
             <div class="p-1">
               <DropdownMenuItem @click="router.push('/')" class="justify-between px-2 py-2 text-sm cursor-pointer">
                 <span>Beranda</span>
                 <Home class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
+
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger class="flex w-full justify-between items-center px-2 py-2 text-sm cursor-pointer outline-none">
                   <span>Warna Tema</span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent side="right" align="start" class="min-w-[140px]">
-                    <DropdownMenuItem v-for="themeOption in themeStore.themeLabels" :key="themeOption.key" @click="themeStore.setTheme(themeOption.key)" class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer">
+                    <DropdownMenuItem
+                      v-for="themeOption in themeStore.themeLabels"
+                      :key="themeOption.key"
+                      @click="themeStore.setTheme(themeOption.key)"
+                      class="flex items-center gap-2.5 px-2 py-1.5 text-sm cursor-pointer"
+                    >
                       <div class="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm border border-zinc-200 dark:border-zinc-700" :style="{ backgroundColor: themeOption.color }"></div>
                       <span class="flex-1">{{ themeOption.label }}</span>
-                      <Check v-if="themeStore.currentTheme === themeOption.key" class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto" />
+                      <Check
+                        v-if="themeStore.currentTheme === themeOption.key"
+                        class="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100 shrink-0 ml-auto"
+                      />
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
+
+              <!-- Display Mode: Direct Icons -->
               <div class="px-2 py-2 flex items-center justify-between border-t border-border mt-1 pt-3">
                 <span class="text-sm">Mode Tampilan</span>
                 <div class="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                  <button @click="setThemePreference('light')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'light' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'" title="Siang"><Sun class="h-3.5 w-3.5" /></button>
-                  <button @click="setThemePreference('dark')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'dark' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'" title="Malam"><Moon class="h-3.5 w-3.5" /></button>
-                  <button @click="setThemePreference('system')" class="p-1.5 rounded-md transition-all" :class="themePreference === 'system' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'" title="Sistem"><Monitor class="h-3.5 w-3.5" /></button>
+                  <button 
+                    @click="setThemePreference('light')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'light' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Siang"
+                  >
+                    <Sun class="h-3.5 w-3.5" />
+                  </button>
+                  <button 
+                    @click="setThemePreference('dark')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'dark' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Malam"
+                  >
+                    <Moon class="h-3.5 w-3.5" />
+                  </button>
+                  <button 
+                    @click="setThemePreference('system')" 
+                    class="p-1.5 rounded-md transition-all"
+                    :class="themePreference === 'system' ? 'bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'"
+                    title="Sistem"
+                  >
+                    <Monitor class="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
+
               <DropdownMenuItem @click="auth.logout()" class="justify-between px-2 py-2 text-sm cursor-pointer text-zinc-900 dark:text-zinc-100">
                 <span>Keluar</span>
                 <LogOut class="h-4 w-4 text-zinc-500" />
               </DropdownMenuItem>
             </div>
+
+            <!-- Upgrade Button — hanya tampil kalau bukan enterprise -->
             <div v-if="upgradeConfig" class="px-3 pb-3">
               <router-link :to="upgradeConfig.to">
-                <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">{{ upgradeConfig.label }}</Button>
+                <Button class="w-full justify-center bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 shadow-sm font-semibold h-9 mt-1">
+                  {{ upgradeConfig.label }}
+                </Button>
               </router-link>
             </div>
+
             <div class="border-t border-border bg-zinc-50/50 dark:bg-zinc-900/50 px-3 py-2.5 flex items-center justify-between rounded-b-md">
               <div class="flex flex-col">
                 <span class="text-xs font-medium text-zinc-500">Plan Saat Ini</span>
@@ -1061,7 +931,6 @@ async function fetchPartnerLocations() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      </div><!-- end: BODY wrapper -->
     </aside>
 
     <!-- ═══════════════════════════════════════════════════════════ MAIN ════════ -->
@@ -1070,6 +939,13 @@ async function fetchPartnerLocations() {
       <header class="relative flex h-12 shrink-0 items-center justify-between bg-white dark:bg-zinc-950 px-4">
         <!-- Left: Toggle Sidebar -->
         <div class="flex items-center gap-4 w-1/3">
+          <button
+            @click="toggleSidebar"
+            class="p-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors lg:hidden"
+            title="Toggle sidebar"
+          >
+            <PanelLeftOpen class="w-4 h-4" />
+          </button>
         </div>
 
         <!-- Center: Page Title -->
@@ -1095,93 +971,57 @@ async function fetchPartnerLocations() {
 
             <Transition name="notif-panel">
               <div v-if="showNotifPanel"
-                class="absolute right-0 top-full mt-2 z-50 w-[360px] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-
-                <!-- Header -->
+                class="absolute right-0 top-full mt-2 z-50 w-[340px] bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
                 <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
                   <div class="flex items-center gap-2">
                     <Bell class="w-3.5 h-3.5 text-zinc-500" />
                     <span class="text-[13px] font-bold">Notifikasi</span>
-                    <span v-if="unreadCount > 0"
-                      class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                    <span v-if="unreadCount > 0" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-550 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400">
                       {{ unreadCount }} baru
                     </span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <button v-if="unreadCount > 0" @click="markAllRead"
+                    <button v-if="notifications.length > 0" @click="markAllRead"
                       class="text-[10px] font-semibold text-primary hover:underline">
-                      Tandai dibaca
+                      Tandai semua dibaca
                     </button>
                     <button v-if="notifications.length > 0" @click="clearNotifications"
-                      class="text-[10px] font-semibold text-zinc-400 hover:text-red-500 transition-colors">
-                      Hapus
+                      class="text-[10px] font-semibold text-zinc-400 hover:text-red-500">
+                      Hapus semua
                     </button>
                   </div>
                 </div>
 
-                <!-- List -->
-                <div class="max-h-[420px] overflow-y-auto custom-scrollbar">
-                  <!-- Empty state -->
+                <div class="max-h-[380px] overflow-y-auto">
                   <div v-if="notifications.length === 0"
-                    class="flex flex-col items-center justify-center py-12 text-zinc-400 gap-2">
+                    class="flex flex-col items-center justify-center py-10 text-zinc-400 gap-2">
                     <Bell class="w-8 h-8 opacity-20" />
                     <p class="text-xs font-medium">Tidak ada notifikasi</p>
                   </div>
-
-                  <!-- Items -->
-                  <div
-                    v-for="n in notifications"
-                    :key="n.id"
-                    @click="handleNotifClick(n)"
-                    :class="[
-                      'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-zinc-100 dark:border-zinc-800/60 last:border-0',
-                      n.isRead
-                        ? 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
-                        : 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50/70 dark:hover:bg-amber-900/20'
-                    ]"
-                  >
-                    <!-- Icon badge -->
-                    <div :class="[
-                      'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
-                      n.severity === 'ERROR'   ? 'bg-red-100 dark:bg-red-900/30' :
-                      n.severity === 'WARNING' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                                                 'bg-blue-100 dark:bg-blue-900/30'
-                    ]">
-                      <!-- ERROR / WARNING -->
-                      <svg v-if="n.severity === 'ERROR' || n.severity === 'WARNING'"
-                        class="w-4 h-4"
-                        :class="n.severity === 'ERROR' ? 'text-red-500' : 'text-amber-500'"
+                  <div v-for="n in notifications" :key="n.id"
+                    @click="router.push(n.to || '#'); showNotifPanel = false; n.read = true"
+                    :class="['flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-zinc-100 dark:border-zinc-800/60 last:border-0',
+                      n.read ? 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40' : 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20']">
+                    <div :class="['w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
+                      n.type === 'error' ? 'bg-red-100 dark:bg-red-900/30' :
+                      n.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30' :
+                      'bg-blue-100 dark:bg-blue-900/30']">
+                      <svg v-if="n.type === 'error' || n.type === 'warning'" class="w-4 h-4"
+                        :class="n.type === 'error' ? 'text-red-500' : 'text-amber-500'"
                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                       </svg>
-                      <!-- INFO -->
                       <Bell v-else class="w-4 h-4 text-blue-500" />
                     </div>
-
-                    <!-- Content -->
                     <div class="flex-1 min-w-0">
-                      <p class="text-[12px] font-bold text-zinc-900 dark:text-zinc-100 leading-snug">{{ n.title }}</p>
-                      <p class="text-[11px] text-zinc-500 mt-0.5 leading-snug line-clamp-2">{{ n.message }}</p>
-                      <p class="text-[10px] text-zinc-400 mt-1">
-                        {{ n.createdAt ? new Date(n.createdAt).toLocaleString('id-ID', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '' }}
-                      </p>
+                      <p class="text-[12px] font-bold text-zinc-900 dark:text-zinc-100">{{ n.title }}</p>
+                      <p class="text-[11px] text-zinc-500 mt-0.5 leading-snug">{{ n.message }}</p>
                     </div>
-
-                    <!-- Unread dot -->
-                    <div v-if="!n.isRead" class="w-2 h-2 rounded-full bg-primary shrink-0 mt-2" />
+                    <div v-if="!n.read" class="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
                   </div>
                 </div>
-
-                <!-- Footer -->
-                <div class="px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between">
-                  <p class="text-[10px] text-zinc-400">Diperbarui otomatis setiap 1 menit</p>
-                  <button
-                    @click="router.push('/dashboard/notifications'); showNotifPanel = false"
-                    class="text-[10px] font-semibold text-primary hover:underline"
-                  >
-                    Lihat semua →
-                  </button>
+                <div v-if="notifications.length > 0" class="px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                  <p class="text-[10px] text-zinc-400 text-center">Diperbarui setiap 1 menit</p>
                 </div>
               </div>
             </Transition>
@@ -1192,7 +1032,7 @@ async function fetchPartnerLocations() {
       <!-- ─── PAGE CONTENT ────────────────────────────────────────────────── -->
       <main class="flex-1 overflow-y-auto custom-scrollbar bg-zinc-100 dark:bg-zinc-900 rounded-tl-2xl scroll-smooth overscroll-contain shadow-[inset_1px_1px_0_rgba(255,255,255,0.04)]">
         <!-- Page content wrapper -->
-        <div class="p-5 pb-24 lg:pb-5">
+        <div class="p-5">
           <slot />
         </div>
       </main>
@@ -1203,33 +1043,6 @@ async function fetchPartnerLocations() {
       :is-open="isAboutModalOpen" 
       @close="isAboutModalOpen = false" 
     />
-
-    <!-- ═══════════════════════════════════════════════════════════ MOBILE FAB ═══ -->
-    <!-- Floating Action Bar — hanya tampil di mobile (hidden di lg+) -->
-    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden">
-      <div class="flex items-center gap-0 bg-zinc-900 dark:bg-zinc-800 rounded-2xl shadow-2xl px-1 py-1 border border-zinc-700/60">
-        <!-- Search Button -->
-        <button
-          @click="openSearch"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-700/50 transition-all"
-        >
-          <Search class="w-4 h-4 shrink-0" />
-          <span class="text-[13px] font-medium">Cari...</span>
-        </button>
-
-        <!-- Divider -->
-        <div class="w-px h-5 bg-zinc-600/60 mx-1"></div>
-
-        <!-- Menu / Sidebar Toggle Button -->
-        <button
-          @click="toggleSidebar"
-          class="flex items-center justify-center p-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-700/50 transition-all"
-          title="Buka menu"
-        >
-          <component :is="sidebarOpen ? PanelLeftClose : PanelLeftOpen" class="w-4 h-4" />
-        </button>
-      </div>
-    </div>
   </div>
 
 </template>

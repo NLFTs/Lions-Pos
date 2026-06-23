@@ -47,6 +47,7 @@ public class BranchesService {
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
     private final PermissionCacheService permissionCacheService;
+    
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -144,6 +145,8 @@ public class BranchesService {
         if (currentUser.getPartner() == null) {
             return branchesRepository.findAll(pageable).map(this::mapToResponse);
         }
+
+        
 
         return branchesRepository.findByPartnersId(currentUser.getPartner().getId(), pageable)
                 .map(this::mapToResponse);

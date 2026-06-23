@@ -52,7 +52,7 @@ public class BranchesController {
     }
 
     @GetMapping("/page")
-    @PreAuthorize("hasAuthority('branch.index')")
+    @PreAuthorize("hasAuthority('branch.index') or hasRole('owner')")
     public ResponseEntity<ResData<Page<BranchResponse>>> paginated(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

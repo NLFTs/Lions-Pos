@@ -60,7 +60,7 @@ const filteredWarehouses = computed(() => {
 })
 const paginatedWarehouses = computed(() => {
   const start = (page.value - 1) * pageSize.value
-  return filteredWarehouses.value.slice(start, start + pageSize.value)
+  return filteredWarehouses.value
 })
 const isAllSelected = computed(() => {
   const v = paginatedWarehouses.value
@@ -73,18 +73,33 @@ const branchesAvailableToLink = computed(() => {
   return allBranchesList.value.filter(b => !linkedIds.includes(b.id))
 })
 
-watch([searchQuery, page, pageSize], () => { selectedIds.value = [] })
+watch([searchQuery, page, pageSize], () => {
+  selectedIds.value = []
+  fetchWarehouses()
+})
 
+const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 async function fetchWarehouses() {
   loading.value = true; error.value = null
   try {
-    const url = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
-    const res = await api.get(url)
+    const url = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses/page'
+    
+    const res = await api.get(url, {
+      params: {
+        page: page.value - 1,
+        size: pageSize.value,
+        branchId: currentBranchId.value 
+      }
+    })
+    
     const raw = res.data?.data
     warehouses.value = Array.isArray(raw) ? raw : (raw?.content || [])
-  } catch { error.value = 'Gagal memuat data gudang.' }
-  finally { loading.value = false }
+  } catch (err) { 
+    error.value = 'Gagal memuat data gudang.' 
+  } finally { 
+    loading.value = false 
+  }
 }
 
 // Fetch linked branches via the many-to-many relationship table

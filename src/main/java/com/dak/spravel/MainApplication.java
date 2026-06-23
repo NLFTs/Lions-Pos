@@ -10,7 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jackson.Jackson2ObjectMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
-
+import org.springframework.data.web.config.EnableSpringDataWebSupport;
 import java.util.TimeZone;
 
 /**
@@ -19,6 +19,7 @@ import java.util.TimeZone;
 @SpringBootApplication
 @Slf4j
 @EnableJpaAuditing(auditorAwareRef = "auditorAwareImpl")
+@EnableSpringDataWebSupport(pageSerializationMode = EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO)
 public class MainApplication implements ApplicationRunner {
 
 	@Value("${app.version}")
