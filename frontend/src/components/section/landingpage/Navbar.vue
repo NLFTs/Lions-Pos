@@ -5,7 +5,7 @@
       <div class="flex items-center gap-6">
         <a href="#" class="flex items-center gap-2 cursor-pointer mr-4" @click.prevent="$emit('navigate', '/')">
           <img 
-            src="/gaptek-hit.png" 
+            src="/logo-gaptek.svg" 
             alt="Logo Gaptek" 
             class="h-8 w-8 object-contain"
           />

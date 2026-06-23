@@ -6,7 +6,7 @@ export default defineConfig({
   base: '/docs/',
   outDir: '../public/docs',
   cleanUrls: true,
-  
+
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
@@ -14,7 +14,7 @@ export default defineConfig({
       { text: 'Services', link: '/services/' }
     ],
 
-    logo: '/gaptek-hit.png',
+    logo: '/logo-gaptek.svg',
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com' },
@@ -39,7 +39,7 @@ export default defineConfig({
           { text: 'Product', link: '/services/product' },
           { text: 'Showcase', link: '/services/showcase' },
         ]
-      },      
+      },
       {
         text: 'Legal',
         collapsed: false,

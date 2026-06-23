@@ -4,7 +4,7 @@
       
       <div class="flex-shrink-0 flex flex-col gap-4">
         <a href="/" class="flex items-center gap-2 text-white transition-opacity hover:opacity-80">
-          <img src="/gaptek-hit.png" alt="Gaptek Logo" class="w-8 h-8">
+          <img src="/logo-gaptek.svg" alt="Gaptek Logo" class="w-8 h-8">
           <span class="font-semibold tracking-tight">Gaptek</span>
         </a>
         <p class="text-zinc-500 text-sm max-w-[200px]">
