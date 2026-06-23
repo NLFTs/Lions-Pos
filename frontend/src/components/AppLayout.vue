@@ -504,46 +504,40 @@ async function fetchPartnerLocations() {
   }
 }
 
-// // ─── Notification Store ───────────────────────────────────────────────────
-// const notifStore = useNotificationStore()
-// const showNotifPanel = ref(false)
+// ─── Notification Store (Mocked as store doesn't exist) ───────────────────
+const showNotifPanel = ref(false)
+const notifications = ref([])
+const unreadCount = ref(0)
 
-// const notifications = computed(() => notifStore.items)
-// const unreadCount = computed(() => notifStore.unreadCount)
+function markAllRead() {
+  // Mocked
+}
 
-// function markAllRead() {
-//   notifStore.markAllRead()
-// }
+function clearNotifications() {
+  // Mocked
+}
 
-// function clearNotifications() {
-//   notifStore.clear()
-// }
+function handleNotifClick(n) {
+  // Mocked
+}
 
-// function handleNotifClick(n) {
-//   notifStore.markOneRead(n.id)
-//   if (n.routeTo) router.push(n.routeTo)
-//   showNotifPanel.value = false
-// }
+onMounted(() => {
+  expandActiveParents()
+  window.addEventListener('keydown', handleGlobalKeydown)
+  auth.fetchMe()
+  fetchPartnerLocations()
+})
 
-// onMounted(() => {
-//   expandActiveParents()
-//   window.addEventListener('keydown', handleGlobalKeydown)
-//   auth.fetchMe()
-//   fetchPartnerLocations()
-//   notifStore.startPolling(60_000)
-// })
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+})
 
-// onBeforeUnmount(() => {
-//   window.removeEventListener('keydown', handleGlobalKeydown)
-//   notifStore.stopPolling()
-// })
-
-// function isLocationActive(type, id) {
-//   return route.path === '/dashboard/inventory' && 
-//          route.query.locationType === type && 
-//          Number(route.query.locationId) === id
-// }
-// </script>
+function isLocationActive(type, id) {
+  return route.path === '/dashboard/inventory' && 
+         route.query.locationType === type && 
+         Number(route.query.locationId) === id
+}
+</script>
 
 <template>
   <div class="flex h-screen bg-white dark:bg-zinc-950 text-foreground transition-colors duration-200 overflow-hidden">
