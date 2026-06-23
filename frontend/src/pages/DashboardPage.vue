@@ -381,6 +381,7 @@ const animatedDashOffset = computed(() =>
 )
 
 // ── Project Status ────────────────────────────────────────────────────────────
+const activeTab = ref('status')
 const projectFilter = ref('Bulanan')
 const projectFilters = ['Mingguan', 'Bulanan', 'Tahunan']
 
@@ -511,7 +512,7 @@ function toggleAllOrders() {
         </div>
 
         <!-- New Project Button -->
-        <!-- <div class="relative shrink-0" ref="dropdownRef">
+        <div class="relative shrink-0" ref="dropdownRef">
           <button
             id="btn-new-project"
             @click.stop="dropdownOpen = !dropdownOpen"
@@ -535,7 +536,7 @@ function toggleAllOrders() {
               {{ item.label }}
             </RouterLink>
           </div>
-        </div> -->
+        </div>
       </div>
 
       <!-- ── Loading State ─────────────────────────────────────────────────── -->
@@ -773,8 +774,8 @@ function toggleAllOrders() {
 
       </template>
 
-      <!-- ── Project Status + Recent Activity ─────────────────────────────── -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- ── Desktop View (lg:grid / lg:block) ─────────────────────────────── -->
+      <div class="hidden lg:grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         <!-- Project Status -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
@@ -848,8 +849,8 @@ function toggleAllOrders() {
 
       </div>
 
-      <!-- ── Orders & Shipping ──────────────────────────────────────────────── -->
-      <div class="rounded-xl border border-border bg-card overflow-hidden">
+      <!-- ── Desktop Orders & Shipping ──────────────────────────────────────────────── -->
+      <div class="hidden lg:block rounded-xl border border-border bg-card overflow-hidden">
 
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -967,6 +968,229 @@ function toggleAllOrders() {
           </div>
         </div>
 
+      </div>
+
+      <!-- ── Mobile Tabbed Card View (block lg:hidden) ───────────────────────── -->
+      <div class="block lg:hidden rounded-xl border border-border bg-card overflow-hidden">
+        <!-- Tabs Header -->
+        <div class="flex border-b border-border bg-muted/30 p-1 gap-1">
+          <button
+            @click="activeTab = 'status'"
+            class="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-semibold rounded-lg transition-all duration-200"
+            :class="activeTab === 'status' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          >
+            <Building2 class="w-3.5 h-3.5" />
+            Status
+          </button>
+          <button
+            @click="activeTab = 'activity'"
+            class="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-semibold rounded-lg transition-all duration-200"
+            :class="activeTab === 'activity' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          >
+            <Activity class="w-3.5 h-3.5" />
+            Aktivitas
+          </button>
+          <button
+            @click="activeTab = 'orders'"
+            class="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 text-[11px] font-semibold rounded-lg transition-all duration-200"
+            :class="activeTab === 'orders' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          >
+            <ShoppingBag class="w-3.5 h-3.5" />
+            Pesanan
+          </button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div>
+          <!-- Tab: Status Cabang -->
+          <div v-show="activeTab === 'status'" class="animate-in fade-in duration-200">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span class="text-xs font-semibold text-muted-foreground">Filter Rentang:</span>
+              <div class="flex items-center gap-1 bg-muted rounded-full p-0.5">
+                <button
+                  v-for="f in projectFilters" :key="f"
+                  @click="projectFilter = f"
+                  class="px-2.5 py-0.5 text-[11px] font-semibold rounded-full transition-all duration-200"
+                  :class="projectFilter === f
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'"
+                >{{ f }}</button>
+              </div>
+            </div>
+            <div class="divide-y divide-border/60">
+              <div
+                v-for="project in projects" :key="project.id"
+                class="flex items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors cursor-pointer group"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0">
+                    <component :is="project.icon" class="w-3.5 h-3.5 text-muted-foreground" />
+                  </div>
+                  <span class="text-xs font-medium text-foreground">{{ project.name }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-medium" :class="project.risk ? 'text-red-500 font-semibold' : 'text-muted-foreground'">
+                    {{ project.status }}
+                  </span>
+                  <span
+                    class="w-2 h-2 rounded-full"
+                    :class="project.risk ? 'bg-red-500' : 'bg-emerald-500'"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Aktivitas Terbaru -->
+          <div v-show="activeTab === 'activity'" class="animate-in fade-in duration-200">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span class="text-xs font-semibold text-muted-foreground">Log Aktivitas</span>
+              <button class="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+                View all <ExternalLink class="w-3 h-3" />
+              </button>
+            </div>
+            <div class="divide-y divide-border/60">
+              <div
+                v-for="act in recentActivities" :key="act.id"
+                class="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors"
+              >
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-muted-foreground leading-snug">
+                    {{ act.text }}
+                    <span class="font-semibold text-foreground">{{ act.highlight }}</span>
+                    {{ act.suffix }}
+                  </p>
+                  <div class="flex items-center gap-1.5 mt-1">
+                    <div class="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <component :is="act.icon" class="w-2.5 h-2.5" :class="act.iconColor" />
+                    </div>
+                    <span class="text-[10px] text-muted-foreground/80">{{ act.time }}</span>
+                  </div>
+                </div>
+                <component :is="act.icon" class="w-4 h-4 shrink-0" :class="act.iconColor" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Pesanan & Pengiriman -->
+          <div v-show="activeTab === 'orders'" class="animate-in fade-in duration-200">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span class="text-xs font-semibold text-muted-foreground">Daftar Pesanan</span>
+              <div class="relative">
+                <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                <input
+                  v-model="orderSearch"
+                  type="text"
+                  placeholder="Search..."
+                  class="w-32 pl-7 pr-2.5 py-1.5 text-[11px] bg-muted border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:bg-background transition-all"
+                />
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr class="border-b border-border">
+                    <th class="w-10 px-4 py-3">
+                      <input
+                        type="checkbox"
+                        class="orders-cb"
+                        :checked="selectedOrders.length === pagedOrders.length && pagedOrders.length > 0"
+                        @change="toggleAllOrders"
+                      />
+                    </th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesanan</th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pelanggan</th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tanggal</th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pengiriman</th>
+                    <th class="text-right px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border/60">
+                  <tr
+                    v-for="order in pagedOrders" :key="order.id"
+                    class="hover:bg-muted/40 transition-colors cursor-pointer"
+                    :class="{ 'bg-primary/5': selectedOrders.includes(order.id) }"
+                  >
+                    <td class="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        class="orders-cb"
+                        :checked="selectedOrders.includes(order.id)"
+                        @change="toggleOrder(order.id)"
+                      />
+                    </td>
+                    <td class="px-2 py-3">
+                      <span class="text-xs font-semibold text-foreground">{{ order.id }}</span>
+                    </td>
+                    <td class="px-2 py-3">
+                      <div class="flex items-center gap-1.5">
+                        <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                          {{ order.customer[0] }}
+                        </div>
+                        <span class="text-xs text-foreground truncate max-w-[60px]">{{ order.customer }}</span>
+                      </div>
+                    </td>
+                    <td class="px-2 py-3 text-[11px] text-muted-foreground text-center">{{ order.date }}</td>
+                    <td class="px-2 py-3">
+                      <div class="flex flex-col gap-0.5">
+                        <span
+                          class="inline-flex items-center justify-center text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-max"
+                          :class="orderStatusStyle[order.status]"
+                        >
+                          {{ order.shipping }}
+                        </span>
+                        <span class="text-[9px] text-muted-foreground">{{ order.carrier }}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                      <span class="text-xs font-bold text-foreground">{{ order.total }}</span>
+                    </td>
+                  </tr>
+
+                  <!-- Empty state -->
+                  <tr v-if="pagedOrders.length === 0">
+                    <td colspan="6" class="px-4 py-10 text-center text-xs text-muted-foreground">
+                      Tidak ada order yang cocok
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between px-4 py-3 border-t border-border">
+              <div class="flex items-center gap-1.5">
+                <button
+                  @click="orderPage = Math.max(1, orderPage - 1)"
+                  :disabled="orderPage === 1"
+                  class="w-7 h-7 rounded-md flex items-center justify-center border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft class="w-3.5 h-3.5" />
+                </button>
+                <button
+                  v-for="p in totalOrderPages" :key="p"
+                  @click="orderPage = p"
+                  class="w-7 h-7 rounded-md text-xs font-semibold transition-all"
+                  :class="orderPage === p
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted border border-border'"
+                >{{ p }}</button>
+                <button
+                  @click="orderPage = Math.min(totalOrderPages, orderPage + 1)"
+                  :disabled="orderPage === totalOrderPages"
+                  class="w-7 h-7 rounded-md flex items-center justify-center border border-border text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight class="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div class="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span>{{ ordersPerPage }} / page</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
       </div>
 
     </div>
