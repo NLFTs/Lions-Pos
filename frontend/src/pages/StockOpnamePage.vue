@@ -67,7 +67,7 @@ const formError = ref(null)
 const selectedOpname = ref(null)
 
 const emptyForm = () => ({
-  locationType: 'warehouse',
+  locationType: 'branch',
   locationId: '',
   date: new Date().toISOString().slice(0, 16),
   notes: '',
@@ -95,24 +95,70 @@ async function fetchData() {
   }
 }
 
+const currentBranchId = computed(() => authStore.user?.branchId || authStore.user?.branch?.id || null)
+const isBranchManager = computed(() => !!currentBranchId.value)
+
 async function loadFormOptions() {
   try {
-    const urlB = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const urlW = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
-    const [resB, resW] = await Promise.all([api.get(urlB), api.get(urlW)])
-    const brRaw = isAdmin.value ? resB.data : (resB.data?.data || [])
-    const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
-    const whRaw = resW.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
+    const urlB = isSuperAdmin.value 
+      ? '/api/v1/branches/admin' 
+      : '/api/v1/branches'
+      
+    const urlW = isSuperAdmin.value 
+      ? '/api/v1/warehouses/admin' 
+      : '/api/v1/warehouses'
+    
+    const warehouseParams = isBranchManager.value ? { branchId: Number(currentBranchId.value) } : {}
+    
+    const [resB, resW] = await Promise.all([
+      api.get(urlB),
+      api.get(urlW, { params: warehouseParams })
+    ])
+    
+    let brRaw = resB.data?.data || resB.data
+    let brArr = []
+    if (brRaw && typeof brRaw === 'object' && 'content' in brRaw) {
+      brArr = brRaw.content
+    } else if (Array.isArray(brRaw)) {
+      brArr = brRaw
+    } else if (brRaw && Array.isArray(brRaw.data)) {
+      brArr = brRaw.data
+    }
+    
+    let whRaw = resW.data?.data || resW.data
+    let whArr = []
+    if (whRaw && typeof whRaw === 'object' && 'content' in whRaw) {
+      whArr = whRaw.content
+    } else if (Array.isArray(whRaw)) {
+      whArr = whRaw
+    } else if (whRaw && Array.isArray(whRaw.data)) {
+      whArr = whRaw.data
+    }
+
+    const formalBranches = isBranchManager.value
+      ? brArr.filter(b => Number(b.id) === Number(currentBranchId.value))
+      : brArr
+
     locations.value = [
-      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...formalBranches.map(x => ({ ...x, type: 'branch' })),
       ...whArr.map(x => ({ ...x, type: 'warehouse' }))
     ]
+    
+    // Auto-select dropdown di awal
+    if (isBranchManager.value && formalBranches.length > 0) {
+      form.value.locationType = 'branch'
+      form.value.locationId = formalBranches[0].id
+    } else {
+      form.value.locationType = 'warehouse'
+      if (formalBranches.length > 0) form.value.locationId = formalBranches[0].id
+    }
+
+    console.log("Master opsi lokasi berhasil di-load untuk Owner:", locations.value)
   } catch (err) {
-    toast.error('Gagal memuat opsi lokasi.')
+    console.error(err)
+    toast.error('Gagal memuat opsi lokasi pengecekan.')
   }
 }
-
 async function openCreate() {
   form.value = emptyForm()
   formMode.value = 'create'
@@ -122,23 +168,53 @@ async function openCreate() {
 }
 
 async function fetchLocationStock() {
-  if (!form.value.locationId) { toast.warning('Pilih lokasi terlebih dahulu.'); return }
+  if (!form.value.locationId) { 
+    toast.warning('Pilih lokasi terlebih dahulu sebelum menarik data stok.')
+    return 
+  }
+  
   loading.value = true
   try {
     const urlStock = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
-    const res = await api.get(`${urlStock}?locationType=${form.value.location}&locationId=${form.value.locationId}`)
-    const stocks = res.data.data?.content || res.data.data || []
-    if (stocks.length === 0) toast.info('Tidak ada stok terdaftar di lokasi ini.')
+
+    const currentType = form.value.locationType || 'branch'
+
+    console.log("🔥 [FRONTEND DEBUG] Mengirim param ke Axios:", {
+      locationType: currentType,
+      locationId: form.value.locationId
+    })
+
+    const res = await api.get(urlStock, {
+      params: {
+        locationType: currentType,
+        locationId: Number(form.value.locationId),
+        page: 0,
+        size: 200 
+      }
+    })
+    
+    let rawData = res.data?.data || res.data
+    const stocks = rawData?.content || (Array.isArray(rawData) ? rawData : [])
+    
+    if (stocks.length === 0) {
+      toast.info('Tidak ada catatan saldo stok terdaftar di lokasi pilihan.')
+      form.value.items = []
+      return
+    }
+    
     form.value.items = stocks.map(s => ({
       productId: s.product?.id,
       productName: s.product?.name,
       sku: s.product?.sku,
-      qtySystem: s.qty,
-      qtyPhysical: s.qty,
+      qtySystem: s.qty != null ? Number(s.qty) : 0,
+      qtyPhysical: s.qty != null ? Number(s.qty) : 0,
       notes: ''
     }))
+    
+    toast.success(`Berhasil menarik ${form.value.items.length} item produk dari sistem!`)
   } catch (err) {
-    toast.error('Gagal menarik data stok lokasi.')
+    console.error(err)
+    toast.error('Gagal menarik data baki stok mutasi lokasi.')
   } finally {
     loading.value = false
   }
@@ -161,20 +237,24 @@ async function saveOpname() {
   
   try {
     const payload = {
-      partnerId: authStore.user?.partnerId || authStore.user?.partner?.id || null,
-      locationType: form.value.location ? form.value.location.toLowerCase() : null,
-      locationId: form.value.locationId,
+      partnerId: Number(authStore.user.partnerId || authStore.user?.partnerId?.id),
+      locationType: form.value.locationType.toLowerCase(),
+      locationId: Number(form.value.locationId),
       date: form.value.date,
       notes: form.value.notes,
-      items: form.value.items
+      items: form.value.items.map(i => ({
+        productId: Number(i.productId),
+        qtyPhysical: Number(i.qtyPhysical),
+        notes: i.notes || ''
+      }))
     }
-    await api.post('/api/v1/stock-opnames', payload)
     
-    toast.success('Stock Opname berhasil disimpan!')
+    await api.post('/api/v1/stock-opnames', payload)
+    toast.success('Draf Hasil Pengecekan Stok berhasil disimpan!')
     showForm.value = false
     fetchData()
   } catch (err) {
-    formError.value = err.response?.data?.message || 'Gagal menyimpan stock opname.'
+    formError.value = err.response?.data?.message || 'Gagal menyimpan draf stock opname.'
   } finally {
     saving.value = false
   }
@@ -368,22 +448,54 @@ onMounted(fetchData)
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-4">
                     <h3 class="text-sm font-semibold border-b pb-2 border-zinc-100 dark:border-zinc-800 flex items-center gap-2">
-                      <Warehouse class="h-4 w-4 text-primary" /><span>Pilih Lokasi Audit</span>
+                      <component :is="form.location === 'warehouse' ? Warehouse : Building2" class="h-4 w-4 text-primary" />
+                      <span>Pilih Lokasi Audit</span>
                     </h3>
                     <div class="grid grid-cols-2 gap-2">
-                      <button type="button" @click="form.location = 'warehouse'; form.locationId = ''; form.items = []"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'warehouse' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
-                        <Warehouse class="h-3.5 w-3.5" />GUDANG
-                      </button>
-                      <button type="button" @click="form.location = 'cabang'; form.locationId = ''; form.items = []"
-                        :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.location === 'cabang' ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800']">
-                        <Building2 class="h-3.5 w-3.5" />CABANG
-                      </button>
-                    </div>
-                    <select v-model="form.locationId" @change="form.items = []" class="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20">
-                      <option value="" disabled>Pilih lokasi...</option>
-                      <option v-for="l in locations.filter(x => x.type === form.location)" :key="l.id" :value="l.id">{{ l.name }}</option>
-                    </select>
+                        <!-- Tombol GUDANG -->
+                        <button 
+                          type="button" 
+                          @click="form.locationType = 'warehouse'; form.locationId = ''; form.items = []"
+                          :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.locationType === 'warehouse' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200']"
+                        >
+                          <Warehouse class="h-3.5 w-3.5" />GUDANG
+                        </button>
+                        
+                        <!-- Tombol CABANG -->
+                        <button 
+                          type="button" 
+                          @click="
+                            form.locationType = 'branch'; 
+                            form.items = [];
+                            if (isBranchManager) {
+                              const formalBranches = locations.filter(x => x.type === 'branch');
+                              if (formalBranches.length > 0) form.locationId = formalBranches[0].id;
+                            } else {
+                              form.locationId = '';
+                            }
+                          "
+                          :class="['flex items-center justify-center gap-2 h-9 rounded-lg border text-[10px] font-bold transition-all', form.locationType === 'branch' ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white border-zinc-200']"
+                        >
+                          <Building2 class="h-3.5 w-3.5" />CABANG
+                        </button>
+                      </div>
+                  
+                      <select 
+                        v-model="form.locationId" 
+                        @change="form.items = []" 
+                        :disabled="isBranchManager && form.locationType === 'branch'"
+                        class="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none"
+                      >
+                        <option value="" disabled>Pilih lokasi...</option>
+                        <!-- Filter locations harus merujuk ke form.locationType -->
+                        <option 
+                          v-for="l in locations.filter(x => x.type === form.locationType)" 
+                          :key="l.id" 
+                          :value="l.id"
+                        >
+                          {{ l.name }}
+                        </option>
+                      </select>
                   </CardContent>
                 </Card>
 

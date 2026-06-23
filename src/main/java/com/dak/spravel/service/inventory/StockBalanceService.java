@@ -26,6 +26,8 @@ import com.dak.spravel.repository.inventory.StockMutationRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +44,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class StockBalanceService {
 
@@ -210,33 +213,35 @@ public class StockBalanceService {
                 .map(this::mapToResponse).toList();
     }
 
-    public Page<StockBalanceResponse> findAll(int page, int size) {
+    public Page<StockBalanceResponse> findAll(Long branchId, int page, int size) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll(pageable).map(this::mapToResponse);
+        }
+
+        if (branchId != null) {
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(branchId, pageable)
+                    .map(this::mapToResponse);
         }
 
         List<String> roleSlugs = currentUser.getRoles().stream()
                 .map(role -> role.getSlug().toLowerCase())
                 .toList();
 
-        // Pemeriksaan peranan khusus cawangan tanpa sebarang rujukan pergudangan
         if (roleSlugs.stream().anyMatch(slug -> slug.contains("cabang") || slug.contains("pengelola-cabang"))) {
             if (currentUser.getBranch() == null) {
                 throw new RuntimeException("Akses ditolak: anda tidak berkaitan dengan mana-mana cawangan");
             }
-
-            return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", 
-                currentUser.getBranch().getId(), 
-                pageable).
-                map(this::mapToResponse);
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(currentUser.getBranch().getId(), pageable)
+                    .map(this::mapToResponse);
         }
 
         return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageable)
-                    .map(this::mapToResponse);
+                .map(this::mapToResponse);
     }
 
     public List<StockLocationSummaryResponse> findStockSummary() {
@@ -293,14 +298,27 @@ public class StockBalanceService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
 
-        List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(locationType.toUpperCase(), locationId);
+        String targetType = "BRANCH"; 
+        if (locationType != null) {
+            String inputLower = locationType.toLowerCase().trim();
+            if (inputLower.contains("warehouse") || inputLower.contains("gudang")) {
+                targetType = "WAREHOUSE";
+            } else if (inputLower.contains("branch") || inputLower.contains("cabang")) {
+                targetType = "BRANCH";
+            }
+        }
+
+        log.info("[BACKEND DEBUG] Memproses kueri stok murni untuk Tipe: {} dengan ID: {}", targetType, locationId);
+
+        List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(targetType, locationId);
+        
         if (currentUser.getPartner() == null) {
             return queryResults.stream().map(this::mapToResponse).toList();
         }
 
         return queryResults.stream()
                 .filter(s -> s.getProduct() != null && s.getProduct().getPartner() != null && 
-                             s.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))
+                                s.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))
                 .map(this::mapToResponse)
                 .toList();
     }

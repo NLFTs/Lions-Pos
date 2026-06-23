@@ -30,6 +30,7 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.inventory.StockOpnameItemRepository;
 import com.dak.spravel.repository.inventory.StockOpnameRepository;
+import com.dak.spravel.repository.inventory.WarehousesRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +43,7 @@ public class StockOpnameService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final StockBalanceRepository stockBalanceRepository;
+    private final WarehousesRepository warehousesRepository;
     private final StockMutationService stockMutationService;
 
     // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
@@ -55,9 +57,7 @@ public class StockOpnameService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -95,10 +95,6 @@ public class StockOpnameService {
         return opname;
     }
 
-    /**
-     * Filter list opname berdasarkan lokasi user (branch atau warehouse).
-     * Owner (tidak punya branch/warehouse) bisa lihat semua dalam partner.
-     */
     private List<StockOpname> filterByUserLocation(List<StockOpname> data, User user) {
         if (user.getBranch() != null) {
             return data.stream()
@@ -106,12 +102,9 @@ public class StockOpnameService {
                             && user.getBranch().getId().equals(o.getLocationId()))
                     .toList();
         }
-        return data; // owner/admin partner: lihat semua
+        return data;
     }
 
-    /**
-     * Throw jika user tidak berhak akses lokasi opname tertentu.
-     */
     private void enforceLocationAccess(String locationType, Long locationId, User user) {
         if (user.getBranch() != null) {
             if (!"BRANCH".equalsIgnoreCase(locationType) || !user.getBranch().getId().equals(locationId)) {
@@ -120,32 +113,28 @@ public class StockOpnameService {
         } 
     }
 
-    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
-
-    // KHUSUS SUPER ADMIN GLOBAL
+    // ─── MAIN METHODSCORE (FIXED COMPILER ERROR VIA LAMBDA EXPLICIT) ─────────
 
     public List<StockOpnameResponse> findAllAdmin() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.index"); // Saring via permission index
+        checkPermission(currentUser, "stock_opname.index");
         checkSuperAdminOnly(currentUser);
 
         return stockOpnameRepository.findByDeletedAtIsNull()
                 .stream()
-                .map(this::mapToResponse)
+                .map(opname -> this.mapToResponse(opname)) // 🔥 Fix compiler error
                 .toList();
     }
 
     public Page<StockOpnameResponse> findPageAdmin(int page, int size) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.index"); // Saring via permission index
+        checkPermission(currentUser, "stock_opname.index");
         checkSuperAdminOnly(currentUser);
 
-        return stockOpnameRepository.findByDeletedAtIsNull(
-                        PageRequest.of(page, size, Sort.by("createdAt").descending()))
-                .map(this::mapToResponse);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return stockOpnameRepository.findByDeletedAtIsNull(pageable)
+                .map(opname -> this.mapToResponse(opname)); // 🔥 Fix compiler error
     }
-
-    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
 
     public List<StockOpnameResponse> findAll() {
         User currentUser = getAuthenticatedUser();
@@ -154,17 +143,18 @@ public class StockOpnameService {
         if (currentUser.getPartner() == null) {
             return stockOpnameRepository.findByDeletedAtIsNull()
                     .stream()
-                    .map(this::mapToResponse)
+                    .map(opname -> this.mapToResponse(opname)) // 🔥 Fix compiler error
                     .toList();
         }
 
         List<StockOpname> data = stockOpnameRepository
                 .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
 
-        // LOCATION ISOLATION: filter per branch atau warehouse user
         data = filterByUserLocation(data, currentUser);
 
-        return data.stream().map(this::mapToResponse).toList();
+        return data.stream()
+                .map(opname -> this.mapToResponse(opname)) // 🔥 Fix compiler error
+                .toList();
     }
 
     public StockOpnameResponse findById(Long id) {
@@ -172,7 +162,6 @@ public class StockOpnameService {
         checkPermission(currentUser, "stock_opname.show");
         StockOpname opname = getValidatedOpname(id, currentUser);
 
-        // LOCATION ISOLATION
         if (currentUser.getPartner() != null) {
             enforceLocationAccess(opname.getLocation(), opname.getLocationId(), currentUser);
         }
@@ -202,10 +191,10 @@ public class StockOpnameService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         if (currentUser.getPartner() == null) {
-            return stockOpnameRepository.findAll(pageable).map(this::mapToResponse);
+            return stockOpnameRepository.findAll(pageable)
+                    .map(opname -> this.mapToResponse(opname)); // 🔥 Fix compiler error
         }
 
-        // Ambil semua dulu, filter per lokasi, lalu page manual
         List<StockOpname> all = stockOpnameRepository
                 .findByPartnerIdAndDeletedAtIsNull(currentUser.getPartner().getId());
         all = filterByUserLocation(all, currentUser);
@@ -214,14 +203,17 @@ public class StockOpnameService {
         int end = Math.min(start + size, all.size());
         List<StockOpname> paged = start >= all.size() ? List.of() : all.subList(start, end);
 
+        List<StockOpnameResponse> content = paged.stream()
+                .map(opname -> this.mapToResponse(opname)) // 🔥 Fix compiler error
+                .toList();
+
         return new org.springframework.data.domain.PageImpl<>(
-                paged.stream().map(this::mapToResponse).toList(),
+                content,
                 pageable,
                 all.size()
         );
     }
 
-    // FORMULASI PEMBUATAN DRAFT DOKUMEN OPNAME
     @Transactional
     public StockOpnameResponse create(StockOpnameRequestDTO request) {
         User currentUser = getAuthenticatedUser();
@@ -232,8 +224,27 @@ public class StockOpnameService {
             throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen opname langsung.");
         }
 
-        // LOCATION GUARD: user hanya boleh buat opname di lokasi tugasnya
-        enforceLocationAccess(request.getLocationType(), request.getLocationId(), currentUser);
+        // ISOLASI WILAYAH KETAT UNTUK PENGELOLA CABANG
+        if (currentUser.getBranch() != null) {
+            Long myBranchId = currentUser.getBranch().getId();
+            String reqLocationType = request.getLocationType().toUpperCase();
+
+            if ("BRANCH".equals(reqLocationType)) {
+                if (!myBranchId.equals(request.getLocationId())) {
+                    throw new RuntimeException("Akses Ditolak: Anda hanya boleh melakukan stock opname pada cabang Anda sendiri.");
+                }
+            } else if ("WAREHOUSE".equals(reqLocationType)) {
+                boolean isLinked = warehousesRepository.isWarehouseLinkedToBranch(request.getLocationId(), myBranchId);
+
+                if (!isLinked) {
+                    throw new RuntimeException("Akses Ditolak: Gudang yang dipilih tidak terikat dengan cabang operasional Anda.");
+                }
+            } else {
+                throw new RuntimeException("Jenis lokasi tidak valid.");
+            }
+        } else {
+            enforceLocationAccess(request.getLocationType(), request.getLocationId(), currentUser);
+        }
 
         StockOpname opname = new StockOpname();
         opname.setPartner(partner);
@@ -258,7 +269,6 @@ public class StockOpnameService {
                     throw new RuntimeException("Akses Ditolak: Product '" + product.getName() + "' bukan milik partner Anda");
                 }
 
-                // Ambil snapshot kuantitas sistem saat ini secara real-time
                 long systemQty = stockBalanceRepository
                         .findByProductIdAndLocationTypeAndLocationId(
                                 product.getId(),
@@ -286,10 +296,10 @@ public class StockOpnameService {
             stockOpnameItemRepository.saveAll(items);
         }
 
-        return mapToResponse(saved);
+        return mapToResponse(stockOpnameRepository.findById(saved.getId())
+            .orElseThrow(() -> new RuntimeException("Stock opname tidak ditemukan")));
     }
 
-    // INPUT HASIL PERHITUNGAN FISIK LAPANGAN
     @Transactional
     public StockOpnameResponse inputQtyPhysical(Long opnameId, List<StockOpnameItemDTO> itemsInput) {
         User currentUser = getAuthenticatedUser();
@@ -323,7 +333,6 @@ public class StockOpnameService {
         return mapToResponse(opname);
     }
 
-    // SINKRONISASI WORKFLOW STATUS DOKUMEN
     @Transactional
     public StockOpname updateStatus(Long id, String status) {
         User currentUser = getAuthenticatedUser();
@@ -344,7 +353,6 @@ public class StockOpnameService {
             opname.setApprovedBy(currentUser);
         }
 
-        // EKSEKUSI PENYESUAIAN STOK JIKA STATUS BERUBAH MENJADI ADJUSTED
         if (newStatus == StockOpname.Status.ADJUSTED) {
             applyAdjustment(opname, currentUser);
         }
@@ -355,13 +363,12 @@ public class StockOpnameService {
         return stockOpnameRepository.save(opname);
     }
 
-    // PROSES EKSEKUSI UPDATE STOK BALANCE & INPUT AUDIT LOG MUTASI
     private void applyAdjustment(StockOpname opname, User user) {
         List<StockOpnameItem> items = stockOpnameItemRepository.findByStockOpnameId(opname.getId());
 
         for (StockOpnameItem item : items) {
             long diff = item.getQtyDifference() == null ? 0L : item.getQtyDifference();
-            if (diff == 0) continue; // Jika selisih nol, lewati (stok klop aman jaya)
+            if (diff == 0) continue;
 
             StockBalance balance = stockBalanceRepository
                     .findByProductIdAndLocationTypeAndLocationId(
@@ -386,7 +393,6 @@ public class StockOpnameService {
 
             stockBalanceRepository.save(balance);
 
-            // Suntik otomatis ke rekaman audit histori mutasi barang Spravel
             stockMutationService.recordMutation(
                     item.getProduct(),
                     opname.getPartner(),
@@ -407,7 +413,7 @@ public class StockOpnameService {
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "stock_opname.delete"); // Sikat via permission delete
+        checkPermission(currentUser, "stock_opname.delete");
         
         StockOpname opname = getValidatedOpname(id, currentUser);
 

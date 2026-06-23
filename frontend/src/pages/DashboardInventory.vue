@@ -234,14 +234,24 @@ const chartOptions = computed(() => ({
   }
 }))
 
+const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
+const isOwner = computed(() => authStore.isOwner || (!authStore.isAdmin && authStore.user?.partner != null && !authStore.user?.branchId))
 // ─── Actions: Fetch Data ─────────────────────────────────────────────────────
 async function fetchDashboardData() {
   loading.value = true
-  const type = route.query.locationType
-  const id = route.query.locationId
+  
+  // 1. Ambil query murni dari URL router
+  let type = route.query.locationType
+  let id = route.query.locationId
+  
+  // 2. Kunci otomatis jika dia staff cabang biasa yang baru buka dashboard
+  if (!isAdmin.value && !type && !id && currentBranchId.value) {
+    type = 'BRANCH'
+    id = currentBranchId.value
+  }
   
   try {
-    // 1. Fetch Stats & Chart
+    // ─── 1. FETCH STATS & CHART ───
     const statsParams = {}
     if (type && id) {
       statsParams.locationType = type
@@ -250,21 +260,29 @@ async function fetchDashboardData() {
     const resStats = await api.get('/api/v1/stock-balances/stats', { params: statsParams })
     stats.value = resStats.data?.data || { total_products: 0, damaged_products: 10, incoming_products: 0, outgoing_products: 0, chart_data: [] }
     
-    // 2. Fetch Stock Balances List
     let resBalances
-    if (type && id) {
-      resBalances = await api.get('/api/v1/stock-balances/location', { params: { locationType: type, locationId: id } })
-    } else {
-      const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
-      resBalances = await api.get(url)
+    const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
+    
+    let targetBranchId = null
+    if (type === 'BRANCH' && id) {
+      targetBranchId = Number(id)
+    } else if (currentBranchId.value) {
+      targetBranchId = Number(currentBranchId.value)
     }
 
-    let rawBalances
-    if (isAdmin.value && !(type && id)) {
-      rawBalances = Array.isArray(resBalances.data) ? resBalances.data : (resBalances.data?.data || [])
-    } else {
-      const dataB = resBalances.data?.data
-      rawBalances = Array.isArray(dataB) ? dataB : (dataB?.content || [])
+    resBalances = await api.get(url, {
+      params: {
+        page: page.value - 1,
+        size: pageSize.value,
+        branchId: targetBranchId
+      }
+    })
+
+    let rawBalances = resBalances.data?.data || resBalances.data
+    if (rawBalances && typeof rawBalances === 'object' && 'content' in rawBalances) {
+      rawBalances = rawBalances.content
+    } else if (!Array.isArray(rawBalances)) {
+      rawBalances = []
     }
 
     balances.value = rawBalances.map(b => ({
@@ -285,31 +303,62 @@ async function fetchDashboardData() {
 
 async function fetchLocations() {
   try {
-    const urlBranches = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const urlWarehouses = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
+    const urlBranches = (isAdmin.value || isOwner.value) 
+      ? '/api/v1/branches/admin' 
+      : '/api/v1/branches'
     
+    const urlWarehouses = (isAdmin.value || isOwner.value)
+      ? '/api/v1/warehouses/admin' 
+      : '/api/v1/warehouses'
+    
+    const warehouseParams = {}
+    if (!isAdmin.value && !isOwner.value && currentBranchId.value) {
+      warehouseParams.branchId = Number(currentBranchId.value)
+    }
+
     const [resBr, resWh] = await Promise.all([
-      api.get(urlBranches),
-      api.get(urlWarehouses)
+      api.get(urlBranches), 
+      api.get(urlWarehouses, { params: warehouseParams }) 
     ])
     
-    const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
+    // ─── Parsing Data Branch ───
+    const brRaw = (isAdmin.value || isOwner.value) ? resBr.data : (resBr.data?.data || [])
     const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
-    const whRaw = resWh.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
     
+    // ─── Parsing Data Warehouse ───
+    let whRaw = resWh.data?.data || resWh.data
+    let whArr = []
+    if (whRaw && typeof whRaw === 'object' && 'content' in whRaw) {
+      whArr = whRaw.content
+    } else if (Array.isArray(whRaw)) {
+      whArr = whRaw
+    } else if (whRaw && Array.isArray(whRaw.data)) {
+      whArr = whRaw.data
+    }
+    
+    // ─── Filter Cabang ───
+    const formalBranches = (isAdmin.value || isOwner.value || !currentBranchId.value)
+      ? brArr 
+      : brArr.filter(b => Number(b.id) === Number(currentBranchId.value))
+
+    // ─── Masukkan ke Master State Lokasi ───
     locations.value = [
-      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...formalBranches.map(x => ({ ...x, type: 'branch' })),
       ...whArr.map(x => ({ ...x, type: 'warehouse' }))
     ]
+    console.log("Isi formalBranches dari Java:", brArr)
+    console.log("Hasil akhir locations.value setelah di-map:", locations.value)
+
+    console.log('Master Locations Berhasil Di-load:', locations.value)
+    
   } catch (err) {
     console.error('Failed to load branches and warehouses for mapping', err)
   }
 }
 
 function getLocationName(type, id) {
-  if (!type) return `Unknown (#${id})`
-  const loc = locations.value.find(l => l.type.toLowerCase() === type.toLowerCase() && l.id === Number(id))
+  if (!type || !id) return `Unknown (#${id})`
+  const loc = locations.value.find(l => l.type?.toLowerCase() === type.toLowerCase() && Number(l.id) === Number(id))
   return loc ? loc.name : `Unknown (${type} #${id})`
 }
 
@@ -369,7 +418,7 @@ onMounted(async () => {
       <!-- Header -->
       <div class="flex flex-col gap-2">
         <h1 class="text-2xl font-bold tracking-tight text-foreground">{{ dashboardTitle }}</h1>
-        <p class="text-xs text-muted-foreground">Ringkasan stok, grafik keluar masuk barang, dan kondisi saldo stok realtime.</p>
+        <p class="text-xs text-muted-foreground">Ringkasan stok, grafik keluar masuk barang, dan kondisi stok realtime.</p>
       </div>
 
       <!-- Loading State -->
@@ -486,7 +535,7 @@ onMounted(async () => {
           </CardContent>
         </Card>
 
-        <!-- Tabel Saldo Stok Realtime -->
+        <!-- Tabel Stok Realtime -->
         <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
           <CardContent class="p-0">
             <!-- Search, Filter & Refresh -->
@@ -544,7 +593,7 @@ onMounted(async () => {
               <div class="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-3">
                 <Package class="h-6 w-6 opacity-40" />
               </div>
-              <p class="text-xs font-medium">Saldo stok tidak ditemukan.</p>
+              <p class="text-xs font-medium">Stok tidak ditemukan.</p>
             </div>
 
             <div v-else>
@@ -555,7 +604,7 @@ onMounted(async () => {
                       <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Produk</th>
                       <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Kategori</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Lokasi</th>
-                      <th class="py-3 text-center font-semibold uppercase tracking-wider">Saldo Stok</th>
+                      <th class="py-3 text-center font-semibold uppercase tracking-wider">Stok</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Terakhir Diperbarui</th>
                       <th class="pr-5 py-3 text-right"></th>
                     </tr>

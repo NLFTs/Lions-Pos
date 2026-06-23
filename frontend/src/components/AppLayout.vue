@@ -200,7 +200,11 @@ function filterMenu(groups) {
       if (item.label === 'Cabang' && !isAdmin && !isOwner) {
         return items
       }
-      
+
+      if ((item.label === 'Perizinan' || item.label === 'Modul') && !isAdmin) {
+        return items
+      }
+
       if (item.label === 'Mitra' && hasPartner) {
         return items
       }

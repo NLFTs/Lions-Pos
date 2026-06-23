@@ -298,12 +298,40 @@ async function updateTRStatus(id, newStatus) {
   updatingStatus.value = true
   try {
     if (newStatus.toLowerCase() === 'received') {
-      const payloadItems = (selectedTR.value?.items || []).map(item => ({
-        productId: item.product?.id || item.productId,
-        product_id: item.product?.id || item.productId,
-        qtyRequested: item.qtyRequested,
-        qty_requested: item.qtyRequested
-      }))
+      
+      const currentItems = selectedTR.value?.items || []
+      
+      console.log("🔍 [DEBUG INTERNALS] Isi raw items dari selectedTR:", currentItems)
+
+      const payloadItems = currentItems.map(item => {
+        const idTerdeteksi = 
+          item.product?.id || 
+          item.productId || 
+          item.product_id || 
+          item.idProduct;
+        
+        const qty = Number(item.qtyRequested || item.qty_requested || item.qty || 0);
+        return {
+          productId: idTerdeteksi ? Number(idTerdeteksi) : null,
+          product_id: idTerdeteksi ? Number(idTerdeteksi) : null,
+          
+          qtyRequested: qty,
+          qty_requested: qty,
+          
+          qtyReceived: qty,
+          qty_received: qty,
+          notes: item.notes || ''
+        }
+      })
+
+      console.log(" [FINAL PAYLOAD TO JAVA]:", JSON.stringify(payloadItems, null, 2))
+
+      if (payloadItems.some(i => i.productId === null || isNaN(i.productId))) {
+        toast.error('Gagal: ID Produk tidak terdeteksi. Silakan buka F12 Console untuk cek struktur data.')
+        updatingStatus.value = false
+        return
+      }
+
       await api.patch(`/api/v1/transfer-requests/${id}/receive`, payloadItems)
     } else {
       await api.patch(`/api/v1/transfer-requests/${id}/status?status=${newStatus.toUpperCase()}`)
