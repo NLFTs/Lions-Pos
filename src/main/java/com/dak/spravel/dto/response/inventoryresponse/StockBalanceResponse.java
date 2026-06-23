@@ -35,5 +35,8 @@ public class StockBalanceResponse {
         private Long id;
         private String name;
         private String sku;
+
+        private Long categoryId;
+        private String categoryName;
     }
 }
