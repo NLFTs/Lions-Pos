@@ -1882,4 +1882,4 @@ function avatarStyle(name = '') {
 
 .scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
-</style>
+</style>   
