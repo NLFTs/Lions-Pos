@@ -16,7 +16,7 @@ import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 import CustomSelect from '@/components/ui/CustomSelect.vue'
 import api from '@/lib/api'
 import {
-  Plus, Loader2, Repeat2, Eye, Check, Building2,
+  Plus, Loader2, Repeat2, Eye, Check, Building2, Warehouse,
   ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send, ChevronDown
 } from 'lucide-vue-next'
 
@@ -27,7 +27,7 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const currentBranchId = computed(() => authStore.user?.branchId || authStore.user?.branch?.id || null)
 
-// Pengguna dikira sebagai pengelola cawangan (Staff Lapangan) jika mempunyai penetapan ID cawangan
+// Pengguna dianggap sebagai pengelola cabang jika mempunyai ID cabang
 const isBranchManager = computed(() => {
   return !!currentBranchId.value || authStore.user?.roles?.includes('pengelola-cabang')
 })
@@ -44,20 +44,22 @@ const userLocationName = computed(() => {
   return ''
 })
 
-// Logik kelayakan penerima barang di cawangan tujuan (mesti pengelola cawangan destinasi)
+// Kelayakan penerima barang di lokasi tujuan (harus pengelola lokasi destinasi jika merupakan cabang)
 const isTargetReceiver = computed(() => {
   if (!selectedTR.value) return false
+  const toType = String(selectedTR.value.toLocationType || '').toUpperCase()
   const toId = String(selectedTR.value.toLocationId || '')
   const myBranchId = String(currentBranchId.value || '')
-  return isBranchManager.value && myBranchId === toId
+  return isBranchManager.value && toType === 'BRANCH' && myBranchId === toId
 })
 
-// Logik kelayakan pengirim barang dari cawangan asal (mesti pengelola cawangan asal)
+// Kelayakan pengirim barang dari lokasi asal (harus pengelola lokasi asal jika merupakan cabang)
 const isSourceSender = computed(() => {
   if (!selectedTR.value) return false
+  const fromType = String(selectedTR.value.fromLocationType || '').toUpperCase()
   const fromId = String(selectedTR.value.fromLocationId || '')
   const myBranchId = String(currentBranchId.value || '')
-  return isBranchManager.value && myBranchId === fromId
+  return isBranchManager.value && fromType === 'BRANCH' && myBranchId === fromId
 })
 
 const transfers = ref([])
@@ -77,9 +79,10 @@ const statusOptions = [
 ]
 
 const branches = ref([])
+const warehouses = ref([])
 const products = ref([])
 
-// State kawalan tetingkap dropdown custom
+// State kontrol tetingkap dropdown custom
 const showFromDropdown = ref(false)
 const showToDropdown = ref(false)
 const showProductDropdowns = ref([])
@@ -110,9 +113,9 @@ const selectedTR = ref(null)
 const updatingStatus = ref(false)
 
 const emptyForm = () => ({
-  fromLocationType: 'branch',
+  fromLocationType: 'BRANCH', // Menggunakan uppercase standar: 'BRANCH' | 'WAREHOUSE'
   fromLocationId: '',
-  toLocationType: 'branch',
+  toLocationType: 'BRANCH',
   toLocationId: '',
   notes: '',
   items: [{ productId: '', qtyRequested: 1 }]
@@ -130,19 +133,41 @@ function extractArray(response) {
   return []
 }
 
-// Menapis senarai cawangan asal yang boleh dipilih (tidak boleh memilih cawangan sendiri sebagai sumber jika cawangan itu destinasi)
-const availableFromLocations = computed(() => {
-  const targetId = form.value.toLocationId
-  if (!targetId) return branches.value
-  return branches.value.filter(loc => String(loc.id) !== String(targetId))
+// Menghasilkan daftar lokasi asal berdasarkan jenis yang terpilih
+const fromLocationsList = computed(() => {
+  return form.value.fromLocationType === 'WAREHOUSE' ? warehouses.value : branches.value
 })
 
-// Menapis senarai cawangan tujuan yang boleh dipilih
-const availableToLocations = computed(() => {
-  const sourceId = form.value.fromLocationId
-  if (!sourceId) return branches.value
-  return branches.value.filter(loc => String(loc.id) !== String(sourceId))
+// Menghasilkan daftar lokasi tujuan berdasarkan jenis yang terpilih
+const toLocationsList = computed(() => {
+  return form.value.toLocationType === 'WAREHOUSE' ? warehouses.value : branches.value
 })
+
+// Menapis senarai lokasi asal agar tidak bertabrakan dengan lokasi tujuan terpilih
+const availableFromLocations = computed(() => {
+  const targetType = form.value.toLocationType
+  const targetId = form.value.toLocationId
+  const list = fromLocationsList.value
+
+  if (!targetId) return list
+  return list.filter(loc => !(String(form.value.fromLocationType) === String(targetType) && String(loc.id) === String(targetId)))
+})
+
+// Menapis senarai lokasi tujuan agar tidak bertabrakan dengan lokasi asal terpilih
+const availableToLocations = computed(() => {
+  const sourceType = form.value.fromLocationType
+  const sourceId = form.value.fromLocationId
+  const list = toLocationsList.value
+
+  if (!sourceId) return list
+  return list.filter(loc => !(String(form.value.toLocationType) === String(sourceType) && String(loc.id) === String(sourceId)))
+})
+
+// Helper untuk mengembalikan icon yang tepat berdasarkan jenis lokasi
+function getLocationIcon(type) {
+  if (!type) return Building2
+  return type.toUpperCase() === 'WAREHOUSE' ? Warehouse : Building2
+}
 
 async function fetchData() {
   loading.value = true
@@ -153,12 +178,12 @@ async function fetchData() {
     const raw = Array.isArray(data) ? data : (data?.content || [])
     transfers.value = raw.map(t => ({
       ...t,
-      fromLocationType: 'branch',
+      fromLocationType: t.fromLocationType ? t.fromLocationType.toUpperCase() : 'BRANCH',
       fromLocationId: t.fromLocationId || t.from_location_id,
-      fromLocationName: t.fromLocationName || t.from_location_name || `Cawangan #${t.fromLocationId || ''}`,
-      toLocationType: 'branch',
+      fromLocationName: t.fromLocationName || t.from_location_name || `Lokasi #${t.fromLocationId || ''}`,
+      toLocationType: t.toLocationType ? t.toLocationType.toUpperCase() : 'BRANCH',
       toLocationId: t.toLocationId || t.to_location_id,
-      toLocationName: t.toLocationName || t.to_location_name || `Cawangan #${t.toLocationId || ''}`,
+      toLocationName: t.toLocationName || t.to_location_name || `Lokasi #${t.toLocationId || ''}`,
       status: t.status ? t.status.toLowerCase() : t.status,
       createdAt: t.createdAt || t.created_at,
       createdBy: t.createdBy || t.created_by,
@@ -179,14 +204,17 @@ async function fetchData() {
 async function loadFormOptions() {
   try {
     const urlB = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
+    const urlW = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
     const urlP = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
     
-    const [resB, resP] = await Promise.all([
+    const [resB, resW, resP] = await Promise.all([
       api.get(urlB),
+      api.get(urlW),
       api.get(urlP)
     ])
 
     branches.value = extractArray(resB)
+    warehouses.value = extractArray(resW)
     products.value = extractArray(resP)
   } catch (err) {
     toast.error('Gagal memuatkan pilihan borang.')
@@ -197,9 +225,9 @@ async function openCreate() {
   form.value = emptyForm()
   
   if (currentBranchId.value) {
-    form.value.toLocationType = 'branch'
+    form.value.toLocationType = 'BRANCH'
     form.value.toLocationId = currentBranchId.value
-    form.value.fromLocationType = 'branch'
+    form.value.fromLocationType = 'BRANCH'
     form.value.fromLocationId = ''
   }
 
@@ -229,12 +257,12 @@ function removeItem(index) {
 
 async function saveTR() {
   if (!form.value.fromLocationId || !form.value.toLocationId) { 
-    formError.value = 'Cawangan Asal dan Tujuan wajib diisi.'; 
+    formError.value = 'Lokasi Asal dan Tujuan wajib diisi.'; 
     return 
   }
   
-  if (String(form.value.fromLocationId) === String(form.value.toLocationId)) {
-    formError.value = 'Cawangan asal dan tujuan tidak boleh sama.'; 
+  if (form.value.fromLocationType === form.value.toLocationType && String(form.value.fromLocationId) === String(form.value.toLocationId)) {
+    formError.value = 'Lokasi asal dan lokasi tujuan tidak boleh sama pada tempat yang sama.'; 
     return
   }
 
@@ -247,12 +275,12 @@ async function saveTR() {
   formError.value = null
   try {
     const payload = {
-      fromLocationType: 'BRANCH',
-      from_location_type: 'BRANCH',
+      fromLocationType: form.value.fromLocationType,
+      from_location_type: form.value.fromLocationType,
       fromLocationId: Number(form.value.fromLocationId),
       from_location_id: Number(form.value.fromLocationId),
-      toLocationType: 'BRANCH',
-      to_location_type: 'BRANCH',
+      toLocationType: form.value.toLocationType,
+      to_location_type: form.value.toLocationType,
       toLocationId: Number(form.value.toLocationId),
       to_location_id: Number(form.value.toLocationId),
       notes: form.value.notes,
@@ -290,7 +318,7 @@ function statusColor(s) {
 }
 
 function statusLabel(s) {
-  const m = { pending: 'Menunggu Kelulusan', approved: 'Disetujui', in_transit: 'Dalam Penghantaran', received: 'Diterima', cancelled: 'Batal' }
+  const m = { pending: 'Menunggu Persetujuan', approved: 'Disetujui', in_transit: 'Dalam Pengiriman', received: 'Diterima', cancelled: 'Batal' }
   return m[s] || s
 }
 
@@ -347,12 +375,12 @@ onUnmounted(() => {
         <div v-if="!showForm" key="table-view" class="flex flex-col gap-6">
           <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
-              <h1 class="text-2xl font-bold tracking-tight">Pemindahan Stok Cawangan</h1>
-              <p class="text-muted-foreground text-sm mt-1">Urus aliran mutasi pergerakan barangan antara cawangan perniagaan.</p>
+              <h1 class="text-2xl font-bold tracking-tight">Pemindahan Stok Inventori</h1>
+              <p class="text-muted-foreground text-sm mt-1">Urus aliran mutasi pergerakan barangan secara silang maupun sesama lokasi (Gudang/Cabang).</p>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
-                <DataTableSearch v-model="searchQuery" placeholder="Cari cawangan asal/tujuan..." />
+                <DataTableSearch v-model="searchQuery" placeholder="Cari lokasi asal/tujuan..." />
               </div>
               <CustomSelect v-model="statusFilter" :options="statusOptions" class="w-full sm:w-48" />
               <Button v-if="can('transfer_request.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -370,7 +398,7 @@ onUnmounted(() => {
                 <div class="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
                   <Repeat2 class="h-7 w-7 opacity-40" />
                 </div>
-                <p class="text-sm font-medium">Tiada rekod pemindahan stok ditemui.</p>
+                <p class="text-sm font-medium">Tidak ditemui pemindahan stok.</p>
                 <Button v-if="can('transfer_request.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
                   <Plus class="h-3.5 w-3.5 mr-1.5" />Buat Permintaan Pertama
                 </Button>
@@ -382,8 +410,10 @@ onUnmounted(() => {
                   <div v-for="tr in paginatedTRs" :key="tr.id" class="p-4 flex flex-col gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="openDetail(tr)">
                     <div class="flex justify-between items-center">
                       <div class="flex items-center gap-2">
+                        <component :is="getLocationIcon(tr.fromLocationType)" class="h-3.5 w-3.5 text-zinc-400 shrink-0" />
                         <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ tr.fromLocationName }}</span>
-                        <ArrowRight class="h-3 w-3 text-zinc-400" />
+                        <ArrowRight class="h-3 w-3 text-zinc-400 shrink-0" />
+                        <component :is="getLocationIcon(tr.toLocationType)" class="h-3.5 w-3.5 text-primary shrink-0" />
                         <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ tr.toLocationName }}</span>
                       </div>
                       <Badge :class="['text-[9px] uppercase tracking-wider', statusColor(tr.status)]" variant="outline">{{ statusLabel(tr.status) }}</Badge>
@@ -400,7 +430,7 @@ onUnmounted(() => {
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b border-zinc-100 dark:border-zinc-800">
-                        <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Cawangan Pembekal (Asal) → Penerima (Tujuan)</th>
+                        <th class="pl-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Rute Pengiriman (Asal → Tujuan)</th>
                         <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Kuantiti Barang</th>
                         <th class="py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</th>
                         <th class="py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Dibuat Oleh</th>
@@ -413,13 +443,13 @@ onUnmounted(() => {
                         <td class="pl-5 py-4">
                           <div class="flex items-center gap-3">
                             <div class="flex flex-col items-center gap-0.5 shrink-0">
-                              <Building2 class="h-4 w-4 text-zinc-400" />
+                              <component :is="getLocationIcon(tr.fromLocationType)" class="h-4 w-4 text-zinc-400" />
                               <div class="w-px h-3.5 bg-zinc-200 dark:bg-zinc-700"></div>
-                              <Building2 class="h-4 w-4 text-primary" />
+                              <component :is="getLocationIcon(tr.toLocationType)" class="h-4 w-4 text-primary" />
                             </div>
                             <div class="flex flex-col gap-0.5">
-                              <span class="text-xs font-medium text-muted-foreground">{{ tr.fromLocationName }}</span>
-                              <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ tr.toLocationName }}</span>
+                              <span class="text-xs font-medium text-muted-foreground">{{ tr.fromLocationName }} ({{ tr.fromLocationType }})</span>
+                              <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ tr.toLocationName }} ({{ tr.toLocationType }})</span>
                             </div>
                           </div>
                         </td>
@@ -458,7 +488,7 @@ onUnmounted(() => {
                 <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
                   <span>{{ formMode === 'create' ? 'Borang Permintaan Pemindahan' : 'Perincian Pemindahan Stok' }}</span>
                 </h2>
-                <p class="text-xs text-muted-foreground mt-0.5">{{ formMode === 'create' ? 'Lakukan mutasi inventori antara cawangan.' : 'Semakan maklumat dan kemas kini status aliran pemindahan.' }}</p>
+                <p class="text-xs text-muted-foreground mt-0.5">{{ formMode === 'create' ? 'Lakukan mutasi inventori antar gudang maupun cabang secara dinamis.' : 'Semakan maklumat dan kemas kini status aliran pemindahan.' }}</p>
               </div>
             </div>
             <div v-if="formMode === 'create'" class="flex items-center gap-3 w-full sm:w-auto">
@@ -473,7 +503,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- BORANG TAMBAH TRANSFER STOK BARU (Hanya sesama Cawangan) -->
+          <!-- BORANG TAMBAH TRANSFER STOK BARU (Dinamis: Gudang & Cabang) -->
           <template v-if="formMode === 'create'">
             <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -486,20 +516,43 @@ onUnmounted(() => {
                       <h4 class="text-sm font-bold uppercase tracking-widest text-primary">Rute Pemindahan</h4>
                     </div>
 
-                    <!-- Cawangan Asal (Sumber Stok) -->
-                    <div class="space-y-2">
-                      <Label class="text-xs font-bold">Cawangan Pembekal (Sumber Stok) <span class="text-destructive">*</span></Label>
+                    <!-- PENGATURAN ASAL (SUMBER STOK) -->
+                    <div class="space-y-3">
+                      <Label class="text-xs font-bold">Jenis Lokasi Asal <span class="text-destructive">*</span></Label>
+                      <div class="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="flex-1 text-xs"
+                          :class="form.fromLocationType === 'BRANCH' ? 'bg-primary/10 text-primary border-primary font-bold' : ''"
+                          @click="form.fromLocationType = 'BRANCH'; form.fromLocationId = ''"
+                        >
+                          <Building2 class="h-3.5 w-3.5 mr-1.5" /> Cabang
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="flex-1 text-xs"
+                          :class="form.fromLocationType === 'WAREHOUSE' ? 'bg-primary/10 text-primary border-primary font-bold' : ''"
+                          @click="form.fromLocationType = 'WAREHOUSE'; form.fromLocationId = ''"
+                        >
+                          <Warehouse class="h-3.5 w-3.5 mr-1.5" /> Gudang
+                        </Button>
+                      </div>
+
                       <div class="relative custom-select-from">
                         <button type="button" @click="showFromDropdown = !showFromDropdown" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between text-left transition-all duration-150">
                           <span :class="form.fromLocationId ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-muted-foreground'">
-                            {{ branches.find(b => b.id === form.fromLocationId)?.name || 'Pilih cawangan pembekal asal...' }}
+                            {{ fromLocationsList.find(b => b.id === form.fromLocationId)?.name || `Pilih ${form.fromLocationType === 'BRANCH' ? 'cabang' : 'gudang'} asal...` }}
                           </span>
                           <ChevronDown class="h-4 w-4 text-zinc-400 transition-transform duration-200" :class="{ 'rotate-180': showFromDropdown }" />
                         </button>
                         <Transition name="dropdown">
                           <div v-if="showFromDropdown" class="absolute z-50 mt-1.5 w-full bg-background border border-input rounded-md shadow-lg max-h-60 overflow-y-auto py-1">
                             <div v-if="availableFromLocations.length === 0" class="px-3 py-2.5 text-xs text-muted-foreground text-center">
-                              Tiada cawangan tersedia
+                              Tiada lokasi tersedia
                             </div>
                             <button v-for="l in availableFromLocations" :key="l.id" type="button" @click="form.fromLocationId = l.id; showFromDropdown = false" class="w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-center justify-between">
                               <span>{{ l.name }}</span>
@@ -516,29 +569,54 @@ onUnmounted(() => {
                       </div>
                     </div>
 
-                    <!-- Cawangan Tujuan (Destinasi/Pemohon) -->
-                    <div class="space-y-2">
-                      <Label class="text-xs font-bold">Cawangan Penerima (Destinasi) <span class="text-destructive">*</span></Label>
-                      <!-- Jika login sebagai pengelola cawangan, automatik isi cawangan pengguna sendiri -->
+                    <!-- PENGATURAN TUJUAN (DESTINASI) -->
+                    <div class="space-y-3">
+                      <Label class="text-xs font-bold">Jenis Lokasi Penerima (Tujuan) <span class="text-destructive">*</span></Label>
+                      
+                      <!-- Jika login sebagai pengelola cabang, otomatis destinasi terkunci pada cabangnya sendiri -->
                       <div v-if="isBranchManager" class="flex items-center gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm">
                         <div class="p-2 rounded-md bg-zinc-100 dark:bg-zinc-900 text-zinc-500"><Building2 class="h-4 w-4" /></div>
                         <div class="flex flex-col">
                           <span class="text-xs font-bold text-zinc-900 dark:text-zinc-100">{{ userLocationName }}</span>
-                          <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Lokasi Cawangan Anda</span>
+                          <span class="text-[9px] text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Lokasi Cabang Anda</span>
                         </div>
                       </div>
-                      <div v-else>
+                      
+                      <div v-else class="space-y-3">
+                        <div class="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="flex-1 text-xs"
+                            :class="form.toLocationType === 'BRANCH' ? 'bg-primary/10 text-primary border-primary font-bold' : ''"
+                            @click="form.toLocationType = 'BRANCH'; form.toLocationId = ''"
+                          >
+                            <Building2 class="h-3.5 w-3.5 mr-1.5" /> Cabang
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="flex-1 text-xs"
+                            :class="form.toLocationType === 'WAREHOUSE' ? 'bg-primary/10 text-primary border-primary font-bold' : ''"
+                            @click="form.toLocationType = 'WAREHOUSE'; form.toLocationId = ''"
+                          >
+                            <Warehouse class="h-3.5 w-3.5 mr-1.5" /> Gudang
+                          </Button>
+                        </div>
+
                         <div class="relative custom-select-to">
                           <button type="button" @click="showToDropdown = !showToDropdown" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between text-left transition-all duration-150">
                             <span :class="form.toLocationId ? 'text-zinc-900 dark:text-zinc-100 font-medium' : 'text-muted-foreground'">
-                              {{ branches.find(b => b.id === form.toLocationId)?.name || 'Pilih cawangan penerima tujuan...' }}
+                              {{ toLocationsList.find(b => b.id === form.toLocationId)?.name || `Pilih ${form.toLocationType === 'BRANCH' ? 'cabang' : 'gudang'} tujuan...` }}
                             </span>
                             <ChevronDown class="h-4 w-4 text-zinc-400 transition-transform duration-200" :class="{ 'rotate-180': showToDropdown }" />
                           </button>
                           <Transition name="dropdown">
                             <div v-if="showToDropdown" class="absolute z-50 mt-1.5 w-full bg-background border border-input rounded-md shadow-lg max-h-60 overflow-y-auto py-1">
                               <div v-if="availableToLocations.length === 0" class="px-3 py-2.5 text-xs text-muted-foreground text-center">
-                                Tiada cawangan tersedia
+                                Tiada lokasi tujuan tersedia
                               </div>
                               <button v-for="l in availableToLocations" :key="l.id" type="button" @click="form.toLocationId = l.id; showToDropdown = false" class="w-full px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex items-center justify-between">
                                 <span>{{ l.name }}</span>
@@ -615,7 +693,7 @@ onUnmounted(() => {
             </div>
           </template>
 
-          <!-- PAPARAN MAKLUMAT TERPERINCI PERMINTAAN SEDIA ADA -->
+          <!-- PAPARAN MAKLUMAT TERPERINCI PERMINTAAN TRANSFER -->
           <template v-else-if="selectedTR">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               
@@ -625,13 +703,19 @@ onUnmounted(() => {
                     <div class="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/10">
                       <div class="flex items-center gap-4">
                         <div class="flex flex-col items-center">
-                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase bg-white dark:bg-zinc-950">Asal</Badge>
-                          <span class="text-xs font-bold max-w-[120px] truncate">{{ selectedTR.fromLocationName }}</span>
+                          <Badge variant="outline" class="text-[9px] h-5 mb-1.5 uppercase bg-white dark:bg-zinc-950 flex items-center gap-1">
+                            <component :is="getLocationIcon(selectedTR.fromLocationType)" class="h-3 w-3 text-zinc-400 shrink-0" />
+                            Asal ({{ selectedTR.fromLocationType }})
+                          </Badge>
+                          <span class="text-xs font-bold max-w-[120px] truncate text-center">{{ selectedTR.fromLocationName }}</span>
                         </div>
                         <ArrowRight class="h-4 w-4 text-primary shrink-0" />
                         <div class="flex flex-col items-center">
-                          <Badge variant="outline" class="text-[9px] h-4 mb-1 uppercase bg-white dark:bg-zinc-950">Tujuan</Badge>
-                          <span class="text-xs font-bold max-w-[120px] truncate">{{ selectedTR.toLocationName }}</span>
+                          <Badge variant="outline" class="text-[9px] h-5 mb-1.5 uppercase bg-white dark:bg-zinc-950 flex items-center gap-1">
+                            <component :is="getLocationIcon(selectedTR.toLocationType)" class="h-3 w-3 text-primary shrink-0" />
+                            Tujuan ({{ selectedTR.toLocationType }})
+                          </Badge>
+                          <span class="text-xs font-bold max-w-[120px] truncate text-center">{{ selectedTR.toLocationName }}</span>
                         </div>
                       </div>
                       <Badge :class="['text-[9px] uppercase tracking-widest font-bold px-2 py-1', statusColor(selectedTR.status)]" variant="outline">{{ statusLabel(selectedTR.status) }}</Badge>
@@ -655,39 +739,39 @@ onUnmounted(() => {
                   </CardContent>
                 </Card>
 
-                <!-- Tombol Tindakan Aliran Status (Mengikut Keizinan Baru) -->
+                <!-- Tombol Tindakan Aliran Status -->
                 <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <CardContent class="p-5 space-y-3">
                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b pb-2 border-zinc-100 dark:border-zinc-800">Tindakan Kelulusan & Logistik</p>
                     <div class="flex flex-col gap-2">
                       
-                      <!-- 1. Owner/Admin-Partners meluluskan request pemindahan -->
+                      <!-- 1. Owner meluluskan request pemindahan -->
                       <Button v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'approved')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />Luluskan Pemindahan (Owner / Admin-Partners)
                       </Button>
 
-                      <!-- 2. Pengelola cawangan asal menghantar barang ke destinasi -->
+                      <!-- 2. Pengelola asal memproses kiriman barang -->
                       <Button v-if="selectedTR.status === 'approved' && isBranchManager && isSourceSender && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'in_transit')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Send v-else class="h-4 w-4 mr-2" />Mulakan Penghantaran (Cawangan Asal)
+                        <Send v-else class="h-4 w-4 mr-2" />Kirimkan (Lokasi Asal)
                       </Button>
 
-                      <!-- 3. Pengelola cawangan destinasi mengesahkan penerimaan stok -->
+                      <!-- 3. Pengelola penerima mengonfirmasi penerimaan barang -->
                       <Button v-if="selectedTR.status === 'in_transit' && isBranchManager && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'RECEIVED')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                        <Check v-else class="h-4 w-4 mr-2" />Sahkan Penerimaan Stok (Cawangan Tujuan)
+                        <Check v-else class="h-4 w-4 mr-2" />Sahkan Penerimaan Stok (Lokasi Tujuan)
                       </Button>
 
                       <!-- Makluman Interaktif Status Semasa -->
                       <div v-if="selectedTR.status === 'pending' && isBranchManager" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
-                        ⌛ Menunggu kelulusan daripada pihak Owner Pusat...
+                        ⌛ Menunggu persetujuan daripada pihak Owner Pusat...
                       </div>
                       <div v-if="selectedTR.status === 'approved' && isBranchManager && isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
-                        📦 Telah diluluskan! Menunggu cawangan asal memulakan penghantaran barang...
+                        📦 Telah disetujui! Menunggu cawangan asal memulakan penghantaran barang...
                       </div>
                       <div v-if="selectedTR.status === 'in_transit' && isBranchManager && !isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50">
-                        🚚 Barangan sedang dalam perjalanan menuju ke destinasi penerima...
+                        🚚 Barang sedang dalam perjalanan menuju ke destinasi penerima...
                       </div>
                       <div v-if="selectedTR.status === 'cancelled'" class="w-full text-center py-3 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50">
                         ❌ Permintaan pemindahan ini telah dibatalkan.
