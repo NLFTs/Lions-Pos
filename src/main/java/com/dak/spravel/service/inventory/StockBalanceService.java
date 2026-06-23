@@ -116,24 +116,41 @@ public class StockBalanceService {
             if (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Cawangan bukan milik rakan kongsi anda.");
             }
-        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            Warehouses warehouse = warehousesRepository.findById(locationId)
+                    .orElseThrow(() -> new RuntimeException("Gudang tidak ditemui"));
+            
+            if (warehouse.getPartners() != null) {
+                if (!warehouse.getPartners().getId().equals(partner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Gudang bukan milik rakan kongsi anda.");
+                }
+            } else {
+                log.info("[TENANT CHECK] Memproses verifikasi gudang ID: {}", locationId);
+            }
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
             if (!locationId.equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Lokasi kuarantin bukan milik rakan kongsi anda.");
             }
-        } else {
-            throw new RuntimeException("locationType tidak sah. Gunakan 'BRANCH' atau 'QUARANTINE'.");
+        } 
+        else {
+            throw new RuntimeException("locationType tidak sah. Gunakan 'BRANCH', 'WAREHOUSE', atau 'QUARANTINE'.");
         }
     }
 
     private String resolveLocationName(String locationType, Long locationId) {
         if ("BRANCH".equalsIgnoreCase(locationType)) {
             return branchesRepository.findById(locationId).map(Branches::getName).orElse("Cawangan #" + locationId);
-        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            return warehousesRepository.findById(locationId).map(Warehouses::getName).orElse("Gudang #" + locationId);
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
             return "Kuarantin (Rakan Kongsi #" + locationId + ")";
         }
         return "Lokasi #" + locationId;
     }
-
     // ─── PEMETAAN RESPON & REKOD MUTASI STOK ──────────────────────────────────
 
     public StockBalanceResponse mapToResponse(StockBalance stock) {
@@ -305,10 +322,14 @@ public class StockBalanceService {
                 targetType = "WAREHOUSE";
             } else if (inputLower.contains("branch") || inputLower.contains("cabang")) {
                 targetType = "BRANCH";
+            } else if (inputLower.contains("quarantine") || inputLower.contains("karantina")) {
+                targetType = "QUARANTINE";
             }
         }
 
         log.info("[BACKEND DEBUG] Memproses kueri stok murni untuk Tipe: {} dengan ID: {}", targetType, locationId);
+
+        validateLocation(targetType, locationId, currentUser.getPartner());
 
         List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(targetType, locationId);
         
