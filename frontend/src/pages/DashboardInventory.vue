@@ -59,6 +59,17 @@ const stats = ref({
   chart_data: []
 })
 const balances = ref([])
+const categories = computed(() => {
+  if (!balances.value.length) return []
+
+  return [
+    ...new Set(
+      balances.value
+        .map((b) => b?.product?.categoryName ?? '-')
+        .filter((c) => c && c !== '-' && c.trim() !== '')
+    )
+  ]
+})
 const locations = ref([])
 const searchQuery = ref('')
 const page = ref(1)
@@ -67,6 +78,7 @@ const pageSize = ref(10)
 // Filter state (dipindahkan dari StockBalancesPage)
 const locationFilter = ref('all')
 const typeFilter = ref('all')
+const categoryFilter = ref('all')
 
 // Resolved Page Title
 const dashboardTitle = computed(() => {
@@ -80,26 +92,27 @@ const dashboardTitle = computed(() => {
 
 // ─── Computed: Filter & Paginate Table ──────────────────────────────────────
 const filteredBalances = computed(() => {
-  let r = balances.value
+  let r = [...balances.value]
 
-  // Filter by location type
+  // filter kategori
+  if (categoryFilter.value !== 'all') {
+    r = r.filter((b) => b.product?.categoryName === categoryFilter.value)
+  }
+
+  // filter lokasi tipe
   if (locationFilter.value !== 'all') {
-    r = r.filter(b => (b.locationType || '').toUpperCase() === locationFilter.value.toUpperCase())
+    r = r.filter((b) => b.locationType === locationFilter.value)
   }
 
-  // Filter by specific location id (if typeFilter used as locationId)
-  if (typeFilter.value !== 'all') {
-    r = r.filter(b => String(b.locationId) === String(typeFilter.value))
-  }
-
-  // Filter by search query
+  // filter search
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    r = r.filter(b => 
-      (b.product?.name && b.product.name.toLowerCase().includes(q)) ||
-      (b.product?.sku && b.product.sku.toLowerCase().includes(q))
+    r = r.filter((b) =>
+      b.product?.name?.toLowerCase().includes(q) ||
+      b.product?.sku?.toLowerCase().includes(q)
     )
   }
+
   return r
 })
 
@@ -555,13 +568,26 @@ onMounted(async () => {
                     <option v-for="loc in locations.filter(l => l.type === 'warehouse')" :key="'wh-' + loc.id" :value="loc.id">{{ loc.name }}</option>
                   </optgroup>
                 </select>
+                <select
+                  v-model="categoryFilter"
+                  class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <option value="all">Semua Kategori</option>
 
+                  <option
+                    v-for="category in categories"
+                    :key="category"
+                    :value="category"
+                  >
+                    {{ category }}
+                  </option>
+                </select>
                 <button @click="fetchDashboardData" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
                   <History class="w-3.5 h-3.5" /> Segarkan
                 </button>
               </div>
             </div>
-
+              
             <!-- Table -->
             <div v-if="filteredBalances.length === 0" class="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <div class="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-3">
@@ -576,6 +602,7 @@ onMounted(async () => {
                   <thead>
                     <tr class="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500">
                       <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Produk</th>
+                      <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Kategori</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Lokasi</th>
                       <th class="py-3 text-center font-semibold uppercase tracking-wider">Stok</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Terakhir Diperbarui</th>
@@ -599,6 +626,11 @@ onMounted(async () => {
                           </div>
                         </div>
                       </td>
+                     <td class="pl-5 py-3.5 align-middle">
+  <Badge variant="outline">
+    {{ b.product?.categoryName || '-' }}
+  </Badge>
+</td>
                       <td class="py-3.5">
                         <div class="flex flex-col gap-0.5">
                           <div class="flex items-center gap-1 font-semibold"

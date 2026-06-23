@@ -139,12 +139,26 @@ public class StockBalanceService {
     public StockBalanceResponse mapToResponse(StockBalance stock) {
         if (stock == null) return null;
 
-        StockBalanceResponse.ProductSimpleDto productDto = new StockBalanceResponse.ProductSimpleDto();
-        productDto.setId(stock.getProduct().getId());
-        productDto.setName(stock.getProduct().getName());
-        productDto.setSku(stock.getProduct().getSku());
+        Product product = stock.getProduct();
+
+        StockBalanceResponse.ProductSimpleDto productDto =
+                new StockBalanceResponse.ProductSimpleDto();
+
+        if (product != null) {
+            productDto.setId(product.getId());
+            productDto.setName(product.getName());
+            productDto.setSku(product.getSku());
+
+            if (product.getCategory() != null) {
+                productDto.setCategoryId(product.getCategory().getId());
+                productDto.setCategoryName(product.getCategory().getName());
+            } else {
+                productDto.setCategoryName("-");
+            }
+        }
 
         UserSimpleDto userDto = null;
+
         if (stock.getUpdatedBy() != null) {
             userDto = new UserSimpleDto();
             userDto.setId(stock.getUpdatedBy().getId());
