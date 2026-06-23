@@ -515,7 +515,6 @@ onMounted(fetchData)
               </div>
             </div>
           </template>
-
         </div>
       </Transition>
     </div>

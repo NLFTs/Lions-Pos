@@ -11,12 +11,9 @@ import java.util.List;
 @Repository
 public interface WarehousesRepository extends JpaRepository<Warehouses, Long> {
 
-    // Untuk Partner: Ambil yang aktif & belum dihapus
     List<Warehouses> findByPartnersIdAndDeletedAtIsNull(Long partnersId);
 
-    // Untuk Partner: Pagination data warehouse
     Page<Warehouses> findByPartnersIdAndDeletedAtIsNull(Long partnersId, Pageable pageable);
 
-    // Validasi duplikasi nama warehouse dalam satu partner
     boolean existsByNameAndPartnersIdAndDeletedAtIsNull(String name, Long partnersId);
 }

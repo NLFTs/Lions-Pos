@@ -38,10 +38,12 @@ public class WarehousesController {
         return ResponseBuilder.ok(warehousesService.findPageAdmin(page, size));
     }
 
+    // Modifikasi: Menangkap branchId dari Query Param (Contoh: /api/v1/warehouses?branchId=1)
     @GetMapping
     @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<List<WarehouseResponse>>> findAll() {
-        return ResponseBuilder.ok(warehousesService.findAllByPartner());
+    public ResponseEntity<ResData<List<WarehouseResponse>>> findAll(@RequestParam(required = false) Long branchId) {
+        log.info("[GET] /api/v1/warehouses - Fetching all warehouses for branch ID: {}", branchId);
+        return ResponseBuilder.ok(warehousesService.findAllByPartner(branchId));
     }
 
     @PostMapping
@@ -69,9 +71,10 @@ public class WarehousesController {
     @GetMapping("/page")
     @PreAuthorize("hasAuthority('warehouse.index')")
     public ResponseEntity<ResData<Page<WarehouseResponse>>> findPageByPartner(
-        @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "10") int size) {
-    log.info("[GET] /api/v1/warehouses/page - Access by Partner, Page: {}", page);
-    return ResponseBuilder.ok(warehousesService.findPageByPartner(page, size));
-}
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/warehouses/page - Access by Partner, Branch ID: {}, Page: {}", branchId, page);
+        return ResponseBuilder.ok(warehousesService.findPageByPartner(branchId, page, size));
+    }
 }

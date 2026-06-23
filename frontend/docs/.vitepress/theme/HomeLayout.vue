@@ -93,7 +93,7 @@
                 </svg>
               </div>
               <div class="tech-logo">
-                <img :src="withBase('/gaptek-hit.png')" alt="Gaptek Logo" class="tech-logo-img" />
+                <img :src="withBase('/logo-gaptek.svg')" alt="Gaptek Logo" class="tech-logo-img" />
               </div>
             </div>
 
