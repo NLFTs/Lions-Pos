@@ -33,14 +33,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Code2,
-  Settings2,
   Search,
-  MessageSquare,
-  CheckCircle2,
-  PlusCircle,
   Truck,
-  ExternalLink,
 } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
 import {
@@ -57,7 +51,7 @@ import {
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend)
 
 const auth = useAuthStore()
-const { user, isAdmin } = storeToRefs(auth)
+const { user, isAdmin, isSuperAdmin } = storeToRefs(auth)
 const { can } = usePermission()
 const themeStore = useThemeStore()
 
@@ -88,7 +82,12 @@ function handleOutsideClick(e) {
     dropdownOpen.value = false
   }
 }
-onMounted(() => { fetchStats(); document.addEventListener('click', handleOutsideClick) })
+onMounted(() => {
+  fetchStats()
+  fetchBranchWarehouseStatus()
+  fetchOrders()
+  document.addEventListener('click', handleOutsideClick)
+})
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 // Stats from backend
@@ -380,90 +379,132 @@ const animatedDashOffset = computed(() =>
   GAUGE_CIRCUMFERENCE.value * (1 - animatedPercent.value / 100)
 )
 
-// ── Project Status ────────────────────────────────────────────────────────────
+// ── Branch & Warehouse Status ─────────────────────────────────────────────────
 const activeTab = ref('status')
-const projectFilter = ref('Bulanan')
-const projectFilters = ['Mingguan', 'Bulanan', 'Tahunan']
+const branchStatusFilter = ref('Semua')
+const branchStatusFilters = ['Semua', 'Cabang', 'Gudang']
 
-const projects = computed(() => [
-  { id: 1, name: 'Pengembangan Aplikasi', icon: Code2,     status: 'Berisiko',  risk: true },
-  { id: 2, name: 'Kampanye Pemasaran',     icon: Settings2, status: 'Berjalan ', risk: false },
-  { id: 3, name: 'Migrasi Database',     icon: Code2,     status: 'Berjalan', risk: false },
-  { id: 4, name: 'Perancangan Ulang',       icon: Settings2, status: 'Berjalan', risk: false },
-])
+const branchesData = ref([])
+const warehousesData = ref([])
+const statusLoading = ref(false)
+
+async function fetchBranchWarehouseStatus() {
+  statusLoading.value = true
+  try {
+    const branchUrl = isSuperAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
+    const warehouseUrl = isSuperAdmin.value
+      ? '/api/v1/warehouses/admin?page=0&size=100'
+      : '/api/v1/warehouses'
+    const [branchRes, warehouseRes] = await Promise.allSettled([
+      api.get(branchUrl),
+      api.get(warehouseUrl),
+    ])
+    if (branchRes.status === 'fulfilled') {
+      const d = branchRes.value.data
+      // superadmin endpoint returns plain array; partner returns { data: [...] }
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      branchesData.value = list
+    }
+    if (warehouseRes.status === 'fulfilled') {
+      const d = warehouseRes.value.data
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      warehousesData.value = list
+    }
+  } catch (err) {
+    console.error('Status fetch error:', err)
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+const combinedStatusItems = computed(() => {
+  const branches = branchesData.value.map(b => ({
+    id: `branch-${b.id}`,
+    name: b.name,
+    address: b.address || '',
+    isActive: b.is_active ?? b.isActive ?? false,
+    type: 'Cabang',
+    icon: Building2,
+  }))
+  const warehouses = warehousesData.value.map(w => ({
+    id: `warehouse-${w.id}`,
+    name: w.name,
+    address: w.address || '',
+    isActive: w.is_active ?? w.isActive ?? false,
+    type: 'Gudang',
+    icon: Warehouse,
+  }))
+  const all = [...branches, ...warehouses]
+  if (branchStatusFilter.value === 'Cabang') return branches
+  if (branchStatusFilter.value === 'Gudang') return warehouses
+  return all
+})
 
 // ── Recent Activity ───────────────────────────────────────────────────────────
-const recentActivities = [
-  {
-    id: 1,
-    text: 'Menyelesaikan',
-    highlight: 'Redesain Website',
-    suffix: 'tugas',
-    time: '2 jam yang lalu',
-    icon: CheckCircle2,
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
-  },
-  {
-    id: 2,
-    text: 'Memberikan komentar di',
-    highlight: 'Pengembangan Aplikasi Mobile',
-    suffix: '',
-    time: '4 jam yang lalu',
-    icon: MessageSquare,
-    iconColor: 'text-blue-600 dark:text-blue-400',
-  },
-  {
-    id: 3,
-    text: 'Membuat tugas baru dalam',
-    highlight: 'Kampanye Pemasaran',
-    suffix: '',
-    time: 'Kemarin',
-    icon: PlusCircle,
-    iconColor: 'text-violet-600 dark:text-violet-400',
-  },
-  {
-    id: 4,
-    text: 'Menyelesaikan 3 tugas di',
-    highlight: 'Peluncuran Produk',
-    suffix: '',
-    time: 'Kemarin',
-    icon: CheckCircle2,
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
-  },
-]
+// (dikosongkan — akan diisi dari backend nanti)
+const recentActivities = []
 
-// ── Orders & Shipping ─────────────────────────────────────────────────────────
+// ── Orders & Shipping (real data) ────────────────────────────────────────────
 const orderSearch = ref('')
 const orderPage   = ref(1)
 const ordersPerPage = 5
+const ordersLoading = ref(false)
 
-const allOrders = ref([
-  { id: '#1024', customer: 'Lorant', date: '2025-01-18', shipping: 'Sudah Dikirim',    carrier: 'UPS Ground',   total: 'Rp 129.000', status: 'shipped' },
-  { id: '#1023', customer: 'Lorant', date: '2025-01-17', shipping: 'Sedang Diproses', carrier: 'DHL Express',  total: 'Rp 349.000', status: 'processing' },
-  { id: '#1022', customer: 'Lorant', date: '2025-01-16', shipping: 'Terkirim',  carrier: 'USPS',         total: 'Rp 79.000',  status: 'delivered' },
-  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
-  { id: '#1020', customer: 'Lorant', date: '2025-01-14', shipping: 'Tertunda',    carrier: 'FedEx',        total: 'Rp 219.000', status: 'pending' },
-  { id: '#1019', customer: 'Budi',   date: '2025-01-13', shipping: 'Sudah Dikirim',    carrier: 'JNE',          total: 'Rp 89.000',  status: 'shipped' },
-  { id: '#1018', customer: 'Sari',   date: '2025-01-12', shipping: 'Terkirim',  carrier: 'SiCepat',      total: 'Rp 195.000', status: 'delivered' },
-  { id: '#1017', customer: 'Ahmad',  date: '2025-01-11', shipping: 'Sedang Diproses', carrier: 'J&T',          total: 'Rp 430.000', status: 'processing' },
-  { id: '#1016', customer: 'Dewi',   date: '2025-01-10', shipping: 'Tertunda',    carrier: 'Anteraja',     total: 'Rp 67.000',  status: 'pending' },
-  { id: '#1015', customer: 'Riko',   date: '2025-01-09', shipping: 'Sudah Dikirimgit ',    carrier: 'Ninja Xpress', total: 'Rp 312.000', status: 'shipped' },
-])
-
+const allOrders = ref([])
 const selectedOrders = ref([])
+
+async function fetchOrders() {
+  ordersLoading.value = true
+  try {
+    const url = isSuperAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
+    const res = await api.get(url)
+    const d = res.data
+    const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])
+    // Map API response to display format
+    allOrders.value = list.map(o => ({
+      id: o.id,
+      orderNumber: o.orderNumber || `#${o.id}`,
+      customer: o.buyerName || '-',
+      date: o.createdAt ? new Date(o.createdAt).toLocaleDateString('id-ID') : '-',
+      branch: o.branchName || '-',
+      total: o.total != null ? 'Rp ' + Number(o.total).toLocaleString('id-ID') : '-',
+      status: (o.status || 'pending').toLowerCase(),
+      statusLabel: mapOrderStatusLabel(o.status),
+    }))
+  } catch (err) {
+    console.error('Orders fetch error:', err)
+  } finally {
+    ordersLoading.value = false
+  }
+}
+
+function mapOrderStatusLabel(status) {
+  const s = (status || '').toLowerCase()
+  const map = {
+    completed: 'Selesai',
+    pending: 'Tertunda',
+    cancelled: 'Dibatalkan',
+    returned: 'Dikembalikan',
+    processing: 'Diproses',
+    shipped: 'Dikirim',
+    delivered: 'Terkirim',
+    paid: 'Lunas',
+  }
+  return map[s] || status || 'Tertunda'
+}
 
 const filteredOrders = computed(() => {
   const q = orderSearch.value.toLowerCase()
   if (!q) return allOrders.value
   return allOrders.value.filter(o =>
-    o.id.toLowerCase().includes(q) ||
+    o.orderNumber.toLowerCase().includes(q) ||
     o.customer.toLowerCase().includes(q) ||
-    o.shipping.toLowerCase().includes(q) ||
-    o.carrier.toLowerCase().includes(q)
+    o.branch.toLowerCase().includes(q) ||
+    o.statusLabel.toLowerCase().includes(q)
   )
 })
 
-const totalOrderPages = computed(() => Math.ceil(filteredOrders.value.length / ordersPerPage))
+const totalOrderPages = computed(() => Math.max(1, Math.ceil(filteredOrders.value.length / ordersPerPage)))
 
 const pagedOrders = computed(() => {
   const start = (orderPage.value - 1) * ordersPerPage
@@ -473,10 +514,13 @@ const pagedOrders = computed(() => {
 watch(orderSearch, () => { orderPage.value = 1 })
 
 const orderStatusStyle = {
+  completed:  'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30',
+  paid:       'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30',
+  delivered:  'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30',
   shipped:    'text-blue-700 bg-blue-50 dark:text-blue-400 dark:bg-blue-950/30',
   processing: 'text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30',
-  delivered:  'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30',
   cancelled:  'text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-950/30',
+  returned:   'text-orange-700 bg-orange-50 dark:text-orange-400 dark:bg-orange-950/30',
   pending:    'text-muted-foreground bg-muted',
 }
 
@@ -777,97 +821,108 @@ function toggleAllOrders() {
       <!-- ── Desktop View (lg:grid / lg:block) ─────────────────────────────── -->
       <div class="hidden lg:grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        <!-- Project Status -->
+        <!-- Status Cabang & Gudang -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 class="text-sm font-bold text-foreground">Status Cabang</h2>
             <div class="flex items-center gap-1 bg-muted rounded-full p-0.5">
               <button
-                v-for="f in projectFilters" :key="f"
-                @click="projectFilter = f"
+                v-for="f in branchStatusFilters" :key="f"
+                @click="branchStatusFilter = f"
                 class="px-3 py-1 text-xs font-semibold rounded-full transition-all duration-200"
-                :class="projectFilter === f
+                :class="branchStatusFilter === f
                   ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'"
               >{{ f }}</button>
             </div>
           </div>
-          <div class="divide-y divide-border/60">
+          <!-- Loading -->
+          <div v-if="statusLoading" class="flex items-center justify-center py-10">
+            <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+          <!-- Empty -->
+          <div v-else-if="combinedStatusItems.length === 0" class="flex flex-col items-center justify-center py-10 gap-2">
+            <Building2 class="w-8 h-8 text-muted-foreground/30" />
+            <p class="text-xs text-muted-foreground">Tidak ada data cabang/gudang</p>
+          </div>
+          <!-- Items -->
+          <div v-else class="divide-y divide-border/60 max-h-72 overflow-y-auto">
             <div
-              v-for="project in projects" :key="project.id"
-              class="flex items-center justify-between px-5 py-3.5 hover:bg-muted/40 transition-colors cursor-pointer group"
+              v-for="item in combinedStatusItems" :key="item.id"
+              class="flex items-center justify-between px-5 py-3 hover:bg-muted/40 transition-colors"
             >
-              <div class="flex items-center gap-3">
-                <div class="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-                  <component :is="project.icon" class="w-3.5 h-3.5 text-muted-foreground" />
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                  :class="item.isActive ? 'bg-emerald-500/10' : 'bg-red-500/10'">
+                  <component :is="item.icon" class="w-3.5 h-3.5"
+                    :class="item.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'" />
                 </div>
-                <span class="text-xs font-medium text-foreground">{{ project.name }}</span>
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-foreground truncate">{{ item.name }}</p>
+                  <p v-if="item.address" class="text-[10px] text-muted-foreground truncate">{{ item.address }}</p>
+                </div>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-medium" :class="project.risk ? 'text-red-500 font-semibold' : 'text-muted-foreground'">
-                  {{ project.status }}
+              <div class="flex items-center gap-2 shrink-0 ml-3">
+                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full"
+                  :class="item.isActive
+                    ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30'
+                    : 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/30'"
+                >
+                  {{ item.isActive ? 'Aktif' : 'Non-Aktif' }}
                 </span>
-                <span
-                  class="w-2 h-2 rounded-full"
-                  :class="project.risk ? 'bg-red-500' : 'bg-emerald-500'"
-                />
+                <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                  :class="item.isActive ? 'bg-emerald-500' : 'bg-red-500'" />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Recent Activity -->
+        <!-- Aktivitas Terbaru (kosong) -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 class="text-sm font-bold text-foreground">Aktivitas Terbaru</h2>
-            <button class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              View all <ExternalLink class="w-3 h-3" />
-            </button>
           </div>
-          <div class="divide-y divide-border/60">
-            <div
-              v-for="act in recentActivities" :key="act.id"
-              class="flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-muted/40 transition-colors"
-            >
-              <div class="flex-1 min-w-0">
-                <p class="text-xs text-muted-foreground leading-snug">
-                  {{ act.text }}
-                  <span class="font-semibold text-foreground">{{ act.highlight }}</span>
-                  {{ act.suffix }}
-                </p>
-                <div class="flex items-center gap-1.5 mt-1">
-                  <div class="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                    <component :is="act.icon" class="w-2.5 h-2.5" :class="act.iconColor" />
-                  </div>
-                  <span class="text-[10px] text-muted-foreground/80">{{ act.time }}</span>
-                </div>
-              </div>
-              <component :is="act.icon" class="w-4 h-4 shrink-0" :class="act.iconColor" />
-            </div>
+          <div class="flex flex-col items-center justify-center py-14 gap-3">
+            <Activity class="w-10 h-10 text-muted-foreground/20" />
+            <p class="text-xs text-muted-foreground text-center">Belum ada aktivitas terbaru</p>
           </div>
         </div>
 
       </div>
 
-      <!-- ── Desktop Orders & Shipping ──────────────────────────────────────────────── -->
+      <!-- ── Desktop Orders & Pengiriman ──────────────────────────────────────────────── -->
       <div class="hidden lg:block rounded-xl border border-border bg-card overflow-hidden">
 
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-          <h2 class="text-sm font-bold text-foreground">Pesanan &amp; Pengiriman</h2>
-          <div class="relative">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <input
-              v-model="orderSearch"
-              type="text"
-              placeholder="Search..."
-              class="w-48 pl-8 pr-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:bg-background transition-all"
-            />
+          <div>
+            <h2 class="text-sm font-bold text-foreground">Pesanan &amp; Pengiriman</h2>
+            <p class="text-[10px] text-muted-foreground mt-0.5">Riwayat order dari mutasi stok</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative">
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                v-model="orderSearch"
+                type="text"
+                placeholder="Cari order..."
+                class="w-48 pl-8 pr-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:bg-background transition-all"
+              />
+            </div>
+            <button @click="fetchOrders" class="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all" title="Refresh">
+              <Loader2 v-if="ordersLoading" class="w-3.5 h-3.5 animate-spin" />
+              <ArrowRightLeft v-else class="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
+        <!-- Loading -->
+        <div v-if="ordersLoading" class="flex items-center justify-center py-16">
+          <Loader2 class="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+
         <!-- Table -->
-        <div class="overflow-x-auto">
+        <div v-else class="overflow-x-auto">
           <table class="w-full">
             <thead>
               <tr class="border-b border-border">
@@ -879,10 +934,11 @@ function toggleAllOrders() {
                     @change="toggleAllOrders"
                   />
                 </th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesanan</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">No. Order</th>
                 <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pelanggan</th>
                 <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tanggal</th>
-                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pengiriman</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cabang</th>
+                <th class="text-left px-3 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
                 <th class="text-right px-5 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
               </tr>
             </thead>
@@ -901,25 +957,25 @@ function toggleAllOrders() {
                   />
                 </td>
                 <td class="px-3 py-3">
-                  <span class="text-xs font-semibold text-foreground">{{ order.id }}</span>
+                  <span class="text-xs font-semibold text-foreground font-mono">{{ order.orderNumber }}</span>
                 </td>
                 <td class="px-3 py-3">
                   <div class="flex items-center gap-2">
                     <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary">
-                      {{ order.customer[0] }}
+                      {{ (order.customer || '-')[0].toUpperCase() }}
                     </div>
                     <span class="text-xs text-foreground">{{ order.customer }}</span>
                   </div>
                 </td>
                 <td class="px-3 py-3 text-xs text-muted-foreground">{{ order.date }}</td>
+                <td class="px-3 py-3 text-xs text-muted-foreground">{{ order.branch }}</td>
                 <td class="px-3 py-3">
                   <span
-                    class="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-md"
-                    :class="orderStatusStyle[order.status]"
+                    class="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                    :class="orderStatusStyle[order.status] || orderStatusStyle.pending"
                   >
-                    {{ order.shipping }}
+                    {{ order.statusLabel }}
                   </span>
-                  <span class="ml-2 text-[10px] text-muted-foreground">{{ order.carrier }}</span>
                 </td>
                 <td class="px-5 py-3 text-right">
                   <span class="text-xs font-bold text-foreground">{{ order.total }}</span>
@@ -928,8 +984,11 @@ function toggleAllOrders() {
 
               <!-- Empty state -->
               <tr v-if="pagedOrders.length === 0">
-                <td colspan="6" class="px-5 py-10 text-center text-xs text-muted-foreground">
-                  Tidak ada order yang cocok
+                <td colspan="7" class="px-5 py-12 text-center">
+                  <div class="flex flex-col items-center gap-2">
+                    <ShoppingBag class="w-8 h-8 text-muted-foreground/20" />
+                    <span class="text-xs text-muted-foreground">Belum ada order ditemukan</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1002,73 +1061,68 @@ function toggleAllOrders() {
 
         <!-- Tab Contents -->
         <div>
-          <!-- Tab: Status Cabang -->
+          <!-- Tab: Status Cabang & Gudang -->
           <div v-show="activeTab === 'status'" class="animate-in fade-in duration-200">
             <div class="flex items-center justify-between px-4 py-3 border-b border-border">
-              <span class="text-xs font-semibold text-muted-foreground">Filter Rentang:</span>
+              <span class="text-xs font-semibold text-muted-foreground">Filter:</span>
               <div class="flex items-center gap-1 bg-muted rounded-full p-0.5">
                 <button
-                  v-for="f in projectFilters" :key="f"
-                  @click="projectFilter = f"
+                  v-for="f in branchStatusFilters" :key="f"
+                  @click="branchStatusFilter = f"
                   class="px-2.5 py-0.5 text-[11px] font-semibold rounded-full transition-all duration-200"
-                  :class="projectFilter === f
+                  :class="branchStatusFilter === f
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'"
                 >{{ f }}</button>
               </div>
             </div>
-            <div class="divide-y divide-border/60">
+            <!-- Loading -->
+            <div v-if="statusLoading" class="flex items-center justify-center py-8">
+              <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+            <!-- Empty -->
+            <div v-else-if="combinedStatusItems.length === 0" class="flex flex-col items-center justify-center py-10 gap-2">
+              <Building2 class="w-7 h-7 text-muted-foreground/30" />
+              <p class="text-xs text-muted-foreground">Tidak ada data cabang/gudang</p>
+            </div>
+            <!-- Items -->
+            <div v-else class="divide-y divide-border/60">
               <div
-                v-for="project in projects" :key="project.id"
-                class="flex items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors cursor-pointer group"
+                v-for="item in combinedStatusItems" :key="item.id"
+                class="flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
               >
-                <div class="flex items-center gap-3">
-                  <div class="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-                    <component :is="project.icon" class="w-3.5 h-3.5 text-muted-foreground" />
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+                    :class="item.isActive ? 'bg-emerald-500/10' : 'bg-red-500/10'">
+                    <component :is="item.icon" class="w-3.5 h-3.5"
+                      :class="item.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'" />
                   </div>
-                  <span class="text-xs font-medium text-foreground">{{ project.name }}</span>
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-foreground truncate">{{ item.name }}</p>
+                    <p class="text-[10px] text-muted-foreground">{{ item.type }}</p>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-medium" :class="project.risk ? 'text-red-500 font-semibold' : 'text-muted-foreground'">
-                    {{ project.status }}
+                <div class="flex items-center gap-2 shrink-0">
+                  <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                    :class="item.isActive
+                      ? 'text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30'
+                      : 'text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-950/30'"
+                  >
+                    {{ item.isActive ? 'Aktif' : 'Non-Aktif' }}
                   </span>
-                  <span
-                    class="w-2 h-2 rounded-full"
-                    :class="project.risk ? 'bg-red-500' : 'bg-emerald-500'"
-                  />
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Tab: Aktivitas Terbaru -->
+          <!-- Tab: Aktivitas Terbaru (kosong) -->
           <div v-show="activeTab === 'activity'" class="animate-in fade-in duration-200">
             <div class="flex items-center justify-between px-4 py-3 border-b border-border">
               <span class="text-xs font-semibold text-muted-foreground">Log Aktivitas</span>
-              <button class="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-                View all <ExternalLink class="w-3 h-3" />
-              </button>
             </div>
-            <div class="divide-y divide-border/60">
-              <div
-                v-for="act in recentActivities" :key="act.id"
-                class="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors"
-              >
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs text-muted-foreground leading-snug">
-                    {{ act.text }}
-                    <span class="font-semibold text-foreground">{{ act.highlight }}</span>
-                    {{ act.suffix }}
-                  </p>
-                  <div class="flex items-center gap-1.5 mt-1">
-                    <div class="w-3.5 h-3.5 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <component :is="act.icon" class="w-2.5 h-2.5" :class="act.iconColor" />
-                    </div>
-                    <span class="text-[10px] text-muted-foreground/80">{{ act.time }}</span>
-                  </div>
-                </div>
-                <component :is="act.icon" class="w-4 h-4 shrink-0" :class="act.iconColor" />
-              </div>
+            <div class="flex flex-col items-center justify-center py-12 gap-3">
+              <Activity class="w-9 h-9 text-muted-foreground/20" />
+              <p class="text-xs text-muted-foreground">Belum ada aktivitas terbaru</p>
             </div>
           </div>
 
@@ -1081,13 +1135,18 @@ function toggleAllOrders() {
                 <input
                   v-model="orderSearch"
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Cari..."
                   class="w-32 pl-7 pr-2.5 py-1.5 text-[11px] bg-muted border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:bg-background transition-all"
                 />
               </div>
             </div>
 
-            <div class="overflow-x-auto">
+            <!-- Loading -->
+            <div v-if="ordersLoading" class="flex items-center justify-center py-10">
+              <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+
+            <div v-else class="overflow-x-auto">
               <table class="w-full">
                 <thead>
                   <tr class="border-b border-border">
@@ -1099,10 +1158,9 @@ function toggleAllOrders() {
                         @change="toggleAllOrders"
                       />
                     </th>
-                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pesanan</th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">No. Order</th>
                     <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pelanggan</th>
-                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Tanggal</th>
-                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pengiriman</th>
+                    <th class="text-left px-2 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
                     <th class="text-right px-4 py-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Total</th>
                   </tr>
                 </thead>
@@ -1121,37 +1179,36 @@ function toggleAllOrders() {
                       />
                     </td>
                     <td class="px-2 py-3">
-                      <span class="text-xs font-semibold text-foreground">{{ order.id }}</span>
+                      <span class="text-[11px] font-semibold text-foreground font-mono">{{ order.orderNumber }}</span>
                     </td>
                     <td class="px-2 py-3">
                       <div class="flex items-center gap-1.5">
                         <div class="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
-                          {{ order.customer[0] }}
+                          {{ (order.customer || '-')[0].toUpperCase() }}
                         </div>
-                        <span class="text-xs text-foreground truncate max-w-[60px]">{{ order.customer }}</span>
+                        <span class="text-[11px] text-foreground truncate max-w-[55px]">{{ order.customer }}</span>
                       </div>
                     </td>
-                    <td class="px-2 py-3 text-[11px] text-muted-foreground text-center">{{ order.date }}</td>
                     <td class="px-2 py-3">
-                      <div class="flex flex-col gap-0.5">
-                        <span
-                          class="inline-flex items-center justify-center text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-max"
-                          :class="orderStatusStyle[order.status]"
-                        >
-                          {{ order.shipping }}
-                        </span>
-                        <span class="text-[9px] text-muted-foreground">{{ order.carrier }}</span>
-                      </div>
+                      <span
+                        class="inline-flex items-center text-[9px] font-semibold px-1.5 py-0.5 rounded-md"
+                        :class="orderStatusStyle[order.status] || orderStatusStyle.pending"
+                      >
+                        {{ order.statusLabel }}
+                      </span>
                     </td>
                     <td class="px-4 py-3 text-right">
-                      <span class="text-xs font-bold text-foreground">{{ order.total }}</span>
+                      <span class="text-[11px] font-bold text-foreground">{{ order.total }}</span>
                     </td>
                   </tr>
 
                   <!-- Empty state -->
                   <tr v-if="pagedOrders.length === 0">
-                    <td colspan="6" class="px-4 py-10 text-center text-xs text-muted-foreground">
-                      Tidak ada order yang cocok
+                    <td colspan="5" class="px-4 py-10 text-center">
+                      <div class="flex flex-col items-center gap-2">
+                        <ShoppingBag class="w-7 h-7 text-muted-foreground/20" />
+                        <span class="text-xs text-muted-foreground">Belum ada order</span>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
