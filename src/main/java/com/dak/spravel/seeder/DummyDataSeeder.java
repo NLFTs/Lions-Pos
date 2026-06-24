@@ -95,10 +95,10 @@ public class DummyDataSeeder {
                 .orElseThrow(() -> new RuntimeException("Role 'owner' belum di-seed. Jalankan PermissionSeeder terlebih dahulu."));
 
         User kasir = new User();
-        kasir.setUsername("kasir_test");
+        kasir.setUsername("kasirgaptek");
         kasir.setFullname("Kasir Test Dummy");
         kasir.setEmail("kasir_test@testdummy.local");
-        kasir.setPassword(new BCryptPasswordEncoder().encode("test1234"));
+        kasir.setPassword(new BCryptPasswordEncoder().encode("kasirgaptek"));
         kasir.setPartner(partner);
         kasir.setBranch(branch);
         java.util.Set<Role> roles = new HashSet<>();
@@ -109,10 +109,10 @@ public class DummyDataSeeder {
         userRepository.save(kasir);
 
         User adminPartner = new User();
-        adminPartner.setUsername("admin_test");
+        adminPartner.setUsername("adminGaptek");
         adminPartner.setFullname("Admin Partner Test Dummy");
         adminPartner.setEmail("admin_test@testdummy.local");
-        adminPartner.setPassword(new BCryptPasswordEncoder().encode("test1234"));
+        adminPartner.setPassword(new BCryptPasswordEncoder().encode("admingaptek"));
         adminPartner.setPartner(partner);
         adminPartner.setBranch(null);
         java.util.Set<Role> adminRoles = new HashSet<>();
@@ -122,7 +122,7 @@ public class DummyDataSeeder {
         adminPartner.setCreatedAt(LocalDateTime.now());
         userRepository.save(adminPartner);
 
-        log.info("[DummyData] ✅ Data dummy berhasil di-seed:");
+        log.info("[DummyData]  Data dummy berhasil di-seed:");
         log.info("  - Partner: {} (slug={})", partner.getName(), partner.getSlug());
         log.info("  - Branch: {} (id={})", branch.getName(), branch.getId());
         log.info("  - Category: {} (id={})", category.getName(), category.getId());

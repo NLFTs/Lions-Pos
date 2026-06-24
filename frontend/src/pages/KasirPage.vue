@@ -994,7 +994,7 @@ function avatarStyle(name = '') {
                 >
                   <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
                   <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                    📍 {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
+                     {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
                   </span>
                 </div>
 
