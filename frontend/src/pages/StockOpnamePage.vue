@@ -331,7 +331,7 @@ onMounted(fetchData)
                 </div>
                 <p class="text-sm font-medium">Belum ada data Pengecekan Stock.</p>
                 <Button v-if="can('stock_opname.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
-                  <Plus class="h-3.5 w-3.5 mr-1.5" />Mulai Opname Baru
+                  <Plus class="h-3.5 w-3.5 mr-1.5" />Mulai Pengecekan stok
                 </Button>
               </div>
               <div v-else>
