@@ -19,6 +19,7 @@ import {
   Plus, 
   Loader2, 
   X, 
+  ArrowLeft,
   ClipboardList, 
   Eye, 
   Trash2, 
@@ -67,6 +68,9 @@ const locationTypeOptions = [
 const suppliers = ref([])
 const locations = ref([])
 const products = ref([])
+const productSearch = ref('')
+const pendingSelected = ref([]) // temporary selection before user confirms
+const inSelectionMode = ref(true)
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 const filteredPOs = computed(() => {
@@ -91,12 +95,10 @@ const paginatedPOs = computed(() => {
 
 // ─── Drawer State ────────────────────────────────────────────────────────────
 const showDrawer = ref(false)
-const drawerMode = ref('detail') // 'create' | 'detail'
+const drawerMode = ref('detail') // 'create' | 'detail' | 'receipt'
 const saving = ref(false)
 const formError = ref(null)
 
-// ─── Receipt Drawer State ─────────────────────────────────────────────────────
-const showReceiptDrawer = ref(false)
 const receiptSaving = ref(false)
 const receiptError = ref(null)
 const receiptForm = ref({
@@ -104,6 +106,19 @@ const receiptForm = ref({
   receivedDate: new Date().toISOString().slice(0, 16),
   notes: '',
   items: []
+})
+
+const receiptTotals = computed(() => {
+  const totals = { qtyPO: 0, qtyReceived: 0, totalCost: 0 }
+  for (const item of receiptForm.value.items) {
+    const qtyPO = Number(item.qtyOrdered) || 0
+    const qtyReceived = Number(item.qtyReceived) || 0
+    const cost = Number(item.unitCost) || 0
+    totals.qtyPO += qtyPO
+    totals.qtyReceived += qtyReceived
+    totals.totalCost += qtyPO * cost
+  }
+  return totals
 })
 
 async function openReceiptDrawer(po) {
@@ -142,9 +157,10 @@ async function openReceiptDrawer(po) {
       notes: ''
     }))
   }
-  
-  showReceiptDrawer.value = true
-} 
+  selectedPO.value = po
+  drawerMode.value = 'receipt'
+  showDrawer.value = true
+}
 
 async function submitReceipt() {
   receiptError.value = null
@@ -166,7 +182,6 @@ async function submitReceipt() {
       }))
     })
     toast.success('Barang berhasil diterima! Stok telah diperbarui.')
-    showReceiptDrawer.value = false
     showDrawer.value = false
     fetchData()
   } catch (err) {
@@ -184,10 +199,76 @@ const emptyForm = () => ({
   orderDate: new Date().toISOString().slice(0, 10),
   expectedDate: '',
   notes: '',
-  items: [{ productId: '', qtyOrdered: 1, unitCost: 0 }]
+  items: []
 })
 
 const form = ref(emptyForm())
+
+const selectedProductIds = computed(() => form.value.items.filter(i => i.productId).map(i => i.productId))
+const filteredSelectableProducts = computed(() => {
+  const q = productSearch.value.trim().toLowerCase()
+  return products.value.filter(p => (!q || p.name?.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q)))
+})
+const visibleProductIds = computed(() => filteredSelectableProducts.value.map(p => p.id))
+const allVisibleSelected = computed(() => visibleProductIds.value.length > 0 && visibleProductIds.value.every(id => pendingSelected.value.includes(id) || selectedProductIds.value.includes(id)))
+const selectedProductCount = computed(() => (form.value.items.length > 0 ? form.value.items.length : pendingSelected.value.length))
+const orderCalendarDays = computed(() => createCalendarDays(form.value.orderDate))
+const expectedCalendarDays = computed(() => createCalendarDays(form.value.expectedDate || new Date().toISOString().slice(0, 10)))
+
+// formatting helpers for numeric inputs
+function formatNumber(v) {
+  if (v == null || v === '') return ''
+  try {
+    return new Intl.NumberFormat('id-ID').format(Number(v))
+  } catch (e) {
+    return String(v)
+  }
+}
+
+function parseNumberString(str) {
+  if (str == null) return 0
+  const s = String(str).replace(/\./g, '').replace(/,/g, '.')
+  const n = Number(s)
+  return Number.isNaN(n) ? 0 : n
+}
+
+function onQtyInput(val, item) {
+  const n = Math.max(0, Math.floor(parseNumberString(val)))
+  item.qtyOrdered = n
+}
+
+function onUnitCostInput(val, item) {
+  const n = parseNumberString(val)
+  item.unitCost = n
+}
+
+function onReceiptQtyInput(val, item) {
+  const n = Math.max(0, Math.floor(parseNumberString(val)))
+  if (item.qtyOrdered && n > item.qtyOrdered) {
+    item.qtyReceived = item.qtyOrdered
+  } else {
+    item.qtyReceived = n
+  }
+}
+
+function toggleSelectAll() {
+  const visible = visibleProductIds.value
+  const allSelected = allVisibleSelected.value
+  if (allSelected) {
+    // remove visible ids from pendingSelected
+    pendingSelected.value = pendingSelected.value.filter(id => !visible.includes(id))
+  } else {
+    // add visible ids
+    const toAdd = visible.filter(id => !pendingSelected.value.includes(id))
+    pendingSelected.value = [...pendingSelected.value, ...toAdd]
+  }
+}
+
+function goBackToSelection() {
+  // populate pendingSelected with current items so user can add more
+  pendingSelected.value = form.value.items.map(i => i.productId)
+  inSelectionMode.value = true
+}
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 const locationsLoaded = ref(false)
@@ -244,6 +325,9 @@ async function loadFormOptions() {
 
 async function openCreate() {
   form.value = emptyForm()
+  productSearch.value = ''
+  pendingSelected.value = []
+  inSelectionMode.value = true
   drawerMode.value = 'create'
   formError.value = null
   showDrawer.value = true
@@ -270,6 +354,56 @@ function removeItem(index) {
   form.value.items.splice(index, 1)
 }
 
+function togglePendingSelection(product) {
+  const id = product.id
+  const idx = pendingSelected.value.indexOf(id)
+  if (idx === -1) pendingSelected.value.push(id)
+  else pendingSelected.value.splice(idx, 1)
+}
+
+function finishSelection() {
+  // append pendingSelected into form.items (avoid duplicates)
+  const existing = form.value.items.map(i => i.productId)
+  const newIds = pendingSelected.value.filter(id => !existing.includes(id))
+  const newItems = newIds.map(id => {
+    const p = products.value.find(x => x.id === id) || {}
+    const refPrice = p.base_price ?? p.price ?? p.cost ?? 0
+    return {
+      productId: id,
+      productName: p.name || `Produk #${id}`,
+      sku: p.sku || '',
+      qtyOrdered: 1,
+      unitCost: refPrice,
+      originalPrice: refPrice
+    }
+  })
+  form.value.items = [...form.value.items, ...newItems]
+  pendingSelected.value = []
+  inSelectionMode.value = false
+}
+
+function resetPendingSelection() {
+  pendingSelected.value = []
+  productSearch.value = ''
+}
+
+function createCalendarDays(baseDateString) {
+  const base = baseDateString ? new Date(baseDateString) : new Date()
+  const start = new Date(base)
+  start.setDate(start.getDate() - 3)
+  const days = []
+  for (let i = 0; i < 7; i += 1) {
+    const next = new Date(start)
+    next.setDate(start.getDate() + i)
+    days.push({
+      date: next.toISOString().slice(0, 10),
+      label: next.getDate(),
+      shortDay: next.toLocaleDateString('id-ID', { weekday: 'short' })
+    })
+  }
+  return days
+}
+
 const formTotal = computed(() => {
   return form.value.items.reduce((sum, item) => sum + (item.qtyOrdered * item.unitCost), 0)
 })
@@ -280,8 +414,13 @@ async function savePO() {
     return
   }
   
-  if (form.value.items.some(i => !i.productId || i.qtyOrdered <= 0)) {
-    formError.value = 'Semua item harus memiliki produk dan jumlah yang valid.'
+  if (form.value.items.length === 0) {
+    formError.value = 'Pilih minimal satu produk yang ingin dibeli.'
+    return
+  }
+  
+  if (form.value.items.some(i => !i.productId || i.qtyOrdered <= 0 || i.unitCost < 0)) {
+    formError.value = 'Semua item harus memiliki produk, kuantitas, dan harga satuan yang valid.'
     return
   }
 
@@ -389,6 +528,16 @@ function copyAllInfo() {
   })
 }
 
+function copyPOInfo(po) {
+  if (!po?.poNumber) return
+  const text = `PO: ${po.poNumber} | Supplier: ${po.supplier?.name || '-'} | Total: ${formatCurrency(po.total)}`
+  navigator.clipboard.writeText(text).then(() => {
+    toast.success('Informasi PO disalin ke clipboard.')
+  }).catch(() => {
+    toast.error('Gagal menyalin informasi PO.')
+  })
+}
+
 // ─── Status Update ──────────────────────────────────────────────────────────────────
 const updatingStatus = ref(false)
 
@@ -444,7 +593,7 @@ onMounted(async () => {
 
 <template>
   <AppLayout>
-    <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
+    <div v-if="!showDrawer" class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
       <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight">Pembelian</h1>
@@ -551,7 +700,7 @@ onMounted(async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="po in paginatedPOs" :key="po.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors">
+                  <tr v-for="po in paginatedPOs" :key="po.id" class="border-b border-zinc-100 dark:border-zinc-800/60 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors cursor-pointer" @click="openDetail(po)">
                     <td class="pl-5 py-4">
                       <span class="font-mono text-[11px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
                         {{ po.poNumber }}
@@ -608,8 +757,8 @@ onMounted(async () => {
                           <span>Terima Barang</span>
                         </Button>
                         
-                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click="openDetail(po)">
-                          <Eye class="h-4 w-4" />
+                        <Button variant="ghost" size="icon" class="h-8 w-8 text-zinc-400 hover:text-zinc-700" @click.stop="copyPOInfo(po)">
+                          <ClipboardList class="h-4 w-4" />
                         </Button>
                       </div>
                     </td>
@@ -630,386 +779,504 @@ onMounted(async () => {
       </Card>
     </div>
 
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showDrawer" class="fixed inset-0 z-[50] bg-black/40 backdrop-blur-sm" @click="showDrawer = false" />
-      </Transition>
-      <Transition name="scale">
-        <div v-if="showDrawer" class="fixed inset-0 z-[50] flex items-center justify-center p-4 pointer-events-none">
-          
-          <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
-            
-            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
-              <div>
-                <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Pembelian' : 'Detail Pembelian' }}</h3>
-                <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke distributor secara efisien.</p>
-              </div>
-              <Button variant="ghost" size="icon" @click="showDrawer = false">
-                <X class="h-4 w-4" />
-              </Button>
+
+    <Transition name="fade" mode="out-in">
+      <div v-if="showDrawer" key="drawer-view" class="flex flex-col gap-6">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
+          <div class="flex items-center gap-3">
+            <Button variant="outline" size="icon" @click="showDrawer = false" :disabled="saving">
+              <ArrowLeft class="h-4 w-4" />
+            </Button>
+            <div>
+              <h2 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                <span>{{ drawerMode === 'create' ? 'Tambah Pembelian' : 'Detail Pembelian' }}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wider">
+                  {{ drawerMode === 'create' ? 'Baru' : 'Detail' }}
+                </span>
+              </h2>
+              <p class="text-xs text-muted-foreground mt-0.5">
+                {{ drawerMode === 'create' ? 'Lengkapi informasi pembelian di sini.' : 'Lihat detail PO dan kelola tindakan terkait.' }}
+              </p>
             </div>
+          </div>
+        </div>
 
-            <template v-if="drawerMode === 'create'">
-              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-                <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
-                
-                <div class="space-y-4">
-                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                    <Truck class="h-3 w-3" /> Informasi Dasar
-                  </h4>
+        <div class="relative flex flex-col w-full bg-card shadow-sm border border-border rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-muted/20">
+            <div>
+              <h3 class="font-semibold text-base">{{ drawerMode === 'create' ? 'Buat Pembelian' : 'Detail Pembelian' }}</h3>
+              <p class="text-xs text-muted-foreground mt-0.5">Kelola pesanan barang ke distributor secara efisien.</p>
+            </div>
+            <Button variant="ghost" size="icon" @click="showDrawer = false">
+              <X class="h-4 w-4" />
+            </Button>
+          </div>
+
+          <template v-if="drawerMode === 'create'">
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              <Alert v-if="formError" variant="destructive">{{ formError }}</Alert>
+              
+              <div class="space-y-4">
+                <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <Truck class="h-3 w-3" /> Informasi Dasar
+                </h4>
+                <div class="space-y-1.5">
+                  <Label>Pilih Distributor <span class="text-destructive">*</span></Label>
+                  <select v-model="form.supplierId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
+                    <option value="" disabled>Pilih distributor...</option>
+                    <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1.5">
-                    <Label>Pilih Distributor <span class="text-destructive">*</span></Label>
-                    <select v-model="form.supplierId" class="w-full h-10 rounded-md border border-input bg-background px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none">
-                      <option value="" disabled>Pilih distributor...</option>
-                      <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
+                    <Label>Tipe Tujuan</Label>
+                    <div class="grid grid-cols-2 gap-2">
+                      <button 
+                        type="button"
+                        @click="form.locationType = 'warehouse'; form.locationId = ''"
+                        :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'warehouse' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
+                      >
+                        <Warehouse class="h-3.5 w-3.5" /> Gudang
+                      </button>
+                      <button 
+                        type="button"
+                        @click="form.locationType = 'branch'; form.locationId = ''"
+                        :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'branch' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
+                      >
+                        <Building2 class="h-3.5 w-3.5" /> Cabang
+                      </button>
+                    </div>
+                  </div>
+                  <div class="space-y-1.5">
+                    <Label>Pilih Lokasi <span class="text-destructive">*</span></Label>
+                    <select v-model="form.locationId" class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none">
+                      <option value="" disabled>Pilih...</option>
+                      <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
+                        {{ l.name }}
+                      </option>
                     </select>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                      <Label>Tipe Tujuan</Label>
-                      <div class="grid grid-cols-2 gap-2">
-                        <button 
-                          type="button"
-                          @click="form.locationType = 'warehouse'; form.locationId = ''"
-                          :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'warehouse' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
-                        >
-                          <Warehouse class="h-3.5 w-3.5" /> Gudang
-                        </button>
-                        <button 
-                          type="button"
-                          @click="form.locationType = 'branch'; form.locationId = ''"
-                          :class="['flex items-center justify-center gap-2 h-9 rounded-md border text-[11px] font-medium transition-all', form.locationType === 'branch' ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background border-input hover:bg-muted']"
-                        >
-                          <Building2 class="h-3.5 w-3.5" /> Cabang
-                        </button>
-                      </div>
-                    </div>
-                    <div class="space-y-1.5">
-                      <Label>Pilih Lokasi <span class="text-destructive">*</span></Label>
-                      <select v-model="form.locationId" class="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none">
-                        <option value="" disabled>Pilih...</option>
-                        <option v-for="l in locations.filter(x => x.type === form.locationType)" :key="l.id" :value="l.id">
-                          {{ l.name }}
-                        </option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                      <Label>Tanggal Order</Label>
-                      <Input v-model="form.orderDate" type="date" class="h-9" />
-                    </div>
-                    <div class="space-y-1.5">
-                      <Label>Estimasi Tiba</Label>
-                      <Input v-model="form.expectedDate" type="date" class="h-9" />
-                    </div>
                   </div>
                 </div>
 
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between">
+                <!-- tanggal inputs removed: calendar widget below handles date selection -->
+              </div>
+
+              <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <Label>Tanggal Order</Label>
+                    <div class="space-y-2">
+                      <Input v-model="form.orderDate" type="date" class="h-9" />
+                      <div class="grid grid-cols-7 gap-2">
+                        <button
+                          v-for="day in orderCalendarDays"
+                          :key="day.date"
+                          type="button"
+                          @click="form.orderDate = day.date"
+                          :class="['rounded-lg border px-2 py-2 text-left transition', form.orderDate === day.date ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-input hover:border-zinc-300']"
+                        >
+                          <div class="text-[10px] uppercase text-zinc-500">{{ day.shortDay }}</div>
+                          <div class="font-semibold">{{ day.label }}</div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="space-y-1.5">
+                    <Label>Estimasi Tiba</Label>
+                    <div class="space-y-2">
+                      <Input v-model="form.expectedDate" type="date" class="h-9" />
+                      <div class="grid grid-cols-7 gap-2">
+                        <button
+                          v-for="day in expectedCalendarDays"
+                          :key="day.date"
+                          type="button"
+                          @click="form.expectedDate = day.date"
+                          :class="['rounded-lg border px-2 py-2 text-left transition', form.expectedDate === day.date ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-input hover:border-zinc-300']"
+                        >
+                          <div class="text-[10px] uppercase text-zinc-500">{{ day.shortDay }}</div>
+                          <div class="font-semibold">{{ day.label }}</div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div>
                     <h4 class="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                       <Package class="h-3 w-3" /> Item Pesanan
                     </h4>
-                    <Button variant="outline" size="sm" class="h-7 text-[10px] font-bold" @click="addItem">
-                      <Plus class="h-3 w-3 mr-1" /> Tambah Item
-                    </Button>
+                    <p class="text-xs text-muted-foreground">Pilih produk untuk dibeli lalu isi kuantitas dan harga satuan.</p>
                   </div>
+                  <span v-if="inSelectionMode" class="text-xs font-semibold text-zinc-600">{{ selectedProductCount }} Produk Dipilih</span>
+                </div>
 
-                  <div class="space-y-3">
-                    <div v-for="(item, i) in form.items" :key="i" class="relative p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 group">
-                      <Button 
-                        v-if="form.items.length > 1" 
-                        variant="ghost" 
-                        size="icon" 
-                        class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white hover:bg-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg" 
-                        @click="removeItem(i)"
-                      >
-                        <X class="h-3 w-3" />
-                      </Button>
-                      
-                      <div class="grid grid-cols-1 gap-3">
-                        <div class="space-y-1">
-                          <Label class="text-[10px] text-zinc-500">Pilih Produk</Label>
-                          <select v-model="item.productId" class="w-full h-8 rounded-md border border-input bg-background px-2 text-xs outline-none">
-                            <option value="" disabled>Pilih produk...</option>
-                            <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.sku }})</option>
-                          </select>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                          <div class="space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Kuantitas</Label>
-                            <Input v-model.number="item.qtyOrdered" type="number" min="1" class="h-8 text-xs text-center" />
-                          </div>
-                          <div class="space-y-1">
-                            <Label class="text-[10px] text-zinc-500">Harga Satuan </Label>
-                            <Input v-model.number="item.unitCost" type="number" min="0" class="h-8 text-xs" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                <div v-if="inSelectionMode" class="space-y-4">
+                  <div class="flex items-center gap-2 max-w-md">
+                    <Input v-model="productSearch" type="search" placeholder="Cari produk..." class="h-9" />
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <Button :disabled="pendingSelected.length === 0" @click="finishSelection" class="bg-primary text-primary-foreground">Selesai</Button>
+                    <Button variant="outline" @click="resetPendingSelection">Batal</Button>
+                  </div>
+                  <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-background">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-zinc-100 dark:bg-zinc-900">
+                        <tr>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                            <input type="checkbox" class="form-checkbox h-4 w-4 text-primary accent-primary dark:accent-blue-400" :checked="allVisibleSelected" @change="toggleSelectAll" />
+                          </th>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">Produk</th>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">SKU</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Harga Referensi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="product in filteredSelectableProducts" :key="product.id" class="border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/40 cursor-pointer transition-colors" @click="togglePendingSelection(product)">
+                          <td class="px-3 py-3">
+                            <label class="inline-flex items-center gap-2 cursor-pointer">
+                              <input type="checkbox" class="form-checkbox h-4 w-4 text-primary accent-primary dark:accent-blue-400" :checked="pendingSelected.includes(product.id)" @change="togglePendingSelection(product)" @click.stop />
+                            </label>
+                          </td>
+                          <td class="px-3 py-3">
+                            <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ product.name }}</div>
+                          </td>
+                          <td class="px-3 py-3 text-zinc-500">{{ product.sku }}</td>
+                          <td class="px-3 py-3 text-right font-semibold">{{ formatCurrency(product.base_price ?? product.price ?? product.cost ?? 0) }}</td>
+                        </tr>
+                        <tr v-if="filteredSelectableProducts.length === 0">
+                          <td colspan="4" class="px-3 py-4 text-center text-xs text-muted-foreground">Tidak ada produk ditemukan.</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                <div class="space-y-1.5">
-                  <Label>Catatan Tambahan</Label>
-                  <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Catatan untuk supplier..." />
-                </div>
-              </div>
-
-              <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
-                <div class="flex items-center justify-between mb-4">
-                  <span class="text-xs text-muted-foreground uppercase tracking-widest font-bold">Total Estimasi</span>
-                  <span class="text-xl font-black text-primary">{{ formatCurrency(formTotal) }}</span>
-                </div>
-                <div class="flex gap-3">
-                  <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
-                  <Button class="flex-1" @click="savePO" :disabled="saving">
-                    <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
-                    Simpan
-                  </Button>
-                </div>
-              </div>
-            </template>
-
-            <template v-else-if="selectedPO">
-              <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-                
-                <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
+                <div v-else class="space-y-4">
                   <div class="flex items-center justify-between">
-                    <div>
-                      <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Pembelian</span>
-                      <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
+                    <div class="flex items-center gap-2">
+                      <Button variant="outline" @click="goBackToSelection">Kembali</Button>
+                      <span class="text-xs text-muted-foreground">Tambah produk ke PO</span>
                     </div>
-                    <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
-                      {{ statusLabel(selectedPO.status) }}
-                    </Badge>
+                    <span class="text-xs font-semibold text-zinc-600">{{ selectedProductCount }} Produk Dipilih</span>
                   </div>
-                  
-                  <div class="flex items-center gap-2 pt-1 border-t border-primary/10">
-                    <button
-                      @click="copyPOCode"
-                      :class="[
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
-                        copiedCode
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
-                          : 'bg-background border border-primary/20 text-primary hover:bg-primary/10'
-                      ]"
-                    >
-                      <ClipboardCheck v-if="copiedCode" class="h-3.5 w-3.5" />
-                      <Copy v-else class="h-3.5 w-3.5" />
-                      {{ copiedCode ? 'Tersalin!' : 'Salin Kode PO' }}
-                    </button>
-                    <button
-                      @click="copyAllInfo"
-                      :class="[
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
-                        copiedAll
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
-                          : 'bg-background border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                      ]"
-                    >
-                      <ClipboardCheck v-if="copiedAll" class="h-3.5 w-3.5" />
-                      <ClipboardList v-else class="h-3.5 w-3.5" />
-                      {{ copiedAll ? 'Tersalin!' : 'Salin Semua Info' }}
-                    </button>
+                  <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-background">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-zinc-100 dark:bg-zinc-900">
+                        <tr>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">Produk</th>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">SKU</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Harga Referensi</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Kuantitas</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Harga Satuan</th>
+                          <th class="px-3 py-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(item, index) in form.items" :key="item.productId" class="border-t border-zinc-200 dark:border-zinc-800">
+                          <td class="px-3 py-3 text-zinc-900 dark:text-zinc-100">{{ item.productName }}</td>
+                          <td class="px-3 py-3 text-zinc-500">{{ item.sku }}</td>
+                          <td class="px-3 py-3 text-right font-semibold">{{ formatCurrency(item.originalPrice) }}</td>
+                          <td class="px-3 py-3 text-right w-28">
+                            <input :value="formatNumber(item.qtyOrdered)" type="text" class="h-8 text-xs text-center w-full rounded-md border border-input bg-background px-2" @input="onQtyInput($event.target.value, item)" />
+                          </td>
+                          <td class="px-3 py-3 text-right w-32">
+                            <input :value="formatNumber(item.unitCost)" type="text" class="h-8 text-xs text-center w-full rounded-md border border-input bg-background px-2" @input="onUnitCostInput($event.target.value, item)" />
+                          </td>
+                          <td class="px-3 py-3 text-right">
+                            <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:bg-destructive/10" @click="removeItem(index)">
+                              <X class="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-6">
-                  <div class="space-y-1">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Distributor</p>
-                    <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ selectedPO.supplier?.name || '-' }}</p>
-                    <p class="text-[11px] text-zinc-500 leading-relaxed">{{ selectedPO.supplier?.address || '-' }}</p>
-                  </div>
-                  <div class="space-y-1">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tujuan Penerima</p>
-                    <div class="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      <Warehouse v-if="selectedPO.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
-                      <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
-                      {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
-                    </div>
-                    <Badge variant="outline" class="text-[9px] h-4 px-1.5 uppercase tracking-tighter mt-0.5">{{ selectedPO.locationType }}</Badge>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-6 pt-1">
-                  <div class="space-y-1">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tanggal Pemesanan</p>
-                    <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.orderDate || selectedPO.createdAt) }}</p>
-                  </div>
-                  <div class="space-y-1">
-                    <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimasi Barang Tiba</p>
-                    <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.expectedDate) }}</p>
-                  </div>
-                </div>
-
-                <div class="space-y-3">
-                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Daftar Item Pesanan</h4>
-                  <div class="space-y-2">
-                    <div v-for="(item, i) in selectedPO.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
-                      <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
-                          <Package class="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ item.product?.name || `Produk #${item.productId}` }}</p>
-                          <p class="text-[10px] text-muted-foreground mt-0.5">
-                            {{ item.qtyOrdered }} PCS × {{ formatCurrency(item.unitCost) }}
-                            <span v-if="item.qtyReceived > 0" class="ml-2 text-emerald-600 font-bold dark:text-emerald-400">• Berhasil Masuk: {{ item.qtyReceived }}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <span class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ formatCurrency(item.qtyOrdered * item.unitCost) }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="selectedPO.notes" class="space-y-1 bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100/50 dark:border-amber-800/30">
-                  <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Catatan</p>
-                  <p class="text-xs italic text-amber-800/80 dark:text-amber-200/80">{{ selectedPO.notes }}</p>
+                  <p class="text-xs text-muted-foreground">Harga referensi ditampilkan sebagai bantuan. Harga satuan final ditentukan oleh Anda.</p>
                 </div>
               </div>
-
-              <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto shrink-0">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs text-muted-foreground font-bold">SUBTOTAL COST</span>
-                  <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ formatCurrency(selectedPO.total) }}</span>
-                </div>
-                <div class="flex items-center justify-between mb-4">
-                  <span class="text-xs text-muted-foreground font-bold uppercase tracking-widest">Grand Total</span>
-                  <span class="text-2xl font-black text-primary">{{ formatCurrency(selectedPO.total) }}</span>
-                </div>
-                
-                <div class="flex gap-2">
-                  <Button 
-                    v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
-                    class="flex-1"
-                    :disabled="updatingStatus"
-                    @click="updatePOStatus(selectedPO.id, 'ordered')"
-                  >
-                    <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
-                    <Send v-else class="h-4 w-4 mr-2" />
-                    Kirim PO
-                  </Button>
-                  <Button 
-                    v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive && !isSuperAdmin"
-                    class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                    @click="openReceiptDrawer(selectedPO)"
-                  >
-                    <CheckCircle2 class="h-4 w-4 mr-2" />
-                    Terima Barang
-                  </Button>
-                  <Button 
-                    v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin"
-                    variant="destructive"
-                    class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200"
-                    :disabled="updatingStatus"
-                    @click="updatePOStatus(selectedPO.id, 'cancelled')"
-                  >
-                    <X class="h-4 w-4 mr-2" />
-                    Batalkan PO
-                  </Button>
-                  <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
-                </div>
+              <div class="space-y-1.5">
+                <Label>Catatan Tambahan</Label>
+                <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Catatan untuk supplier..." />
               </div>
-            </template>
-          </div>
-
-        </div>
-      </Transition>
-    </Teleport>
-
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showReceiptDrawer" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="showReceiptDrawer = false" />
-      </Transition>
-      <Transition name="scale">
-        <div v-if="showReceiptDrawer" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-          
-          <div class="relative flex flex-col w-full max-w-2xl max-h-[90vh] bg-card shadow-2xl border border-border rounded-xl overflow-hidden pointer-events-auto">
-            
-            <div class="flex items-center justify-between px-6 py-4 border-b shrink-0 bg-emerald-50/60 dark:bg-emerald-950/20">
-              <div>
-                <h3 class="font-semibold text-base text-emerald-800 dark:text-emerald-300">Terima Barang Masuk</h3>
-                <p class="text-xs text-emerald-600/80 dark:text-emerald-400/70 mt-0.5">Konfirmasi penerimaan produk fisik dan update kartu stok.</p>
-              </div>
-              <Button variant="ghost" size="icon" @click="showReceiptDrawer = false">
-                <X class="h-4 w-4" />
-              </Button>
             </div>
 
-            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-xs text-muted-foreground uppercase tracking-widest font-bold">Total Estimasi</span>
+                <span class="text-xl font-black text-primary">{{ formatCurrency(formTotal) }}</span>
+              </div>
+              <div class="flex gap-3">
+                <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="saving">Batal</Button>
+                <Button class="flex-1" @click="savePO" :disabled="saving">
+                  <Loader2 v-if="saving" class="h-4 w-4 mr-2 animate-spin" />
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="drawerMode === 'receipt' && selectedPO">
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
               <div v-if="receiptError" class="rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30 p-3">
                 <p class="text-sm text-red-600 dark:text-red-400">{{ receiptError }}</p>
               </div>
 
-              <div class="space-y-1.5">
-                <Label>Tanggal & Waktu Terima <span class="text-destructive">*</span></Label>
-                <Input v-model="receiptForm.receivedDate" type="datetime-local" class="h-9" :disabled="receiptSaving" />
-              </div>
-
-              <div class="space-y-1.5">
-                <Label>Catatan Log Penerimaan</Label>
-                <textarea
-                  v-model="receiptForm.notes"
-                  rows="2"
-                  :disabled="receiptSaving"
-                  placeholder="Instruksi tambahan atau kondisi pengiriman barang..."
-                  class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
-                />
-              </div>
-
-              <div class="space-y-3">
-                <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Rincian Jumlah Kuantitas Tiba</h4>
-                
-                <div v-for="(item, i) in receiptForm.items" :key="i" class="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 space-y-3">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-7 h-7 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
-                        <Package class="h-3.5 w-3.5 text-zinc-400" />
-                      </div>
-                      <span class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ item.productName }}</span>
+              <div class="space-y-5">
+                <div class="flex flex-col gap-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 class="font-semibold text-base">Terima Barang Masuk</h3>
+                      <p class="text-xs text-muted-foreground mt-0.5">Konfirmasi penerimaan produk dan update stok.</p>
                     </div>
-                    <span class="text-[10px] text-zinc-400 font-bold bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded">Tag PO: {{ item.qtyOrdered }} PCS</span>
+                    <Button variant="ghost" size="icon" @click="showDrawer = false">
+                      <X class="h-4 w-4" />
+                    </Button>
                   </div>
-                  
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div class="space-y-1">
-                      <Label class="text-[10px] text-zinc-500">Qty Fisik Diterima <span class="text-destructive">*</span></Label>
-                      <Input
-                        v-model.number="item.qtyReceived"
-                        type="number"
-                        min="1"
-                        :max="item.qtyOrdered"
-                        class="h-8 text-sm text-center font-bold"
-                        :disabled="receiptSaving"
-                      />
-                    </div>
-                    <div class="space-y-1">
-                      <Label class="text-[10px] text-zinc-500">Catatan Item Masuk</Label>
-                      <Input v-model="item.notes" placeholder="Contoh: Aman, Box Robek" class="h-8 text-sm" :disabled="receiptSaving" />
+                  <div class="text-xs text-zinc-500 dark:text-zinc-400">
+                    No Pembelian: <span class="font-semibold text-zinc-900 dark:text-zinc-100">{{ selectedPO?.poNumber || '-' }}</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <Label>Tanggal & Waktu Terima <span class="text-destructive">*</span></Label>
+                    <Input v-model="receiptForm.receivedDate" type="datetime-local" class="h-9" :disabled="receiptSaving" />
+                  </div>
+                  <div class="space-y-1.5">
+                    <Label>Catatan Penerimaan (Opsional)</Label>
+                    <textarea
+                      v-model="receiptForm.notes"
+                      rows="2"
+                      :disabled="receiptSaving"
+                      placeholder="Contoh: Aman, Box Robek"
+                      class="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Rincian Jumlah Kuantitas Tiba</h4>
+                  <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-background">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-zinc-100 dark:bg-zinc-900">
+                        <tr>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">Produk</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Qty PO</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Qty Diterima</th>
+                          <th class="px-3 py-3 text-right text-[10px] uppercase tracking-wider text-zinc-500">Harga Satuan</th>
+                          <th class="px-3 py-3 text-left text-[10px] uppercase tracking-wider text-zinc-500">Catatan (Opsional)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(item, i) in receiptForm.items" :key="i" class="border-t border-zinc-200 dark:border-zinc-800">
+                          <td class="px-3 py-3">
+                            <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ item.productName }}</div>
+                            <div class="text-xs text-muted-foreground">{{ item.productId ? 'ID: ' + item.productId : '' }}</div>
+                          </td>
+                          <td class="px-3 py-3 text-right font-semibold">{{ formatNumber(item.qtyOrdered) }}</td>
+                          <td class="px-3 py-3 text-right w-28">
+                            <input
+                              :value="formatNumber(item.qtyReceived)"
+                              type="text"
+                              class="h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-center"
+                              :disabled="receiptSaving"
+                              @input="onReceiptQtyInput($event.target.value, item)"
+                            />
+                          </td>
+                          <td class="px-3 py-3 text-right font-semibold">{{ formatCurrency(item.unitCost) }}</td>
+                          <td class="px-3 py-3 w-72">
+                            <Input v-model="item.notes" placeholder="Contoh: Aman, Box Robek" class="h-9 text-sm" :disabled="receiptSaving" />
+                          </td>
+                        </tr>
+                        <tr v-if="receiptForm.items.length === 0">
+                          <td colspan="5" class="px-3 py-4 text-center text-xs text-muted-foreground">Tidak ada item untuk diterima.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/40 p-4 mt-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                      <div class="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
+                        <p class="text-[10px] uppercase tracking-widest text-zinc-500">Total Qty PO</p>
+                        <p class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ formatNumber(receiptTotals.qtyPO) }}</p>
+                      </div>
+                      <div class="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
+                        <p class="text-[10px] uppercase tracking-widest text-zinc-500">Total Qty Diterima</p>
+                        <p class="mt-2 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{{ formatNumber(receiptTotals.qtyReceived) }}</p>
+                      </div>
+                      <div class="rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3">
+                        <p class="text-[10px] uppercase tracking-widest text-zinc-500">Total Harga</p>
+                        <p class="mt-2 text-lg font-semibold text-primary">{{ formatCurrency(receiptTotals.totalCost) }}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="flex gap-3 px-6 py-4 border-t shrink-0 bg-muted/30">
-              <Button variant="outline" class="flex-1" @click="showReceiptDrawer = false" :disabled="receiptSaving">Batal</Button>
-              <Button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold" @click="submitReceipt" :disabled="receiptSaving">
-                <Loader2 v-if="receiptSaving" class="h-4 w-4 mr-2 animate-spin" />
-                <CheckCircle2 v-else class="h-4 w-4 mr-2" />
-                Konfirmasi Terima
-              </Button>
+            <div class="px-6 py-4 border-t bg-zinc-50/80 dark:bg-zinc-900/50 shrink-0">
+              <div class="flex gap-3">
+                <Button variant="outline" class="flex-1" @click="showDrawer = false" :disabled="receiptSaving">Batal</Button>
+                <Button class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold" @click="submitReceipt" :disabled="receiptSaving">
+                  <Loader2 v-if="receiptSaving" class="h-4 w-4 mr-2 animate-spin" />
+                  <CheckCircle2 v-else class="h-4 w-4 mr-2" />
+                  Konfirmasi Terima
+                </Button>
+              </div>
             </div>
-          </div>
+          </template>
 
+          <template v-else-if="selectedPO">
+            <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+              
+              <div class="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <span class="text-[10px] font-bold text-primary uppercase tracking-widest block mb-1">Pembelian</span>
+                    <h4 class="font-mono text-lg font-bold leading-none">{{ selectedPO.poNumber }}</h4>
+                  </div>
+                  <Badge :class="['text-[10px] uppercase tracking-widest font-bold px-3 py-1', statusColor(selectedPO.status)]" variant="outline">
+                    {{ statusLabel(selectedPO.status) }}
+                  </Badge>
+                </div>
+                
+                <div class="flex items-center gap-2 pt-1 border-t border-primary/10">
+                  <button
+                    @click="copyPOCode"
+                    :class="[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                      copiedCode
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                        : 'bg-background border border-primary/20 text-primary hover:bg-primary/10'
+                    ]"
+                  >
+                    <ClipboardCheck v-if="copiedCode" class="h-3.5 w-3.5" />
+                    <Copy v-else class="h-3.5 w-3.5" />
+                    {{ copiedCode ? 'Tersalin!' : 'Salin Kode PO' }}
+                  </button>
+                  <button
+                    @click="copyAllInfo"
+                    :class="[
+                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all duration-200',
+                      copiedAll
+                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30'
+                        : 'bg-background border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    ]"
+                  >
+                    <ClipboardCheck v-if="copiedAll" class="h-3.5 w-3.5" />
+                    <ClipboardList v-else class="h-3.5 w-3.5" />
+                    {{ copiedAll ? 'Tersalin!' : 'Salin Semua Info' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-6">
+                <div class="space-y-1">
+                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Distributor</p>
+                  <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ selectedPO.supplier?.name || '-' }}</p>
+                  <p class="text-[11px] text-zinc-500 leading-relaxed">{{ selectedPO.supplier?.address || '-' }}</p>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tujuan Penerima</p>
+                  <div class="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    <Warehouse v-if="selectedPO.locationType?.toLowerCase() === 'warehouse'" class="h-3.5 w-3.5 opacity-50" />
+                    <Building2 v-else class="h-3.5 w-3.5 opacity-50" />
+                    {{ getLocationName(selectedPO.locationType, selectedPO.locationId) }}
+                  </div>
+                  <Badge variant="outline" class="text-[9px] h-4 px-1.5 uppercase tracking-tighter mt-0.5">{{ selectedPO.locationType }}</Badge>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-6 pt-1">
+                <div class="space-y-1">
+                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tanggal Pemesanan</p>
+                  <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.orderDate || selectedPO.createdAt) }}</p>
+                </div>
+                <div class="space-y-1">
+                  <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Estimasi Barang Tiba</p>
+                  <p class="text-xs font-medium text-zinc-800 dark:text-zinc-200">{{ formatDate(selectedPO.expectedDate) }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <h4 class="text-[10px] font-bold uppercase tracking-widest text-zinc-500 border-b pb-2">Daftar Item Pesanan</h4>
+                <div class="space-y-2">
+                  <div v-for="(item, i) in selectedPO.items" :key="i" class="flex justify-between items-center p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/20">
+                    <div class="flex items-center gap-3">
+                      <div class="w-8 h-8 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400">
+                        <Package class="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ item.product?.name || `Produk #${item.productId}` }}</p>
+                        <p class="text-[10px] text-muted-foreground mt-0.5">
+                          {{ item.qtyOrdered }} PCS × {{ formatCurrency(item.unitCost) }}
+                          <span v-if="item.qtyReceived > 0" class="ml-2 text-emerald-600 font-bold dark:text-emerald-400">• Berhasil Masuk: {{ item.qtyReceived }}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <span class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ formatCurrency(item.qtyOrdered * item.unitCost) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="selectedPO.notes" class="space-y-1 bg-amber-50/50 dark:bg-amber-900/10 p-3 rounded-lg border border-amber-100/50 dark:border-amber-800/30">
+                <p class="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Catatan</p>
+                <p class="text-xs italic text-amber-800/80 dark:text-amber-200/80">{{ selectedPO.notes }}</p>
+              </div>
+            </div>
+
+            <div class="px-6 py-5 border-t bg-zinc-50/80 dark:bg-zinc-900/50 mt-auto shrink-0">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-muted-foreground font-bold">SUBTOTAL COST</span>
+                <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">{{ formatCurrency(selectedPO.total) }}</span>
+              </div>
+              <div class="flex items-center justify-between mb-4">
+                <span class="text-xs text-muted-foreground font-bold uppercase tracking-widest">Grand Total</span>
+                <span class="text-2xl font-black text-primary">{{ formatCurrency(selectedPO.total) }}</span>
+              </div>
+              
+              <div class="flex gap-2">
+                <Button 
+                  v-if="selectedPO.status?.toLowerCase() === 'draft' && can('purchase_order.update') && !isSuperAdmin"
+                  class="flex-1"
+                  :disabled="updatingStatus"
+                  @click="updatePOStatus(selectedPO.id, 'ordered')"
+                >
+                  <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
+                  <Send v-else class="h-4 w-4 mr-2" />
+                  Kirim PO
+                </Button>
+                <Button 
+                  v-if="selectedPO.status?.toLowerCase() === 'ordered' && canReceive && !isSuperAdmin"
+                  class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  @click="openReceiptDrawer(selectedPO)"
+                >
+                  <CheckCircle2 class="h-4 w-4 mr-2" />
+                  Terima Barang
+                </Button>
+                <Button 
+                  v-if="['draft', 'ordered'].includes(selectedPO.status?.toLowerCase()) && can('purchase_order.update') && !isSuperAdmin"
+                  variant="destructive"
+                  class="flex-1 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200"
+                  :disabled="updatingStatus"
+                  @click="updatePOStatus(selectedPO.id, 'cancelled')"
+                >
+                  <X class="h-4 w-4 mr-2" />
+                  Batalkan PO
+                </Button>
+                <Button variant="outline" class="flex-1" @click="showDrawer = false">Tutup</Button>
+              </div>
+            </div>
+          </template>
         </div>
-      </Transition>
-    </Teleport>
+      </div>
+    </Transition>
+
   </AppLayout>
 </template>
 
