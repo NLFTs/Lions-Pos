@@ -21,6 +21,7 @@ public class MainSeeder {
     private final UserSeeder                userSeeder;
     private final PermissionSeeder          permissionSeeder;
     private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
+    private final DummyDataSeeder           dummyDataSeeder;
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedAfterMigrations() {
@@ -28,6 +29,7 @@ public class MainSeeder {
             userSeeder.run();                   // 1. buat super admin user
             permissionSeeder.run();             // 2. buat roles & permissions (superadmin read-only + owner)
             partnerRoleTemplateSeeder.run();    // 3. seed 4 template role untuk semua partner
+            dummyDataSeeder.run();              // 4. seed data dummy untuk testing checkout
         } catch (Exception e) {
             throw new RuntimeException("Error seeding data", e);
         }

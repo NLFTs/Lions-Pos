@@ -260,18 +260,18 @@ watch(selectedBranchId, (newId) => {
 })
 
 async function fetchStockBalances(branchId) {
-  try {
-    const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
-    const list = res.data?.data || []
-    const map = {}
-    list.forEach(sb => {
-      if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
-    })
-    stockBalances.value = map
-  } catch {
-    stockBalances.value = {}
-  }
-}
+   try {
+     const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
+     const list = res.data?.data || []
+     const map = {}
+     list.forEach(sb => {
+       if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
+     })
+     stockBalances.value = map
+   } catch {
+     stockBalances.value = {}
+   }
+ }
 
 function getStock(productId) {
   return stockBalances.value[String(productId)] ?? null
@@ -280,18 +280,18 @@ function getStock(productId) {
 const LOW_STOCK_THRESHOLD = 5
 
 const lowStockProducts = computed(() => {
-  return products.value.filter(p => {
-    const stock = getStock(p.id)
-    return stock !== null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
-  })
-})
+   return products.value.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
+   })
+ })
 
-const outOfStockProducts = computed(() => {
-  return products.value.filter(p => {
-    const stock = getStock(p.id)
-    return stock !== null && stock <= 0
-  })
-})
+ const outOfStockProducts = computed(() => {
+   return products.value.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock <= 0
+   })
+ })
 
 const showStockWarning = ref(true)
 
@@ -336,19 +336,24 @@ const uniqueCategories = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  let result = products.value
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
-  }
-  if (activeCategory.value !== 'Semua') {
-    result = result.filter(p => {
-      const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
-      return catName === activeCategory.value
-    })
-  }
-  return result
-})
+   let result = products.value
+   if (searchQuery.value) {
+     const q = searchQuery.value.toLowerCase()
+     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
+   }
+   if (activeCategory.value !== 'Semua') {
+     result = result.filter(p => {
+       const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
+       return catName === activeCategory.value
+     })
+   }
+   // Filter produk tanpa stok di cabang - tidak muncul di kasir
+   result = result.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock > 0
+   })
+   return result
+ })
 
 // ─── Cart Logic ───────────────────────────────────────────────────────────────
 let _uidCounter = Date.now()
@@ -1193,15 +1198,15 @@ function avatarStyle(name = '') {
             <p class="text-[13px] font-medium">Produk tidak ditemukan.</p>
           </div>
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
-            <div v-for="p in filteredProducts" :key="p.id"
-              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
-              :class="[
-                getStock(p.id) !== null && getStock(p.id) <= 0
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'cursor-pointer',
-                { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
-              ]"
-              @click="getStock(p.id) !== null && getStock(p.id) <= 0 ? null : addToCart(p)">
+<div v-for="p in filteredProducts" :key="p.id"
+               class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
+               :class="[
+                 getStock(p.id) === undefined || getStock(p.id) <= 0
+                   ? 'opacity-50 cursor-not-allowed'
+                   : 'cursor-pointer',
+                 { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
+               ]"
+               @click="getStock(p.id) === undefined || getStock(p.id) <= 0 ? null : addToCart(p)">
               
               <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
                 {{ getCartQty(p.id) }}

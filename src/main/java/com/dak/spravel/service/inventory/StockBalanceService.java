@@ -27,7 +27,6 @@ import com.dak.spravel.repository.inventory.WarehousesRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -41,10 +40,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
-@Service
 @Slf4j
+@Service
 @RequiredArgsConstructor
 public class StockBalanceService {
 
@@ -55,7 +55,7 @@ public class StockBalanceService {
     private final StockMutationRepository stockMutationRepository;
     private final UserRepository userRepository;
 
-    // ─── PUSAT PENGESAHAN MAKLUMAT PENGGUNA & KEBENARAN ───────────────────────
+    // ─── PUSAT
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -350,6 +350,12 @@ public class StockBalanceService {
         validateLocation("BRANCH", branchId, currentUser.getPartner());
 
         return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", branchId).stream()
+                .filter(sb -> {
+                    if (currentUser.getPartner() == null) return true;
+                    return sb.getProduct() != null
+                            && sb.getProduct().getPartner() != null
+                            && sb.getProduct().getPartner().getId().equals(currentUser.getPartner().getId());
+                })
                 .map(this::mapToResponse).toList();
     }
 
@@ -454,15 +460,40 @@ public class StockBalanceService {
 
     @Transactional
     public void adjustStock(Long productId, String locationType, Long locationId, Long adjustment) {
-        StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+        Optional<StockBalance> optStock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                 productId, locationType.toUpperCase(), locationId
-        ).orElseThrow(() -> new RuntimeException("Stok tidak ditemui untuk id produk =" + productId));
+        );
 
+        if (optStock.isEmpty()) {
+            if (adjustment < 0) {
+                // Tidak ada record stok di lokasi ini — tidak bisa mengurangi stok yang tidak ada
+                throw new RuntimeException(
+                    "Stok tidak ditemukan di " + locationType + " (id=" + locationId + ") untuk produk id=" + productId +
+                    ". Pastikan stok sudah diisi di cabang sebelum melakukan penjualan."
+                );
+            } else {
+                // Penambahan stok — buat record baru (misalnya saat retur)
+                log.warn("[adjustStock] Membuat record stok baru untuk produk={} di {}={} dengan qty={}",
+                        productId, locationType, locationId, adjustment);
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan id=" + productId));
+                StockBalance newStock = new StockBalance();
+                newStock.setProduct(product);
+                newStock.setLocationType(locationType.toUpperCase());
+                newStock.setLocationId(locationId);
+                newStock.setQty(adjustment);
+                newStock.setUpdatedAt(LocalDateTime.now());
+                stockBalanceRepository.save(newStock);
+                return;
+            }
+        }
+
+        StockBalance stock = optStock.get();
         long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
         long newQty = currentQty + adjustment;
 
         if (newQty < 0) {
-            throw new RuntimeException("Stok tidak mencukupi untuk ID produk: " + productId + ". Baki semasa: " + currentQty);
+            throw new RuntimeException("Stok tidak mencukupi untuk ID produk: " + productId + ". Stok tersedia: " + currentQty + ", diminta: " + Math.abs(adjustment));
         }
 
         stock.setQty(newQty);
@@ -802,13 +833,13 @@ public class StockBalanceService {
         mutation.setQty(disposeQty);
         mutation.setReferenceType(StockMutation.ReferenceType.STOCK_OPNAME);
         mutation.setReferenceId(stock.getId());
-        mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembekal");
+mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembekal");
         mutation.setCreatedBy(currentUser);
         stockMutationRepository.save(mutation);
 
         return mapToResponse(stock);
     }
-    
+
     public List<StockBalanceResponse> findQuarantineStock() {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
@@ -824,4 +855,91 @@ public class StockBalanceService {
                 .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getLocationType()))
                 .map(this::mapToResponse).toList();
     }
+
+    /**
+     * Approve stok dari QUARANTINE → BRANCH.
+     * Digunakan setelah PO diterima ke cabang, untuk melepaskan stok dari karantina
+     * ke saldo aktif cabang (kasir bisa jual).
+     *
+     * @param stockBalanceId ID StockBalance dengan locationType=QUARANTINE
+     * @param qty  Jumlah yang di-approve (null = semua)
+     * @param notes Catatan
+     */
+    @Transactional
+    public StockBalanceResponse approveQuarantineToBranch(Long stockBalanceId, Long qty, String notes) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.update");
+
+        StockBalance quarantine = stockBalanceRepository.findById(stockBalanceId)
+                .orElseThrow(() -> new RuntimeException("Stock balance tidak ditemukan id=" + stockBalanceId));
+
+        if (!"QUARANTINE".equalsIgnoreCase(quarantine.getLocationType())) {
+            throw new RuntimeException("Hanya stok karantina yang bisa di-approve ke cabang.");
+        }
+
+        if (currentUser.getPartner() != null) {
+            if (quarantine.getProduct().getPartner() == null ||
+                    !quarantine.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Stok bukan milik partner Anda.");
+            }
+        }
+
+        long currentQty = quarantine.getQty() != null ? quarantine.getQty() : 0L;
+        long approveQty = (qty == null || qty <= 0) ? currentQty : Math.min(qty, currentQty);
+
+        if (approveQty <= 0) {
+            throw new RuntimeException("Tidak ada stok karantina yang bisa di-approve.");
+        }
+
+        // targetBranchId: saat penerimaan PO ke branch, locationId quarantine = branchId tujuan
+        Long targetBranchId = quarantine.getLocationId();
+
+        // 1. Kurangi stok quarantine
+        quarantine.setQty(currentQty - approveQty);
+        quarantine.setUpdatedBy(currentUser);
+        quarantine.setUpdatedAt(LocalDateTime.now());
+        stockBalanceRepository.save(quarantine);
+
+        // 2. Tambah stok ke BRANCH
+        StockBalance branchStock = stockBalanceRepository
+                .findByProductIdAndLocationTypeAndLocationId(
+                        quarantine.getProduct().getId(), "BRANCH", targetBranchId)
+                .orElse(null);
+
+        if (branchStock == null) {
+            branchStock = new StockBalance();
+            branchStock.setProduct(quarantine.getProduct());
+            branchStock.setLocationType("BRANCH");
+            branchStock.setLocationId(targetBranchId);
+            branchStock.setQty(0L);
+            branchStock.setCreatedBy(currentUser);
+            branchStock.setCreatedAt(LocalDateTime.now());
+        }
+
+        long currentBranchQty = branchStock.getQty() != null ? branchStock.getQty() : 0L;
+        branchStock.setQty(currentBranchQty + approveQty);
+        branchStock.setUpdatedBy(currentUser);
+        branchStock.setUpdatedAt(LocalDateTime.now());
+        StockBalance savedBranchStock = stockBalanceRepository.save(branchStock);
+
+        // 3. Catat mutasi: QUARANTINE → BRANCH
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(quarantine.getProduct());
+        mutation.setPartner(quarantine.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.TRANSFER);
+        mutation.setFromLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setFromLocationId(quarantine.getLocationId());
+        mutation.setToLocationType(StockMutation.Location.BRANCH);
+        mutation.setToLocationId(targetBranchId);
+        mutation.setQty(approveQty);
+        mutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+        mutation.setReferenceId(stockBalanceId);
+        mutation.setNotes(notes != null ? notes : "Approve stok karantina ke cabang #" + targetBranchId);
+        mutation.setCreatedBy(currentUser);
+        mutation.setCreatedAt(LocalDateTime.now());
+        stockMutationRepository.save(mutation);
+
+        return mapToResponse(savedBranchStock);
+    }
 }
+
