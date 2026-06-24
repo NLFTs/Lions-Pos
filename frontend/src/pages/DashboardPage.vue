@@ -645,9 +645,20 @@ const recentActivities = []
 const orderSearch = ref('')
 const orderPage   = ref(1)
 const ordersPerPage = 5
-const ordersLoading = ref(false)
 
-const allOrders = ref([])
+const allOrders = ref([
+  { id: '#1024', customer: 'Lorant', date: '2025-01-18', shipping: 'Sudah Dikirim',    carrier: 'UPS Ground',   total: 'Rp 129.000', status: 'shipped' },
+  { id: '#1023', customer: 'Lorant', date: '2025-01-17', shipping: 'Sedang Diproses', carrier: 'DHL Express',  total: 'Rp 349.000', status: 'processing' },
+  { id: '#1022', customer: 'Lorant', date: '2025-01-16', shipping: 'Terkirim',  carrier: 'USPS',         total: 'Rp 79.000',  status: 'delivered' },
+  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
+  { id: '#1020', customer: 'Lorant', date: '2025-01-14', shipping: 'Tertunda',    carrier: 'FedEx',        total: 'Rp 219.000', status: 'pending' },
+  { id: '#1019', customer: 'Budi',   date: '2025-01-13', shipping: 'Sudah Dikirim',    carrier: 'JNE',          total: 'Rp 89.000',  status: 'shipped' },
+  { id: '#1018', customer: 'Sari',   date: '2025-01-12', shipping: 'Terkirim',  carrier: 'SiCepat',      total: 'Rp 195.000', status: 'delivered' },
+  { id: '#1017', customer: 'Ahmad',  date: '2025-01-11', shipping: 'Sedang Diproses', carrier: 'J&T',          total: 'Rp 430.000', status: 'processing' },
+  { id: '#1016', customer: 'Dewi',   date: '2025-01-10', shipping: 'Tertunda',    carrier: 'Anteraja',     total: 'Rp 67.000',  status: 'pending' },
+  { id: '#1015', customer: 'Riko',   date: '2025-01-09', shipping: 'Sudah Dikirimgit ',    carrier: 'Ninja Xpress', total: 'Rp 312.000', status: 'shipped' },
+])
+
 const selectedOrders = ref([])
 
 async function fetchOrders() {

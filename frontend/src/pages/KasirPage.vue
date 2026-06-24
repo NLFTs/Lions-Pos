@@ -360,30 +360,35 @@ let _uidCounter = Date.now()
 function genUid() { return ++_uidCounter }
 
 function addToCart(product) {
-  const stock = getStock(product.id)
-  // Hitung total qty semua baris produk yang sama
-  const totalQty = cart.value.filter(i => i.id === product.id).reduce((s, i) => s + i.qty, 0)
+   const stock = getStock(product.id)
+   const existing = cart.value.find(item => item.id === product.id)
+   const currentQty = existing ? existing.qty : 0
 
-  if (stock !== null && totalQty >= stock) {
-    toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
-    return
-  }
+   if (stock === undefined || stock === null) {
+     toast.error(`Produk "${product.name}" tidak tersedia di cabang atau gudang ini.`)
+     return
+   }
+   if (stock <= 0) {
+     toast.error(`Stok ${product.name} habis.`)
+     return
+   }
+   if (currentQty >= stock) {
+     toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
+     return
+   }
 
-  // Tambahkan ke baris terakhir yang ada (baris pertama ditemukan)
-  const existing = cart.value.find(item => item.id === product.id)
-  if (existing) {
-    existing.qty++
-  } else {
-    cart.value.push({
-      ...product,
-      qty: 1,
-      _uid: genUid(),
-      itemDiscountType: 'FLAT',
-      itemDiscountValue: 0,
-      itemNote: '',
-    })
-  }
-}
+   if (existing) {
+     existing.qty++
+   } else {
+     cart.value.push({
+       ...product,
+       qty: 1,
+       itemDiscountType: 'FLAT',
+       itemDiscountValue: 0,
+       itemNote: '',
+     })
+   }
+ }
 
 // ─── Split Cart Item ──────────────────────────────────────────────────────────
 function splitCartItem(item) {
@@ -417,36 +422,38 @@ function getCartQty(id) {
 }
 
 function increaseQty(item) {
-  const stock = getStock(item.id)
-  const totalQty = cart.value.filter(i => i.id === item.id).reduce((s, i) => s + i.qty, 0)
-  if (stock !== null && totalQty >= stock) {
-    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-    return
-  }
-  item.qty++
-}
+   const stock = getStock(item.id)
+   if (stock === undefined || stock === null) {
+     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
+     return
+   }
+   if (item.qty >= stock) {
+     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+     return
+   }
+   item.qty++
+ }
+ function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 
-function decreaseQty(item) {
-  if (item.qty > 1) { item.qty-- } else { removeFromCart(item) }
-}
-
-function setQty(item, value) {
-  const num = parseInt(value, 10)
-  if (isNaN(num) || num < 1) {
-    item.qty = 1
-    return
-  }
-  const stock = getStock(item.id)
-  // Hitung qty baris lain produk yang sama (tidak termasuk baris ini)
-  const otherQty = cart.value.filter(i => i.id === item.id && i._uid !== item._uid).reduce((s, i) => s + i.qty, 0)
-  if (stock !== null && (otherQty + num) > stock) {
-    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-    item.qty = Math.max(1, stock - otherQty)
-    return
-  }
-  item.qty = num
-}
-
+ function setQty(item, value) {
+   const num = parseInt(value, 10)
+   if (isNaN(num) || num < 1) {
+     item.qty = 1
+     return
+   }
+   const stock = getStock(item.id)
+   if (stock === undefined || stock === null) {
+     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
+     item.qty = 0
+     return
+   }
+   if (num > stock) {
+     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+     item.qty = stock
+     return
+   }
+   item.qty = num
+ }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i._uid === item._uid)
   if (idx !== -1) cart.value.splice(idx, 1)
@@ -836,23 +843,21 @@ async function checkout() {
     }
   }
 
-  // Validasi stok: hitung total qty per productId dari semua baris
-  const qtyByProduct = {}
-  for (const item of cart.value) {
-    qtyByProduct[item.id] = (qtyByProduct[item.id] || 0) + item.qty
-  }
-  for (const [productId, qty] of Object.entries(qtyByProduct)) {
-    const stock = getStock(productId)
-    const productName = cart.value.find(i => i.id == productId)?.name || 'Produk'
-    if (stock !== null && qty > stock) {
-      toast.error(`Stok ${productName} tidak mencukupi. Diminta: ${qty}, Tersisa: ${stock}`)
-      return
-    }
-    if (stock !== null && stock <= 0) {
-      toast.error(`Stok ${productName} sudah habis.`)
-      return
-    }
-  }
+for (const item of cart.value) {
+     const stock = getStock(item.id)
+     if (stock === undefined || stock === null) {
+       toast.error(`Produk "${item.name}" tidak memiliki stok di cabang ini. Tambahkan stok di cabang terlebih dahulu.`)
+       return
+     }
+     if (stock <= 0) {
+       toast.error(`Stok ${item.name} sudah habis.`)
+       return
+     }
+     if (item.qty > stock) {
+       toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
+       return
+     }
+   }
 
   processingCheckout.value = true
   try {
