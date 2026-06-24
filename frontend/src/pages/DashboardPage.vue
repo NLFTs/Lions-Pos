@@ -547,7 +547,7 @@ function toggleAllOrders() {
       <OnboardingChecklist :stats="stats" />
 
       <!-- ── Header ─────────────────────────────────────────────────────────── -->
-      <div class="flex items-start justify-between">
+      <div class="relative z-10 flex items-start justify-between">
         <div>
           <h1 class="text-2xl font-bold tracking-tight text-foreground leading-tight">Dashboard</h1>
           <p class="text-xs text-muted-foreground mt-1">
@@ -824,7 +824,7 @@ function toggleAllOrders() {
         <!-- Status Cabang & Gudang -->
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 class="text-sm font-bold text-foreground">Status Cabang</h2>
+            <h2 class="text-sm font-bold text-foreground">Status</h2>
             <div class="flex items-center gap-1 bg-muted rounded-full p-0.5">
               <button
                 v-for="f in branchStatusFilters" :key="f"
