@@ -5,7 +5,9 @@ import com.dak.spravel.dto.request.inventory.TransferRequestItemDTO;
 import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
+import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.model.common.Partners;
+import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.inventory.TransferRequest;
 import com.dak.spravel.model.inventory.TransferRequestItem;
 import com.dak.spravel.repository.auth.UserRepository;
@@ -88,35 +90,36 @@ public class TransferRequestService {
         return tr;
     }
 
-    private void validateLocationRelationship(TransferRequest.Location fromType, Long fromId, TransferRequest.Location toType, Long toId) {
-        Long branchId = null;
-        Long warehouseId = null;
-
-        if (fromType == TransferRequest.Location.BRANCH && toType == TransferRequest.Location.WAREHOUSE) {
-            branchId = fromId;
-            warehouseId = toId;
-        } else if (fromType == TransferRequest.Location.WAREHOUSE && toType == TransferRequest.Location.BRANCH) {
-            branchId = toId;
-            warehouseId = fromId;
-        } else {
-            throw new RuntimeException("Validasi Gagal: Transfer stok hanya diperbolehkan secara silang antara Cabang dan Gudang.");
-        }
-
-        Object result = transferRequestRepository.countBranchWarehouseLink(branchId, warehouseId);
-        long linkageCount = 0;
-
-        if (result instanceof Number) {
-            linkageCount = ((Number) result).longValue();
-        } else if (result != null) {
-            try {
-                linkageCount = Long.parseLong(result.toString());
-            } catch (NumberFormatException e) {
-                linkageCount = 0;
+    // ─── VALIDASI LOKASI ASAL DAN TUJUAN SECARA UMUM (UMUM & MULTI-TENANT) ───
+    private void validateLocations(TransferRequest.Location fromType, Long fromId, TransferRequest.Location toType, Long toId, Partners partner) {
+        // 1. Validasi Lokasi Asal
+        if (fromType == TransferRequest.Location.BRANCH) {
+            var branch = branchesRepository.findById(fromId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Branch Asal", fromId));
+            if (partner != null && (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId()))) {
+                throw new RuntimeException("Validasi Gagal: Cabang asal bukan milik partner Anda.");
+            }
+        } else if (fromType == TransferRequest.Location.WAREHOUSE) {
+            var warehouse = warehousesRepository.findById(fromId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Warehouse Asal", fromId));
+            if (partner != null && (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(partner.getId()))) {
+                throw new RuntimeException("Validasi Gagal: Gudang asal bukan milik partner Anda.");
             }
         }
 
-        if (linkageCount <= 0) {
-            throw new RuntimeException("Validasi Gagal: Cabang dan Gudang terpilih tidak memiliki hubungan relasi aktif.");
+        // 2. Validasi Lokasi Tujuan
+        if (toType == TransferRequest.Location.BRANCH) {
+            var branch = branchesRepository.findById(toId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Branch Tujuan", toId));
+            if (partner != null && (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId()))) {
+                throw new RuntimeException("Validasi Gagal: Cabang tujuan bukan milik partner Anda.");
+            }
+        } else if (toType == TransferRequest.Location.WAREHOUSE) {
+            var warehouse = warehousesRepository.findById(toId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Warehouse Tujuan", toId));
+            if (partner != null && (warehouse.getPartners() == null || !warehouse.getPartners().getId().equals(partner.getId()))) {
+                throw new RuntimeException("Validasi Gagal: Gudang tujuan bukan milik partner Anda.");
+            }
         }
     }
 
@@ -187,7 +190,6 @@ public class TransferRequestService {
             }
             tr.setFromLocationType(TransferRequest.Location.valueOf(request.getFromLocationType().toUpperCase()));
             tr.setFromLocationId(request.getFromLocationId());
-
         } else {
             if (request.getFromLocationType() == null || request.getFromLocationId() == null ||
                 request.getToLocationType() == null || request.getToLocationId() == null) {
@@ -203,10 +205,23 @@ public class TransferRequestService {
             throw new RuntimeException("Lokasi asal dan lokasi tujuan tidak boleh sama.");
         }
 
-        // Lakukan validasi hubungan relasi aktif sebelum menyimpan ke database
-        validateLocationRelationship(tr.getFromLocationType(), tr.getFromLocationId(), tr.getToLocationType(), tr.getToLocationId());
+        validateLocations(tr.getFromLocationType(), tr.getFromLocationId(), tr.getToLocationType(), tr.getToLocationId(), partner);
 
-        tr.setStatus(TransferRequest.Status.PENDING);
+        boolean isManagerOrOwner = currentUser.getBranch() != null || 
+                                    currentUser.getRoles().stream().anyMatch(r -> r.getSlug().contains("owner") || r.getSlug().contains("pengelola-cabang"));
+        
+        boolean isInterBranch = (tr.getFromLocationType() == TransferRequest.Location.BRANCH && tr.getToLocationType() == TransferRequest.Location.BRANCH);
+
+        if (isManagerOrOwner && !isInterBranch) {
+            // Pengelola Cabang / Owner & rutenya melibatkan gudang -> Auto Approved!
+            tr.setStatus(TransferRequest.Status.APPROVED);
+            tr.setApprovedAt(LocalDateTime.now());
+            tr.setApprovedByUser(currentUser);
+        } else {
+            // Staff biasa, atau rutenya Cabang ke Cabang -> Harus disetujui Owner
+            tr.setStatus(TransferRequest.Status.PENDING);
+        }
+
         tr.setRequestedAt(LocalDateTime.now());
         tr.setCreatedAt(LocalDateTime.now());
         tr.setCreatedBy(currentUser);
@@ -237,23 +252,19 @@ public class TransferRequestService {
         TransferRequest.Status newStatus = TransferRequest.Status.valueOf(status.toUpperCase());
         
         if (newStatus == TransferRequest.Status.APPROVED) {
-            if (currentUser.getBranch() != null) {
-                throw new RuntimeException("Akses Ditolak: Staff Lapangan tidak berhak menyetujui rute transfer ini. Hanya Owner Pusat.");
+            // Izinkan jika user adalah owner, atau dia pengelola cabang (slug mengandung 'pengelola-cabang')
+            boolean allowedToApprove = currentUser.getRoles().stream()
+                    .anyMatch(r -> r.getSlug().contains("owner") || r.getSlug().contains("pengelola-cabang") || r.getSlug().contains("admin"));
+            
+            if (!allowedToApprove) {
+                throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang dan Owner Pusat yang berhak menyetujui transfer ini.");
             }
             tr.setApprovedAt(LocalDateTime.now());
             tr.setApprovedByUser(currentUser);
         }
         else if (newStatus == TransferRequest.Status.IN_TRANSIT) {
             if (tr.getStatus() != TransferRequest.Status.APPROVED) {
-                throw new RuntimeException("Gagal: Dokumen pemindahan stok belum disetujui oleh Owner Pusat.");
-            }
-            
-            if (currentUser.getPartner() != null) {
-                if (currentUser.getBranch() != null) {
-                    if (tr.getFromLocationType() != TransferRequest.Location.BRANCH || !currentUser.getBranch().getId().equals(tr.getFromLocationId())) {
-                        throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang di lokasi ASAL yang dapat memproses pengiriman barang.");
-                    }
-                }
+                throw new RuntimeException("Gagal: Dokumen pemindahan stok belum disetujui.");
             }
 
             // PROSES PEMOTONGAN FISIK STOK DI LOKASI ASAL
@@ -266,22 +277,25 @@ public class TransferRequestService {
                 );
 
                 if (stockAsalOpt.isEmpty()) {
-                    throw new RuntimeException("Gagal Kirim: Saldo baki baki stok produk di lokasi asal belum di-inisialisasi.");
+                    throw new RuntimeException("Gagal Kirim: Saldo baki stok produk di lokasi asal belum di-inisialisasi.");
                 }
 
                 var stockAsal = stockAsalOpt.get();
                 long qtyToSend = item.getQtyRequested();
 
                 if (stockAsal.getQty() < qtyToSend) {
-                    throw new RuntimeException("Gagal Kirim: Saldo stok di lokasi asal tidak mencukupi untuk dikirim. Sisa saat ini: " + stockAsal.getQty());
+                    throw new RuntimeException("Gagal Kirim: Saldo stok di lokasi asal tidak mencukupi. Sisa saat ini: " + stockAsal.getQty());
                 }
 
                 stockAsal.setQty(stockAsal.getQty() - qtyToSend);
                 stockBalanceRepository.save(stockAsal);
             }
         } 
+        else if (newStatus == TransferRequest.Status.CANCELLED) {
+            // Izinkan pembatalan oleh pemilik dokumen / pengelola
+        }
         else {
-            if (currentUser.getBranch() != null) {
+            if (currentUser.getBranch() != null && !currentUser.getRoles().stream().anyMatch(r -> r.getSlug().contains("pengelola"))) {
                 throw new RuntimeException("Akses Ditolak: Anda tidak memiliki wewenang untuk mengubah status ini.");
             }
         }
@@ -297,13 +311,13 @@ public class TransferRequestService {
     public TransferRequestResponse receiveTransfer(Long id, List<TransferRequestItemDTO> items) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "transfer_request.update");
-
+    
         TransferRequest tr = getValidatedTransferRequest(id, currentUser);
-
+    
         if (tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
             throw new RuntimeException("Gagal: Barang belum diproses kirim (IN_TRANSIT) oleh lokasi asal pembekal.");
         }
-
+    
         if (currentUser.getPartner() != null) {
             if (currentUser.getBranch() != null) {
                 if (tr.getToLocationType() != TransferRequest.Location.BRANCH || !currentUser.getBranch().getId().equals(tr.getToLocationId())) {
@@ -311,49 +325,52 @@ public class TransferRequestService {
                 }
             }
         }
-
+    
         List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
-
-        // Pengesahan tapak master saldo stok destinasi tujuan
-        for (TransferRequestItem item : trItems) {
-            var currentStockOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
-                    item.getProductId(),
-                    tr.getToLocationType().name(),
-                    tr.getToLocationId()
-            );
-
-            if (currentStockOpt.isEmpty()) {
-                throw new RuntimeException("Gagal Terima: Sistem mendeteksi saldo stok produk tujuan belum di-inisialisasi.");
-            }
-        }
-
+    
         tr.setStatus(TransferRequest.Status.RECEIVED);
         tr.setReceivedAt(LocalDateTime.now());
         tr.setReceivedByUser(currentUser);
-
+    
         for (TransferRequestItem item : trItems) {
             Long qtyReceived = items.stream()
                     .filter(i -> i.getProductId().equals(item.getProductId()))
                     .map(i -> i.getQtyRequested().longValue())
                     .findFirst()
                     .orElse(item.getQtyRequested());
-
+    
             item.setQtyReceived(qtyReceived);
-
-            // PENAMBAHAN FISIK STOK DI LOKASI PENERIMA
-            var stockTujuanOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+    
+            var currentStockOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                     item.getProductId(),
                     tr.getToLocationType().name(),
                     tr.getToLocationId()
             );
-            
-            if (stockTujuanOpt.isPresent()) {
-                var stockTujuan = stockTujuanOpt.get();
-                stockTujuan.setQty(stockTujuan.getQty() + qtyReceived);
-                stockBalanceRepository.save(stockTujuan);
+    
+            StockBalance stockTujuan;
+            if (currentStockOpt.isEmpty()) {
+                stockTujuan = new StockBalance();
+                stockTujuan.setProduct(item.getProduct());
+                stockTujuan.setLocationType(tr.getToLocationType().name());
+                stockTujuan.setLocationId(tr.getToLocationId());
+                stockTujuan.setQty(0L);
+                stockTujuan.setCreatedAt(LocalDateTime.now());
+                stockTujuan.setCreatedBy(currentUser);
+                
+                // Pasang referensi cabang jika lokasi tujuan merupakan cabang operasional
+                if (tr.getToLocationType() == TransferRequest.Location.BRANCH && currentUser.getBranch() != null) {
+                    stockTujuan.setLocationType(TransferRequest.Location.BRANCH.name());
+                    stockTujuan.setLocationId(currentUser.getBranch().getId());
+                }
+            } else {
+                stockTujuan = currentStockOpt.get();
             }
-
-            // Jika ada selisih barang yang hilang/rusak saat transit, pulangkan kembali sisanya ke lokasi asal
+    
+            stockTujuan.setQty(stockTujuan.getQty() + qtyReceived);
+            stockTujuan.setUpdatedAt(LocalDateTime.now());
+            stockTujuan.setUpdatedBy(currentUser);
+            stockBalanceRepository.save(stockTujuan);
+    
             long selisih = item.getQtyRequested() - qtyReceived;
             if (selisih > 0) {
                 var stockAsalOpt = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
@@ -367,15 +384,14 @@ public class TransferRequestService {
                     stockBalanceRepository.save(stockAsal);
                 }
             }
-
-            com.dak.spravel.model.catalog.Product product = item.getProduct();
+    
+            Product product = item.getProduct();
             if (product == null) {
-                product = new com.dak.spravel.model.catalog.Product();
+                product = new Product();
                 product.setId(item.getProductId());
                 product.setPartner(tr.getPartner());
             }
-
-            // Catat log sejarah mutasi pemindahan barang resmi ke dalam audit logs
+    
             stockMutationService.recordMutation(
                     product,
                     tr.getPartner(),
@@ -391,7 +407,7 @@ public class TransferRequestService {
                     currentUser
             );
         }
-
+    
         transferRequestItemRepository.saveAll(trItems);
         return mapToResponse(transferRequestRepository.save(tr));
     }

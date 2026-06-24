@@ -137,15 +137,23 @@ public class HttpLogFilter implements Filter {
     }
 
     private void processRequestBody(ContentCachingRequestWrapper requestWrapper, LogHttp logInfo) {
-        String requestBody = new String(requestWrapper.getContentAsByteArray());
-        if (!requestBody.isEmpty()) {
-            try {
-                logInfo.setRequest(StringUtil.maskingJson(new JSONObject(requestBody)).toString());
-            } catch (Exception e) {
-                log.debug("Failed to process request body", e);
+            String requestBody = new String(requestWrapper.getContentAsByteArray());
+            if (!requestBody.isEmpty()) {
+                String trimmedBody = requestBody.trim();
+                try {
+                    if (trimmedBody.startsWith("{")) {
+                        logInfo.setRequest(StringUtil.maskingJson(new JSONObject(trimmedBody)).toString());
+                    } else if (trimmedBody.startsWith("[")) {
+                        logInfo.setRequest(trimmedBody);
+                    } else {
+                        logInfo.setRequest(trimmedBody);
+                    }
+                } catch (Exception e) {
+                    log.debug("Failed to process request body", e);
+                    logInfo.setRequest(requestBody);
+                }
             }
         }
-    }
 
     private boolean shouldProcessResponseBody(String uri, HttpServletResponse res) {
         return RESPONSE_IGNORE.stream().noneMatch(uri::contains) &&

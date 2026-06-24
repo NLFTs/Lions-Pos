@@ -4,6 +4,8 @@ import com.dak.spravel.model.inventory.Warehouses;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -11,12 +13,12 @@ import java.util.List;
 @Repository
 public interface WarehousesRepository extends JpaRepository<Warehouses, Long> {
 
-    // Untuk Partner: Ambil yang aktif & belum dihapus
     List<Warehouses> findByPartnersIdAndDeletedAtIsNull(Long partnersId);
 
-    // Untuk Partner: Pagination data warehouse
     Page<Warehouses> findByPartnersIdAndDeletedAtIsNull(Long partnersId, Pageable pageable);
 
-    // Validasi duplikasi nama warehouse dalam satu partner
     boolean existsByNameAndPartnersIdAndDeletedAtIsNull(String name, Long partnersId);
+
+    @Query("SELECT COUNT(bw) > 0 FROM BranchWarehouses bw " + "WHERE bw.warehouses.id = :warehouseId AND bw.branches.id = :branchId")
+    boolean isWarehouseLinkedToBranch(@Param("warehouseId") Long warehouseId, @Param("branchId") Long branchId);
 }

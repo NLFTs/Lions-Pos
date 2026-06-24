@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.dak.spravel.model.inventory.StockBalance;
@@ -24,5 +26,10 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     
     Page<StockBalance> findByProductPartnerIdAndLocationId(Long partnerId, Long locationId, Pageable pageable);
     
-Page<StockBalance> findByLocationTypeAndLocationId(String locationType, Long locationId, Pageable pageable);
+    Page<StockBalance> findByLocationTypeAndLocationId(String locationType, Long locationId, Pageable pageable);
+
+    @Query("SELECT sb FROM StockBalance sb WHERE (UPPER(sb.locationType) = 'BRANCH' AND sb.locationId = :branchId) OR " +
+           "(UPPER(sb.locationType) = 'WAREHOUSE' AND sb.locationId IN " +
+           "(SELECT bw.warehouses.id FROM BranchWarehouses bw WHERE bw.branches.id = :branchId))")
+    Page<StockBalance> findStockByBranchAndLinkedWarehouses(@Param("branchId") Long branchId, Pageable pageable);
 }

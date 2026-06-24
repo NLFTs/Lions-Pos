@@ -27,6 +27,7 @@ import com.dak.spravel.repository.inventory.WarehousesRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +46,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class StockBalanceService {
 
@@ -116,35 +118,66 @@ public class StockBalanceService {
             if (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Cawangan bukan milik rakan kongsi anda.");
             }
-        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            Warehouses warehouse = warehousesRepository.findById(locationId)
+                    .orElseThrow(() -> new RuntimeException("Gudang tidak ditemui"));
+            
+            if (warehouse.getPartners() != null) {
+                if (!warehouse.getPartners().getId().equals(partner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Gudang bukan milik rakan kongsi anda.");
+                }
+            } else {
+                log.info("[TENANT CHECK] Memproses verifikasi gudang ID: {}", locationId);
+            }
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
             if (!locationId.equals(partner.getId())) {
                 throw new RuntimeException("Akses Ditolak: Lokasi kuarantin bukan milik rakan kongsi anda.");
             }
-        } else {
-            throw new RuntimeException("locationType tidak sah. Gunakan 'BRANCH' atau 'QUARANTINE'.");
+        } 
+        else {
+            throw new RuntimeException("locationType tidak sah. Gunakan 'BRANCH', 'WAREHOUSE', atau 'QUARANTINE'.");
         }
     }
 
     private String resolveLocationName(String locationType, Long locationId) {
         if ("BRANCH".equalsIgnoreCase(locationType)) {
             return branchesRepository.findById(locationId).map(Branches::getName).orElse("Cawangan #" + locationId);
-        } else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            return warehousesRepository.findById(locationId).map(Warehouses::getName).orElse("Gudang #" + locationId);
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
             return "Kuarantin (Rakan Kongsi #" + locationId + ")";
         }
         return "Lokasi #" + locationId;
     }
-
     // ─── PEMETAAN RESPON & REKOD MUTASI STOK ──────────────────────────────────
 
     public StockBalanceResponse mapToResponse(StockBalance stock) {
         if (stock == null) return null;
 
-        StockBalanceResponse.ProductSimpleDto productDto = new StockBalanceResponse.ProductSimpleDto();
-        productDto.setId(stock.getProduct().getId());
-        productDto.setName(stock.getProduct().getName());
-        productDto.setSku(stock.getProduct().getSku());
+        Product product = stock.getProduct();
+
+        StockBalanceResponse.ProductSimpleDto productDto =
+                new StockBalanceResponse.ProductSimpleDto();
+
+        if (product != null) {
+            productDto.setId(product.getId());
+            productDto.setName(product.getName());
+            productDto.setSku(product.getSku());
+
+            if (product.getCategory() != null) {
+                productDto.setCategoryId(product.getCategory().getId());
+                productDto.setCategoryName(product.getCategory().getName());
+            } else {
+                productDto.setCategoryName("-");
+            }
+        }
 
         UserSimpleDto userDto = null;
+
         if (stock.getUpdatedBy() != null) {
             userDto = new UserSimpleDto();
             userDto.setId(stock.getUpdatedBy().getId());
@@ -199,33 +232,35 @@ public class StockBalanceService {
                 .map(this::mapToResponse).toList();
     }
 
-    public Page<StockBalanceResponse> findAll(int page, int size) {
+    public Page<StockBalanceResponse> findAll(Long branchId, int page, int size) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        
         if (currentUser.getPartner() == null) {
             return stockBalanceRepository.findAll(pageable).map(this::mapToResponse);
+        }
+
+        if (branchId != null) {
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(branchId, pageable)
+                    .map(this::mapToResponse);
         }
 
         List<String> roleSlugs = currentUser.getRoles().stream()
                 .map(role -> role.getSlug().toLowerCase())
                 .toList();
 
-        // Pemeriksaan peranan khusus cawangan tanpa sebarang rujukan pergudangan
         if (roleSlugs.stream().anyMatch(slug -> slug.contains("cabang") || slug.contains("pengelola-cabang"))) {
             if (currentUser.getBranch() == null) {
                 throw new RuntimeException("Akses ditolak: anda tidak berkaitan dengan mana-mana cawangan");
             }
-
-            return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", 
-                currentUser.getBranch().getId(), 
-                pageable).
-                map(this::mapToResponse);
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(currentUser.getBranch().getId(), pageable)
+                    .map(this::mapToResponse);
         }
 
         return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageable)
-                    .map(this::mapToResponse);
+                .map(this::mapToResponse);
     }
 
     public List<StockLocationSummaryResponse> findStockSummary() {
@@ -282,14 +317,31 @@ public class StockBalanceService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
 
-        List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(locationType.toUpperCase(), locationId);
+        String targetType = "BRANCH"; 
+        if (locationType != null) {
+            String inputLower = locationType.toLowerCase().trim();
+            if (inputLower.contains("warehouse") || inputLower.contains("gudang")) {
+                targetType = "WAREHOUSE";
+            } else if (inputLower.contains("branch") || inputLower.contains("cabang")) {
+                targetType = "BRANCH";
+            } else if (inputLower.contains("quarantine") || inputLower.contains("karantina")) {
+                targetType = "QUARANTINE";
+            }
+        }
+
+        log.info("[BACKEND DEBUG] Memproses kueri stok murni untuk Tipe: {} dengan ID: {}", targetType, locationId);
+
+        validateLocation(targetType, locationId, currentUser.getPartner());
+
+        List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(targetType, locationId);
+        
         if (currentUser.getPartner() == null) {
             return queryResults.stream().map(this::mapToResponse).toList();
         }
 
         return queryResults.stream()
                 .filter(s -> s.getProduct() != null && s.getProduct().getPartner() != null && 
-                             s.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))
+                                s.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))
                 .map(this::mapToResponse)
                 .toList();
     }

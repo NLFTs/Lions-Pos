@@ -653,8 +653,8 @@ function initials(u) {
               <!-- Input Fields -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
-                  <Label>Username <span class="text-destructive">*</span></Label>
-                  <Input v-model="form.username" placeholder="Masukkan username" :disabled="saving" autocomplete="off" />
+                  <Label>Nama Pengguna<span class="text-destructive">*</span></Label>
+                  <Input v-model="form.username" placeholder="Masukkan nama pengguna" :disabled="saving" autocomplete="off" />
                   <p v-if="formErrors.username" class="text-xs text-destructive">{{ formErrors.username }}</p>
                 </div>
                 <div class="space-y-1.5">
@@ -732,12 +732,12 @@ function initials(u) {
               <!-- Password -->
               <div class="space-y-1.5">
                 <Label>
-                  Password
+                  Kata Sandi
                   <span v-if="formMode === 'create'" class="text-destructive">*</span>
                   <span v-else class="text-muted-foreground text-xs font-normal italic"> (kosongkan jika tidak diganti)</span>
                 </Label>
                 <div class="relative">
-                  <Input :type="showPass ? 'text' : 'password'" v-model="form.password" :placeholder="formMode === 'create' ? 'Password akun' : 'Password baru...'" :disabled="saving" class="pr-10" autocomplete="new-password" />
+                  <Input :type="showPass ? 'text' : 'password'" v-model="form.password" :placeholder="formMode === 'create' ? 'Kata sandi akun' : 'Kata sandi baru...'" :disabled="saving" class="pr-10" autocomplete="new-password" />
                   <button type="button" @click="showPass = !showPass" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                     <EyeOff v-if="showPass" class="h-4 w-4" />
                     <Eye v-else class="h-4 w-4" />

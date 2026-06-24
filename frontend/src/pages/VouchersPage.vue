@@ -218,7 +218,7 @@ onMounted(fetchVouchers)
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
               <div class="w-full sm:w-72">
-                <DataTableSearch v-model="searchQuery" placeholder="Cari kode atau nama voucher..." />
+                <DataTableSearch v-model="searchQuery" placeholder="Cari kode atau nama voucer..." />
               </div>
               <Button v-if="can('voucher.store')" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                 <Plus class="h-4 w-4" /><span>Tambah Voucer</span>

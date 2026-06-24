@@ -8,7 +8,8 @@ import {
   Search, ShoppingCart, Plus, Minus, Trash2, ShoppingBag,
   Banknote, ArrowRightLeft, X, Ticket, Check, Scan,
   Loader2, Building2, Printer, ReceiptText, ChevronDown, MapPin, Tag, Percent, AlertTriangle,
-  Clock, Pause, Play, LogIn, LogOut, UserCheck, MessageSquare, Star, Target, TrendingUp
+  Clock, Pause, Play, LogIn, LogOut, UserCheck, MessageSquare, Star, Target, TrendingUp,
+  Scissors
 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -24,7 +25,7 @@ const products = ref([])
 const categories = ref([])
 const vouchers = ref([])
 const branches = ref([])
-const stockBalances = ref({}) // { productId: qty }
+const stockBalances = ref({})
 const selectedBranchId = ref(null)
 const showBranchDropdown = ref(false)
 const branchDropdownRef = ref(null)
@@ -45,7 +46,7 @@ const loading = ref(false)
 const processingCheckout = ref(false)
 const lastOrder = ref(null)
 const showReceipt = ref(false)
-const struk = ref(null) // ref ke komponen StrukPrint
+const struk = ref(null)
 
 const searchQuery = ref('')
 const activeCategory = ref('Semua')
@@ -62,7 +63,6 @@ async function fetchTopProducts() {
     const res = await api.get('/api/v1/orders')
     const data = res.data?.data ?? res.data
     const all = Array.isArray(data) ? data : (data?.content || [])
-    // Hitung frekuensi per produk dari semua order PAID
     const freq = {}
     all.filter(o => o.status?.toUpperCase() === 'PAID').forEach(o => {
       (o.items || []).forEach(i => {
@@ -122,15 +122,15 @@ function saveTarget() {
 const openItemNoteId = ref(null)
 
 function toggleItemNote(item) {
-  openItemNoteId.value = openItemNoteId.value === item.id ? null : item.id
+  openItemNoteId.value = openItemNoteId.value === item._uid ? null : item._uid
 }
 
 // ─── Shift State ─────────────────────────────────────────────────────────────
 const activeShift = ref(null)
 const loadingShift = ref(false)
 const showShiftModal = ref(false)
-const shiftModalMode = ref('open') // 'open' | 'close'
-const closedShiftResult = ref(null) // data shift yang baru ditutup, untuk ringkasan
+const shiftModalMode = ref('open')
+const closedShiftResult = ref(null)
 
 async function fetchActiveShift() {
   if (!selectedBranchId.value) return
@@ -169,9 +169,8 @@ async function handleShiftSubmitted(form) {
       })
       const d = res.data?.data
       activeShift.value = null
-      closedShiftResult.value = d   // simpan ke state — ShiftModal akan tampilkan ringkasan
+      closedShiftResult.value = d
       toast.success('Shift ditutup. Omzet berhasil dihitung!')
-      // modal TIDAK ditutup di sini — biarkan ShiftModal tampilkan halaman ringkasan
     }
   } catch (err) {
     const msg = err.response?.data?.data?.message || err.response?.data?.message || err.message || 'Gagal proses shift.'
@@ -187,7 +186,6 @@ async function fetchData() {
   try {
     const isAdmin = authStore.isAdmin
     const userBranchId = authStore.user?.branchId
-
     const shouldFetchBranches = isAdmin || !userBranchId
 
     const requests = [
@@ -200,16 +198,13 @@ async function fetchData() {
 
     const [resP, resC, resB] = await Promise.all(requests)
 
-    // Products
     const pData = resP.data?.data
     const pArr = pData?.content ? pData.content : (Array.isArray(pData) ? pData : [])
     products.value = pArr.filter(p => p.is_active !== false)
 
-    // Categories
     const cData = resC.data?.data
     categories.value = Array.isArray(cData) ? cData : (cData?.content || [])
 
-    // Branches
     if (userBranchId) {
       branches.value = [{ id: userBranchId, name: authStore.user?.branchName || 'Cabang Aktif' }]
       selectedBranchId.value = userBranchId
@@ -282,7 +277,6 @@ function getStock(productId) {
   return stockBalances.value[String(productId)] ?? null
 }
 
-//  Stok Warning 
 const LOW_STOCK_THRESHOLD = 5
 
 const lowStockProducts = computed(() => {
@@ -301,7 +295,6 @@ const lowStockProducts = computed(() => {
 
 const showStockWarning = ref(true)
 
-//  Transaksi Hari Ini 
 const showTodayPanel = ref(false)
 const todayOrders = ref([])
 const loadingToday = ref(false)
@@ -309,8 +302,7 @@ const loadingToday = ref(false)
 async function fetchTodayOrders() {
   loadingToday.value = true
   try {
-    const url = '/api/v1/orders'
-    const res = await api.get(url)
+    const res = await api.get('/api/v1/orders')
     const data = res.data?.data ?? res.data
     const all = Array.isArray(data) ? data : (data?.content || [])
     const today = new Date().toDateString()
@@ -338,7 +330,6 @@ function toggleTodayPanel() {
   if (showTodayPanel.value) fetchTodayOrders()
 }
 
-//  Computed
 const uniqueCategories = computed(() => {
   const names = categories.value.map(c => c.name).filter(Boolean).sort()
   return ['Semua', ...new Set(names)]
@@ -364,79 +355,100 @@ const filteredProducts = computed(() => {
    return result
  })
 
-//Cart Logic
+// ─── Cart Logic ───────────────────────────────────────────────────────────────
+let _uidCounter = Date.now()
+function genUid() { return ++_uidCounter }
+
 function addToCart(product) {
-   const stock = getStock(product.id)
-   const existing = cart.value.find(item => item.id === product.id)
-   const currentQty = existing ? existing.qty : 0
+  const stock = getStock(product.id)
+  // Hitung total qty semua baris produk yang sama
+  const totalQty = cart.value.filter(i => i.id === product.id).reduce((s, i) => s + i.qty, 0)
 
-   if (stock === undefined || stock === null) {
-     toast.error(`Produk "${product.name}" tidak tersedia di cabang atau gudang ini.`)
-     return
-   }
-   if (stock <= 0) {
-     toast.error(`Stok ${product.name} habis.`)
-     return
-   }
-   if (currentQty >= stock) {
-     toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
-     return
-   }
+  if (stock !== null && totalQty >= stock) {
+    toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
 
-   if (existing) {
-     existing.qty++
-   } else {
-     cart.value.push({
-       ...product,
-       qty: 1,
-       itemDiscountType: 'FLAT',
-       itemDiscountValue: 0,
-       itemNote: '',
-     })
-   }
- }
-
-function getCartQty(id) {
-  const item = cart.value.find(i => i.id === id)
-  return item ? item.qty : 0
+  // Tambahkan ke baris terakhir yang ada (baris pertama ditemukan)
+  const existing = cart.value.find(item => item.id === product.id)
+  if (existing) {
+    existing.qty++
+  } else {
+    cart.value.push({
+      ...product,
+      qty: 1,
+      _uid: genUid(),
+      itemDiscountType: 'FLAT',
+      itemDiscountValue: 0,
+      itemNote: '',
+    })
+  }
 }
 
-//  logic qty modifier, format currency tetap utuh
-function increaseQty(item) {
-   const stock = getStock(item.id)
-   if (stock === undefined || stock === null) {
-     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
-     return
-   }
-   if (item.qty >= stock) {
-     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-     return
-   }
-   item.qty++
- }
- function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
+// ─── Split Cart Item ──────────────────────────────────────────────────────────
+function splitCartItem(item) {
+  if (item.qty < 2) return
+  const idx = cart.value.findIndex(i => i._uid === item._uid)
+  if (idx === -1) return
 
- function setQty(item, value) {
-   const num = parseInt(value, 10)
-   if (isNaN(num) || num < 1) {
-     item.qty = 1
-     return
-   }
-   const stock = getStock(item.id)
-   if (stock === undefined || stock === null) {
-     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
-     item.qty = 0
-     return
-   }
-   if (num > stock) {
-     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-     item.qty = stock
-     return
-   }
-   item.qty = num
- }
+  const half1 = Math.floor(item.qty / 2)
+  const half2 = item.qty - half1
+
+  // Update qty baris asli
+  cart.value[idx] = { ...item, qty: half1 }
+
+  // Sisipkan baris baru tepat setelah baris asli
+  const newItem = {
+    ...item,
+    qty: half2,
+    _uid: genUid(),
+    itemDiscountType: 'FLAT',
+    itemDiscountValue: 0,
+    itemNote: '',
+  }
+  cart.value.splice(idx + 1, 0, newItem)
+
+  toast.success(`"${item.name}" dipisah menjadi 2 baris`)
+}
+
+// Hitung total qty semua baris produk yang sama (untuk badge di card produk)
+function getCartQty(id) {
+  return cart.value.filter(i => i.id === id).reduce((s, i) => s + i.qty, 0)
+}
+
+function increaseQty(item) {
+  const stock = getStock(item.id)
+  const totalQty = cart.value.filter(i => i.id === item.id).reduce((s, i) => s + i.qty, 0)
+  if (stock !== null && totalQty >= stock) {
+    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+    return
+  }
+  item.qty++
+}
+
+function decreaseQty(item) {
+  if (item.qty > 1) { item.qty-- } else { removeFromCart(item) }
+}
+
+function setQty(item, value) {
+  const num = parseInt(value, 10)
+  if (isNaN(num) || num < 1) {
+    item.qty = 1
+    return
+  }
+  const stock = getStock(item.id)
+  // Hitung qty baris lain produk yang sama (tidak termasuk baris ini)
+  const otherQty = cart.value.filter(i => i.id === item.id && i._uid !== item._uid).reduce((s, i) => s + i.qty, 0)
+  if (stock !== null && (otherQty + num) > stock) {
+    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+    item.qty = Math.max(1, stock - otherQty)
+    return
+  }
+  item.qty = num
+}
+
 function removeFromCart(item) {
-  const idx = cart.value.findIndex(i => i.id === item.id)
+  const idx = cart.value.findIndex(i => i._uid === item._uid)
   if (idx !== -1) cart.value.splice(idx, 1)
 }
 
@@ -444,7 +456,7 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
 }
 
-// ─── Diskon Per Item: helper kalkulasi ───────────────────────────────────────
+// ─── Diskon Per Item ──────────────────────────────────────────────────────────
 function getItemUnitPrice(item) {
   return Number(item.base_price || item.basePrice || item.price || 0)
 }
@@ -517,35 +529,25 @@ function selectVoucher(code) {
   showVoucherDropdown.value = false
   focusedVoucherIndex.value = -1
   applyVoucher()
-  
   if (voucherInputRef.value) {
     const el = voucherInputRef.value.$el?.querySelector('input') || voucherInputRef.value
-    if (el && typeof el.blur === 'function') {
-      el.blur()
-    }
+    if (el && typeof el.blur === 'function') el.blur()
   }
 }
 
 function handleVoucherKeyDown(e) {
   if (!showVoucherDropdown.value || filteredVouchers.value.length === 0) return
-
   if (e.key === 'ArrowDown') {
     e.preventDefault()
-    if (focusedVoucherIndex.value < filteredVouchers.value.length - 1) {
-      focusedVoucherIndex.value++
-    } else {
-      focusedVoucherIndex.value = 0
-    }
+    focusedVoucherIndex.value = focusedVoucherIndex.value < filteredVouchers.value.length - 1
+      ? focusedVoucherIndex.value + 1 : 0
   } else if (e.key === 'ArrowUp') {
     e.preventDefault()
-    if (focusedVoucherIndex.value > 0) {
-      focusedVoucherIndex.value--
-    } else {
-      focusedVoucherIndex.value = filteredVouchers.value.length - 1
-    }
+    focusedVoucherIndex.value = focusedVoucherIndex.value > 0
+      ? focusedVoucherIndex.value - 1 : filteredVouchers.value.length - 1
   } else if (e.key === 'Enter') {
     if (focusedVoucherIndex.value >= 0 && focusedVoucherIndex.value < filteredVouchers.value.length) {
-      e.preventDefault() 
+      e.preventDefault()
       selectVoucher(filteredVouchers.value[focusedVoucherIndex.value].code)
     }
   } else if (e.key === 'Escape') {
@@ -586,22 +588,12 @@ const manualDiscountAmount = computed(() => {
 function applyVoucher() {
   if (!voucherCode.value) return
   const v = vouchers.value.find(v => v.code === voucherCode.value.toUpperCase())
-  if (!v) {
-    toast.error('Kode voucher tidak valid.')
-    appliedVoucher.value = null
-    return
-  }
+  if (!v) { toast.error('Kode voucher tidak valid.'); appliedVoucher.value = null; return }
   const isActive = v.isActive ?? v.is_active ?? true
-  if (!isActive) {
-    toast.error('Voucher ini sudah tidak aktif.')
-    return
-  }
+  if (!isActive) { toast.error('Voucher ini sudah tidak aktif.'); return }
   const quota = v.quota ?? null
   const usedCount = v.usedCount ?? v.used_count ?? 0
-  if (quota !== null && quota > 0 && usedCount >= quota) {
-    toast.error('Kuota voucher sudah habis.')
-    return
-  }
+  if (quota !== null && quota > 0 && usedCount >= quota) { toast.error('Kuota voucher sudah habis.'); return }
   const minPurchase = Number(v.minPurchase ?? v.min_purchase ?? 0)
   if (minPurchase > 0 && subtotal.value < minPurchase) {
     toast.error(`Min. pembelian untuk voucher ini adalah ${formatCurrency(minPurchase)}`)
@@ -635,7 +627,6 @@ const discountAmount = computed(() => {
   return Math.min(d, subtotal.value)
 })
 
-// ✅ FIX: Math.round() untuk hindari floating point error akibat kalkulasi diskon per item + diskon keseluruhan
 const total = computed(() => {
   return Math.max(0, Math.round(subtotal.value - totalItemDiscount.value - discountAmount.value))
 })
@@ -644,7 +635,7 @@ const total = computed(() => {
 const openItemDiscountId = ref(null)
 
 function toggleItemDiscount(item) {
-  openItemDiscountId.value = openItemDiscountId.value === item.id ? null : item.id
+  openItemDiscountId.value = openItemDiscountId.value === item._uid ? null : item._uid
 }
 
 function onItemDiscountTypeChange(item, type) {
@@ -673,10 +664,8 @@ const bankName = ref('')
 const referenceNo = ref('')
 const buyerName = ref('')
 
-// ✅ FIX: Math.round() pada changeDue agar konsisten dengan total yang sudah di-round
 const changeDue = computed(() => Math.max(0, Math.round((Number(cashTendered.value) || 0) - total.value)))
 
-//  Split Payment
 const isSplitPayment = ref(false)
 const splitCashAmount = ref('')
 const splitTransferAmount = ref('')
@@ -703,10 +692,7 @@ function setCashTendered(amount) {
 
 function openPayment() { 
   if (!cart.value.length) return
-  if (!selectedBranchId.value) {
-    toast.warning('Pilih cabang terlebih dahulu.')
-    return
-  }
+  if (!selectedBranchId.value) { toast.warning('Pilih cabang terlebih dahulu.'); return }
   showPayment.value = true
   payMethod.value = 'cash'
   cashTendered.value = ''
@@ -725,9 +711,7 @@ function openPayment() {
   splitReferenceNo.value = ''
 }
 
-function closePayment() {
-  showPayment.value = false
-}
+function closePayment() { showPayment.value = false }
 
 function closeReceipt() {
   showReceipt.value = false
@@ -736,7 +720,7 @@ function closeReceipt() {
   if (selectedBranchId.value) fetchStockBalances(selectedBranchId.value)
 }
 
-//  Hold Order
+// ─── Hold Order ───────────────────────────────────────────────────────────────
 const heldOrders = ref(JSON.parse(localStorage.getItem('pos_held_orders') || '[]'))
 const showHeldPanel = ref(false)
 
@@ -770,7 +754,8 @@ function restoreHeldOrder(held) {
     const ok = window.confirm('Keranjang aktif akan digantikan oleh order yang ditahan. Lanjutkan?')
     if (!ok) return
   }
-  cart.value = held.cart
+  // Pastikan setiap item yang dipulihkan punya _uid
+  cart.value = held.cart.map(item => ({ ...item, _uid: item._uid || genUid() }))
   voucherCode.value = held.voucherCode || ''
   appliedVoucher.value = held.appliedVoucher || null
   buyerName.value = held.buyerName || ''
@@ -788,16 +773,11 @@ const confirmingTransfer = ref(false)
 
 async function confirmTransferFromReceipt() {
   const paymentId = lastOrder.value?.payments?.[0]?.id
-  if (!paymentId) {
-    toast.error('ID pembayaran tidak ditemukan.')
-    return
-  }
+  if (!paymentId) { toast.error('ID pembayaran tidak ditemukan.'); return }
   confirmingTransfer.value = true
   try {
     await api.patch(`/api/v1/payments/${paymentId}/verify`)
-    if (lastOrder.value?.payments?.[0]) {
-      lastOrder.value.payments[0].status = 'VERIFIED'
-    }
+    if (lastOrder.value?.payments?.[0]) lastOrder.value.payments[0].status = 'VERIFIED'
     toast.success('Transfer berhasil dikonfirmasi!')
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal mengkonfirmasi transfer.')
@@ -806,9 +786,7 @@ async function confirmTransferFromReceipt() {
   }
 }
 
-function printReceipt() {
-  struk.value?.doPrint()
-}
+function printReceipt() { struk.value?.doPrint() }
 
 function fmt(v) {
   if (v == null) return 'Rp 0'
@@ -844,7 +822,6 @@ function copyOrderSummary() {
 }
 
 async function checkout() {
-  // Validasi split payment
   if (isSplitPayment.value) {
     if (splitCashNum.value <= 0) { toast.error('Nominal tunai untuk split payment wajib diisi.'); return }
     if (splitTransferNum.value <= 0) { toast.error('Nominal transfer untuk split payment wajib diisi.'); return }
@@ -859,21 +836,23 @@ async function checkout() {
     }
   }
 
-for (const item of cart.value) {
-     const stock = getStock(item.id)
-     if (stock === undefined || stock === null) {
-       toast.error(`Produk "${item.name}" tidak memiliki stok di cabang ini. Tambahkan stok di cabang terlebih dahulu.`)
-       return
-     }
-     if (stock <= 0) {
-       toast.error(`Stok ${item.name} sudah habis.`)
-       return
-     }
-     if (item.qty > stock) {
-       toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
-       return
-     }
-   }
+  // Validasi stok: hitung total qty per productId dari semua baris
+  const qtyByProduct = {}
+  for (const item of cart.value) {
+    qtyByProduct[item.id] = (qtyByProduct[item.id] || 0) + item.qty
+  }
+  for (const [productId, qty] of Object.entries(qtyByProduct)) {
+    const stock = getStock(productId)
+    const productName = cart.value.find(i => i.id == productId)?.name || 'Produk'
+    if (stock !== null && qty > stock) {
+      toast.error(`Stok ${productName} tidak mencukupi. Diminta: ${qty}, Tersisa: ${stock}`)
+      return
+    }
+    if (stock !== null && stock <= 0) {
+      toast.error(`Stok ${productName} sudah habis.`)
+      return
+    }
+  }
 
   processingCheckout.value = true
   try {
@@ -886,6 +865,7 @@ for (const item of cart.value) {
       manualDiscountType: manualDiscountValue.value && Number(manualDiscountValue.value) > 0 ? manualDiscountType.value : null,
       manualDiscountValue: manualDiscountValue.value && Number(manualDiscountValue.value) > 0 ? Number(manualDiscountValue.value) : null,
       manualDiscountNote: manualDiscountNote.value?.trim() || null,
+      // Kirim setiap baris cart sebagai item terpisah ke backend
       items: cart.value.map(item => ({
         productId: item.id,
         qty: item.qty,
@@ -897,7 +877,6 @@ for (const item of cart.value) {
       })),
     }
 
-    // Split payment: kirim array payments
     const payload = isSplitPayment.value
       ? {
           ...basePayload,
@@ -937,15 +916,15 @@ for (const item of cart.value) {
     showPayment.value = false
     showReceipt.value = true
 
-    payload.items.forEach(item => {
-      const key = String(item.productId)
+    // Update stok lokal berdasarkan total qty per produk
+    for (const [productId, qty] of Object.entries(qtyByProduct)) {
+      const key = String(productId)
       const current = stockBalances.value[key]
       if (current !== undefined && current !== null) {
-        stockBalances.value[key] = Math.max(0, Number(current) - item.qty)
+        stockBalances.value[key] = Math.max(0, Number(current) - qty)
       }
-    })
+    }
 
-    // Refresh data transaksi hari ini agar Total Order, Omzet, dan Riwayat langsung terupdate
     fetchTodayOrders()
   } catch (err) {
     console.error('[Checkout Error]', err.response?.data || err.message)
@@ -981,13 +960,11 @@ function avatarStyle(name = '') {
               <p class="text-xs text-zinc-500 font-medium mt-0.5">Point of Sale System v2.0</p>
             </div>
             
-            <!-- Shift Status Badge + Button -->
             <div class="flex items-center gap-2">
               <div v-if="loadingShift" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-400 text-[11px] font-bold">
                 <Loader2 class="h-3 w-3 animate-spin" /> Memuat shift...
               </div>
               <template v-else>
-                <!-- Shift Aktif -->
                 <div v-if="activeShift" class="flex items-center gap-2">
                   <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30">
                     <UserCheck class="h-3.5 w-3.5 text-emerald-500" />
@@ -1001,7 +978,6 @@ function avatarStyle(name = '') {
                     <LogOut class="h-3.5 w-3.5" /> Tutup Shift
                   </button>
                 </div>
-                <!-- Tidak Ada Shift -->
                 <button
                   v-else
                   @click="openShiftModal('open')"
@@ -1012,57 +988,53 @@ function avatarStyle(name = '') {
               </template>
 
               <div ref="branchDropdownRef" class="relative">
-              
-              <div 
-                v-if="authStore.user?.branchId"
-                class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 px-3.5 py-2 rounded-xl border border-emerald-200/50 dark:border-emerald-800/30"
-              >
-                <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
-                <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                  📍 {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
-                </span>
-              </div>
-
-              <button
-                v-else
-                @click.stop="showBranchDropdown = !showBranchDropdown"
-                class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 px-3 py-2 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors min-w-[160px]"
-              >
-                <MapPin class="h-3.5 w-3.5 text-primary shrink-0" />
-                <span class="text-[12px] font-black text-zinc-700 dark:text-zinc-200 flex-1 text-left truncate">
-                  {{ selectedBranch?.name || 'Pilih Cabang' }}
-                </span>
-                <ChevronDown class="h-3.5 w-3.5 text-zinc-400 shrink-0 transition-transform duration-200" :class="showBranchDropdown ? 'rotate-180' : ''" />
-              </button>
-
-              <Transition name="dropdown">
-                <div
-                  v-if="showBranchDropdown && !authStore.user?.branch"
-                  class="absolute top-full right-0 mt-1.5 z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+                <div 
+                  v-if="authStore.user?.branchId"
+                  class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 px-3.5 py-2 rounded-xl border border-emerald-200/50 dark:border-emerald-800/30"
                 >
-                  <div class="p-1">
-                    <button
-                      v-for="b in branches"
-                      :key="b.id"
-                      @click="selectBranch(b)"
-                      class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors text-sm"
-                      :class="selectedBranchId === b.id
-                        ? 'bg-primary/10 text-primary font-bold'
-                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium'"
-                    >
-                      <MapPin class="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      <span class="truncate">{{ b.name }}</span>
-                      <Check v-if="selectedBranchId === b.id" class="h-3.5 w-3.5 ml-auto shrink-0 text-primary" />
-                    </button>
-                  </div>
+                  <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
+                  <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                    📍 {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
+                  </span>
                 </div>
-              </Transition>
+
+                <button
+                  v-else
+                  @click.stop="showBranchDropdown = !showBranchDropdown"
+                  class="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/60 px-3 py-2 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 hover:bg-zinc-200/60 dark:hover:bg-zinc-700/60 transition-colors min-w-[160px]"
+                >
+                  <MapPin class="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span class="text-[12px] font-black text-zinc-700 dark:text-zinc-200 flex-1 text-left truncate">
+                    {{ selectedBranch?.name || 'Pilih Cabang' }}
+                  </span>
+                  <ChevronDown class="h-3.5 w-3.5 text-zinc-400 shrink-0 transition-transform duration-200" :class="showBranchDropdown ? 'rotate-180' : ''" />
+                </button>
+
+                <Transition name="dropdown">
+                  <div
+                    v-if="showBranchDropdown && !authStore.user?.branch"
+                    class="absolute top-full right-0 mt-1.5 z-50 min-w-[200px] bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+                  >
+                    <div class="p-1">
+                      <button
+                        v-for="b in branches"
+                        :key="b.id"
+                        @click="selectBranch(b)"
+                        class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors text-sm"
+                        :class="selectedBranchId === b.id
+                          ? 'bg-primary/10 text-primary font-bold'
+                          : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-medium'"
+                      >
+                        <MapPin class="h-3.5 w-3.5 shrink-0 opacity-60" />
+                        <span class="truncate">{{ b.name }}</span>
+                        <Check v-if="selectedBranchId === b.id" class="h-3.5 w-3.5 ml-auto shrink-0 text-primary" />
+                      </button>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
             </div>
-            <!-- end branchDropdownRef -->
           </div>
-          <!-- end flex items-center gap-2 (shift + branch) -->
-          </div>
-          <!-- end flex items-center justify-between header -->
           
           <div class="flex items-center bg-zinc-100 dark:bg-zinc-800/60 rounded-[1rem] p-1 mb-3">
             <div class="flex-1 flex items-center pl-3">
@@ -1130,9 +1102,17 @@ function avatarStyle(name = '') {
               <div class="flex gap-2">
                 <div class="relative flex-1">
                   <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-black text-zinc-400">Rp</span>
-                  <input v-model="targetInput" type="text" inputmode="numeric" placeholder="0"
-                    @input="e => targetInput = e.target.value.replace(/\D/g,'')"
-                    class="pl-8 h-8 w-full text-[12px] font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-primary/20" />
+                  <input 
+                    v-model="targetInput" 
+                    type="text" 
+                    inputmode="numeric" 
+                    placeholder="0"
+                    @input="e => {
+                      const raw = e.target.value.replace(/\D/g, '');
+                      targetInput = raw ? Number(raw).toLocaleString('id-ID') : '';
+                    }"
+                    class="pl-8 h-8 w-full text-[12px] font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-primary/20" 
+                  />
                 </div>
                 <button @click="saveTarget" class="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold">Simpan</button>
               </div>
@@ -1158,7 +1138,6 @@ function avatarStyle(name = '') {
           </button>
 
           <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            <!-- Tab Favorit -->
             <button
               :class="['px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all border flex items-center gap-1.5',
                 showFavorites
@@ -1177,9 +1156,9 @@ function avatarStyle(name = '') {
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-        <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
-             <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3 text-primary" />
-             <p class="text-[13px] font-medium italic">Menghubungkan ke sistem...</p>
+          <div v-if="loading" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+            <Loader2 class="h-10 w-10 animate-spin opacity-20 mb-3 text-primary" />
+            <p class="text-[13px] font-medium italic">Menghubungkan ke sistem...</p>
           </div>
           <div v-else-if="showFavorites">
             <div v-if="loadingTop" class="h-full flex flex-col items-center justify-center py-16 text-zinc-400 gap-3">
@@ -1194,7 +1173,6 @@ function avatarStyle(name = '') {
               <div v-for="(top, idx) in topProducts" :key="top.id"
                 class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden border border-amber-200/60 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                 @click="addToCart(products.find(p => p.id == top.id) || { id: top.id, name: top.name, base_price: 0 })">
-                <!-- Rank badge -->
                 <div class="absolute top-2 left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black"
                   :class="idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-zinc-300 text-zinc-700' : idx === 2 ? 'bg-amber-600 text-white' : 'bg-zinc-100 text-zinc-500'">
                   {{ idx + 1 }}
@@ -1260,6 +1238,7 @@ function avatarStyle(name = '') {
         </div>
       </div>
 
+      <!-- ─── Panel Kanan: Pesanan ─────────────────────────────────────────── -->
       <div class="flex flex-col bg-white dark:bg-[#09090b] border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 max-h-[42vh] lg:max-h-none lg:w-[380px] shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] lg:shadow-none z-20 rounded-t-[24px] lg:rounded-none">
         
         <div class="flex items-center justify-between px-4 py-3.5 lg:p-5 border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">
@@ -1314,7 +1293,6 @@ function avatarStyle(name = '') {
                   </div>
                 </div>
               </div>
-              <!-- List order hari ini -->
               <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider px-1">Riwayat</p>
               <div v-if="todayOrders.length === 0" class="flex flex-col items-center justify-center py-8 text-zinc-400 gap-2">
                 <ShoppingBag class="h-8 w-8 opacity-30" />
@@ -1360,7 +1338,7 @@ function avatarStyle(name = '') {
                   </button>
                 </div>
                 <div class="flex flex-wrap gap-1">
-                  <span v-for="item in held.cart.slice(0, 3)" :key="item.id"
+                  <span v-for="item in held.cart.slice(0, 3)" :key="item._uid || item.id"
                     class="text-[9px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 truncate max-w-[100px]">
                     {{ item.name }} ×{{ item.qty }}
                   </span>
@@ -1375,116 +1353,126 @@ function avatarStyle(name = '') {
               </div>
             </div>
           </template>
-          <template v-else>          <div v-if="!cart.length" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
-             <div class="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center"><ShoppingCart class="h-6 w-6 opacity-40" /></div>
-             <p class="text-[13px] font-semibold">Belum ada pesanan</p>
-          </div>
-          <div v-else class="flex flex-col gap-2.5">
-            <TransitionGroup name="list">
-              <div v-for="item in cart" :key="item.id" class="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-[16px] p-3 flex flex-col gap-3 shadow-sm hover:border-zinc-300 transition-colors">
-               <div class="flex items-start justify-between gap-3">
-  <div class="flex-1 min-w-0 pt-0.5">
-    <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
-    <div class="flex items-center gap-1.5 mt-0.5">
-      <p class="text-[11px] font-bold text-primary">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
-      <span v-if="getStock(item.id) !== null && getStock(item.id) <= LOW_STOCK_THRESHOLD && getStock(item.id) > 0"
-        class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
-        Sisa {{ getStock(item.id) }}
-      </span>
-    </div>
-  </div>
 
-  <div class="flex items-center gap-1 shrink-0">
-    <button
-      @click="toggleItemDiscount(item)"
-      :class="['p-1.5 rounded-lg transition-colors',
-        openItemDiscountId === item.id
-          ? 'bg-orange-500 text-white'
-          : getItemDiscountPerUnit(item) > 0
-            ? 'bg-orange-100 text-orange-500 dark:bg-orange-900/20 dark:text-orange-400'
-            : 'text-zinc-300 hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20']"
-      title="Diskon per item">
-      <Tag class="h-3.5 w-3.5" />
-    </button>
-    <button
-      @click="toggleItemNote(item)"
-      :class="['p-1.5 rounded-lg transition-colors',
-        openItemNoteId === item.id
-          ? 'bg-blue-500 text-white'
-          : item.itemNote
-            ? 'bg-blue-100 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400'
-            : 'text-zinc-300 hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20']"
-      title="Catatan item">
-      <MessageSquare class="h-3.5 w-3.5" />
-    </button>
-    <button
-      @click="removeFromCart(item)"
-      class="p-1.5 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-      title="Hapus item">
-      <Trash2 class="h-3.5 w-3.5" />
-    </button>
-  </div>
-</div>
+          <template v-else>
+            <div v-if="!cart.length" class="h-full flex flex-col items-center justify-center text-zinc-400 gap-3">
+              <div class="w-14 h-14 rounded-full bg-zinc-100 dark:bg-zinc-800/80 flex items-center justify-center"><ShoppingCart class="h-6 w-6 opacity-40" /></div>
+              <p class="text-[13px] font-semibold">Belum ada pesanan</p>
+            </div>
+            <div v-else class="flex flex-col gap-2.5">
+              <TransitionGroup name="list">
+                <div v-for="item in cart" :key="item._uid" class="bg-white dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 rounded-[16px] p-3 flex flex-col gap-3 shadow-sm hover:border-zinc-300 transition-colors">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0 pt-0.5">
+                      <h4 class="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 leading-snug truncate">{{ item.name }}</h4>
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                        <p class="text-[11px] font-bold text-primary">{{ formatCurrency(item.base_price || item.basePrice || item.price) }}</p>
+                        <span v-if="getStock(item.id) !== null && getStock(item.id) <= LOW_STOCK_THRESHOLD && getStock(item.id) > 0"
+                          class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 shrink-0">
+                          Sisa {{ getStock(item.id) }}
+                        </span>
+                      </div>
+                    </div>
 
-                <div v-if="openItemNoteId === item.id" class="bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl p-2.5">
-                  <textarea
-                    v-model="item.itemNote"
-                    rows="2"
-                    placeholder="Catatan khusus item ini... (cth: tanpa bawang, extra pedas)"
-                    class="w-full text-[12px] font-medium rounded-lg border border-blue-200 dark:border-blue-800/40 bg-white dark:bg-zinc-800 px-2.5 py-2 outline-none focus:ring-2 focus:ring-blue-300/40 resize-none font-sans"
-                  />
-                  <p v-if="item.itemNote" class="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-1">
-                    ✓ Catatan akan tercetak di struk
-                  </p>
-                </div>
-
-                <div v-if="openItemDiscountId === item.id" class="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-xl p-2.5 flex flex-col gap-2">
-                  <div class="flex rounded-[10px] bg-white dark:bg-zinc-800 p-0.5 border border-orange-100 dark:border-orange-800/30">
-                    <button @click="onItemDiscountTypeChange(item, 'FLAT')"
-                      :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'FLAT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
-                      Rp / unit
-                    </button>
-                    <button @click="onItemDiscountTypeChange(item, 'PERCENT')"
-                      :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'PERCENT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
-                      % / unit
-                    </button>
+                    <div class="flex items-center gap-1 shrink-0">
+                      <!-- Tombol Pisah: muncul jika qty >= 2 -->
+                      <button
+                        v-if="item.qty >= 2"
+                        @click="splitCartItem(item)"
+                        class="p-1.5 rounded-lg text-zinc-300 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                        title="Pisah jadi 2 baris">
+                        <Scissors class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        @click="toggleItemDiscount(item)"
+                        :class="['p-1.5 rounded-lg transition-colors',
+                          openItemDiscountId === item._uid
+                            ? 'bg-orange-500 text-white'
+                            : getItemDiscountPerUnit(item) > 0
+                              ? 'bg-orange-100 text-orange-500 dark:bg-orange-900/20 dark:text-orange-400'
+                              : 'text-zinc-300 hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20']"
+                        title="Diskon per item">
+                        <Tag class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        @click="toggleItemNote(item)"
+                        :class="['p-1.5 rounded-lg transition-colors',
+                          openItemNoteId === item._uid
+                            ? 'bg-blue-500 text-white'
+                            : item.itemNote
+                              ? 'bg-blue-100 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400'
+                              : 'text-zinc-300 hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20']"
+                        title="Catatan item">
+                        <MessageSquare class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        @click="removeFromCart(item)"
+                        class="p-1.5 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        title="Hapus item">
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                  <div class="relative">
-                    <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] font-black text-zinc-400 select-none">
-                      {{ item.itemDiscountType === 'FLAT' ? 'Rp' : '%' }}
-                    </span>
-                    <input
-                      :value="item.itemDiscountType === 'FLAT' ? (item.itemDiscountValue ? Number(item.itemDiscountValue).toLocaleString('id-ID') : '') : item.itemDiscountValue"
-                      @input="e => onItemDiscountInput(item, e)"
-                      :inputmode="item.itemDiscountType === 'FLAT' ? 'numeric' : 'decimal'"
-                      placeholder="0"
-                      class="pl-8 h-8 w-full text-[12px] font-bold rounded-[8px] border border-orange-200 dark:border-orange-800/40 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-orange-300/40"
+
+                  <div v-if="openItemNoteId === item._uid" class="bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-xl p-2.5">
+                    <textarea
+                      v-model="item.itemNote"
+                      rows="2"
+                      placeholder="Catatan khusus item ini... (cth: tanpa bawang, extra pedas)"
+                      class="w-full text-[12px] font-medium rounded-lg border border-blue-200 dark:border-blue-800/40 bg-white dark:bg-zinc-800 px-2.5 py-2 outline-none focus:ring-2 focus:ring-blue-300/40 resize-none font-sans"
                     />
+                    <p v-if="item.itemNote" class="text-[10px] text-blue-600 dark:text-blue-400 font-medium mt-1">
+                      ✓ Catatan akan tercetak di struk
+                    </p>
                   </div>
-                  <p v-if="getItemDiscountTotal(item) > 0" class="text-[10px] font-bold text-orange-600 dark:text-orange-400">
-                    Potongan baris ini: -{{ formatCurrency(getItemDiscountTotal(item)) }}
-                  </p>
-                </div>
 
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
-                    <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="decreaseQty(item)"><Minus class="h-3 w-3" /></button>
-                    <input
-                      type="number"
-                      min="1"
-                      :max="getStock(item.id) ?? undefined"
-                      :value="item.qty"
-                      @change="e => setQty(item, e.target.value)"
-                      @focus="e => e.target.select()"
-                      class="w-10 text-center text-[13px] font-black bg-transparent border-none outline-none focus:ring-0 [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
+                  <div v-if="openItemDiscountId === item._uid" class="bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30 rounded-xl p-2.5 flex flex-col gap-2">
+                    <div class="flex rounded-[10px] bg-white dark:bg-zinc-800 p-0.5 border border-orange-100 dark:border-orange-800/30">
+                      <button @click="onItemDiscountTypeChange(item, 'FLAT')"
+                        :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'FLAT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
+                        Rp / unit
+                      </button>
+                      <button @click="onItemDiscountTypeChange(item, 'PERCENT')"
+                        :class="['flex-1 py-1 text-[11px] font-bold rounded-[8px] transition-all', item.itemDiscountType === 'PERCENT' ? 'bg-orange-500 text-white shadow-sm' : 'text-zinc-500']">
+                        % / unit
+                      </button>
+                    </div>
+                    <div class="relative">
+                      <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[12px] font-black text-zinc-400 select-none">
+                        {{ item.itemDiscountType === 'FLAT' ? 'Rp' : '%' }}
+                      </span>
+                      <input
+                        :value="item.itemDiscountType === 'FLAT' ? (item.itemDiscountValue ? Number(item.itemDiscountValue).toLocaleString('id-ID') : '') : item.itemDiscountValue"
+                        @input="e => onItemDiscountInput(item, e)"
+                        :inputmode="item.itemDiscountType === 'FLAT' ? 'numeric' : 'decimal'"
+                        placeholder="0"
+                        class="pl-8 h-8 w-full text-[12px] font-bold rounded-[8px] border border-orange-200 dark:border-orange-800/40 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-orange-300/40"
+                      />
+                    </div>
+                    <p v-if="getItemDiscountTotal(item) > 0" class="text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                      Potongan baris ini: -{{ formatCurrency(getItemDiscountTotal(item)) }}
+                    </p>
                   </div>
-                  <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(getItemNetUnitPrice(item) * item.qty) }}</span>
+
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5">
+                      <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="decreaseQty(item)"><Minus class="h-3 w-3" /></button>
+                      <input
+                        type="number"
+                        min="1"
+                        :max="getStock(item.id) ?? undefined"
+                        :value="item.qty"
+                        @change="e => setQty(item, e.target.value)"
+                        @focus="e => e.target.select()"
+                        class="w-10 text-center text-[13px] font-black bg-transparent border-none outline-none focus:ring-0 [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button class="w-[28px] h-[28px] flex items-center justify-center text-zinc-600 dark:text-zinc-300 rounded-md hover:bg-white dark:hover:bg-zinc-700 shadow-sm transition-all" @click="increaseQty(item)"><Plus class="h-3 w-3" /></button>
+                    </div>
+                    <span class="text-[14px] font-black text-zinc-900 dark:text-white">{{ formatCurrency(getItemNetUnitPrice(item) * item.qty) }}</span>
+                  </div>
                 </div>
-              </div>
-            </TransitionGroup>
-          </div>
+              </TransitionGroup>
+            </div>
           </template>
         </div>
 
@@ -1503,6 +1491,7 @@ function avatarStyle(name = '') {
 
     </div>
 
+    <!-- ─── Modal Pembayaran ──────────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="fade"><div v-if="showPayment" class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" @click="closePayment" /></Transition>
       <Transition name="scale">
@@ -1527,60 +1516,60 @@ function avatarStyle(name = '') {
                 </div>
                 
                 <div class="bg-zinc-50 dark:bg-zinc-800/60 rounded-[16px] p-3 border border-zinc-200/60 dark:border-zinc-700/50">
-                    <div v-if="appliedVoucher" class="flex items-center justify-between mb-2">
+                  <div v-if="appliedVoucher" class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-3">
-                        <div class="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Ticket class="w-[18px] h-[18px]" /></div>
-                        <div class="flex flex-col">
+                      <div class="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Ticket class="w-[18px] h-[18px]" /></div>
+                      <div class="flex flex-col">
                         <span class="text-[13px] font-black text-emerald-600">{{ appliedVoucher.code }}</span>
                         <span class="text-[10px] font-bold text-zinc-500">{{ appliedVoucher.name }}</span>
-                        </div>
+                      </div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-[13px] font-black text-red-500">-{{ formatCurrency(discountAmount - manualDiscountAmount) }}</span>
-                        <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
+                      <span class="text-[13px] font-black text-red-500">-{{ formatCurrency(discountAmount - manualDiscountAmount) }}</span>
+                      <button class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" @click="removeVoucher"><X class="w-[14px] h-[14px]" /></button>
                     </div>
-                    </div>
+                  </div>
                     
-                    <div class="flex gap-2 relative">
-                        <div class="relative flex-1">
-                            <Input 
-                            ref="voucherInputRef"
-                            v-model="voucherCode" 
-                            placeholder="Masukkan kode voucer..." 
-                            class="w-full h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" 
-                            @focus="showVoucherDropdown = true"
-                            @blur="handleVoucherBlur"
-                            @keydown="handleVoucherKeyDown"
-                            @keyup.enter="focusedVoucherIndex === -1 ? applyVoucher() : null"
-                            />
+                  <div class="flex gap-2 relative">
+                    <div class="relative flex-1">
+                      <Input 
+                        ref="voucherInputRef"
+                        v-model="voucherCode" 
+                        placeholder="Masukkan kode voucer..." 
+                        class="w-full h-[38px] text-[13px] font-semibold bg-white dark:bg-zinc-900 border-none shadow-sm rounded-xl px-3 placeholder:font-medium" 
+                        @focus="showVoucherDropdown = true"
+                        @blur="handleVoucherBlur"
+                        @keydown="handleVoucherKeyDown"
+                        @keyup.enter="focusedVoucherIndex === -1 ? applyVoucher() : null"
+                      />
 
-                        <Transition name="dropdown">
+                      <Transition name="dropdown">
                         <div 
-                            v-if="showVoucherDropdown && filteredVouchers.length > 0" 
-                            class="absolute left-0 right-0 z-50 top-[calc(100%+4px)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl max-h-[150px] overflow-y-auto p-1 flex flex-col gap-0.5 no-scrollbar"
+                          v-if="showVoucherDropdown && filteredVouchers.length > 0" 
+                          class="absolute left-0 right-0 z-50 top-[calc(100%+4px)] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl max-h-[150px] overflow-y-auto p-1 flex flex-col gap-0.5 no-scrollbar"
                         >
-                            <button
+                          <button
                             v-for="(v, index) in filteredVouchers"
                             :key="v.id"
                             type="button"
                             class="w-full text-left px-3 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-colors flex justify-between items-center group"
                             :class="{ 'bg-zinc-100 dark:bg-zinc-800 text-primary': index === focusedVoucherIndex }"
                             @mousedown="selectVoucher(v.code)"  
-                            >
+                          >
                             <div class="flex flex-col min-w-0">
-                                <span class="text-[12px] font-black text-zinc-800 dark:text-zinc-200 uppercase group-hover:text-primary transition-colors">{{ v.code }}</span>
-                                <span class="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{{ v.name }}</span>
+                              <span class="text-[12px] font-black text-zinc-800 dark:text-zinc-200 uppercase group-hover:text-primary transition-colors">{{ v.code }}</span>
+                              <span class="text-[10px] text-zinc-400 dark:text-zinc-500 truncate max-w-[140px]">{{ v.name }}</span>
                             </div>
                             <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-md shrink-0">
-                                {{ v.discountType === 'PERCENT' || v.discount_type === 'PERCENT' ? `${v.discountValue ?? v.discount_value}%` : `-${formatCurrency(v.discountValue ?? v.discount_value)}` }}
+                              {{ v.discountType === 'PERCENT' || v.discount_type === 'PERCENT' ? `${v.discountValue ?? v.discount_value}%` : `-${formatCurrency(v.discountValue ?? v.discount_value)}` }}
                             </span>
-                            </button>
+                          </button>
                         </div>
-                        </Transition>
+                      </Transition>
                     </div>
 
                     <Button variant="secondary" class="h-[38px] font-bold px-4 rounded-xl text-[13px] shadow-sm shrink-0" @click="applyVoucher">Pakai</Button>
-                    </div>
+                  </div>
                 </div>
 
                 <div class="flex items-center justify-between text-[18px] font-black text-zinc-900 dark:text-white pt-2 border-t border-zinc-100 dark:border-zinc-800">
@@ -1589,7 +1578,6 @@ function avatarStyle(name = '') {
                 </div>
               </div>
 
-              <!-- Diskon Manual (Keseluruhan) -->
               <div class="flex flex-col gap-2.5">
                 <div class="flex items-center gap-2">
                   <Tag class="h-[13px] w-[13px] text-orange-500" />
@@ -1647,7 +1635,6 @@ function avatarStyle(name = '') {
                 />
               </div>
 
-              <!-- Nama Pembeli -->
               <div class="flex flex-col gap-2">
                 <label class="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Nama Pembeli <span class="normal-case font-normal">(opsional)</span></label>
                 <Input v-model="buyerName" placeholder="Contoh: Budi Santoso" class="h-11 rounded-[12px]" />
@@ -1763,6 +1750,7 @@ function avatarStyle(name = '') {
       </Transition>
     </Teleport>
 
+    <!-- ─── Modal Struk ───────────────────────────────────────────────────────── -->
     <Teleport to="body">
       <Transition name="fade"><div v-if="showReceipt" class="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" @click="closeReceipt" /></Transition>
       <Transition name="scale">
@@ -1841,6 +1829,7 @@ function avatarStyle(name = '') {
         </div>
       </Transition>
     </Teleport>
+
     <StrukPrint
       ref="struk"
       v-if="lastOrder"
@@ -1849,7 +1838,6 @@ function avatarStyle(name = '') {
       store-name="Gaptek"
     />
 
-    <!-- Shift Modal -->
     <ShiftModal
       :show="showShiftModal"
       :mode="shiftModalMode"
@@ -1899,4 +1887,4 @@ function avatarStyle(name = '') {
 
 .scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
-</style>
+</style>   

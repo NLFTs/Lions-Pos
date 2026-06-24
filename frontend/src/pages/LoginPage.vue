@@ -125,7 +125,7 @@ async function handleLogin() {
             class="flex h-9 w-9 items-center justify-center rounded-xl  shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
           >
             <img 
-            src="/gaptek-hit.png" 
+            src="/logo-gaptek.svg" 
             alt="Logo Gaptek" 
             class="h-8 w-8 object-contain"
           />

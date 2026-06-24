@@ -8,14 +8,11 @@ import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
-import Input from '@/components/ui/Input.vue'
-import Label from '@/components/ui/Label.vue'
 import api from '@/lib/api'
 import { 
   Package, 
   Warehouse, 
   Building2, 
-  Search, 
   Loader2, 
   ArrowUpRight,
   TrendingUp,
@@ -59,47 +56,86 @@ const stats = ref({
   chart_data: []
 })
 const balances = ref([])
+const categories = computed(() => {
+  if (!balances.value.length) return []
+
+  return [
+    ...new Set(
+      balances.value
+        .map((b) => b?.product?.categoryName ?? '-')
+        .filter((c) => c && c !== '-' && c.trim() !== '')
+    )
+  ]
+})
 const locations = ref([])
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 
-// Filter state (dipindahkan dari StockBalancesPage)
+// Filter state
 const locationFilter = ref('all')
 const typeFilter = ref('all')
+const categoryFilter = ref('all')
+
+// ─── Detektor Lokasi Kebal (SNAKE & CAMEL CASE) ──────────────────────────────
+function getLocationName(type, id) {
+  if (!type && !id) return '-'
+  
+  const targetType = String(type || '').toLowerCase().trim()
+  const targetId = Number(id)
+
+  const loc = locations.value.find(l => {
+    const locType = String(l.type || '').toLowerCase().trim()
+    return locType === targetType && Number(l.id) === targetId
+  })
+
+  return loc ? loc.name : `Lokasi #${targetId} (${type})`
+}
 
 // Resolved Page Title
 const dashboardTitle = computed(() => {
   const type = route.query.locationType
   const id = route.query.locationId
   if (type && id) {
-    return `Dashboard Inventaris- ${getLocationName(type, id)}`
+    return `Dashboard Inventaris - ${getLocationName(type, id)}`
   }
   return 'Dashboard Inventaris'
 })
 
-// ─── Computed: Filter & Paginate Table ──────────────────────────────────────
+// ─── Computed: Filter & Paginate Table (BYPASS FILTER SENSITIF KAKU) ─────────
 const filteredBalances = computed(() => {
-  let r = balances.value
+  let r = [...balances.value]
 
-  // Filter by location type
   if (locationFilter.value !== 'all') {
-    r = r.filter(b => (b.locationType || '').toUpperCase() === locationFilter.value.toUpperCase())
+    r = r.filter((b) => {
+      const typeMentah = String(b.locationType || b.location_type || '').toUpperCase().trim()
+      return typeMentah === locationFilter.value
+    })
   }
 
-  // Filter by specific location id (if typeFilter used as locationId)
   if (typeFilter.value !== 'all') {
-    r = r.filter(b => String(b.locationId) === String(typeFilter.value))
+    const [filterType, filterId] = typeFilter.value.split('-')
+    
+    r = r.filter((b) => {
+      const currentType = String(b.locationType || b.location_type || '').toUpperCase().trim()
+      const currentId = Number(b.locationId || b.location_id)
+      
+      return currentType === filterType && currentId === Number(filterId)
+    })
   }
 
-  // Filter by search query
+  if (categoryFilter.value !== 'all') {
+    r = r.filter((b) => b.product?.categoryName === categoryFilter.value)
+  }
+
   if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    r = r.filter(b => 
-      (b.product?.name && b.product.name.toLowerCase().includes(q)) ||
-      (b.product?.sku && b.product.sku.toLowerCase().includes(q))
+    const q = searchQuery.value.toLowerCase().trim()
+    r = r.filter((b) =>
+      b.product?.name?.toLowerCase().includes(q) ||
+      b.product?.sku?.toLowerCase().includes(q)
     )
   }
+
   return r
 })
 
@@ -221,14 +257,18 @@ const chartOptions = computed(() => ({
   }
 }))
 
+const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
+const isBranchManager = computed(() => !!currentBranchId.value)
+const isOwner = computed(() => authStore.isOwner || (!authStore.isAdmin && authStore.user?.partner != null && !authStore.user?.branchId))
+
 // ─── Actions: Fetch Data ─────────────────────────────────────────────────────
 async function fetchDashboardData() {
   loading.value = true
-  const type = route.query.locationType
-  const id = route.query.locationId
+  
+  let type = route.query.locationType || (isBranchManager.value ? 'BRANCH' : null)
+  let id = route.query.locationId || (isBranchManager.value ? currentBranchId.value : null)
   
   try {
-    // 1. Fetch Stats & Chart
     const statsParams = {}
     if (type && id) {
       statsParams.locationType = type
@@ -237,31 +277,77 @@ async function fetchDashboardData() {
     const resStats = await api.get('/api/v1/stock-balances/stats', { params: statsParams })
     stats.value = resStats.data?.data || { total_products: 0, damaged_products: 10, incoming_products: 0, outgoing_products: 0, chart_data: [] }
     
-    // 2. Fetch Stock Balances List
-    let resBalances
+    const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
+    
+    const requests = []
+
+    // 1. Ambil params Utama (Cabang Login)
+    const primaryParams = { page: 0, size: 200 } // Ambil data agak banyak agar gabungan list aman
     if (type && id) {
-      resBalances = await api.get('/api/v1/stock-balances/location', { params: { locationType: type, locationId: id } })
-    } else {
-      const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
-      resBalances = await api.get(url)
+      primaryParams.locationType = String(type).toUpperCase()
+      primaryParams.locationId = Number(id)
+    } else if (isBranchManager.value && currentBranchId.value) {
+      primaryParams.locationType = 'BRANCH'
+      primaryParams.locationId = Number(currentBranchId.value)
+    }
+    requests.push(api.get(url, { params: primaryParams }))
+
+    // 🔥 FIX 100%: Karena endpoint /warehouses di fetchLocations() sudah memfilter branchId dari backend, 
+    // maka semua data bertipe 'warehouse' yang masuk array locations sudah pasti terikat dengan cabang ini!
+    if (isBranchManager.value && currentBranchId.value && (!type || type === 'BRANCH')) {
+      const relatedWarehouses = locations.value.filter(l => l.type === 'warehouse')
+
+      relatedWarehouses.forEach(wh => {
+        requests.push(
+          api.get(url, {
+            params: {
+              page: 0,
+              size: 200,
+              locationType: 'WAREHOUSE',
+              locationId: Number(wh.id)
+            }
+          })
+        )
+      });
     }
 
-    let rawBalances
-    if (isAdmin.value && !(type && id)) {
-      rawBalances = Array.isArray(resBalances.data) ? resBalances.data : (resBalances.data?.data || [])
-    } else {
-      const dataB = resBalances.data?.data
-      rawBalances = Array.isArray(dataB) ? dataB : (dataB?.content || [])
-    }
+    const responses = await Promise.all(requests)
+    
+    let allRawBalances = []
+    responses.forEach(res => {
+      let raw = res.data?.data || res.data
+      if (raw && typeof raw === 'object' && 'content' in raw) {
+        raw = raw.content
+      }
+      if (Array.isArray(raw)) {
+        allRawBalances = [...allRawBalances, ...raw]
+      }
+    })
 
-    balances.value = rawBalances.map(b => ({
-      ...b,
-      locationType: b.locationType || b.location_type,
-      locationId: b.locationId || b.location_id,
-      updatedAt: b.updatedAt || b.updated_at,
-      updatedBy: b.updatedBy || b.updated_by
-    }))
+    // 2. Eliminasi Duplikat ID & Normalisasi Atribut
+    const uniqueMap = new Map()
+    allRawBalances.forEach(b => {
+      if (!b || !b.id) return
+      const detectedType = String(b.locationType || b.location_type || 'BRANCH').toUpperCase()
+      const detectedLocId = b.locationId || b.location_id
+      
+      uniqueMap.set(b.id, {
+        ...b,
+        id: b.id,
+        locationType: detectedType,
+        location_type: detectedType,
+        locationId: detectedLocId,
+        location_id: detectedLocId,
+        qty: b.qty ?? 0,
+        updatedAt: b.updatedAt || b.updated_at,
+        updated_at: b.updatedAt || b.updated_at,
+        updatedBy: b.updatedBy || b.updated_by,
+        updated_by: b.updatedBy || b.updated_by
+      })
+    })
 
+    balances.value = Array.from(uniqueMap.values())
+    console.log("🔥 [DUAL STOK SAKTI] Data hasil gabungan Cabang + Gudang Terikat:", balances.value)
   } catch (err) {
     toast.error('Gagal memuat data dashboard inventory.')
     console.error(err)
@@ -272,32 +358,49 @@ async function fetchDashboardData() {
 
 async function fetchLocations() {
   try {
-    const urlBranches = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const urlWarehouses = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
+    const urlBranches = (isAdmin.value || isOwner.value) 
+      ? '/api/v1/branches/admin' 
+      : '/api/v1/branches'
     
+    const urlWarehouses = (isAdmin.value || isOwner.value)
+      ? '/api/v1/warehouses/admin' 
+      : '/api/v1/warehouses'
+    
+    const warehouseParams = {}
+    if (!isAdmin.value && !isOwner.value && currentBranchId.value) {
+      warehouseParams.branchId = Number(currentBranchId.value)
+    }
+
     const [resBr, resWh] = await Promise.all([
-      api.get(urlBranches),
-      api.get(urlWarehouses)
+      api.get(urlBranches), 
+      api.get(urlWarehouses, { params: warehouseParams }) 
     ])
     
-    const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
+    const brRaw = (isAdmin.value || isOwner.value) ? resBr.data : (resBr.data?.data || [])
     const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
-    const whRaw = resWh.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
     
+    let whRaw = resWh.data?.data || resWh.data
+    let whArr = []
+    if (whRaw && typeof whRaw === 'object' && 'content' in whRaw) {
+      whArr = whRaw.content
+    } else if (Array.isArray(whRaw)) {
+      whArr = whRaw
+    } else if (whRaw && Array.isArray(whRaw.data)) {
+      whArr = whRaw.data
+    }
+    
+    const formalBranches = (isAdmin.value || isOwner.value || !currentBranchId.value)
+      ? brArr 
+      : brArr.filter(b => Number(b.id) === Number(currentBranchId.value))
+
     locations.value = [
-      ...brArr.map(x => ({ ...x, type: 'branch' })),
+      ...formalBranches.map(x => ({ ...x, type: 'branch' })),
       ...whArr.map(x => ({ ...x, type: 'warehouse' }))
     ]
+    console.log('Master Locations Berhasil Di-load:', locations.value)
   } catch (err) {
     console.error('Failed to load branches and warehouses for mapping', err)
   }
-}
-
-function getLocationName(type, id) {
-  if (!type) return `Unknown (#${id})`
-  const loc = locations.value.find(l => l.type.toLowerCase() === type.toLowerCase() && l.id === Number(id))
-  return loc ? loc.name : `Unknown (${type} #${id})`
 }
 
 watch(
@@ -310,7 +413,7 @@ watch(
   }
 )
 
-//  DISPOSE KARANTINA 
+// DISPOSE KARANTINA 
 const showDisposeModal = ref(false)
 const disposeTarget = ref(null)
 const disposeQty = ref('')
@@ -345,6 +448,7 @@ async function submitDispose() {
 }
 
 onMounted(async () => {
+  // 🔥 LIFECYCLE MURNI: Ambil master data kelar dulu, baru panggil stoknya
   await fetchLocations()
   await fetchDashboardData()
 })
@@ -353,22 +457,18 @@ onMounted(async () => {
 <template>
   <AppLayout>
     <div class="flex flex-col gap-6 p-4 sm:p-6 pb-20">
-      <!-- Header -->
       <div class="flex flex-col gap-2">
         <h1 class="text-2xl font-bold tracking-tight text-foreground">{{ dashboardTitle }}</h1>
-        <p class="text-xs text-muted-foreground">Ringkasan stok, grafik keluar masuk barang, dan kondisi saldo stok realtime.</p>
+        <p class="text-xs text-muted-foreground">Ringkasan stok, grafik keluar masuk barang, dan kondisi stok realtime.</p>
       </div>
 
-      <!-- Loading State -->
       <div v-if="loading && balances.length === 0" class="flex flex-col items-center justify-center py-32 gap-3">
         <Loader2 class="h-8 w-8 animate-spin text-primary/50" />
         <p class="text-xs text-muted-foreground italic">Menghitung statistik inventaris realtime...</p>
       </div>
 
       <template v-else>
-        <!-- 4 Kotak Stats Utama (Realtime dari Java) -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <!-- Total Semua Produk -->
           <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-card p-4 group hover:shadow-md transition-all duration-300">
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-blue-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
@@ -387,7 +487,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Product Rusak (Mock 10) -->
           <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-card p-4 group hover:shadow-md transition-all duration-300">
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-red-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
@@ -406,7 +505,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Product Masuk -->
           <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-card p-4 group hover:shadow-md transition-all duration-300">
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-emerald-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
@@ -425,7 +523,6 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Product Keluar -->
           <div class="relative overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-card p-4 group hover:shadow-md transition-all duration-300">
             <div class="absolute inset-0 opacity-5 dark:opacity-10 group-hover:opacity-10 dark:group-hover:opacity-20 bg-gradient-to-br from-rose-500 via-transparent to-transparent rounded-xl" />
             <div class="relative flex flex-col justify-between h-full">
@@ -445,7 +542,6 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Grafik Realtime dengan Chart.js -->
         <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
           <CardContent class="p-5">
             <div class="flex items-center justify-between mb-4">
@@ -453,7 +549,6 @@ onMounted(async () => {
                 <h2 class="text-sm font-bold text-foreground">Aktivitas Mutasi Barang (15 Hari Terakhir)</h2>
                 <p class="text-[10px] text-muted-foreground mt-0.5">Perbandingan grafik masuk vs keluar</p>
               </div>
-              <!-- Legend manual -->
               <div class="flex items-center gap-4 text-xs font-semibold">
                 <div class="flex items-center gap-1.5">
                   <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: chartColors.primaryBorder }" />
@@ -466,23 +561,19 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Chart wrapper -->
             <div class="w-full relative" style="height: 250px;">
               <Line :data="chartData" :options="chartOptions" />
             </div>
           </CardContent>
         </Card>
 
-        <!-- Tabel Saldo Stok Realtime -->
         <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
           <CardContent class="p-0">
-            <!-- Search, Filter & Refresh -->
             <div class="p-4 flex flex-wrap items-center gap-3 justify-between border-b border-zinc-100 dark:border-zinc-800">
               <div class="w-64">
                 <DataTableSearch v-model="searchQuery" placeholder="Cari nama produk atau SKU..." />
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <!-- Filter Tipe Lokasi -->
                 <select
                   v-model="locationFilter"
                   class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
@@ -493,32 +584,44 @@ onMounted(async () => {
                   <option value="QUARANTINE">Karantina</option>
                 </select>
 
-                <!-- Filter Lokasi Spesifik -->
                 <select
                   v-model="typeFilter"
                   class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
                 >
                   <option value="all">Semua Lokasi</option>
+                  
                   <optgroup label="Cabang" v-if="locations.filter(l => l.type === 'branch').length">
-                    <option v-for="loc in locations.filter(l => l.type === 'branch')" :key="'br-' + loc.id" :value="loc.id">{{ loc.name }}</option>
+                    <option v-for="loc in locations.filter(l => l.type === 'branch')" :key="'br-' + loc.id" :value="'BRANCH-' + loc.id">
+                      {{ loc.name }}
+                    </option>
                   </optgroup>
+                  
                   <optgroup label="Gudang" v-if="locations.filter(l => l.type === 'warehouse').length">
-                    <option v-for="loc in locations.filter(l => l.type === 'warehouse')" :key="'wh-' + loc.id" :value="loc.id">{{ loc.name }}</option>
+                    <option v-for="loc in locations.filter(l => l.type === 'warehouse')" :key="'wh-' + loc.id" :value="'WAREHOUSE-' + loc.id">
+                      {{ loc.name }}
+                    </option>
                   </optgroup>
                 </select>
-
+                <select
+                  v-model="categoryFilter"
+                  class="h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 text-zinc-700 dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                >
+                  <option value="all">Semua Kategori</option>
+                  <option v-for="category in categories" :key="category" :value="category">
+                    {{ category }}
+                  </option>
+                </select>
                 <button @click="fetchDashboardData" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
                   <History class="w-3.5 h-3.5" /> Segarkan
                 </button>
               </div>
             </div>
-
-            <!-- Table -->
+              
             <div v-if="filteredBalances.length === 0" class="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <div class="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-3">
                 <Package class="h-6 w-6 opacity-40" />
               </div>
-              <p class="text-xs font-medium">Saldo stok tidak ditemukan.</p>
+              <p class="text-xs font-medium">Stok tidak ditemukan.</p>
             </div>
 
             <div v-else>
@@ -527,8 +630,9 @@ onMounted(async () => {
                   <thead>
                     <tr class="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 text-zinc-500">
                       <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Produk</th>
+                      <th class="pl-5 py-3 text-left font-semibold uppercase tracking-wider">Kategori</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Lokasi</th>
-                      <th class="py-3 text-center font-semibold uppercase tracking-wider">Saldo Stok</th>
+                      <th class="py-3 text-center font-semibold uppercase tracking-wider">Stok</th>
                       <th class="py-3 text-left font-semibold uppercase tracking-wider">Terakhir Diperbarui</th>
                       <th class="pr-5 py-3 text-right"></th>
                     </tr>
@@ -550,20 +654,25 @@ onMounted(async () => {
                           </div>
                         </div>
                       </td>
+                      <td class="pl-5 py-3.5 align-middle">
+                        <Badge variant="outline">
+                          {{ b.product?.categoryName || '-' }}
+                        </Badge>
+                      </td>
                       <td class="py-3.5">
                         <div class="flex flex-col gap-0.5">
                           <div class="flex items-center gap-1 font-semibold"
-                            :class="b.locationType === 'QUARANTINE'
-                              ? 'text-red-600 dark:text-red-400'
-                              : 'text-zinc-700 dark:text-zinc-300'">
-                            <AlertTriangle v-if="b.locationType === 'QUARANTINE'" class="h-3 w-3 opacity-70" />
-                            <Warehouse v-else-if="b.locationType === 'WAREHOUSE'" class="h-3 w-3 opacity-55" />
+                            :class="(b.locationType || b.location_type) === 'QUARANTINE' ? 'text-red-600 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-300'">
+                            <AlertTriangle v-if="(b.locationType || b.location_type) === 'QUARANTINE'" class="h-3 w-3 opacity-70" />
+                            <Warehouse v-else-if="(b.locationType || b.location_type) === 'WAREHOUSE'" class="h-3 w-3 opacity-55" />
                             <Building2 v-else class="h-3 w-3 opacity-55" />
-                            <span>{{ b.locationType === 'QUARANTINE' ? 'Karantina' : getLocationName(b.locationType, b.locationId) }}</span>
+                            
+                            <span>
+                              {{ (b.locationType || b.location_type) === 'QUARANTINE' ? 'Karantina' : getLocationName(b.locationType || b.location_type, b.locationId || b.location_id) }}
+                            </span>
                           </div>
-                          <span :class="['text-[8px] uppercase font-bold tracking-widest',
-                            b.locationType === 'QUARANTINE' ? 'text-red-400 dark:text-red-500' : 'text-zinc-400']">
-                            {{ b.locationType === 'QUARANTINE' ? 'Karantina' : b.locationType }}
+                          <span class="text-[8px] uppercase font-bold tracking-widest text-zinc-400">
+                            {{ b.locationType || b.location_type }}
                           </span>
                         </div>
                       </td>
@@ -577,12 +686,14 @@ onMounted(async () => {
                       </td>
                       <td class="py-3.5">
                         <div class="text-zinc-500">
-                          {{ b.updatedAt ? new Date(b.updatedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-' }}
+                          {{ b.updatedAt || b.updated_at ? new Date(b.updatedAt || b.updated_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-' }}
                         </div>
-                        <div v-if="b.updatedBy" class="text-[9px] text-muted-foreground mt-0.5">Oleh: {{ b.updatedBy.username }}</div>
+                        <div v-if="b.updatedBy || b.updated_by" class="text-[9px] text-muted-foreground mt-0.5">
+                          Oleh: {{ (b.updatedBy || b.updated_by).username }}
+                        </div>
                       </td>
                       <td class="pr-5 py-3.5 text-right">
-                        <Button v-if="b.locationType === 'QUARANTINE'"
+                        <Button v-if="(b.locationType || b.location_type) === 'QUARANTINE'"
                           variant="ghost" size="sm"
                           class="h-7 px-2.5 text-[11px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5"
                           @click="openDispose(b)">
@@ -598,7 +709,6 @@ onMounted(async () => {
                 </table>
               </div>
 
-              <!-- Pagination -->
               <DataTablePagination 
                 v-if="filteredBalances.length > 0" 
                 :page="page" 
@@ -612,82 +722,5 @@ onMounted(async () => {
         </Card>
       </template>
     </div>
-
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showDisposeModal" class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" @click="showDisposeModal = false" />
-      </Transition>
-      <Transition name="scale">
-        <div v-if="showDisposeModal && disposeTarget" class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
-          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-sm border border-red-200 dark:border-red-800/40 pointer-events-auto overflow-hidden">
-
-            <div class="flex items-center gap-3 px-6 py-4 border-b border-red-100 dark:border-red-900/40 bg-red-50/50 dark:bg-red-950/20">
-              <div class="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-                <AlertTriangle class="h-5 w-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <h3 class="font-black text-[15px] text-zinc-900 dark:text-zinc-100">Dispose ke Supplier</h3>
-                <p class="text-[11px] text-muted-foreground mt-0.5 truncate">{{ disposeTarget.product?.name }}</p>
-              </div>
-              <button @click="showDisposeModal = false" class="p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-zinc-400 shrink-0">
-                <X class="h-4 w-4" />
-              </button>
-            </div>
-
-            <div class="px-6 py-5 space-y-4">
-              <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-                <span class="text-[11px] text-zinc-500">Stok Karantina Saat Ini</span>
-                <span class="text-sm font-black text-red-600 dark:text-red-400">{{ disposeTarget.qty }} pcs</span>
-              </div>
-
-              <div class="space-y-1.5">
-                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Jumlah Dispose <span class="text-destructive">*</span></label>
-                <div class="relative">
-                  <input v-model="disposeQty" type="number" min="1" :max="disposeTarget.qty" placeholder="0"
-                    class="w-full h-11 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 pr-12 text-base font-bold outline-none focus:ring-2 focus:ring-red-400/30" />
-                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-zinc-400">PCS</span>
-                </div>
-                <button type="button" @click="disposeQty = disposeTarget.qty.toString()"
-                  class="text-[11px] font-semibold text-primary hover:underline">
-                  Dispose semua ({{ disposeTarget.qty }} pcs)
-                </button>
-              </div>
-              
-              <div class="space-y-1.5">
-                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Keterangan <span class="normal-case font-normal">(opsional)</span></label>
-                <input v-model="disposeNotes" placeholder="cth: dikembalikan ke supplier karena expired"
-                  class="w-full h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-red-400/30" />
-              </div>
-
-              <div class="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-[11px] text-amber-700 dark:text-amber-400">
-                <AlertTriangle class="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>Tindakan ini <strong>tidak dapat dibatalkan</strong>. Stok akan dikurangi dan tercatat sebagai dispose ke supplier.</span>
-              </div>
-            </div>
-
-            <div class="px-6 pb-5 flex gap-2.5">
-              <button @click="showDisposeModal = false" :disabled="disposeSaving"
-                class="flex-1 h-11 rounded-[14px] border border-zinc-200 dark:border-zinc-700 font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50">
-                Batal
-              </button>
-              <button @click="submitDispose" :disabled="disposeSaving"
-                class="flex-1 h-11 rounded-[14px] bg-red-600 hover:bg-red-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50">
-                <Loader2 v-if="disposeSaving" class="h-4 w-4 animate-spin" />
-                <Trash2 v-else class="h-4 w-4" />
-                Dispose
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
   </AppLayout>
 </template>
-
-<style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-.scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
-</style>

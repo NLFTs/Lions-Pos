@@ -11,6 +11,7 @@ import com.dak.spravel.model.inventory.StockBalance;
 import com.dak.spravel.model.catalog.Product;
 import com.dak.spravel.repository.auth.UserRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
+import com.dak.spravel.repository.inventory.BranchWarehousesRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 
@@ -36,6 +37,7 @@ public class WarehousesService {
     private final UserRepository userRepository;
     private final StockBalanceRepository stockBalanceRepository;
     private final ProductRepository productRepository;
+    private final BranchWarehousesRepository branchWarehousesRepository;
 
     // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
     private User getAuthenticatedUser() {
@@ -145,33 +147,44 @@ public class WarehousesService {
         ).map(this::mapToResponse);
     }
 
-    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG)
-    public List<WarehouseResponse> findAllByPartner() {
+    // ─── AMBIL SEMUA LIST WAREHOUSE PER PARTNER & BRANCH ───
+    public List<WarehouseResponse> findAllByPartner(Long branchId) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "warehouse.index"); 
 
-        if (currentUser.getPartner() == null) {
-            return warehousesRepository.findAll().stream().map(this::mapToResponse).toList();
+        Long partnerId = currentUser.getPartner() != null ? currentUser.getPartner().getId() : null;
+
+        if (branchId != null) {
+            return branchWarehousesRepository.findWarehousesByBranchIdAndPartner(branchId, partnerId)
+                    .stream()
+                    .map(this::mapToResponse)
+                    .toList();
         }
 
-        return warehousesRepository
-                .findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId())
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+        if (partnerId == null) {
+            return warehousesRepository.findAll().stream().map(this::mapToResponse).toList();
+        }
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(partnerId)
+                .stream().map(this::mapToResponse).toList();
     }
 
-    public Page<WarehouseResponse> findPageByPartner(int page, int size) {
+    // ─── AMBIL PAGE WAREHOUSE PER PARTNER & BRANCH ───
+    public Page<WarehouseResponse> findPageByPartner(Long branchId, int page, int size) {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "warehouse.index");
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
-        if (currentUser.getPartner() == null) {
-            return warehousesRepository.findAll(pageable).map(this::mapToResponse);
+        Long partnerId = currentUser.getPartner() != null ? currentUser.getPartner().getId() : null;
+
+        if (branchId != null) {
+            return branchWarehousesRepository.findWarehousesByBranchIdAndPartner(branchId, partnerId, pageable)
+                    .map(this::mapToResponse);
         }
 
-        return warehousesRepository
-                .findByPartnersIdAndDeletedAtIsNull(currentUser.getPartner().getId(), pageable)
+        if (partnerId == null) {
+            return warehousesRepository.findAll(pageable).map(this::mapToResponse);
+        }
+        return warehousesRepository.findByPartnersIdAndDeletedAtIsNull(partnerId, pageable)
                 .map(this::mapToResponse);
     }
 

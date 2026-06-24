@@ -91,30 +91,33 @@ const typeOptions = [
   { value: 'quarantine', label: 'Karantina' }
 ]
 
+const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
 // ─── Actions: Fetch Master Data ───────────────────────────────────────────────
+// 
 async function fetchData() {
   loading.value = true
   try {
-    // Admin: /admin returns List (no ResData), partner: returns ResData<List>
     const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
     const urlBranches = isAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
-    const urlWarehouses = isAdmin.value ? '/api/v1/warehouses/admin' : '/api/v1/warehouses'
+    
+    const urlWarehouses = isAdmin.value 
+      ? '/api/v1/warehouses/admin' 
+      : `/api/v1/warehouses?branchId=${currentBranchId.value}`
     
     const [resB, resBr, resWh] = await Promise.all([
-      api.get(url),
+      api.get(url, { params: { page: page.value - 1, size: pageSize.value, branchId: currentBranchId.value } }),
       api.get(urlBranches),
       api.get(urlWarehouses)
     ])
     
-    // Admin stock-balances: plain List (no ResData wrapper)
-    // Partner stock-balances: ResData<List>
     let rawBalances
     if (isAdmin.value) {
       rawBalances = Array.isArray(resB.data) ? resB.data : (resB.data?.data || [])
     } else {
       const dataB = resB.data?.data
-      rawBalances = Array.isArray(dataB) ? dataB : (dataB?.content || [])
+      rawBalances = dataB?.content || (Array.isArray(dataB) ? dataB : [])
     }
+    
     balances.value = rawBalances.map(b => ({
       ...b,
       locationType: b.locationType || b.location_type,
@@ -125,9 +128,18 @@ async function fetchData() {
     
     const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
     const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
-    const whRaw = resWh.data?.data
-    const whArr = whRaw && !Array.isArray(whRaw) && whRaw.content ? whRaw.content : (Array.isArray(whRaw) ? whRaw : [])
     
+    let whArr = []
+    if (resWh.data) {
+      if (resWh.data.data) {
+        whArr = Array.isArray(resWh.data.data) ? resWh.data.data : (resWh.data.data.content || [])
+      } else if (resWh.data.content) {
+        whArr = resWh.data.content
+      } else if (Array.isArray(resWh.data)) {
+        whArr = resWh.data
+      }
+    }
+
     locations.value = [
       ...brArr.map(x => ({ ...x, type: 'branch' })),
       ...whArr.map(x => ({ ...x, type: 'warehouse' }))
