@@ -100,6 +100,10 @@ const stats = ref({
   totalModules: 0,
   activeProducts: 0,
   inactiveProducts: 0,
+  totalMitra: 0,
+  totalGudang: 0,
+  totalCabang: 0,
+  totalDistributor: 0,
 })
 
 async function fetchStats() {
@@ -107,13 +111,19 @@ async function fetchStats() {
   error.value = null
   try {
     const productsUrl = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
-    const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes] = await Promise.allSettled([
+    const branchUrl = isSuperAdmin.value ? '/api/v1/branches/admin' : '/api/v1/branches'
+    const warehouseUrl = isSuperAdmin.value ? '/api/v1/warehouses/admin?page=0&size=100' : '/api/v1/warehouses'
+    const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes, mitraRes, gudangRes, cabangRes, distributorRes] = await Promise.allSettled([
       api.get('/api/v1/users'),
       api.get(productsUrl),
       api.get('/api/v1/categories'),
       api.get('/api/v1/roles'),
       api.get('/api/v1/permissions'),
       api.get('/api/v1/modules'),
+      api.get('/api/v1/partners'),
+      api.get(warehouseUrl),
+      api.get(branchUrl),
+      api.get('/api/v1/suppliers'),
     ])
 
     if (usersRes.status === 'fulfilled' && usersRes.value.data?.data) {
@@ -138,6 +148,26 @@ async function fetchStats() {
     }
     if (modulesRes.status === 'fulfilled' && modulesRes.value.data?.data) {
       stats.value.totalModules = Array.isArray(modulesRes.value.data.data) ? modulesRes.value.data.data.length : 0
+    }
+    if (mitraRes.status === 'fulfilled') {
+      const d = mitraRes.value.data
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      stats.value.totalMitra = list.length
+    }
+    if (gudangRes.status === 'fulfilled') {
+      const d = gudangRes.value.data
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      stats.value.totalGudang = list.length
+    }
+    if (cabangRes.status === 'fulfilled') {
+      const d = cabangRes.value.data
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      stats.value.totalCabang = list.length
+    }
+    if (distributorRes.status === 'fulfilled') {
+      const d = distributorRes.value.data
+      const list = Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : (d?.data?.content || []))
+      stats.value.totalDistributor = list.length
     }
   } catch (err) {
     console.error('Dashboard Error:', err)
@@ -186,6 +216,26 @@ const metricCards = computed(() => [
     accentColor: '#8b5cf6',
   },
 ])
+
+// ── Growth Metrics (% dari total entitas sistem) ─────────────────────────────
+const growthMetrics = computed(() => {
+  const items = [
+    { label: 'Pengguna',     value: stats.value.totalUsers,        color: 'bg-primary',      textColor: 'text-primary' },
+    { label: 'Produk',       value: stats.value.totalProducts,     color: 'bg-blue-500',     textColor: 'text-blue-500' },
+    { label: 'Kategori',     value: stats.value.totalCategories,   color: 'bg-cyan-500',     textColor: 'text-cyan-500' },
+    { label: 'Mitra',        value: stats.value.totalMitra,        color: 'bg-violet-500',   textColor: 'text-violet-500' },
+    { label: 'Gudang',       value: stats.value.totalGudang,       color: 'bg-amber-500',    textColor: 'text-amber-500' },
+    { label: 'Cabang',       value: stats.value.totalCabang,       color: 'bg-sky-500',      textColor: 'text-sky-500' },
+    { label: 'Distributor',  value: stats.value.totalDistributor,  color: 'bg-rose-500',     textColor: 'text-rose-500' },
+    { label: 'Modul',        value: stats.value.totalModules,      color: 'bg-emerald-500',  textColor: 'text-emerald-500' },
+  ]
+  const total = items.reduce((s, i) => s + i.value, 0)
+  return items.map(i => ({
+    ...i,
+    pct: total > 0 ? Math.round((i.value / total) * 100) : 0,
+    total,
+  }))
+})
 
 // ── Chart Data & Theme Customization ──────────────────────────────────────────
 const chartLabels = [
@@ -563,11 +613,11 @@ function toggleAllOrders() {
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold shadow-sm transition-all duration-200"
           >
             <Plus class="w-3.5 h-3.5" />
-            New Project
+            Buat Bau
           </button>
           <div
             v-if="dropdownOpen"
-            class="absolute right-0 top-full mt-2 w-48 rounded-md border border-border bg-popover text-popover-foreground shadow-lg z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2"
+            class="absolute right-0 top-full mt-2 w-48 rounded-md border border-border bg-white dark:bg-gray-800 text-popover-foreground shadow-lg z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-2"
           >
             <RouterLink
               v-for="item in createMenuItems"
@@ -814,6 +864,107 @@ function toggleAllOrders() {
             <p class="text-lg font-bold text-foreground">{{ stats.totalModules }}</p>
             <p class="text-[11px] text-muted-foreground mt-0.5">Modul</p>
           </RouterLink>
+
+          <!-- Total Mitra -->
+          <RouterLink
+            v-if="isAdmin || can('partner.index')"
+            to="/dashboard/partners"
+            class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
+          >
+            <div class="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-500 flex items-center justify-center mb-3">
+              <Handshake class="w-4 h-4" />
+            </div>
+            <p class="text-lg font-bold text-foreground">{{ stats.totalMitra }}</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Total Mitra</p>
+          </RouterLink>
+
+          <!-- Total Gudang -->
+          <RouterLink
+            v-if="isAdmin || can('warehouse.index')"
+            to="/dashboard/warehouses"
+            class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
+          >
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
+              <Warehouse class="w-4 h-4" />
+            </div>
+            <p class="text-lg font-bold text-foreground">{{ stats.totalGudang }}</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Total Gudang</p>
+          </RouterLink>
+
+          <!-- Total Cabang -->
+          <RouterLink
+            v-if="isAdmin || can('branch.index')"
+            to="/dashboard/branches"
+            class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
+          >
+            <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center mb-3">
+              <Building2 class="w-4 h-4" />
+            </div>
+            <p class="text-lg font-bold text-foreground">{{ stats.totalCabang }}</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Total Cabang</p>
+          </RouterLink>
+
+          <!-- Total Distributor -->
+          <RouterLink
+            v-if="isAdmin || can('supplier.index')"
+            to="/dashboard/suppliers"
+            class="secondary-card rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-all duration-200"
+          >
+            <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center mb-3">
+              <Truck class="w-4 h-4" />
+            </div>
+            <p class="text-lg font-bold text-foreground">{{ stats.totalDistributor }}</p>
+            <p class="text-[11px] text-muted-foreground mt-0.5">Total Distributor</p>
+          </RouterLink>
+
+          <!-- ── Pertumbuhan Aplikasi (col-span-2) ────────────────────────── -->
+          <div class="col-span-2 rounded-xl border border-border bg-card p-4 flex flex-col justify-between gap-3">
+            <!-- Header -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <BarChart3 class="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p class="text-xs font-bold text-foreground leading-none">Pertumbuhan Aplikasi</p>
+                  <p class="text-[10px] text-muted-foreground mt-0.5">Distribusi total data sistem</p>
+                </div>
+              </div>
+              <span class="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                {{ growthMetrics[0]?.total ?? 0 }} total entitas
+              </span>
+            </div>
+
+            <!-- Stacked progress bar -->
+            <div class="relative h-2 w-full rounded-full overflow-hidden bg-muted flex">
+              <div
+                v-for="m in growthMetrics"
+                :key="m.label"
+                :class="m.color"
+                :style="{ width: m.pct + '%', transition: 'width 1s cubic-bezier(0.4,0,0.2,1)' }"
+                :title="m.label + ': ' + m.pct + '%'"
+                class="h-full first:rounded-l-full last:rounded-r-full"
+              />
+            </div>
+
+            <!-- Legend rows (2 kolom) -->
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              <div
+                v-for="m in growthMetrics"
+                :key="m.label + '-legend'"
+                class="flex items-center justify-between gap-2"
+              >
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span class="w-2 h-2 rounded-full shrink-0" :class="m.color" />
+                  <span class="text-[10px] text-muted-foreground truncate">{{ m.label }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span class="text-[10px] font-bold text-foreground">{{ m.value }}</span>
+                  <span :class="m.textColor" class="text-[9px] font-semibold">{{ m.pct }}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
       </template>
