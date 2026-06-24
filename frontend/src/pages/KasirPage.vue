@@ -265,18 +265,18 @@ watch(selectedBranchId, (newId) => {
 })
 
 async function fetchStockBalances(branchId) {
-  try {
-    const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
-    const list = res.data?.data || []
-    const map = {}
-    list.forEach(sb => {
-      if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
-    })
-    stockBalances.value = map
-  } catch {
-    stockBalances.value = {}
-  }
-}
+   try {
+     const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
+     const list = res.data?.data || []
+     const map = {}
+     list.forEach(sb => {
+       if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
+     })
+     stockBalances.value = map
+   } catch {
+     stockBalances.value = {}
+   }
+ }
 
 function getStock(productId) {
   return stockBalances.value[String(productId)] ?? null
@@ -286,18 +286,18 @@ function getStock(productId) {
 const LOW_STOCK_THRESHOLD = 5
 
 const lowStockProducts = computed(() => {
-  return products.value.filter(p => {
-    const stock = getStock(p.id)
-    return stock !== null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
-  })
-})
+   return products.value.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
+   })
+ })
 
-const outOfStockProducts = computed(() => {
-  return products.value.filter(p => {
-    const stock = getStock(p.id)
-    return stock !== null && stock <= 0
-  })
-})
+ const outOfStockProducts = computed(() => {
+   return products.value.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock <= 0
+   })
+ })
 
 const showStockWarning = ref(true)
 
@@ -345,43 +345,56 @@ const uniqueCategories = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  let result = products.value
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
-  }
-  if (activeCategory.value !== 'Semua') {
-    result = result.filter(p => {
-      const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
-      return catName === activeCategory.value
-    })
-  }
-  return result
-})
+   let result = products.value
+   if (searchQuery.value) {
+     const q = searchQuery.value.toLowerCase()
+     result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
+   }
+   if (activeCategory.value !== 'Semua') {
+     result = result.filter(p => {
+       const catName = p.category_id?.name || p.categoryId?.name || p.category?.name || ''
+       return catName === activeCategory.value
+     })
+   }
+   // Filter produk tanpa stok di cabang - tidak muncul di kasir
+   result = result.filter(p => {
+     const stock = getStock(p.id)
+     return stock != null && stock > 0
+   })
+   return result
+ })
 
 //Cart Logic
 function addToCart(product) {
-  const stock = getStock(product.id)
-  const existing = cart.value.find(item => item.id === product.id)
-  const currentQty = existing ? existing.qty : 0
+   const stock = getStock(product.id)
+   const existing = cart.value.find(item => item.id === product.id)
+   const currentQty = existing ? existing.qty : 0
 
-  if (stock !== null && currentQty >= stock) {
-    toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
-    return
-  }
+   if (stock === undefined || stock === null) {
+     toast.error(`Produk "${product.name}" tidak tersedia di cabang atau gudang ini.`)
+     return
+   }
+   if (stock <= 0) {
+     toast.error(`Stok ${product.name} habis.`)
+     return
+   }
+   if (currentQty >= stock) {
+     toast.error(`Stok ${product.name} tidak mencukupi. Tersisa: ${stock}`)
+     return
+   }
 
-  if (existing) {
-    existing.qty++
-  } else {
-    cart.value.push({
-      ...product,
-      qty: 1,
-      itemDiscountType: 'FLAT',
-      itemDiscountValue: 0,
-      itemNote: '',
-    })
-  }
-}
+   if (existing) {
+     existing.qty++
+   } else {
+     cart.value.push({
+       ...product,
+       qty: 1,
+       itemDiscountType: 'FLAT',
+       itemDiscountValue: 0,
+       itemNote: '',
+     })
+   }
+ }
 
 function getCartQty(id) {
   const item = cart.value.find(i => i.id === id)
@@ -390,29 +403,38 @@ function getCartQty(id) {
 
 //  logic qty modifier, format currency tetap utuh
 function increaseQty(item) {
-  const stock = getStock(item.id)
-  if (stock !== null && item.qty >= stock) {
-    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-    return
-  }
-  item.qty++
-}
-function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
+   const stock = getStock(item.id)
+   if (stock === undefined || stock === null) {
+     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
+     return
+   }
+   if (item.qty >= stock) {
+     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+     return
+   }
+   item.qty++
+ }
+ function decreaseQty(item) { if (item.qty > 1) { item.qty-- } else { removeFromCart(item) } }
 
-function setQty(item, value) {
-  const num = parseInt(value, 10)
-  if (isNaN(num) || num < 1) {
-    item.qty = 1
-    return
-  }
-  const stock = getStock(item.id)
-  if (stock !== null && num > stock) {
-    toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
-    item.qty = stock
-    return
-  }
-  item.qty = num
-}
+ function setQty(item, value) {
+   const num = parseInt(value, 10)
+   if (isNaN(num) || num < 1) {
+     item.qty = 1
+     return
+   }
+   const stock = getStock(item.id)
+   if (stock === undefined || stock === null) {
+     toast.error(`Stok ${item.name} tidak tersedia di cabang ini.`)
+     item.qty = 0
+     return
+   }
+   if (num > stock) {
+     toast.error(`Stok ${item.name} tidak mencukupi. Tersisa: ${stock}`)
+     item.qty = stock
+     return
+   }
+   item.qty = num
+ }
 function removeFromCart(item) {
   const idx = cart.value.findIndex(i => i.id === item.id)
   if (idx !== -1) cart.value.splice(idx, 1)
@@ -837,17 +859,21 @@ async function checkout() {
     }
   }
 
-  for (const item of cart.value) {
-    const stock = getStock(item.id)
-    if (stock !== null && item.qty > stock) {
-      toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
-      return
-    }
-    if (stock !== null && stock <= 0) {
-      toast.error(`Stok ${item.name} sudah habis.`)
-      return
-    }
-  }
+for (const item of cart.value) {
+     const stock = getStock(item.id)
+     if (stock === undefined || stock === null) {
+       toast.error(`Produk "${item.name}" tidak memiliki stok di cabang ini. Tambahkan stok di cabang terlebih dahulu.`)
+       return
+     }
+     if (stock <= 0) {
+       toast.error(`Stok ${item.name} sudah habis.`)
+       return
+     }
+     if (item.qty > stock) {
+       toast.error(`Stok ${item.name} tidak mencukupi. Diminta: ${item.qty}, Tersisa: ${stock}`)
+       return
+     }
+   }
 
   processingCheckout.value = true
   try {
@@ -1194,15 +1220,15 @@ function avatarStyle(name = '') {
             <p class="text-[13px] font-medium">Produk tidak ditemukan.</p>
           </div>
           <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
-            <div v-for="p in filteredProducts" :key="p.id"
-              class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
-              :class="[
-                getStock(p.id) !== null && getStock(p.id) <= 0
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'cursor-pointer',
-                { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
-              ]"
-              @click="getStock(p.id) !== null && getStock(p.id) <= 0 ? null : addToCart(p)">
+<div v-for="p in filteredProducts" :key="p.id"
+               class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden transition-transform active:scale-[0.98] border border-zinc-200/60 dark:border-zinc-800 shadow-sm hover:shadow-md"
+               :class="[
+                 getStock(p.id) === undefined || getStock(p.id) <= 0
+                   ? 'opacity-50 cursor-not-allowed'
+                   : 'cursor-pointer',
+                 { 'ring-2 ring-primary ring-offset-2 dark:ring-offset-zinc-900': getCartQty(p.id) > 0 }
+               ]"
+               @click="getStock(p.id) === undefined || getStock(p.id) <= 0 ? null : addToCart(p)">
               
               <div v-if="getCartQty(p.id) > 0" class="absolute top-2.5 right-2.5 bg-primary text-primary-foreground text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md z-10">
                 {{ getCartQty(p.id) }}

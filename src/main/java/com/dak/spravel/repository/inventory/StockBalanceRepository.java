@@ -24,5 +24,5 @@ public interface StockBalanceRepository extends JpaRepository<StockBalance, Long
     
     Page<StockBalance> findByProductPartnerIdAndLocationId(Long partnerId, Long locationId, Pageable pageable);
     
-    Page<StockBalance> findByLocationTypeAndLocationId(String locationType, Long locationId, Pageable pageable);
+Page<StockBalance> findByLocationTypeAndLocationId(String locationType, Long locationId, Pageable pageable);
 }

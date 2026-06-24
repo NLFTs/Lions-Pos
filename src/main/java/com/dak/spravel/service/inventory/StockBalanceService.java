@@ -26,6 +26,7 @@ import com.dak.spravel.repository.inventory.StockMutationRepository;
 import com.dak.spravel.repository.inventory.WarehousesRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,8 +40,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StockBalanceService {
@@ -52,7 +55,7 @@ public class StockBalanceService {
     private final StockMutationRepository stockMutationRepository;
     private final UserRepository userRepository;
 
-    // ─── PUSAT PENGESAHAN MAKLUMAT PENGGUNA & KEBENARAN ───────────────────────
+    // ─── PUSAT
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -297,6 +300,12 @@ public class StockBalanceService {
         validateLocation("BRANCH", branchId, currentUser.getPartner());
 
         return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", branchId).stream()
+                .filter(sb -> {
+                    if (currentUser.getPartner() == null) return true;
+                    return sb.getProduct() != null
+                            && sb.getProduct().getPartner() != null
+                            && sb.getProduct().getPartner().getId().equals(currentUser.getPartner().getId());
+                })
                 .map(this::mapToResponse).toList();
     }
 
@@ -401,15 +410,40 @@ public class StockBalanceService {
 
     @Transactional
     public void adjustStock(Long productId, String locationType, Long locationId, Long adjustment) {
-        StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+        Optional<StockBalance> optStock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
                 productId, locationType.toUpperCase(), locationId
-        ).orElseThrow(() -> new RuntimeException("Stok tidak ditemui untuk id produk =" + productId));
+        );
 
+        if (optStock.isEmpty()) {
+            if (adjustment < 0) {
+                // Tidak ada record stok di lokasi ini — tidak bisa mengurangi stok yang tidak ada
+                throw new RuntimeException(
+                    "Stok tidak ditemukan di " + locationType + " (id=" + locationId + ") untuk produk id=" + productId +
+                    ". Pastikan stok sudah diisi di cabang sebelum melakukan penjualan."
+                );
+            } else {
+                // Penambahan stok — buat record baru (misalnya saat retur)
+                log.warn("[adjustStock] Membuat record stok baru untuk produk={} di {}={} dengan qty={}",
+                        productId, locationType, locationId, adjustment);
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan id=" + productId));
+                StockBalance newStock = new StockBalance();
+                newStock.setProduct(product);
+                newStock.setLocationType(locationType.toUpperCase());
+                newStock.setLocationId(locationId);
+                newStock.setQty(adjustment);
+                newStock.setUpdatedAt(LocalDateTime.now());
+                stockBalanceRepository.save(newStock);
+                return;
+            }
+        }
+
+        StockBalance stock = optStock.get();
         long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
         long newQty = currentQty + adjustment;
 
         if (newQty < 0) {
-            throw new RuntimeException("Stok tidak mencukupi untuk ID produk: " + productId + ". Baki semasa: " + currentQty);
+            throw new RuntimeException("Stok tidak mencukupi untuk ID produk: " + productId + ". Stok tersedia: " + currentQty + ", diminta: " + Math.abs(adjustment));
         }
 
         stock.setQty(newQty);
@@ -749,13 +783,13 @@ public class StockBalanceService {
         mutation.setQty(disposeQty);
         mutation.setReferenceType(StockMutation.ReferenceType.STOCK_OPNAME);
         mutation.setReferenceId(stock.getId());
-        mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembekal");
+mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembekal");
         mutation.setCreatedBy(currentUser);
         stockMutationRepository.save(mutation);
 
         return mapToResponse(stock);
     }
-    
+
     public List<StockBalanceResponse> findQuarantineStock() {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "stock_balance.index");
@@ -858,3 +892,4 @@ public class StockBalanceService {
         return mapToResponse(savedBranchStock);
     }
 }
+
