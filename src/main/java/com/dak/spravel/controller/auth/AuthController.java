@@ -128,7 +128,7 @@ public class AuthController {
         }
 
         if (user.getRoles() == null || user.getRoles().isEmpty()) {
-            throw new ResourceNotFoundException("User tidak mempunyai role");
+            throw new ResourceNotFoundException("User tidak mempunyai jabatan");
         }
 
         boolean isAdmin = user
