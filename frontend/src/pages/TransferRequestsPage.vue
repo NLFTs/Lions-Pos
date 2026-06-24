@@ -17,7 +17,8 @@ import CustomSelect from '@/components/ui/CustomSelect.vue'
 import api from '@/lib/api'
 import {
   Plus, Loader2, Repeat2, Eye, Check, Building2,
-  ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send, ChevronDown
+  ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send, ChevronDown,
+  Hourglass, Truck, SquareX,
 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -689,36 +690,36 @@ onUnmounted(() => {
                     <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b pb-2 border-zinc-100 dark:border-zinc-800">Aksi Persetujuan & Logistik</p>
                     <div class="flex flex-col gap-2">
                       
-                      <!-- 1. Owner/Admin-Partners menyetujui permintaan transfer -->
                       <Button v-if="selectedTR.status === 'pending' && isOwner && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-primary text-primary-foreground font-bold hover:bg-primary/90" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'approved')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />Setujui Transfer (Owner / Admin-Partners)
                       </Button>
-
-                      <!-- 2. Pengelola cabang asal mengirim barang ke tujuan -->
+                      
                       <Button v-if="selectedTR.status === 'approved' && isBranchManager && isSourceSender && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'in_transit')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Send v-else class="h-4 w-4 mr-2" />Mulai Pengiriman (Cabang Asal)
                       </Button>
-
-                      <!-- 3. Pengelola cabang tujuan mengkonfirmasi penerimaan stok -->
+                      
                       <Button v-if="selectedTR.status === 'in_transit' && isBranchManager && isTargetReceiver && can('transfer_request.update') && !isSuperAdmin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" :disabled="updatingStatus" @click="updateTRStatus(selectedTR.id, 'RECEIVED')">
                         <Loader2 v-if="updatingStatus" class="h-4 w-4 mr-2 animate-spin" />
                         <Check v-else class="h-4 w-4 mr-2" />Konfirmasi Penerimaan Stok (Cabang Tujuan)
                       </Button>
-
-                      <!-- Notifikasi Status Saat Ini -->
+                      
                       <div v-if="selectedTR.status === 'pending' && isBranchManager" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
-                        ⌛ Menunggu persetujuan dari Owner Pusat...
+                        <Hourglass class="w-5 h-5 inline-block mr-1" />
+                        <span>Menunggu persetujuan dari Owner Pusat...</span>
                       </div>
                       <div v-if="selectedTR.status === 'approved' && isBranchManager && isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
-                        📦 Sudah disetujui! Menunggu cabang asal memulai pengiriman barang...
+                        <Package class="w-5 h-5 inline-block mr-1" />
+                        <span>Sudah disetujui! Menunggu cabang asal memulai pengiriman barang...</span>
                       </div>
                       <div v-if="selectedTR.status === 'in_transit' && isBranchManager && !isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-violet-600 bg-violet-50/60 dark:bg-violet-900/10 rounded-md border border-violet-200/50">
-                        🚚 Barang sedang dalam perjalanan menuju cabang tujuan...
+                        <Truck class="w-5 h-5 inline-block mr-1" />
+                        <span> Barang sedang dalam perjalanan menuju cabang tujuan...</span>
                       </div>
                       <div v-if="selectedTR.status === 'cancelled'" class="w-full text-center py-3 text-xs font-bold text-red-600 bg-red-50 dark:bg-red-900/10 rounded-md border border-red-200/50">
-                        ❌ Permintaan transfer ini telah dibatalkan.
+                        <SquareX class="w-5 h-5 inline-block mr-1" />
+                        <span> Permintaan transfer ini telah dibatalkan.</span>
                       </div>
                     </div>
                   </CardContent>
