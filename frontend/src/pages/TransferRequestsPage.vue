@@ -18,7 +18,7 @@ import api from '@/lib/api'
 import {
   Plus, Loader2, Repeat2, Eye, Check, Building2,
   ArrowRight, ArrowLeft, Package, Calendar, Trash2, Send, ChevronDown,
-  HourGlass, Truck, SquareX,
+  Hourglass, Truck, SquareX,
 } from 'lucide-vue-next'
 
 const { can } = usePermission()
@@ -706,7 +706,7 @@ onUnmounted(() => {
                       </Button>
                       
                       <div v-if="selectedTR.status === 'pending' && isBranchManager" class="w-full text-center py-3 text-xs font-bold text-amber-600 bg-amber-50/60 dark:bg-amber-900/10 rounded-md border border-amber-200/50">
-                        <HourGlass class="w-5 h-5 inline-block mr-1" />
+                        <Hourglass class="w-5 h-5 inline-block mr-1" />
                         <span>Menunggu persetujuan dari Owner Pusat...</span>
                       </div>
                       <div v-if="selectedTR.status === 'approved' && isBranchManager && isTargetReceiver" class="w-full text-center py-3 text-xs font-bold text-blue-600 bg-blue-50/60 dark:bg-blue-900/10 rounded-md border border-blue-200/50">
