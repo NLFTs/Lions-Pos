@@ -28,6 +28,7 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
 import com.dak.spravel.repository.procurement.SupplierRepository;
+import com.dak.spravel.service.system.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +41,7 @@ public class PurchaseOrderService {
     private final SupplierRepository supplierRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -243,11 +245,16 @@ public class PurchaseOrderService {
 
         purchaseOrderItemsRepository.saveAll(items);
 
-        saved.setTotal(items.stream()
-                .map(PurchaseOrderItems::getSubtotal)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
-        
-        return purchaseOrderRepository.save(saved);
+        PurchaseOrder finalSaved = purchaseOrderRepository.save(saved);
+
+        notificationService.createNotification(
+                partner,
+                "Purchase Order",
+                "Membuat Purchase Order baru: " + finalSaved.getPoNumber() + " senilai " + finalSaved.getTotal(),
+                currentUser
+        );
+
+        return finalSaved;
     }
 
     // ==========================================

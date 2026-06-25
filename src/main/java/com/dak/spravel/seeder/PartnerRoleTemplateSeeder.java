@@ -87,6 +87,8 @@ public class PartnerRoleTemplateSeeder {
         // Dashboard & Laporan
         "dashboard.index",
         "report.index",
+        // Notifikasi
+        "notification.index",
     };
 
     /**
@@ -122,6 +124,8 @@ public class PartnerRoleTemplateSeeder {
         // Dashboard & Laporan — FULL (tambahan dari gudang)
         "dashboard.index",
         "report.index",
+        // Notifikasi
+        "notification.index",
     };
 
     /**
@@ -157,6 +161,8 @@ public class PartnerRoleTemplateSeeder {
         "voucher.index", "voucher.show",
         // Dashboard
         "dashboard.index",
+        // Notifikasi
+        "notification.index",
     };
 
     // ─── Template definitions ─────────────────────────────────────────────────

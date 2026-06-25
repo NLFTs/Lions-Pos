@@ -1,3 +1,6 @@
+# Normalize all text files to LF on commit
+* text=auto eol=lf
+
 /gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
