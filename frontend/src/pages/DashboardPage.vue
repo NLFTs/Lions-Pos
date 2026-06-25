@@ -112,57 +112,6 @@ const stats = ref({
 
 const rawOrders = ref([])
 
-async function fetchStats() {
-  loading.value = true
-  error.value = null
-  try {
-    const productsUrl = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
-    const ordersUrl = isAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
-    const [usersRes, postsRes, categoriesRes, rolesRes, permsRes, modulesRes, ordersRes] = await Promise.allSettled([
-      api.get('/api/v1/users'),
-      api.get(productsUrl),
-      api.get('/api/v1/categories'),
-      api.get('/api/v1/roles'),
-      api.get('/api/v1/permissions'),
-      api.get('/api/v1/modules'),
-      api.get(ordersUrl),
-    ])
-
-    if (usersRes.status === 'fulfilled' && usersRes.value.data?.data) {
-      const users = usersRes.value.data.data
-      stats.value.totalUsers = Array.isArray(users) ? users.length : 0
-    }
-    if (postsRes.status === 'fulfilled' && postsRes.value.data?.data) {
-      const productsData = postsRes.value.data.data
-      const productsList = Array.isArray(productsData) ? productsData : (productsData.content || [])
-      stats.value.totalProducts = Array.isArray(productsData) ? productsData.length : (productsData.totalElements || 0)
-      stats.value.activeProducts = productsList.filter(p => p.isActive).length
-      stats.value.inactiveProducts = productsList.filter(p => !p.isActive).length
-    }
-    if (categoriesRes.status === 'fulfilled' && categoriesRes.value.data?.data) {
-      stats.value.totalCategories = Array.isArray(categoriesRes.value.data.data) ? categoriesRes.value.data.data.length : 0
-    }
-    if (rolesRes.status === 'fulfilled' && rolesRes.value.data?.data) {
-      stats.value.totalRoles = Array.isArray(rolesRes.value.data.data) ? rolesRes.value.data.data.length : 0
-    }
-    if (permsRes.status === 'fulfilled' && permsRes.value.data?.data) {
-      stats.value.totalPermissions = Array.isArray(permsRes.value.data.data) ? permsRes.value.data.data.length : 0
-    }
-    if (modulesRes.status === 'fulfilled' && modulesRes.value.data?.data) {
-      stats.value.totalModules = Array.isArray(modulesRes.value.data.data) ? modulesRes.value.data.data.length : 0
-    }
-    if (ordersRes.status === 'fulfilled') {
-      const d = ordersRes.value.data
-      rawOrders.value = Array.isArray(d) ? d : (d?.data?.content || d?.data || [])
-    }
-  } catch (err) {
-    console.error('Dashboard Error:', err)
-    error.value = 'Gagal memuat beberapa data dashboard.'
-  } finally {
-    loading.value = false
-  }
-}
-
 const formatCurrency = (val) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val) || 0)
 }
@@ -545,7 +494,6 @@ const daysLeft = computed(() => {
 
 const monthlyTarget = computed(() => formatCurrency(salesTarget.value))
 
-const monthlyTarget = 'Rp 27.000.000'
 const GAUGE_R = 72
 const GAUGE_CX = 96
 const GAUGE_CY = 96
@@ -620,66 +568,11 @@ const combinedStatusItems = computed(() => {
 // ── Recent Activity ───────────────────────────────────────────────────────────
 // (dikosongkan — akan diisi dari backend nanti)
 const recentActivities = []
+/*
 
 // ── Orders & Shipping (real data) ────────────────────────────────────────────
-const orderSearch = ref('')
-const orderPage   = ref(1)
-const ordersPerPage = 5
-
-const allOrders = ref([
-  { id: '#1024', customer: 'Lorant', date: '2025-01-18', shipping: 'Sudah Dikirim',    carrier: 'UPS Ground',   total: 'Rp 129.000', status: 'shipped' },
-  { id: '#1023', customer: 'Lorant', date: '2025-01-17', shipping: 'Sedang Diproses', carrier: 'DHL Express',  total: 'Rp 349.000', status: 'processing' },
-  { id: '#1022', customer: 'Lorant', date: '2025-01-16', shipping: 'Terkirim',  carrier: 'USPS',         total: 'Rp 79.000',  status: 'delivered' },
   { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
-  { id: '#1020', customer: 'Lorant', date: '2025-01-14', shipping: 'Tertunda',    carrier: 'FedEx',        total: 'Rp 219.000', status: 'pending' },
-  { id: '#1019', customer: 'Budi',   date: '2025-01-13', shipping: 'Sudah Dikirim',    carrier: 'JNE',          total: 'Rp 89.000',  status: 'shipped' },
-  { id: '#1018', customer: 'Sari',   date: '2025-01-12', shipping: 'Terkirim',  carrier: 'SiCepat',      total: 'Rp 195.000', status: 'delivered' },
-  { id: '#1017', customer: 'Ahmad',  date: '2025-01-11', shipping: 'Sedang Diproses', carrier: 'J&T',          total: 'Rp 430.000', status: 'processing' },
-  { id: '#1016', customer: 'Dewi',   date: '2025-01-10', shipping: 'Tertunda',    carrier: 'Anteraja',     total: 'Rp 67.000',  status: 'pending' },
-  { id: '#1015', customer: 'Riko',   date: '2025-01-09', shipping: 'Sudah Dikirimgit ',    carrier: 'Ninja Xpress', total: 'Rp 312.000', status: 'shipped' },
-])
-
-const selectedOrders = ref([])
-
-async function fetchOrders() {
-  ordersLoading.value = true
-  try {
-    const url = isSuperAdmin.value ? '/api/v1/orders/admin' : '/api/v1/orders'
-    const res = await api.get(url)
-    const d = res.data
-    const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])
-    // Map API response to display format
-    allOrders.value = list.map(o => ({
-      id: o.id,
-      orderNumber: o.orderNumber || `#${o.id}`,
-      customer: o.buyerName || '-',
-      date: o.createdAt ? new Date(o.createdAt).toLocaleDateString('id-ID') : '-',
-      branch: o.branchName || '-',
-      total: o.total != null ? 'Rp ' + Number(o.total).toLocaleString('id-ID') : '-',
-      status: (o.status || 'pending').toLowerCase(),
-      statusLabel: mapOrderStatusLabel(o.status),
-    }))
-  } catch (err) {
-    console.error('Orders fetch error:', err)
-  } finally {
-    ordersLoading.value = false
-  }
-}
-
-function mapOrderStatusLabel(status) {
-  const s = (status || '').toLowerCase()
-  const map = {
-    completed: 'Selesai',
-    pending: 'Tertunda',
-    cancelled: 'Dibatalkan',
-    returned: 'Dikembalikan',
-    processing: 'Diproses',
-    shipped: 'Dikirim',
-    delivered: 'Terkirim',
-    paid: 'Lunas',
-  }
-  return map[s] || status || 'Tertunda'
-}
+*/
 
 const filteredOrders = computed(() => {
   const q = orderSearch.value.toLowerCase()
@@ -830,6 +723,7 @@ async function fetchOrders() {
     const res = await api.get(url)
     const d = res.data
     const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])
+    rawOrders.value = list
     allOrders.value = list.map(o => ({
       id: o.id,
       orderNumber: o.orderNumber || `#${o.id}`,
