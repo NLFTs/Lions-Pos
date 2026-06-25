@@ -210,6 +210,9 @@ public class UserService {
 
         // Resolusi Peran (Roles)
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            if (request.getRoleIds().size() > 1) {
+                throw new RuntimeException("Akses Ditolak: Hanya satu peran yang diperbolehkan.");
+            }
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         } else {
             user.setRoles(new HashSet<>());
