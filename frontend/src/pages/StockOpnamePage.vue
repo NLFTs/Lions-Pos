@@ -27,6 +27,27 @@ const authStore = useAuthStore()
 const isAdmin = computed(() => authStore.isAdmin)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
+// Admin Partner (owner) = punya partnerId tapi bukan branch/warehouse user
+const isAdminPartner = computed(() => {
+  const u = authStore.user
+  if (!u) return false
+  if (isSuperAdmin.value) return false
+  // owner/admin-partner: punya partnerId, tapi tidak dikaitkan ke branch/warehouse tertentu
+  return !!u.partnerId && !u.branchId && !u.warehouseId
+})
+
+// Pengelola Cabang = punya branchId
+const isPengelolaCabang = computed(() => {
+  const u = authStore.user
+  if (!u) return false
+  return !!u.branchId
+})
+
+// Bisa approve = admin partner ATAU pengelola cabang (keduanya punya stock_opname.update)
+const canApproveOpname = computed(() => {
+  return (isAdminPartner.value || isPengelolaCabang.value) && can('stock_opname.update') && !isSuperAdmin.value
+})
+
 const opnames = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
@@ -39,7 +60,8 @@ const statusOptions = [
   { value: 'draft', label: 'Draf' },
   { value: 'counting', label: 'Menghitung' },
   { value: 'reviewed', label: 'Ditinjau' },
-  { value: 'approved', label: 'Disetujui' }
+  { value: 'approved', label: 'Disetujui' },
+  { value: 'adjusted', label: 'Stok Diperbarui' }
 ]
 
 const locations = ref([])
@@ -260,14 +282,20 @@ async function saveOpname() {
   }
 }
 
+const approving = ref(false)
+
 async function approveOpname(o) {
+  approving.value = true
   try {
-    await api.patch(`/api/v1/stock-opnames/${o.id}/status`, { status: 'ADJUSTED' })
-    toast.success('Opname berhasil disetujui dan stok disesuaikan!')
+    // Langsung set ke ADJUSTED agar stok balance langsung diupdate
+    await api.patch(`/api/v1/stock-opnames/${o.id}/status?status=ADJUSTED`)
+    toast.success('Pengecekan stok disetujui! Stok kasir telah diperbarui.')
     fetchData()
     showForm.value = false
   } catch (err) {
-    toast.error(err.response?.data?.message || 'Gagal menyetujui opname.')
+    toast.error(err.response?.data?.message || 'Gagal menyetujui pengecekan stok.')
+  } finally {
+    approving.value = false
   }
 }
 
@@ -278,6 +306,7 @@ function formatDate(dt) {
 function statusColor(s) {
   const m = {
     approved: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/50',
+    adjusted: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/20 dark:text-teal-400 dark:border-teal-800/50',
     reviewed: 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50',
     counting: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
   }
@@ -285,7 +314,7 @@ function statusColor(s) {
 }
 
 function statusLabel(s) {
-  const m = { draft: 'Draf', counting: 'Menghitung', reviewed: 'Ditinjau', approved: 'Disetujui' }
+  const m = { draft: 'Draf', counting: 'Menghitung', reviewed: 'Ditinjau', approved: 'Disetujui', adjusted: 'Stok Diperbarui' }
   return m[s] || s
 }
 
@@ -431,8 +460,9 @@ onMounted(fetchData)
               </Button>
             </div>
             <div v-else class="flex items-center gap-3 w-full sm:w-auto">
-              <Button v-if="selectedOpname?.status === 'approved' && can('stock_opname.update') && !isSuperAdmin" @click="approveOpname(selectedOpname)" class="flex-1 sm:flex-none bg-primary text-primary-foreground font-bold">
-                <Check class="h-4 w-4 mr-2" /> Setujui &amp; Rekonsiliasi
+              <Button v-if="['draft', 'counting', 'reviewed'].includes(selectedOpname?.status) && canApproveOpname" @click="approveOpname(selectedOpname)" :disabled="approving" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                <Loader2 v-if="approving" class="h-4 w-4 mr-2 animate-spin" />
+                <Check v-else class="h-4 w-4 mr-2" /> Setujui &amp; Masukkan Stok
               </Button>
               <Button variant="outline" @click="closeForm" class="flex-1 sm:flex-none">Tutup</Button>
             </div>

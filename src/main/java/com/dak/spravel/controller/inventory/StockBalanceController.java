@@ -166,4 +166,14 @@ public class StockBalanceController {
         log.info("[POST] /api/v1/stock-balances/{}/dispose qty={} notes={}", id, qty, notes);
         return ResponseBuilder.ok(stockBalanceService.disposeQuarantine(id, qty, notes));
     }
-}       
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('stock_balance.update')")
+    public ResponseEntity<ResData<StockBalanceResponse>> approve(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long qty,
+            @RequestParam(required = false) String notes) {
+        log.info("[POST] /api/v1/stock-balances/{}/approve qty={} notes={}", id, qty, notes);
+        return ResponseBuilder.ok(stockBalanceService.approveQuarantineToBranch(id, qty, notes));
+    }
+}

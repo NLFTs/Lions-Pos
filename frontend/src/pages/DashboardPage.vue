@@ -61,14 +61,16 @@ const error = ref(null)
 
 // ── Calendar / Date Range Picker ─────────────────────────────────────────────
 const calendarOpen = ref(false)
-const dateRange = ref({ start: null, end: null })
+const defaultStart = new Date()
+defaultStart.setDate(defaultStart.getDate() - 29)
+const dateRange = ref({ start: defaultStart, end: new Date() })
 
 const chartPeriodLabel = computed(() => {
   if (dateRange.value.start && dateRange.value.end) {
     const fmt = (d) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     return `${fmt(dateRange.value.start)} – ${fmt(dateRange.value.end)}`
   }
-  return 'Januari, 2025'
+  return 'Semua Periode'
 })
 
 function onDateRangeUpdate(val) {
@@ -108,38 +110,82 @@ const stats = ref({
   totalDistributor: 0,
 })
 
-// ── Real Metric Computations dari allOrders ───────────────────────────────────
-const totalRevenue = computed(() => {
-  return allOrders.value
-    .filter(o => ['completed', 'paid', 'delivered'].includes(o.status))
-    .reduce((sum, o) => {
-      const raw = (o.totalRaw != null) ? o.totalRaw : 0
-      return sum + raw
-    }, 0)
+const rawOrders = ref([])
+
+const formatCurrency = (val) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val) || 0)
+}
+
+const revenueStats = computed(() => {
+  const start = dateRange.value.start
+  const end = dateRange.value.end
+  const activeOrders = rawOrders.value.filter(o => o.status?.toUpperCase() === 'PAID' && o.createdAt)
+
+  if (!start || !end) {
+    const total = activeOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+    return {
+      value: total,
+      change: '—',
+      positive: true
+    }
+  }
+
+  const startMs = new Date(start).setHours(0,0,0,0)
+  const endLimit = new Date(end)
+  endLimit.setHours(23, 59, 59, 999)
+  const endMs = endLimit.getTime()
+  const durationMs = endMs - startMs
+
+  const currentOrders = activeOrders.filter(o => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= startMs && t <= endMs
+  })
+  const currentTotal = currentOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+
+  // Previous period
+  const prevStartMs = startMs - durationMs - 1000
+  const prevEndMs = startMs - 1
+  const prevOrders = activeOrders.filter(o => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= prevStartMs && t <= prevEndMs
+  })
+  const prevTotal = prevOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+
+  let change = '0.0%'
+  let positive = true
+  if (prevTotal > 0) {
+    const diff = ((currentTotal - prevTotal) / prevTotal) * 100
+    change = (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%'
+    positive = diff >= 0
+  } else if (currentTotal > 0) {
+    change = '+100.0%'
+    positive = true
+  }
+
+  return {
+    value: currentTotal,
+    change,
+    positive
+  }
 })
 
-const totalOrderCount = computed(() => allOrders.value.length)
-
+// ── Derived Order Counts (HARUS sebelum metricCards) ──────────────────────────
+const totalOrderCount = computed(() => rawOrders.value.length)
+const totalPendingOrders = computed(() => rawOrders.value.filter(o => o.status === 'pending').length)
 const conversionRate = computed(() => {
-  if (allOrders.value.length === 0) return '0.0'
-  const completed = allOrders.value.filter(o =>
-    ['completed', 'paid', 'delivered'].includes(o.status)
-  ).length
-  return ((completed / allOrders.value.length) * 100).toFixed(1)
+  if (totalOrderCount.value === 0) return 0
+  const paid = rawOrders.value.filter(o => o.status === 'paid').length
+  return Number(((paid / totalOrderCount.value) * 100).toFixed(1))
 })
-
-const totalPendingOrders = computed(() =>
-  allOrders.value.filter(o => o.status === 'pending').length
-)
 
 // ── Metric Cards ─────────────────────────────────────────────────────────────
 const metricCards = computed(() => [
   {
     id: 'revenue',
     label: 'Pendapatan',
-    value: 'Rp ' + totalRevenue.value.toLocaleString('id-ID'),
-    change: '+12.5%',
-    positive: true,
+    value: formatCurrency(revenueStats.value.value),
+    change: revenueStats.value.change,
+    positive: revenueStats.value.positive,
     gradient: 'from-emerald-500/20 via-transparent to-transparent',
     accentColor: '#10b981',
   },
@@ -192,14 +238,111 @@ const growthMetrics = computed(() => {
   }))
 })
 
-// ── Chart Data & Theme ────────────────────────────────────────────────────────
-const chartLabels = [
-  'Jan 02', 'Jan 03', 'Jan 04', 'Jan 05', 'Jan 06', 'Jan 07',
-  'Jan 08', 'Jan 09', 'Jan 10', 'Jan 11', 'Jan 12', 'Jan 13',
-  'Jan 14', 'Jan 15', 'Jan 16', 'Jan 18',
-]
-const currentPeriodData = [18, 32, 28, 45, 30, 35, 42, 55, 80, 65, 72, 95, 110, 85, 90, 75]
-const prevPeriodData    = [10, 20, 35, 25, 38, 20, 28, 42, 55, 48, 52, 60,  78, 65, 70, 55]
+// ── Chart Data & Theme Customization ──────────────────────────────────────────
+const chartDataValues = computed(() => {
+  const start = dateRange.value.start
+  const end = dateRange.value.end
+
+  if (!start || !end) {
+    return {
+      labels: [],
+      currentData: [],
+      prevData: []
+    }
+  }
+
+  const activeOrders = rawOrders.value.filter(o => o.status?.toUpperCase() === 'PAID' && o.createdAt)
+
+  const startOfDay = (d) => {
+    const res = new Date(d)
+    res.setHours(0, 0, 0, 0)
+    return res
+  }
+
+  const endOfDay = (d) => {
+    const res = new Date(d)
+    res.setHours(23, 59, 59, 999)
+    return res
+  }
+
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const daysDiff = Math.round((endOfDay(end).getTime() - startOfDay(start).getTime()) / oneDayMs)
+
+  const labels = []
+  const currentData = []
+  const prevData = []
+
+  if (daysDiff <= 60) {
+    // Group by Day
+    for (let i = 0; i < daysDiff; i++) {
+      const currentDay = new Date(startOfDay(start).getTime() + i * oneDayMs)
+      const label = currentDay.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+      labels.push(label)
+
+      const currentDayStart = startOfDay(currentDay).getTime()
+      const currentDayEnd = endOfDay(currentDay).getTime()
+
+      const dayRevenue = activeOrders
+        .filter(o => {
+          const t = new Date(o.createdAt).getTime()
+          return t >= currentDayStart && t <= currentDayEnd
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      currentData.push(dayRevenue)
+
+      // Previous period day
+      const prevDay = new Date(currentDay.getTime() - daysDiff * oneDayMs)
+      const prevDayStart = startOfDay(prevDay).getTime()
+      const prevDayEnd = endOfDay(prevDay).getTime()
+
+      const prevDayRevenue = activeOrders
+        .filter(o => {
+          const t = new Date(o.createdAt).getTime()
+          return t >= prevDayStart && t <= prevDayEnd
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      prevData.push(prevDayRevenue)
+    }
+  } else {
+    // Group by Month
+    let current = new Date(start.getFullYear(), start.getMonth(), 1)
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
+
+    const monthKeys = []
+    while (current <= endMonth) {
+      monthKeys.push({ year: current.getFullYear(), month: current.getMonth() })
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1)
+    }
+
+    monthKeys.forEach(({ year, month }) => {
+      const label = new Date(year, month, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+      labels.push(label)
+
+      const monthRevenue = activeOrders
+        .filter(o => {
+          const d = new Date(o.createdAt)
+          return d.getFullYear() === year && d.getMonth() === month
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      currentData.push(monthRevenue)
+
+      const prevYear = year - 1
+      const prevMonthRevenue = activeOrders
+        .filter(o => {
+          const d = new Date(o.createdAt)
+          return d.getFullYear() === prevYear && d.getMonth() === month
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      prevData.push(prevMonthRevenue)
+    })
+  }
+
+  return {
+    labels,
+    currentData,
+    prevData
+  }
+})
 
 const chartColors = computed(() => {
   try {
@@ -233,11 +376,11 @@ const chartColors = computed(() => {
 })
 
 const chartData = computed(() => ({
-  labels: chartLabels,
+  labels: chartDataValues.value.labels,
   datasets: [
     {
       label: 'Current period',
-      data: currentPeriodData,
+      data: chartDataValues.value.currentData,
       fill: true,
       backgroundColor: (ctx) => {
         const canvas = ctx.chart.ctx
@@ -257,7 +400,7 @@ const chartData = computed(() => ({
     },
     {
       label: 'Previous period',
-      data: prevPeriodData,
+      data: chartDataValues.value.prevData,
       fill: true,
       backgroundColor: (ctx) => {
         const canvas = ctx.chart.ctx
@@ -294,6 +437,18 @@ const chartOptions = computed(() => ({
       cornerRadius: 8,
       titleFont: { size: 11 },
       bodyFont: { size: 13, weight: 'bold' },
+      callbacks: {
+        label: (context) => {
+          let label = context.dataset.label || '';
+          if (label) {
+            label += ': ';
+          }
+          if (context.parsed.y !== null) {
+            label += formatCurrency(context.parsed.y);
+          }
+          return label;
+        }
+      }
     },
   },
   scales: {
@@ -317,22 +472,37 @@ const chartOptions = computed(() => ({
   },
 }))
 
-// ── Gauge ─────────────────────────────────────────────────────────────────────
+// ── Gauge (SVG Circular Progress) ─────────────────────────────────────────────
+const salesTarget = computed(() => {
+  const stored = localStorage.getItem('pos_sales_target')
+  return stored ? Number(stored) : 27000000
+})
+
+const currentMonthRevenue = computed(() => {
+  const now = new Date()
+  return rawOrders.value
+    .filter(o => {
+      if (o.status?.toUpperCase() !== 'PAID') return false
+      if (!o.createdAt) return false
+      const d = new Date(o.createdAt)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    })
+    .reduce((s, o) => s + (Number(o.total) || 0), 0)
+})
+
 const gaugePercent = computed(() => {
-  if (allOrders.value.length === 0) return 0
-  const completed = allOrders.value.filter(o =>
-    ['completed', 'paid', 'delivered'].includes(o.status)
-  ).length
-  return Math.min(100, Math.round((completed / allOrders.value.length) * 100))
+  if (salesTarget.value <= 0) return 0
+  return Math.min(100, Math.round((currentMonthRevenue.value / salesTarget.value) * 100))
 })
 
 const daysLeft = computed(() => {
   const now = new Date()
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return endOfMonth.getDate() - now.getDate()
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  return lastDay - now.getDate()
 })
 
-const monthlyTarget = 'Rp 27.000.000'
+const monthlyTarget = computed(() => formatCurrency(salesTarget.value))
+
 const GAUGE_R = 72
 const GAUGE_CX = 96
 const GAUGE_CY = 96
@@ -404,7 +574,15 @@ const combinedStatusItems = computed(() => {
   return [...branches, ...warehouses]
 })
 
-// ── Orders computed ───────────────────────────────────────────────────────────
+// ── Recent Activity ───────────────────────────────────────────────────────────
+// (dikosongkan — akan diisi dari backend nanti)
+const recentActivities = []
+/*
+
+// ── Orders & Shipping (real data) ────────────────────────────────────────────
+  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
+*/
+
 const filteredOrders = computed(() => {
   const q = orderSearch.value.toLowerCase()
   if (!q) return allOrders.value
@@ -554,6 +732,7 @@ async function fetchOrders() {
     const res = await api.get(url)
     const d = res.data
     const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])
+    rawOrders.value = list
     allOrders.value = list.map(o => ({
       id: o.id,
       orderNumber: o.orderNumber || `#${o.id}`,

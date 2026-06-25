@@ -108,16 +108,9 @@ public class PartnerRoleTemplateSeeder {
         // Transfer Request — full
         "transfer_request.index", "transfer_request.show",
         "transfer_request.store", "transfer_request.update",
-        // Stock Opname — read-only
-        "stock_opname.index", "stock_opname.show",
-        // Shift
-        "shift.index", "shift.open", "shift.close",
-        // Branch — read-only
-        "branch.index", "branch.show",
-        // Warehouse — read-only
-        "warehouse.index", "warehouse.show",
-        // Branch Warehouse — read-only
-        "branch_warehouse.index", "branch_warehouse.show",
+        // Stock Opname — bisa approve & update (agar stok masuk ke kasir)
+        "stock_opname.index", "stock_opname.show", "stock_opname.store",
+        "stock_opname.update",
         // Purchase Order — read-only
         "purchase_order.index", "purchase_order.show",
         // Purchase Receipt — bisa terima barang

@@ -496,13 +496,18 @@ public class OrdersService {
                 if (!upperType.equals("BRANCH") && !upperType.equals("WAREHOUSE")) {
                     throw new RuntimeException("returnLocationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
                 }
-                if (upperType.equals("WAREHOUSE")) {
-                    warehousesRepository.findById(reqLocationId)
-                            .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
-                } else {
-                    branchesRepository.findById(reqLocationId)
-                            .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+            if (upperType.equals("WAREHOUSE")) {
+                warehousesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
+            } else {
+                Branches targetBranch = branchesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+                if (order.getBranch() == null || !order.getBranch().getId().equals(targetBranch.getId())) {
+                    throw new RuntimeException("Retur barang hanya dapat dikembalikan ke cabang tempat pembelian asal (" 
+                            + (order.getBranch() != null ? order.getBranch().getName() : "?") 
+                            + "). Tidak diperbolehkan retur ke cabang lain.");
                 }
+            }
                 targetLocationType = upperType;
                 targetLocationId = reqLocationId;
             } else {

@@ -283,15 +283,32 @@ public class PurchaseReceiptService {
                     throw new RuntimeException("Purchase Order tidak memiliki lokasi tujuan yang valid.");
                 }
 
+                // =============================================================
+                // ROUTING STOK: BRANCH → QUARANTINE dulu (butuh approval)
+                //               WAREHOUSE → langsung masuk stok
+                // =============================================================
+                String targetLocationType;
+                Long targetLocationId;
+
+                if ("BRANCH".equalsIgnoreCase(locationType)) {
+                    // PO tujuan cabang: stok masuk karantina dulu, tunggu approval
+                    targetLocationType = "QUARANTINE";
+                    targetLocationId = locationId; // locationId = branchId, sebagai referensi target
+                } else {
+                    // PO tujuan gudang: langsung masuk stok warehouse
+                    targetLocationType = locationType;
+                    targetLocationId = locationId;
+                }
+
                 StockBalance stockBalance = stockBalanceRepository
-                        .findByProductIdAndLocationTypeAndLocationId(product.getId(), locationType, locationId)
+                        .findByProductIdAndLocationTypeAndLocationId(product.getId(), targetLocationType, targetLocationId)
                         .orElse(null);
 
                 if (stockBalance == null) {
                     stockBalance = new StockBalance();
                     stockBalance.setProduct(product);
-                    stockBalance.setLocationType(locationType);
-                    stockBalance.setLocationId(locationId);
+                    stockBalance.setLocationType(targetLocationType);
+                    stockBalance.setLocationId(targetLocationId);
                     stockBalance.setQty(0L);
                     stockBalance.setCreatedBy(currentUser);
                     stockBalance.setCreatedAt(LocalDateTime.now());
@@ -309,15 +326,19 @@ public class PurchaseReceiptService {
                 StockMutation mutation = new StockMutation();
                 mutation.setProduct(product);
                 mutation.setPartner(po.getPartner());
-                mutation.setType(StockMutation.Type.PURCHASE_IN);
+                mutation.setType("BRANCH".equalsIgnoreCase(locationType)
+                        ? StockMutation.Type.QUARANTINE_IN
+                        : StockMutation.Type.PURCHASE_IN);
                 mutation.setFromLocationType(null);
                 mutation.setFromLocationId(null);
-                mutation.setToLocationType(StockMutation.Location.valueOf(locationType));
-                mutation.setToLocationId(locationId);
+                mutation.setToLocationType(StockMutation.Location.valueOf(targetLocationType));
+                mutation.setToLocationId(targetLocationId);
                 mutation.setQty(qtyReceivedLong);
                 mutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
                 mutation.setReferenceId(saved.getId());
-                mutation.setNotes("Penerimaan barang dari PO #" + po.getPoNumber() + " - Receipt #" + saved.getReceiptNumber());
+                mutation.setNotes("BRANCH".equalsIgnoreCase(locationType)
+                        ? "Penerimaan PO #" + po.getPoNumber() + " → KARANTINA (menunggu approval ke cabang #" + locationId + ")"
+                        : "Penerimaan barang dari PO #" + po.getPoNumber() + " - Receipt #" + saved.getReceiptNumber());
                 mutation.setCreatedBy(currentUser);
                 mutation.setCreatedAt(LocalDateTime.now());
                 stockMutationRepository.save(mutation);
