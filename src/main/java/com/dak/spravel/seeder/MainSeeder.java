@@ -21,7 +21,6 @@ public class MainSeeder {
     private final UserSeeder                userSeeder;
     private final PermissionSeeder          permissionSeeder;
     private final PartnerRoleTemplateSeeder partnerRoleTemplateSeeder;
-    private final DummyDataSeeder           dummyDataSeeder;
 
     @EventListener(ApplicationReadyEvent.class)
     public void seedAfterMigrations() {
