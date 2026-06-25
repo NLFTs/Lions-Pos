@@ -169,6 +169,15 @@ const revenueStats = computed(() => {
   }
 })
 
+// ── Derived Order Counts (HARUS sebelum metricCards) ──────────────────────────
+const totalOrderCount = computed(() => rawOrders.value.length)
+const totalPendingOrders = computed(() => rawOrders.value.filter(o => o.status === 'pending').length)
+const conversionRate = computed(() => {
+  if (totalOrderCount.value === 0) return 0
+  const paid = rawOrders.value.filter(o => o.status === 'paid').length
+  return Number(((paid / totalOrderCount.value) * 100).toFixed(1))
+})
+
 // ── Metric Cards ─────────────────────────────────────────────────────────────
 const metricCards = computed(() => [
   {
