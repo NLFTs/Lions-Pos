@@ -35,10 +35,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     Optional<Notification> findByIdWithDetails(@Param("id") Long id);
 
     // ── Deduplication for product notifications ───────────────────────────────
+    // Merge berdasarkan isDraft=false saja — tidak peduli isSeen,
+    // sehingga notifikasi tetap tergabung meski user sudah buka inbox.
 
-    Optional<Notification> findFirstByPartnerIdAndNameAndIsDraftAndIsSeenOrderByCreatedAtDesc(
-            Long partnerId, String name, Boolean isDraft, Boolean isSeen);
+    Optional<Notification> findFirstByPartnerIdAndNameAndIsDraftOrderByCreatedAtDesc(
+            Long partnerId, String name, Boolean isDraft);
 
-    Optional<Notification> findFirstByPartnerIsNullAndNameAndIsDraftAndIsSeenOrderByCreatedAtDesc(
-            String name, Boolean isDraft, Boolean isSeen);
+    Optional<Notification> findFirstByPartnerIsNullAndNameAndIsDraftOrderByCreatedAtDesc(
+            String name, Boolean isDraft);
 }
