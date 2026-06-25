@@ -16,12 +16,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Menyediakan 4 role template siap pakai untuk setiap partner:
+ * Menyediakan 3 role template siap pakai untuk setiap partner:
  *
  *  1. admin-partner   — Admin internal partner, akses penuh ke semua modul mitranya
  *  2. pengelola-gudang — Kelola stok, PO masuk, transfer request, stock opname
  *  3. pengelola-cabang — Seperti gudang + POS lengkap + laporan + riwayat order
- *  4. kasir            — POS, riwayat order, saldo stok (read-only), kategori (read-only), laporan
  *
  * Aturan: jika permission .index aktif maka .show juga harus aktif.
  *
@@ -87,6 +86,8 @@ public class PartnerRoleTemplateSeeder {
         // Dashboard & Laporan
         "dashboard.index",
         "report.index",
+        // Shift 
+        "shift.index", "shift.open", "shift.close",
         // Notifikasi
         "notification.index",
     };
@@ -109,6 +110,14 @@ public class PartnerRoleTemplateSeeder {
         "transfer_request.store", "transfer_request.update",
         // Stock Opname — read-only
         "stock_opname.index", "stock_opname.show",
+        // Shift
+        "shift.index", "shift.open", "shift.close",
+        // Branch — read-only
+        "branch.index", "branch.show",
+        // Warehouse — read-only
+        "warehouse.index", "warehouse.show",
+        // Branch Warehouse — read-only
+        "branch_warehouse.index", "branch_warehouse.show",
         // Purchase Order — read-only
         "purchase_order.index", "purchase_order.show",
         // Purchase Receipt — bisa terima barang
@@ -129,14 +138,6 @@ public class PartnerRoleTemplateSeeder {
     };
 
     /**
-     * Kasir:
-     * - Saldo stok — read-only (tidak bisa tambah/transfer)
-     * - POS — akses penuh (bisa transaksi)
-     * - Riwayat order — read-only
-     * - Kategori — read-only
-     * - Laporan — read-only
-     */
-    /**
      * Karyawan Cabang:
      * - Bisa akses POS & kasir (karena cabang = toko/outlet)
      * - Lihat stok cabangnya (read-only)
@@ -154,6 +155,12 @@ public class PartnerRoleTemplateSeeder {
         "stock_mutation.index", "stock_mutation.show",
         // POS — full (karyawan cabang bisa jadi kasir)
         "pos.index",
+        // Branch — read-only
+        "branch.index", "branch.show",
+        // Warehouse — read-only
+        "warehouse.index", "warehouse.show",
+        // Branch Warehouse — read-only
+        "branch_warehouse.index", "branch_warehouse.show",
         // Order — bisa buat & lihat
         "order.index", "order.show", "order.store", "order.update",
         "order_item.index", "order_item.show", "order_item.store",
@@ -178,7 +185,7 @@ public class PartnerRoleTemplateSeeder {
     // ─── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * Pastikan 4 role template global (admin-partner, pengelola-gudang, dll) ada di database.
+     * Pastikan 3 role template global (owner, pengelola-gudang, dll) ada di database.
      * Tidak bergantung pada partner — aman dipanggil berkali-kali (idempotent).
      */
     @Transactional

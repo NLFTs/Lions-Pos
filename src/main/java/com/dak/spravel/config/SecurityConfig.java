@@ -32,7 +32,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final PermissionCacheService permissionCacheService;
     private final CustomAccessDeniedHandler customAccessDeniedHandler;
-    private final UserContextFilter userContextFilter; // Inject UserContextFilter
+    private final UserContextFilter userContextFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -42,7 +42,6 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Gunakan pattern agar semua origin (localhost, IP lokal, dll) bisa akses di dev
         configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
@@ -61,7 +60,7 @@ public class SecurityConfig {
                 "/api/v1/auth/refresh",
                 "/api/v1/auth/logout",
                 "/api/v1/auth/force-logout-all",
-                "/api/v1/public/**",        // struk publik via QR code
+                "/api/v1/public/**",
                 "/v3/api-docs/**",
                 "/v3/api-docs.yaml/**",
                 "/docs",

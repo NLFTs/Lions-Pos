@@ -73,9 +73,7 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // KUNCI DINAMIS: Check permission dinamis dari database tanpa hardcode kasta nama role
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -99,7 +97,6 @@ public class ProductService {
     // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Product getValidatedProduct(Long id, User currentUser) {
-        // 👑 Super Admin bypass checking partner id (bisa cari di seluruh produk global)
         if (currentUser.getPartner() == null) {
             return productRepository.findById(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Product", id));

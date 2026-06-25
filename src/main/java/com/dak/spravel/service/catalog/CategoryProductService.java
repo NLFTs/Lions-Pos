@@ -31,7 +31,7 @@ public class CategoryProductService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
 
-    // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
     private User getAuthenticatedUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -42,9 +42,7 @@ public class CategoryProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -109,8 +107,8 @@ public class CategoryProductService {
 
     public List<CategoryProductResponse> findAll() {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "category.index"); // Saring via permission index
-
+        checkPermission(currentUser, "category.index");
+        
         if (currentUser.getPartner() == null) {
             return categoryProductRepository.findAll().stream().map(this::mapToResponse).toList();
         }
@@ -141,7 +139,7 @@ public class CategoryProductService {
     @Transactional
     public CategoryProductResponse create(CategoryProductCreate request) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "category.store"); // Siapapun boleh input asal diberi izin
+        checkPermission(currentUser, "category.store");
 
         Partners partner = currentUser.getPartner();
         CategoryProduct parent = null;
@@ -150,7 +148,6 @@ public class CategoryProductService {
             parent = getValidatedCategory(request.getParentId(), currentUser);
         }
 
-        // Validasi keunikan nama kategori di scope tenant (hanya jika dia staff partner)
         if (partner != null && categoryProductRepository.existsByNameAndPartnerId(request.getName(), partner.getId())) {
             throw new RuntimeException("Category '" + request.getName() + "' sudah ada di partner ini.");
         }
@@ -160,7 +157,6 @@ public class CategoryProductService {
         c.setParent(parent);
         c.setName(request.getName());
         c.setDescription(request.getDescription());
-        // Auto-assign sortOrder jika tidak dikirim dari request
         if (request.getSortOrder() != null) {
             c.setSortOrder(request.getSortOrder());
         } else {
@@ -206,7 +202,6 @@ public class CategoryProductService {
 
         CategoryProduct c = getValidatedCategory(id, currentUser);
 
-        // 🛡️ GUARD: Cek apakah masih ada produk yang menggunakan kategori ini
         long productCount = productRepository.countByCategoryId(id);
         if (productCount > 0) {
             throw new RuntimeException(

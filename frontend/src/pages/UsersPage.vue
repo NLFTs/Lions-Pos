@@ -284,7 +284,17 @@ async function fetchRoles() {
   } catch { roles.value = [] }
 }
 
-// ─── Form Actions ─────────────────────────────────────────────────────────────
+// ─── Form Actions (🔥 FIX SINGLE SELECTION LOGIC) ────────────────────────────
+function toggleRole(id) {
+  // Jika ID yang diklik sudah aktif terpilih, hapus seleksi (bisa dikosongkan)
+  if (form.value.roleIds.includes(id)) {
+    form.value.roleIds = []
+  } else {
+    // Jika klik jabatan lain, timpa isi array murni dengan ID baru ini (Single selection)
+    form.value.roleIds = [id]
+  }
+}
+
 function openCreate() {
   form.value = { id: null, username: '', fullname: '', email: '', password: '', roleIds: [], partnerId: null }
   formErrors.value = {}; formError.value = null
@@ -319,12 +329,6 @@ function openEdit(u) {
   if (isAdmin.value) {
     fetchPartners()
   }
-}
-
-function toggleRole(id) {
-  const idx = form.value.roleIds.indexOf(id)
-  if (idx === -1) form.value.roleIds.push(id)
-  else form.value.roleIds.splice(idx, 1)
 }
 
 function handleAvatarChange(e) {
@@ -746,14 +750,14 @@ function initials(u) {
                 <p v-if="formErrors.password" class="text-xs text-destructive">{{ formErrors.password }}</p>
               </div>
 
-              <!-- PENUGASAN JABATAN / DELEGASI PERAN (Dinamis & Terisolasi) -->
+              <!-- PENUGASAN JABATAN / DELEGASI PERAN (🔥 INTERFACE SINGLE RADIO STYLE SELECTION) -->
               <div class="border-t border-zinc-100 dark:border-zinc-800 pt-5 space-y-3">
                 <Label class="text-sm font-semibold flex items-center gap-2">
                   <Shield class="h-4 w-4 text-primary" />
                   <span>Delegasi Jabatan (Peran / Role)</span>
                 </Label>
                 <p class="text-xs text-muted-foreground leading-relaxed">
-                  Pilih satu atau beberapa peran hak akses kerja untuk akun ini. Hak akses yang tersedia adalah peran default sistem dan peran kustom buatan mitra Anda sendiri.
+                  Pilih satu peran hak akses kerja utama untuk akun ini. Hak akses yang tersedia adalah peran default sistem dan peran kustom buatan mitra Anda sendiri.
                 </p>
 
                 <div v-if="roles.length === 0" class="py-6 flex flex-col items-center justify-center text-center bg-zinc-50 dark:bg-zinc-900/40 border border-dashed rounded-xl">
@@ -772,11 +776,12 @@ function initials(u) {
                       ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-sm ring-1 ring-primary'
                       : 'border-border bg-background hover:bg-zinc-50/50 dark:hover:bg-zinc-900/50'"
                   >
+                    <!-- 🔥 LINGKARAN RADIO BUTTON STYLE: Menggantikan checkbox petak lama -->
                     <div 
-                      class="w-4 h-4 rounded mt-0.5 border flex items-center justify-center transition-colors shrink-0"
+                      class="w-4 h-4 rounded-full mt-0.5 border flex items-center justify-center transition-colors shrink-0"
                       :class="form.roleIds.includes(role.id) ? 'bg-primary border-primary text-primary-foreground' : 'border-zinc-300 dark:border-zinc-700 bg-background'"
                     >
-                      <Check v-if="form.roleIds.includes(role.id)" class="h-3 w-3 stroke-[3]" />
+                      <span v-if="form.roleIds.includes(role.id)" class="w-1.5 h-1.5 rounded-full bg-white dark:bg-zinc-900" />
                     </div>
                     <div class="flex-1 min-w-0">
                       <p class="text-[12.5px] font-semibold leading-tight" :class="form.roleIds.includes(role.id) ? 'text-primary' : 'text-foreground'">

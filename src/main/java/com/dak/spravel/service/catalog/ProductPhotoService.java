@@ -58,9 +58,7 @@ public class ProductPhotoService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // KUNCI DINAMIS: Check permission dinamis dari database tanpa kaku nge-lock nama role
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -81,7 +79,6 @@ public class ProductPhotoService {
         ProductPhoto photo = productPhotoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductPhoto", id));
 
-        // Super Admin global bebas bypass pengecekan tenant id
         if (currentUser.getPartner() == null) {
             return photo;
         }
@@ -100,7 +97,6 @@ public class ProductPhotoService {
         User currentUser = getAuthenticatedUser();
         checkPermission(currentUser, "produk.show"); // Ikut ke permission show produk
         
-        // Handling aman super admin / partner user scope
         Product product;
         if (currentUser.getPartner() == null) {
             product = productRepository.findById(productId)
@@ -136,11 +132,9 @@ public class ProductPhotoService {
             }
         }
 
-        // Guard: jangan simpan duplikat URL untuk produk yang sama
         boolean alreadyExists = productPhotoRepository.findByProductId(product.getId())
                 .stream().anyMatch(p -> p.getUrl() != null && p.getUrl().equals(request.getUrl()));
         if (alreadyExists) {
-            // Return foto yang sudah ada daripada buat baru (idempotent)
             return productPhotoRepository.findByProductId(product.getId())
                     .stream()
                     .filter(p -> p.getUrl().equals(request.getUrl()))
@@ -183,12 +177,12 @@ public class ProductPhotoService {
     }
 
     // ==========================================
-    // DELETE (🔒 Berbasis Permission)
+    // DELETE (Berbasis Permission)
     // ==========================================
     @Transactional
     public void delete(Long id) {
         User currentUser = getAuthenticatedUser();
-        checkPermission(currentUser, "produk.delete"); // Sikat pake permission delete produk
+        checkPermission(currentUser, "produk.delete"); 
 
         ProductPhoto photo = getValidatedPhoto(id, currentUser);
         if (photo.getUrl() != null) {
