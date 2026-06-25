@@ -2,6 +2,7 @@ package com.dak.spravel.service.inventory;
 
 import com.dak.spravel.dto.request.inventory.TransferRequestDTO;
 import com.dak.spravel.dto.request.inventory.TransferRequestItemDTO;
+import com.dak.spravel.dto.response.components.UserSimpleDto;
 import com.dak.spravel.dto.response.inventoryresponse.TransferRequestResponse;
 import com.dak.spravel.handler.ResourceNotFoundException;
 import com.dak.spravel.model.auth.User;
@@ -317,15 +318,34 @@ public class TransferRequestService {
         if (tr.getStatus() != TransferRequest.Status.IN_TRANSIT) {
             throw new RuntimeException("Gagal: Barang belum diproses kirim (IN_TRANSIT) oleh lokasi asal pembekal.");
         }
-    
+
+        boolean isOwner = currentUser.getRoles().stream()
+            .anyMatch(role -> role.getName().toLowerCase().contains("owner") || role.getName().toLowerCase().contains("admin-partners"));
+
+        Long userLocationId = currentUser.getBranch().getId();
+
         if (currentUser.getPartner() != null) {
-            if (currentUser.getBranch() != null) {
-                if (tr.getToLocationType() != TransferRequest.Location.BRANCH || !currentUser.getBranch().getId().equals(tr.getToLocationId())) {
-                    throw new RuntimeException("Akses Ditolak: Hanya Pengelola Cabang di lokasi PENERIMA yang dapat mengonfirmasi penerimaan.");
+            if (tr.getStatus().equals(TransferRequest.Status.RECEIVED)) {
+                if (!isOwner) {
+                    if (userLocationId == null || !userLocationId.equals(tr.getToLocationId()) && !currentUser.getRoles().stream()
+                        .anyMatch(role -> role.getName().toLowerCase().contains("pengelola-cabang"))) {
+                        throw new RuntimeException("Akses Ditolak: Anda bukan pengelola di lokasi penerima ini.");
+                    }
                 }
             }
-        }
     
+            if (tr.getStatus().equals(TransferRequest.Status.IN_TRANSIT)) {
+                if (!isOwner) {
+                    if (userLocationId == null || !userLocationId.equals(tr.getToLocationId()) && !currentUser.getRoles().stream()
+                        .anyMatch(role -> role.getName().toLowerCase().contains("pengelola-cabang"))) {
+                        throw new RuntimeException("Akses Ditolak: Anda bukan pengelola di lokasi penerima ini.");
+                    }
+                } 
+            }  
+        } else if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Anda bukan pengelola di lokasi penerima ini.");
+        }
+
         List<TransferRequestItem> trItems = transferRequestItemRepository.findByTransferRequestId(tr.getId());
     
         tr.setStatus(TransferRequest.Status.RECEIVED);
@@ -436,21 +456,21 @@ public class TransferRequestService {
     public TransferRequestResponse mapToResponse(TransferRequest tr) {
         if (tr == null) return null;
 
-        com.dak.spravel.dto.response.components.UserSimpleDto createdByDto = null;
+        UserSimpleDto createdByDto = null;
         if (tr.getCreatedBy() != null) {
-            createdByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            createdByDto = new UserSimpleDto();
             createdByDto.setId(tr.getCreatedBy().getId());
             createdByDto.setUsername(tr.getCreatedBy().getUsername());
         }
 
-        com.dak.spravel.dto.response.components.UserSimpleDto approvedByDto = null;
+        UserSimpleDto approvedByDto = null;
         if (tr.getApprovedByUser() != null) {
-            approvedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
+            approvedByDto = new UserSimpleDto();
             approvedByDto.setId(tr.getApprovedByUser().getId());
             approvedByDto.setUsername(tr.getApprovedByUser().getUsername());
         }
 
-        com.dak.spravel.dto.response.components.UserSimpleDto receivedByDto = null;
+        UserSimpleDto receivedByDto = null;
         if (tr.getReceivedByUser() != null) {
             receivedByDto = new com.dak.spravel.dto.response.components.UserSimpleDto();
             receivedByDto.setId(tr.getReceivedByUser().getId());

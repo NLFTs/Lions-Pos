@@ -177,26 +177,20 @@ const MENU_GROUPS = [
   },
 ]
 
-// Filter menu by permission
 function filterMenu(groups) {
   const isAdmin = auth.isAdmin
   
-  // Ambil data roles langsung dari user store agar aman dari urutan inisialisasi fungsi
   const userRoles = user.value?.roles || []
   const isOwner = userRoles.some(r => {
     const name = (typeof r === 'string' ? r : (r.name || r.slug || '')).toLowerCase()
     return name === 'owner' || name === 'admin-partner'
   })
   
-  // Memastikan status apakah user memiliki partner atau partnerId
   const hasPartner = !!(user.value?.partner || user.value?.partnerId)
 
   return groups.reduce((acc, group) => {
 
     const filteredItems = group.items.reduce((items, item) => {
-      
-      // PROTEKSI KHUSUS CABANG:
-      // Hanya Super Admin atau Owner yang boleh melihat menu Cabang
       if (item.label === 'Cabang' && !isAdmin && !isOwner) {
         return items
       }
@@ -204,6 +198,9 @@ function filterMenu(groups) {
       if ((item.label === 'Perizinan' || item.label === 'Modul') && !isAdmin) {
         return items
       }
+      // PROTEKSI KHUSUS CABANG:
+      // Hanya Super Admin atau Owner yang boleh melihat menu Cabang
+      
 
       if (item.label === 'Mitra' && hasPartner) {
         return items
