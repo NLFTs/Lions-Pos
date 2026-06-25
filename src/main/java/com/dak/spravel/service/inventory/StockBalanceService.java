@@ -896,10 +896,15 @@ mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembek
         Long targetBranchId = quarantine.getLocationId();
 
         // 1. Kurangi stok quarantine
-        quarantine.setQty(currentQty - approveQty);
-        quarantine.setUpdatedBy(currentUser);
-        quarantine.setUpdatedAt(LocalDateTime.now());
-        stockBalanceRepository.save(quarantine);
+        long remainingQuarantineQty = currentQty - approveQty;
+        if (remainingQuarantineQty <= 0) {
+            stockBalanceRepository.delete(quarantine);
+        } else {
+            quarantine.setQty(remainingQuarantineQty);
+            quarantine.setUpdatedBy(currentUser);
+            quarantine.setUpdatedAt(LocalDateTime.now());
+            stockBalanceRepository.save(quarantine);
+        }
 
         // 2. Tambah stok ke BRANCH
         StockBalance branchStock = stockBalanceRepository

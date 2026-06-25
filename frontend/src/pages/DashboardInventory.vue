@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { usePermission } from '@/composables/usePermission'
 import { useToast } from '@/composables/useToast'
 import AppLayout from '@/components/AppLayout.vue'
 import Card from '@/components/ui/Card.vue'
@@ -20,6 +21,7 @@ import {
   AlertTriangle,
   History,
   Trash2,
+  CheckCircle2,
   X,
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
@@ -41,6 +43,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, 
 
 const route = useRoute()
 const { toast } = useToast()
+const { can } = usePermission()
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 
@@ -104,7 +107,10 @@ const dashboardTitle = computed(() => {
 
 // ─── Computed: Filter & Paginate Table (BYPASS FILTER SENSITIF KAKU) ─────────
 const filteredBalances = computed(() => {
-  let r = [...balances.value]
+  let r = balances.value.filter((b) => {
+    const type = String(b.locationType || b.location_type || '').toUpperCase().trim()
+    return !(type === 'QUARANTINE' && Number(b.qty || 0) <= 0)
+  })
 
   if (locationFilter.value !== 'all') {
     r = r.filter((b) => {
@@ -260,6 +266,7 @@ const chartOptions = computed(() => ({
 const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
 const isBranchManager = computed(() => !!currentBranchId.value)
 const isOwner = computed(() => authStore.isOwner || (!authStore.isAdmin && authStore.user?.partner != null && !authStore.user?.branchId))
+const canUpdateStock = computed(() => authStore.isAdmin || can('stock_balance.update'))
 
 // ─── Actions: Fetch Data ─────────────────────────────────────────────────────
 async function fetchDashboardData() {
@@ -291,6 +298,21 @@ async function fetchDashboardData() {
       primaryParams.locationId = Number(currentBranchId.value)
     }
     requests.push(api.get(url, { params: primaryParams }))
+
+    const branchIdForQuarantine = type && id && String(type).toUpperCase() === 'BRANCH'
+      ? Number(id)
+      : (isBranchManager.value && currentBranchId.value ? Number(currentBranchId.value) : null)
+
+    if (branchIdForQuarantine) {
+      requests.push(api.get(url, {
+        params: {
+          page: 0,
+          size: 200,
+          locationType: 'QUARANTINE',
+          locationId: branchIdForQuarantine
+        }
+      }))
+    }
 
     // 🔥 FIX 100%: Karena endpoint /warehouses di fetchLocations() sudah memfilter branchId dari backend, 
     // maka semua data bertipe 'warehouse' yang masuk array locations sudah pasti terikat dengan cabang ini!
@@ -444,6 +466,40 @@ async function submitDispose() {
     toast.error(err.response?.data?.message || 'Gagal melakukan dispose.')
   } finally {
     disposeSaving.value = false
+  }
+}
+
+// APPROVE KARANTINA -> STOK AKTIF CABANG
+const showApproveModal = ref(false)
+const approveTarget = ref(null)
+const approveQty = ref('')
+const approveNotes = ref('')
+const approveSaving = ref(false)
+
+function openApprove(balance) {
+  approveTarget.value = balance
+  approveQty.value = balance.qty?.toString() || ''
+  approveNotes.value = ''
+  showApproveModal.value = true
+}
+
+async function submitApprove() {
+  if (!approveTarget.value) return
+  const qty = Number(approveQty.value)
+  if (!qty || qty <= 0) { toast.error('Jumlah approve harus lebih dari 0.'); return }
+  if (qty > approveTarget.value.qty) { toast.error(`Maksimal qty approve: ${approveTarget.value.qty}.`); return }
+  approveSaving.value = true
+  try {
+    await api.post(`/api/v1/stock-balances/${approveTarget.value.id}/approve`, null, {
+      params: { qty, notes: approveNotes.value?.trim() || null }
+    })
+    toast.success(`${qty} pcs berhasil masuk ke stok aktif cabang.`)
+    showApproveModal.value = false
+    fetchDashboardData()
+  } catch (err) {
+    toast.error(err.response?.data?.message || 'Gagal approve stok karantina.')
+  } finally {
+    approveSaving.value = false
   }
 }
 
@@ -693,13 +749,25 @@ onMounted(async () => {
                         </div>
                       </td>
                       <td class="pr-5 py-3.5 text-right">
-                        <Button v-if="(b.locationType || b.location_type) === 'QUARANTINE'"
-                          variant="ghost" size="sm"
-                          class="h-7 px-2.5 text-[11px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5"
-                          @click="openDispose(b)">
-                          <Trash2 class="h-3.5 w-3.5" />
-                          Dispose
-                        </Button>
+                        <div v-if="(b.locationType || b.location_type) === 'QUARANTINE'" class="flex justify-end gap-1.5">
+                          <Button
+                            v-if="canUpdateStock"
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2.5 text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 gap-1.5"
+                            @click="openApprove(b)">
+                            <CheckCircle2 class="h-3.5 w-3.5" />
+                            Approve
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-2.5 text-[11px] font-bold text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-1.5"
+                            @click="openDispose(b)">
+                            <Trash2 class="h-3.5 w-3.5" />
+                            Dispose
+                          </Button>
+                        </div>
                         <Button v-else variant="ghost" size="icon" class="h-7 w-7 text-zinc-400 hover:text-primary transition-colors">
                           <ArrowUpRight class="h-3.5 w-3.5" />
                         </Button>
@@ -722,5 +790,102 @@ onMounted(async () => {
         </Card>
       </template>
     </div>
+
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="showApproveModal"
+          class="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+          @click="showApproveModal = false"
+        />
+      </Transition>
+      <Transition name="scale">
+        <div
+          v-if="showApproveModal && approveTarget"
+          class="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none"
+        >
+          <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-sm border border-emerald-200 dark:border-emerald-800/40 pointer-events-auto overflow-hidden">
+            <div class="flex items-center gap-3 px-6 py-4 border-b border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <div class="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
+                <CheckCircle2 class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 class="font-black text-[15px] text-zinc-900 dark:text-zinc-100">Approve ke Kasir</h3>
+                <p class="text-[11px] text-muted-foreground mt-0.5">Pindahkan stok karantina ke saldo aktif cabang</p>
+              </div>
+              <button @click="showApproveModal = false" class="ml-auto p-1.5 rounded-full hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-zinc-400">
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+
+            <div class="px-6 py-5 space-y-4">
+              <div class="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+                <p class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Produk</p>
+                <p class="text-sm font-bold text-zinc-900 dark:text-zinc-100">{{ approveTarget.product?.name }}</p>
+                <p class="text-[11px] font-mono text-muted-foreground">{{ approveTarget.product?.sku }}</p>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                  <span class="text-[11px] text-zinc-500">Stok Karantina</span>
+                  <span class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ approveTarget.qty }} pcs</span>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                  <span class="text-[11px] text-zinc-500">Tujuan Cabang</span>
+                  <span class="text-[11px] font-bold text-zinc-700 dark:text-zinc-300">{{ getLocationName('branch', approveTarget.locationId || approveTarget.location_id) }}</span>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Jumlah Approve</label>
+                <div class="relative">
+                  <input
+                    v-model="approveQty"
+                    type="number"
+                    min="1"
+                    :max="approveTarget.qty"
+                    placeholder="0"
+                    class="w-full h-11 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 pr-12 text-base font-bold outline-none focus:ring-2 focus:ring-emerald-400/30"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-zinc-400">PCS</span>
+                </div>
+                <button
+                  type="button"
+                  @click="approveQty = approveTarget.qty.toString()"
+                  class="text-[11px] font-semibold text-primary hover:underline"
+                >
+                  Approve semua ({{ approveTarget.qty }} pcs)
+                </button>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Catatan</label>
+                <input
+                  v-model="approveNotes"
+                  placeholder="cth: barang sudah dicek dan siap jual"
+                  class="w-full h-9 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-emerald-400/30"
+                />
+              </div>
+            </div>
+
+            <div class="px-6 pb-5 flex gap-2.5">
+              <button
+                @click="showApproveModal = false"
+                :disabled="approveSaving"
+                class="flex-1 h-11 rounded-xl border border-zinc-200 dark:border-zinc-700 font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                @click="submitApprove"
+                :disabled="approveSaving"
+                class="flex-1 h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+              >
+                <Loader2 v-if="approveSaving" class="h-4 w-4 animate-spin" />
+                <CheckCircle2 v-else class="h-4 w-4" />
+                Setujui
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </AppLayout>
 </template>

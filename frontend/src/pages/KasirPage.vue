@@ -26,13 +26,21 @@ const categories = ref([])
 const vouchers = ref([])
 const branches = ref([])
 const stockBalances = ref({})
+const availableProductIds = ref(new Set())
 const selectedBranchId = ref(null)
 const showBranchDropdown = ref(false)
 const branchDropdownRef = ref(null)
+let stockRequestSeq = 0
 
 const selectedBranch = computed(() => branches.value.find(b => b.id === selectedBranchId.value))
 
 function selectBranch(branch) {
+  if (selectedBranchId.value !== branch.id && cart.value.length > 0) {
+    cart.value = []
+    appliedVoucher.value = null
+    voucherCode.value = ''
+    toast.info('Keranjang dikosongkan karena cabang diganti.')
+  }
   selectedBranchId.value = branch.id
   showBranchDropdown.value = false
 }
@@ -260,16 +268,27 @@ watch(selectedBranchId, (newId) => {
 })
 
 async function fetchStockBalances(branchId) {
+   const requestSeq = ++stockRequestSeq
+   stockBalances.value = {}
+   availableProductIds.value = new Set()
    try {
      const res = await api.get(`/api/v1/stock-balances/branch/${branchId}`)
+     if (requestSeq !== stockRequestSeq || Number(branchId) !== Number(selectedBranchId.value)) return
      const list = res.data?.data || []
      const map = {}
+     const available = new Set()
      list.forEach(sb => {
-       if (sb.product?.id) map[sb.product.id] = sb.qty ?? 0
+       if (!sb.product?.id) return
+       const qty = Number(sb.qty ?? 0)
+       map[String(sb.product.id)] = qty
+       if (qty > 0) available.add(String(sb.product.id))
      })
      stockBalances.value = map
+     availableProductIds.value = available
    } catch {
+     if (requestSeq !== stockRequestSeq) return
      stockBalances.value = {}
+     availableProductIds.value = new Set()
    }
  }
 
@@ -279,15 +298,19 @@ function getStock(productId) {
 
 const LOW_STOCK_THRESHOLD = 5
 
+const branchProducts = computed(() => {
+  return products.value.filter(p => availableProductIds.value.has(String(p.id)))
+})
+
 const lowStockProducts = computed(() => {
-   return products.value.filter(p => {
+   return branchProducts.value.filter(p => {
      const stock = getStock(p.id)
      return stock != null && stock > 0 && stock <= LOW_STOCK_THRESHOLD
    })
  })
 
  const outOfStockProducts = computed(() => {
-   return products.value.filter(p => {
+   return branchProducts.value.filter(p => {
      const stock = getStock(p.id)
      return stock != null && stock <= 0
    })
@@ -331,12 +354,18 @@ function toggleTodayPanel() {
 }
 
 const uniqueCategories = computed(() => {
-  const names = categories.value.map(c => c.name).filter(Boolean).sort()
+  const availableCategoryNames = branchProducts.value
+    .map(p => p.category_id?.name || p.categoryId?.name || p.category?.name)
+    .filter(Boolean)
+    .sort()
+  const names = availableCategoryNames.length
+    ? availableCategoryNames
+    : categories.value.map(c => c.name).filter(Boolean).sort()
   return ['Semua', ...new Set(names)]
 })
 
 const filteredProducts = computed(() => {
-   let result = products.value
+   let result = branchProducts.value
    if (searchQuery.value) {
      const q = searchQuery.value.toLowerCase()
      result = result.filter(p => p.name.toLowerCase().includes(q) || (p.sku && p.sku.toLowerCase().includes(q)))
@@ -354,6 +383,10 @@ const filteredProducts = computed(() => {
    })
    return result
  })
+
+const visibleTopProducts = computed(() => {
+  return topProducts.value.filter(p => availableProductIds.value.has(String(p.id)))
+})
 
 // ─── Cart Logic ───────────────────────────────────────────────────────────────
 let _uidCounter = Date.now()
@@ -861,6 +894,12 @@ for (const item of cart.value) {
 
   processingCheckout.value = true
   try {
+    const qtyByProduct = cart.value.reduce((acc, item) => {
+      const key = String(item.id)
+      acc[key] = (acc[key] || 0) + Number(item.qty || 0)
+      return acc
+    }, {})
+
     const basePayload = {
       branchId: selectedBranchId.value,
       orderNumber: `ORD-${Date.now()}`,
@@ -999,7 +1038,7 @@ function avatarStyle(name = '') {
                 >
                   <Building2 class="h-4 w-4 text-emerald-500 shrink-0" />
                   <span class="text-[12px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-                    📍 {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
+                   {{ selectedBranch?.name || authStore.user?.branchName || 'Cabang Aktif' }}
                   </span>
                 </div>
 
@@ -1170,12 +1209,12 @@ function avatarStyle(name = '') {
               <Loader2 class="h-8 w-8 animate-spin opacity-20" />
               <p class="text-[13px] font-medium">Memuat produk terlaris...</p>
             </div>
-            <div v-else-if="topProducts.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-400 gap-2">
+            <div v-else-if="visibleTopProducts.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-400 gap-2">
               <Star class="h-10 w-10 opacity-20" />
-              <p class="text-[13px] font-medium">Belum ada data penjualan untuk analisis</p>
+              <p class="text-[13px] font-medium">Belum ada produk favorit untuk cabang ini</p>
             </div>
             <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-3 p-3 lg:p-5">
-              <div v-for="(top, idx) in topProducts" :key="top.id"
+              <div v-for="(top, idx) in visibleTopProducts" :key="top.id"
                 class="relative flex flex-col bg-white dark:bg-zinc-900/80 rounded-[20px] overflow-hidden border border-amber-200/60 dark:border-amber-800/30 shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                 @click="addToCart(products.find(p => p.id == top.id) || { id: top.id, name: top.name, base_price: 0 })">
                 <div class="absolute top-2 left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black"
