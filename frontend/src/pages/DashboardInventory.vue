@@ -265,7 +265,7 @@ const chartOptions = computed(() => ({
 
 const currentBranchId = computed(() => authStore.user?.branch?.id || authStore.user?.branchId || null)
 const isBranchManager = computed(() => !!currentBranchId.value)
-const isOwner = computed(() => authStore.isOwner || (!authStore.isAdmin && authStore.user?.partner != null && !authStore.user?.branchId))
+const isOwner = computed(() => authStore.isOwner || (!authStore.isAdmin && !!authStore.user?.partnerId && !authStore.user?.branchId))
 const canUpdateStock = computed(() => authStore.isAdmin || can('stock_balance.update'))
 
 // ─── Actions: Fetch Data ─────────────────────────────────────────────────────
@@ -281,8 +281,13 @@ async function fetchDashboardData() {
       statsParams.locationType = type
       statsParams.locationId = id
     }
-    const resStats = await api.get('/api/v1/stock-balances/stats', { params: statsParams })
-    stats.value = resStats.data?.data || { total_products: 0, damaged_products: 10, incoming_products: 0, outgoing_products: 0, chart_data: [] }
+    try {
+      const resStats = await api.get('/api/v1/stock-balances/stats', { params: statsParams })
+      stats.value = resStats.data?.data || { total_products: 0, damaged_products: 10, incoming_products: 0, outgoing_products: 0, chart_data: [] }
+    } catch (err) {
+      console.warn('[Inventory] Gagal memuat statistik lokasi, lanjut memuat tabel stok.', err.response?.data || err.message)
+      stats.value = { total_products: 0, damaged_products: 10, incoming_products: 0, outgoing_products: 0, chart_data: [] }
+    }
     
     const url = isAdmin.value ? '/api/v1/stock-balances/admin' : '/api/v1/stock-balances'
     
@@ -333,11 +338,16 @@ async function fetchDashboardData() {
       });
     }
 
-    const responses = await Promise.all(requests)
+    const responses = await Promise.allSettled(requests)
     
     let allRawBalances = []
-    responses.forEach(res => {
-      let raw = res.data?.data || res.data
+    responses.forEach(result => {
+      if (result.status !== 'fulfilled') {
+        console.warn('[Inventory] Salah satu request stok gagal:', result.reason?.response?.data || result.reason?.message)
+        return
+      }
+
+      let raw = result.value.data?.data || result.value.data
       if (raw && typeof raw === 'object' && 'content' in raw) {
         raw = raw.content
       }
@@ -380,11 +390,11 @@ async function fetchDashboardData() {
 
 async function fetchLocations() {
   try {
-    const urlBranches = (isAdmin.value || isOwner.value) 
+    const urlBranches = isAdmin.value
       ? '/api/v1/branches/admin' 
       : '/api/v1/branches'
     
-    const urlWarehouses = (isAdmin.value || isOwner.value)
+    const urlWarehouses = isAdmin.value
       ? '/api/v1/warehouses/admin' 
       : '/api/v1/warehouses'
     
@@ -398,7 +408,7 @@ async function fetchLocations() {
       api.get(urlWarehouses, { params: warehouseParams }) 
     ])
     
-    const brRaw = (isAdmin.value || isOwner.value) ? resBr.data : (resBr.data?.data || [])
+    const brRaw = isAdmin.value ? resBr.data : (resBr.data?.data || [])
     const brArr = Array.isArray(brRaw) ? brRaw : (brRaw?.content || [])
     
     let whRaw = resWh.data?.data || resWh.data
