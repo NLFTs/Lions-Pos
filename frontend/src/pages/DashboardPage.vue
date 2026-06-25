@@ -38,6 +38,7 @@ import {
 } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
 import {
+  
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
@@ -624,7 +625,7 @@ function toggleAllOrders() {
               :key="item.label"
               :to="item.to"
               @click="dropdownOpen = false"
-              class="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              class="flex items-center gap-2 px-3 py-2 text-xs font-medium text-muted-foreground hover:text-accent-foreground hover:bg-accent transition-colors"
             >
               <component :is="item.icon" class="w-3.5 h-3.5 text-muted-foreground" />
               {{ item.label }}
