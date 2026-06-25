@@ -40,19 +40,15 @@ public class CashierShift {
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
-    // Modal Awal Kasri
     @Column(name = "starting_cash", nullable = false, precision = 15, scale = 2)
     private BigDecimal startingCash = BigDecimal.ZERO;
 
-    // Total Omzet
     @Column(name = "total_revenue", precision = 15, scale = 2)
     private BigDecimal totalRevenue = BigDecimal.ZERO;
 
-    // Jumlah transaksi yang dilakukan oleh kasir selama shift
     @Column(name = "total_transactions")
     private Integer totalTransactions = 0;
-
-    // Breakdown per metode pembayaran — dihitung saat close shift
+    
     @Column(name = "cash_revenue", precision = 15, scale = 2)
     private BigDecimal cashRevenue = BigDecimal.ZERO;
 

@@ -36,7 +36,6 @@ public class UserContextFilter extends OncePerRequestFilter {
                 User user = userRepository.findByUsername(auth.getName()).orElse(null);
                 if (user != null) {
                     UserContext.setUser(user);
-                    // System.out.println("DEBUG: Set user " + user.getUsername());
                 }
             }
             filterChain.doFilter(request, response);

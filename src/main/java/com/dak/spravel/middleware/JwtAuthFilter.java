@@ -52,7 +52,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = extractTokenFromHeader(request);
         try {
             if (token != null) {
-                // Misal kita validasi, kalau lolos langsung set login
                 if (jwtUtil.validateToken(token)) {
                     setAuthenticationContext(token, request);
                 }
@@ -61,11 +60,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // 1. Tangkap kalau tokennya expired!
             log.warn("[⚠️] JWT Token Expired: {}", e.getMessage());
             
-            // 2. Kirim header khusus atau custom status supaya Nuxt peka
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); 
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"TOKEN_EXPIRED\", \"message\": \"Access Token sudah kedaluwarsa\"}");
-            return; // STOP FILTER DISINI, jangan lanjut ke doFilter biar gak dihantam Spring Security default
+            return; 
             
         } catch (Exception e) {
             log.error("[❌] JWT Authentication Failed: {}", e.getMessage());
@@ -89,18 +87,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private void setAuthenticationContext(String token, HttpServletRequest request) {
         String username = jwtUtil.getUsernameFromToken(token);
-        // 1. Ambil semua string authority (bisa Permission + Role) dari Cache
         
         List<String> rawAuthorities = new java.util.ArrayList<>(permissionCacheService.getPermissions(username));
-        
-        // log.info("[DEBUG] Raw Authorities dari Cache untuk {}: {}", username, rawAuthorities);
-
-        // 2. Map ke SimpleGrantedAuthority
-        // Kita tambahin logic: kalau authority-nya 'admin', kita daftarin dua kali (pake ROLE_ dan nggak) biar aman
+    
         List<SimpleGrantedAuthority> authorities = new java.util.ArrayList<>();
         for (String authStr : rawAuthorities) {
             authorities.add(new SimpleGrantedAuthority(authStr));
-            // Spring Security @PreAuthorize("hasRole('admin')") nyari "ROLE_admin"
             if (!authStr.startsWith("ROLE_")) {
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + authStr));
             }
@@ -115,24 +107,5 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         var auth = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
         auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(auth);
-        
-        // log.info("[DEBUG] Final Authorities di SecurityContext: {}", authorities);
-        
-
-        // // Resolve permissions from Caffeine cache (falls back to DB on cache miss)
-        // var authorities = permissionCacheService.getPermissions(username).stream()
-        //         .map(SimpleGrantedAuthority::new)
-        //         .toList();
-
-        // // BUAT OBJEK USER DETAILS DISINI (dari org.springframework.security.core.userdetails.User)
-        // UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
-        //         .username(username)
-        //         .password("") // Kosongkan karena sudah terautentikasi via JWT
-        //         .authorities(authorities)
-        //         .build();
-
-        // var auth = new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
-        // auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        // SecurityContextHolder.getContext().setAuthentication(auth);
     }
 }

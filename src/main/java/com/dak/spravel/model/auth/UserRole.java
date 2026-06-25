@@ -38,13 +38,4 @@ public class UserRole {
     @JsonIgnoreProperties({"createdBy", "updatedBy", "deletedBy", "password", "roles"})
     private User createdBy;
 
-    // Disimpan di service saat membuat UserRole baru
-    // private void onCreate() {
-    //     this.createdAt = LocalDateTime.now();
-
-    //     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    //     if (auth != null && auth.getPrincipal() instanceof User currentUser) {
-    //         this.createdBy = currentUser;
-    //     }
-    // }
 }
