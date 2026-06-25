@@ -16,6 +16,7 @@ import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductPhotoRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
+import com.dak.spravel.service.system.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +40,7 @@ public class ProductService {
     private final UserRepository userRepository;
     private final ProductPhotoRepository productPhotoRepository;
     private final StockBalanceRepository stockBalanceRepository;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -71,9 +73,7 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
     }
 
-    // KUNCI DINAMIS: Check permission dinamis dari database tanpa hardcode kasta nama role
     private void checkPermission(User user, String permissionSlug) {
-        // Raja Super Admin (partner null) bypass seluruh jenis gate permission
         if (user.getPartner() == null) {
             return;
         }
@@ -97,7 +97,6 @@ public class ProductService {
     // ─── 🛡️ MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
 
     private Product getValidatedProduct(Long id, User currentUser) {
-        // 👑 Super Admin bypass checking partner id (bisa cari di seluruh produk global)
         if (currentUser.getPartner() == null) {
             return productRepository.findById(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Product", id));
@@ -172,6 +171,12 @@ public class ProductService {
         product.setCreatedAt(LocalDateTime.now());
 
         Product savedProduct = productRepository.save(product);
+
+        notificationService.createOrUpdateProductNotification(
+                partner,
+                savedProduct.getName(),
+                currentUser
+        );
 
         // Foto produk diurus sepenuhnya oleh endpoint POST /api/v1/product-photos
         // yang dipanggil frontend setelah produk dibuat — tidak perlu auto-create di sini
