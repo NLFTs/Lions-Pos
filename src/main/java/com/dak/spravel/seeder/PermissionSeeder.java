@@ -60,6 +60,7 @@ public class PermissionSeeder {
         {"order_item",        "Order Item",        "Manage order items"},
         {"voucher",           "Voucher",           "Manage vouchers and discounts"},
         {"shift",             "Shift",             "Manage cashier shifts"},
+        {"notification",      "Notification",      "Manage notifications"},
     };
 
     // slug, name, moduleSlug
@@ -198,6 +199,9 @@ public class PermissionSeeder {
         {"shift.index",  "View All Shifts",   "shift"},
         {"shift.open",   "Open Cashier Shift", "shift"},
         {"shift.close",  "Close Cashier Shift", "shift"},
+
+        {"notification.index", "View All Notifications", "notification"},
+        {"notification.delete", "Delete Notification", "notification"},
     };
 
     @Transactional
@@ -242,7 +246,7 @@ public class PermissionSeeder {
 
         // Modul yang boleh full CRUD oleh superadmin
         Set<String> superAdminFullCrudModules = Set.of(
-            "role", "permission", "module", "user", "partner", "log"
+            "role", "permission", "module", "user", "partner", "log", "notification"
         );
 
         Set<Permission> superAdminPerms = new HashSet<>();

@@ -16,6 +16,7 @@ import com.dak.spravel.repository.catalog.CategoryProductRepository;
 import com.dak.spravel.repository.catalog.ProductPhotoRepository;
 import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.inventory.StockBalanceRepository;
+import com.dak.spravel.service.system.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +40,7 @@ public class ProductService {
     private final UserRepository userRepository;
     private final ProductPhotoRepository productPhotoRepository;
     private final StockBalanceRepository stockBalanceRepository;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -169,6 +171,12 @@ public class ProductService {
         product.setCreatedAt(LocalDateTime.now());
 
         Product savedProduct = productRepository.save(product);
+
+        notificationService.createOrUpdateProductNotification(
+                partner,
+                savedProduct.getName(),
+                currentUser
+        );
 
         // Foto produk diurus sepenuhnya oleh endpoint POST /api/v1/product-photos
         // yang dipanggil frontend setelah produk dibuat — tidak perlu auto-create di sini

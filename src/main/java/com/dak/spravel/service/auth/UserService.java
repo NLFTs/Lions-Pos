@@ -29,8 +29,9 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import com.dak.spravel.util.UserRoleUtil;
+import com.dak.spravel.service.system.NotificationService;
+import lombok.RequiredArgsConstructor;
 
 @lombok.extern.slf4j.Slf4j
 @Service
@@ -44,6 +45,7 @@ public class UserService {
     private final BranchesRepository branchesRepository;
     private final PartnerRepository partnerRepository;
     private final TokenRepository tokenRepository;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -229,7 +231,16 @@ public class UserService {
             user.setBranch(branch);
         }
 
-        return toResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(
+                savedUser.getPartner(),
+                "User",
+                "Pendaftaran user baru: " + savedUser.getUsername() + " (" + savedUser.getFullname() + ")",
+                currentUser
+        );
+
+        return toResponse(savedUser);
     }
 
     @Transactional

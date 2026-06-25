@@ -36,6 +36,7 @@ import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.repository.order.PaymentsRepository;
 import com.dak.spravel.service.inventory.StockBalanceService;
 import com.dak.spravel.service.inventory.StockMutationService;
+import com.dak.spravel.service.system.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,6 +53,7 @@ public class OrdersService {
     private final VoucherRepository voucherRepository;
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
+    private final NotificationService notificationService;
 
     // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -373,6 +375,13 @@ public class OrdersService {
 
         Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Orders", savedOrder.getId()));
+
+        notificationService.createNotification(
+                partner,
+                "Order",
+                "Transaksi Penjualan Baru: " + finalOrder.getOrderNumber() + " senilai " + finalOrder.getTotal() + " oleh " + currentUser.getUsername(),
+                currentUser
+        );
 
         return mapToResponse(finalOrder);
     }
