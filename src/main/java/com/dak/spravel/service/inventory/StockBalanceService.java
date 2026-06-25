@@ -467,13 +467,13 @@ public class StockBalanceService {
 
         if (optStock.isEmpty()) {
             if (adjustment < 0) {
-                // Tidak ada record stok di lokasi ini — tidak bisa mengurangi stok yang tidak ada
+                // Tidak ada record stok di lokasi ini
                 throw new RuntimeException(
                     "Stok tidak ditemukan di " + locationType + " (id=" + locationId + ") untuk produk id=" + productId +
                     ". Pastikan stok sudah diisi di cabang sebelum melakukan penjualan."
                 );
             } else {
-                // Penambahan stok — buat record baru (misalnya saat retur)
+                // Penambahan stok
                 log.warn("[adjustStock] Membuat record stok baru untuk produk={} di {}={} dengan qty={}",
                         productId, locationType, locationId, adjustment);
                 Product product = productRepository.findById(productId)
@@ -857,15 +857,6 @@ mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembek
                 .map(this::mapToResponse).toList();
     }
 
-    /**
-     * Approve stok dari QUARANTINE → BRANCH.
-     * Digunakan setelah PO diterima ke cabang, untuk melepaskan stok dari karantina
-     * ke saldo aktif cabang (kasir bisa jual).
-     *
-     * @param stockBalanceId ID StockBalance dengan locationType=QUARANTINE
-     * @param qty  Jumlah yang di-approve (null = semua)
-     * @param notes Catatan
-     */
     @Transactional
     public StockBalanceResponse approveQuarantineToBranch(Long stockBalanceId, Long qty, String notes) {
         User currentUser = getAuthenticatedUser();
