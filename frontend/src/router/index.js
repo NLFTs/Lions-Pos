@@ -280,6 +280,17 @@ export const routes = [
       pageSubtitle: 'Ringkasan dan pengelolaan stok inventaris.',
     },
   },
+  {
+    path: '/dashboard/notifications',
+    name: 'notifications',
+    component: () => import('@/pages/NotificationsPage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: null,
+      pageTitle: 'Notifikasi',
+      pageSubtitle: 'Kelola notifikasi aktivitas sistem dan partner.',
+    },
+  },
 
   {
     path: '/receipt/:orderNumber',

@@ -8,6 +8,7 @@ import { useThemeStore } from '@/stores/theme'
 import api from '@/lib/api'
 import DateRangePicker from '@/components/dashboard/DateRangePicker.vue'
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue'
+import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import {
   TrendingUp,
   TrendingDown,
@@ -35,6 +36,9 @@ import {
   ChevronRight,
   Search,
   Truck,
+  Bell,
+  ClipboardList,
+  UserPlus as UserPlusIcon,
 } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
 import {
@@ -61,14 +65,16 @@ const error = ref(null)
 
 // ── Calendar / Date Range Picker ─────────────────────────────────────────────
 const calendarOpen = ref(false)
-const dateRange = ref({ start: null, end: null })
+const defaultStart = new Date()
+defaultStart.setDate(defaultStart.getDate() - 29)
+const dateRange = ref({ start: defaultStart, end: new Date() })
 
 const chartPeriodLabel = computed(() => {
   if (dateRange.value.start && dateRange.value.end) {
     const fmt = (d) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     return `${fmt(dateRange.value.start)} – ${fmt(dateRange.value.end)}`
   }
-  return 'Januari, 2025'
+  return 'Semua Periode'
 })
 
 function onDateRangeUpdate(val) {
@@ -108,38 +114,82 @@ const stats = ref({
   totalDistributor: 0,
 })
 
-// ── Real Metric Computations dari allOrders ───────────────────────────────────
-const totalRevenue = computed(() => {
-  return allOrders.value
-    .filter(o => ['completed', 'paid', 'delivered'].includes(o.status))
-    .reduce((sum, o) => {
-      const raw = (o.totalRaw != null) ? o.totalRaw : 0
-      return sum + raw
-    }, 0)
+const rawOrders = ref([])
+
+const formatCurrency = (val) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(Number(val) || 0)
+}
+
+const revenueStats = computed(() => {
+  const start = dateRange.value.start
+  const end = dateRange.value.end
+  const activeOrders = rawOrders.value.filter(o => o.status?.toUpperCase() === 'PAID' && o.createdAt)
+
+  if (!start || !end) {
+    const total = activeOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+    return {
+      value: total,
+      change: '—',
+      positive: true
+    }
+  }
+
+  const startMs = new Date(start).setHours(0,0,0,0)
+  const endLimit = new Date(end)
+  endLimit.setHours(23, 59, 59, 999)
+  const endMs = endLimit.getTime()
+  const durationMs = endMs - startMs
+
+  const currentOrders = activeOrders.filter(o => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= startMs && t <= endMs
+  })
+  const currentTotal = currentOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+
+  // Previous period
+  const prevStartMs = startMs - durationMs - 1000
+  const prevEndMs = startMs - 1
+  const prevOrders = activeOrders.filter(o => {
+    const t = new Date(o.createdAt).getTime()
+    return t >= prevStartMs && t <= prevEndMs
+  })
+  const prevTotal = prevOrders.reduce((sum, o) => sum + Number(o.total || 0), 0)
+
+  let change = '0.0%'
+  let positive = true
+  if (prevTotal > 0) {
+    const diff = ((currentTotal - prevTotal) / prevTotal) * 100
+    change = (diff >= 0 ? '+' : '') + diff.toFixed(1) + '%'
+    positive = diff >= 0
+  } else if (currentTotal > 0) {
+    change = '+100.0%'
+    positive = true
+  }
+
+  return {
+    value: currentTotal,
+    change,
+    positive
+  }
 })
 
-const totalOrderCount = computed(() => allOrders.value.length)
-
+// ── Derived Order Counts (HARUS sebelum metricCards) ──────────────────────────
+const totalOrderCount = computed(() => rawOrders.value.length)
+const totalPendingOrders = computed(() => rawOrders.value.filter(o => o.status === 'pending').length)
 const conversionRate = computed(() => {
-  if (allOrders.value.length === 0) return '0.0'
-  const completed = allOrders.value.filter(o =>
-    ['completed', 'paid', 'delivered'].includes(o.status)
-  ).length
-  return ((completed / allOrders.value.length) * 100).toFixed(1)
+  if (totalOrderCount.value === 0) return 0
+  const paid = rawOrders.value.filter(o => o.status === 'paid').length
+  return Number(((paid / totalOrderCount.value) * 100).toFixed(1))
 })
-
-const totalPendingOrders = computed(() =>
-  allOrders.value.filter(o => o.status === 'pending').length
-)
 
 // ── Metric Cards ─────────────────────────────────────────────────────────────
 const metricCards = computed(() => [
   {
     id: 'revenue',
     label: 'Pendapatan',
-    value: 'Rp ' + totalRevenue.value.toLocaleString('id-ID'),
-    change: '+12.5%',
-    positive: true,
+    value: formatCurrency(revenueStats.value.value),
+    change: revenueStats.value.change,
+    positive: revenueStats.value.positive,
     gradient: 'from-emerald-500/20 via-transparent to-transparent',
     accentColor: '#10b981',
   },
@@ -192,14 +242,111 @@ const growthMetrics = computed(() => {
   }))
 })
 
-// ── Chart Data & Theme ────────────────────────────────────────────────────────
-const chartLabels = [
-  'Jan 02', 'Jan 03', 'Jan 04', 'Jan 05', 'Jan 06', 'Jan 07',
-  'Jan 08', 'Jan 09', 'Jan 10', 'Jan 11', 'Jan 12', 'Jan 13',
-  'Jan 14', 'Jan 15', 'Jan 16', 'Jan 18',
-]
-const currentPeriodData = [18, 32, 28, 45, 30, 35, 42, 55, 80, 65, 72, 95, 110, 85, 90, 75]
-const prevPeriodData    = [10, 20, 35, 25, 38, 20, 28, 42, 55, 48, 52, 60,  78, 65, 70, 55]
+// ── Chart Data & Theme Customization ──────────────────────────────────────────
+const chartDataValues = computed(() => {
+  const start = dateRange.value.start
+  const end = dateRange.value.end
+
+  if (!start || !end) {
+    return {
+      labels: [],
+      currentData: [],
+      prevData: []
+    }
+  }
+
+  const activeOrders = rawOrders.value.filter(o => o.status?.toUpperCase() === 'PAID' && o.createdAt)
+
+  const startOfDay = (d) => {
+    const res = new Date(d)
+    res.setHours(0, 0, 0, 0)
+    return res
+  }
+
+  const endOfDay = (d) => {
+    const res = new Date(d)
+    res.setHours(23, 59, 59, 999)
+    return res
+  }
+
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const daysDiff = Math.round((endOfDay(end).getTime() - startOfDay(start).getTime()) / oneDayMs)
+
+  const labels = []
+  const currentData = []
+  const prevData = []
+
+  if (daysDiff <= 60) {
+    // Group by Day
+    for (let i = 0; i < daysDiff; i++) {
+      const currentDay = new Date(startOfDay(start).getTime() + i * oneDayMs)
+      const label = currentDay.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })
+      labels.push(label)
+
+      const currentDayStart = startOfDay(currentDay).getTime()
+      const currentDayEnd = endOfDay(currentDay).getTime()
+
+      const dayRevenue = activeOrders
+        .filter(o => {
+          const t = new Date(o.createdAt).getTime()
+          return t >= currentDayStart && t <= currentDayEnd
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      currentData.push(dayRevenue)
+
+      // Previous period day
+      const prevDay = new Date(currentDay.getTime() - daysDiff * oneDayMs)
+      const prevDayStart = startOfDay(prevDay).getTime()
+      const prevDayEnd = endOfDay(prevDay).getTime()
+
+      const prevDayRevenue = activeOrders
+        .filter(o => {
+          const t = new Date(o.createdAt).getTime()
+          return t >= prevDayStart && t <= prevDayEnd
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      prevData.push(prevDayRevenue)
+    }
+  } else {
+    // Group by Month
+    let current = new Date(start.getFullYear(), start.getMonth(), 1)
+    const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
+
+    const monthKeys = []
+    while (current <= endMonth) {
+      monthKeys.push({ year: current.getFullYear(), month: current.getMonth() })
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1)
+    }
+
+    monthKeys.forEach(({ year, month }) => {
+      const label = new Date(year, month, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+      labels.push(label)
+
+      const monthRevenue = activeOrders
+        .filter(o => {
+          const d = new Date(o.createdAt)
+          return d.getFullYear() === year && d.getMonth() === month
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      currentData.push(monthRevenue)
+
+      const prevYear = year - 1
+      const prevMonthRevenue = activeOrders
+        .filter(o => {
+          const d = new Date(o.createdAt)
+          return d.getFullYear() === prevYear && d.getMonth() === month
+        })
+        .reduce((sum, o) => sum + Number(o.total || 0), 0)
+      prevData.push(prevMonthRevenue)
+    })
+  }
+
+  return {
+    labels,
+    currentData,
+    prevData
+  }
+})
 
 const chartColors = computed(() => {
   try {
@@ -233,11 +380,11 @@ const chartColors = computed(() => {
 })
 
 const chartData = computed(() => ({
-  labels: chartLabels,
+  labels: chartDataValues.value.labels,
   datasets: [
     {
       label: 'Current period',
-      data: currentPeriodData,
+      data: chartDataValues.value.currentData,
       fill: true,
       backgroundColor: (ctx) => {
         const canvas = ctx.chart.ctx
@@ -257,7 +404,7 @@ const chartData = computed(() => ({
     },
     {
       label: 'Previous period',
-      data: prevPeriodData,
+      data: chartDataValues.value.prevData,
       fill: true,
       backgroundColor: (ctx) => {
         const canvas = ctx.chart.ctx
@@ -294,6 +441,18 @@ const chartOptions = computed(() => ({
       cornerRadius: 8,
       titleFont: { size: 11 },
       bodyFont: { size: 13, weight: 'bold' },
+      callbacks: {
+        label: (context) => {
+          let label = context.dataset.label || '';
+          if (label) {
+            label += ': ';
+          }
+          if (context.parsed.y !== null) {
+            label += formatCurrency(context.parsed.y);
+          }
+          return label;
+        }
+      }
     },
   },
   scales: {
@@ -317,22 +476,37 @@ const chartOptions = computed(() => ({
   },
 }))
 
-// ── Gauge ─────────────────────────────────────────────────────────────────────
+// ── Gauge (SVG Circular Progress) ─────────────────────────────────────────────
+const salesTarget = computed(() => {
+  const stored = localStorage.getItem('pos_sales_target')
+  return stored ? Number(stored) : 27000000
+})
+
+const currentMonthRevenue = computed(() => {
+  const now = new Date()
+  return rawOrders.value
+    .filter(o => {
+      if (o.status?.toUpperCase() !== 'PAID') return false
+      if (!o.createdAt) return false
+      const d = new Date(o.createdAt)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    })
+    .reduce((s, o) => s + (Number(o.total) || 0), 0)
+})
+
 const gaugePercent = computed(() => {
-  if (allOrders.value.length === 0) return 0
-  const completed = allOrders.value.filter(o =>
-    ['completed', 'paid', 'delivered'].includes(o.status)
-  ).length
-  return Math.min(100, Math.round((completed / allOrders.value.length) * 100))
+  if (salesTarget.value <= 0) return 0
+  return Math.min(100, Math.round((currentMonthRevenue.value / salesTarget.value) * 100))
 })
 
 const daysLeft = computed(() => {
   const now = new Date()
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-  return endOfMonth.getDate() - now.getDate()
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  return lastDay - now.getDate()
 })
 
-const monthlyTarget = 'Rp 27.000.000'
+const monthlyTarget = computed(() => formatCurrency(salesTarget.value))
+
 const GAUGE_R = 72
 const GAUGE_CX = 96
 const GAUGE_CY = 96
@@ -404,7 +578,69 @@ const combinedStatusItems = computed(() => {
   return [...branches, ...warehouses]
 })
 
-// ── Orders computed ───────────────────────────────────────────────────────────
+// ── Recent Activity (dari notifikasi terbaru) ────────────────────────────────
+const recentActivities = ref([])
+const activitiesLoading = ref(false)
+
+// Map nama notifikasi → icon + warna bubble
+function getActivityIcon(name) {
+  if (!name) return Bell
+  const lower = name.toLowerCase()
+  if (lower.includes('product'))  return Package
+  if (lower.includes('user'))     return Users
+  if (lower.includes('order'))    return ShoppingBag
+  if (lower.includes('purchase')) return ClipboardList
+  if (lower.includes('supplier')) return Truck
+  return Bell
+}
+
+function getActivityColor(name) {
+  if (!name) return 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+  const lower = name.toLowerCase()
+  if (lower.includes('product'))  return 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+  if (lower.includes('user'))     return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400'
+  if (lower.includes('order'))    return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+  if (lower.includes('purchase')) return 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+  if (lower.includes('supplier')) return 'bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400'
+  return 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+}
+
+function formatActivityTime(dateStr) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHrs = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHrs / 24)
+  if (diffMins < 1) return 'Baru saja'
+  if (diffMins < 60) return `${diffMins}m lalu`
+  if (diffHrs < 24) return `${diffHrs}j lalu`
+  if (diffDays === 1) return 'Kemarin'
+  return `${diffDays}h lalu`
+}
+
+async function fetchActivities() {
+  activitiesLoading.value = true
+  try {
+    const res = await api.get('/api/v1/notifications?isDraft=false&page=0&size=5')
+    const items = res.data?.data?.content || []
+    // Ambil 5 terbaru, map ke format ActivityTimeline
+    recentActivities.value = items.slice(0, 5).map(n => ({
+      title: n.name,
+      description: n.description,
+      time: formatActivityTime(n.createdAt),
+      icon: getActivityIcon(n.name),
+      color: getActivityColor(n.name),
+    }))
+  } catch {
+    recentActivities.value = []
+  } finally {
+    activitiesLoading.value = false
+  }
+}
+
+
 const filteredOrders = computed(() => {
   const q = orderSearch.value.toLowerCase()
   if (!q) return allOrders.value
@@ -554,6 +790,7 @@ async function fetchOrders() {
     const res = await api.get(url)
     const d = res.data
     const list = Array.isArray(d?.data) ? d.data : (Array.isArray(d) ? d : [])
+    rawOrders.value = list
     allOrders.value = list.map(o => ({
       id: o.id,
       orderNumber: o.orderNumber || `#${o.id}`,
@@ -592,6 +829,7 @@ onMounted(() => {
   fetchStats()
   fetchBranchWarehouseStatus()
   fetchOrders()
+  fetchActivities()
   document.addEventListener('click', handleOutsideClick)
 
   setTimeout(() => {
@@ -975,10 +1213,23 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 class="text-sm font-bold text-foreground">Aktivitas Terbaru</h2>
+            <router-link
+              to="/dashboard/notifications"
+              class="text-[11px] font-semibold text-primary hover:underline"
+            >Lihat semua</router-link>
           </div>
-          <div class="flex flex-col items-center justify-center py-14 gap-3">
+          <!-- Loading -->
+          <div v-if="activitiesLoading" class="flex items-center justify-center py-14">
+            <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+          <!-- Empty -->
+          <div v-else-if="recentActivities.length === 0" class="flex flex-col items-center justify-center py-14 gap-3">
             <Activity class="w-10 h-10 text-muted-foreground/20" />
             <p class="text-xs text-muted-foreground text-center">Belum ada aktivitas terbaru</p>
+          </div>
+          <!-- Timeline -->
+          <div v-else class="px-5 py-4">
+            <ActivityTimeline :items="recentActivities" />
           </div>
         </div>
       </div>
@@ -1167,10 +1418,23 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <div v-show="activeTab === 'activity'" class="animate-in fade-in duration-200">
             <div class="flex items-center justify-between px-4 py-3 border-b border-border">
               <span class="text-xs font-semibold text-muted-foreground">Log Aktivitas</span>
+              <router-link
+                to="/dashboard/notifications"
+                class="text-[11px] font-semibold text-primary hover:underline"
+              >Lihat semua</router-link>
             </div>
-            <div class="flex flex-col items-center justify-center py-12 gap-3">
+            <!-- Loading -->
+            <div v-if="activitiesLoading" class="flex items-center justify-center py-10">
+              <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+            <!-- Empty -->
+            <div v-else-if="recentActivities.length === 0" class="flex flex-col items-center justify-center py-12 gap-3">
               <Activity class="w-9 h-9 text-muted-foreground/20" />
               <p class="text-xs text-muted-foreground">Belum ada aktivitas terbaru</p>
+            </div>
+            <!-- Timeline -->
+            <div v-else class="px-4 py-4">
+              <ActivityTimeline :items="recentActivities" />
             </div>
           </div>
 

@@ -864,7 +864,7 @@ onMounted(() => {
                 <!-- Toggle BRANCH / WAREHOUSE -->
                 <div class="grid grid-cols-2 gap-2">
                   <button type="button"
-                    @click="returnLocationType = 'BRANCH'; returnLocationId = null"
+                    @click="returnLocationType = 'BRANCH'; returnLocationId = detailDrawer.order?.branch?.id || detailDrawer.order?.branchId || null"
                     :class="[
                       'h-12 rounded-xl border-2 text-sm font-bold flex flex-col items-center justify-center gap-0.5 transition-all',
                       returnLocationType === 'BRANCH'
@@ -916,17 +916,16 @@ onMounted(() => {
                   </select>
                 </div>
 
-                <!-- Pilih Cabang -->
+                  <!-- Cabang Tujuan (Otomatis sesuai cabang asal pembelian)  -->
                 <div v-if="returnLocationType === 'BRANCH'" class="space-y-1.5">
-                  <p class="text-[11px] font-medium text-zinc-500">Pilih Cabang</p>
-                  <div v-if="loadingLocations" class="flex items-center gap-2 text-xs text-zinc-400 py-2">
-                    <Loader2 class="h-3.5 w-3.5 animate-spin" /> Memuat data cabang...
+                  <p class="text-[11px] font-medium text-zinc-500">Cabang Tujuan</p>
+                  <div class="flex items-center gap-2.5 p-3 rounded-xl border border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20">
+                    <Building2 class="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <div>
+                      <p class="text-sm font-bold text-blue-700 dark:text-blue-400">{{ detailDrawer.order?.branchName || detailDrawer.order?.branch?.name || 'Cabang Asal' }}</p>
+                      <p class="text-[10px] text-blue-500 dark:text-blue-300">Barang hanya dapat diretur ke cabang tempat pembelian.</p>
+                    </div>
                   </div>
-                  <select v-else v-model="returnLocationId"
-                    class="w-full h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-400/30">
-                    <option :value="null" disabled>-- Pilih Cabang --</option>
-                    <option v-for="br in branchesList" :key="br.id" :value="br.id">{{ br.name }}</option>
-                  </select>
                 </div>
               </div>
 

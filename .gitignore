@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Windows reserved device name artifact
+nul
+
 ### STS ###
 .apt_generatedrd
 .classpath

@@ -36,6 +36,7 @@ import com.dak.spravel.repository.order.OrdersRepository;
 import com.dak.spravel.repository.order.PaymentsRepository;
 import com.dak.spravel.service.inventory.StockBalanceService;
 import com.dak.spravel.service.inventory.StockMutationService;
+import com.dak.spravel.service.system.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,6 +53,7 @@ public class OrdersService {
     private final VoucherRepository voucherRepository;
     private final StockBalanceService stockBalanceService;
     private final StockMutationService stockMutationService;
+    private final NotificationService notificationService;
 
     // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -374,6 +376,13 @@ public class OrdersService {
         Orders finalOrder = ordersRepository.findByIdWithDetails(savedOrder.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Orders", savedOrder.getId()));
 
+        notificationService.createNotification(
+                partner,
+                "Order",
+                "Transaksi Penjualan Baru: " + finalOrder.getOrderNumber() + " senilai " + finalOrder.getTotal() + " oleh " + currentUser.getUsername(),
+                currentUser
+        );
+
         return mapToResponse(finalOrder);
     }
 
@@ -487,13 +496,18 @@ public class OrdersService {
                 if (!upperType.equals("BRANCH") && !upperType.equals("WAREHOUSE")) {
                     throw new RuntimeException("returnLocationType tidak valid. Gunakan 'BRANCH' atau 'WAREHOUSE'.");
                 }
-                if (upperType.equals("WAREHOUSE")) {
-                    warehousesRepository.findById(reqLocationId)
-                            .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
-                } else {
-                    branchesRepository.findById(reqLocationId)
-                            .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+            if (upperType.equals("WAREHOUSE")) {
+                warehousesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Gudang tidak ditemukan: id=" + reqLocationId));
+            } else {
+                Branches targetBranch = branchesRepository.findById(reqLocationId)
+                        .orElseThrow(() -> new RuntimeException("Cabang tidak ditemukan: id=" + reqLocationId));
+                if (order.getBranch() == null || !order.getBranch().getId().equals(targetBranch.getId())) {
+                    throw new RuntimeException("Retur barang hanya dapat dikembalikan ke cabang tempat pembelian asal (" 
+                            + (order.getBranch() != null ? order.getBranch().getName() : "?") 
+                            + "). Tidak diperbolehkan retur ke cabang lain.");
                 }
+            }
                 targetLocationType = upperType;
                 targetLocationId = reqLocationId;
             } else {

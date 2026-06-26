@@ -121,6 +121,7 @@ const MENU_GROUPS = [
       {
         label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard', permission: null
       },
+      { label: 'Notifikasi', icon: Bell, to: '/dashboard/notifications', permission: null },
       { label: 'Mitra', icon: Handshake, to: '/dashboard/partners', permission: 'partner.index' },
     ]
   },
@@ -193,13 +194,11 @@ function filterMenu(groups) {
     const filteredItems = group.items.reduce((items, item) => {
       if (item.label === 'Cabang' && !isAdmin && !isOwner) {
         return items
-      }
+      } 
 
       if ((item.label === 'Perizinan' || item.label === 'Modul') && !isAdmin) {
         return items
       }
-      // PROTEKSI KHUSUS CABANG:
-      // Hanya Super Admin atau Owner yang boleh melihat menu Cabang
       
 
       if (item.label === 'Mitra' && hasPartner) {
@@ -508,32 +507,91 @@ async function fetchPartnerLocations() {
   }
 }
 
-// ─── Notification Store (Mocked as store doesn't exist) ───────────────────
+// ─── Notification Bell Panel ───────────────────────────────────────────────
 const showNotifPanel = ref(false)
-const notifications = ref([])
+const bellNotifications = ref([])
 const unreadCount = ref(0)
+let notifPollingTimer = null
 
-function markAllRead() {
-  // Mocked
+async function fetchBellNotifications() {
+  try {
+    const res = await api.get('/api/v1/notifications?isDraft=false&page=0&size=10')
+    const data = res.data?.data
+    if (data) {
+      bellNotifications.value = data.content || []
+      // Hitung yang belum dibaca (isSeen=false)
+      unreadCount.value = bellNotifications.value.filter(n => !n.isSeen).length
+    }
+  } catch (err) {
+    // Silent fail — jangan ganggu UX utama
+    console.error('Failed to fetch bell notifications', err)
+  }
 }
 
-function clearNotifications() {
-  // Mocked
+async function markAllRead() {
+  if (bellNotifications.value.length === 0) return
+  // Optimistic update
+  const ids = bellNotifications.value.map(n => n.id)
+  unreadCount.value = 0
+  bellNotifications.value = bellNotifications.value.map(n => ({ ...n, isSeen: true }))
+  try {
+    await api.post('/api/v1/notifications/bulk-delete', ids)
+    bellNotifications.value = []
+  } catch (err) {
+    console.error('Failed to mark all read', err)
+    fetchBellNotifications()
+  }
 }
 
-function handleNotifClick(n) {
-  // Mocked
+async function clearNotifications() {
+  if (bellNotifications.value.length === 0) return
+  const ids = bellNotifications.value.map(n => n.id)
+  // Optimistic update
+  bellNotifications.value = []
+  unreadCount.value = 0
+  try {
+    await api.post('/api/v1/notifications/bulk-delete', ids)
+  } catch (err) {
+    console.error('Failed to clear notifications', err)
+    fetchBellNotifications()
+  }
 }
+
+async function handleNotifClick(n) {
+  showNotifPanel.value = false
+  router.push('/dashboard/notifications')
+  // Mark as seen secara optimistic
+  const idx = bellNotifications.value.findIndex(item => item.id === n.id)
+  if (idx !== -1 && !bellNotifications.value[idx].isSeen) {
+    bellNotifications.value[idx].isSeen = true
+    unreadCount.value = Math.max(0, unreadCount.value - 1)
+  }
+}
+
+// Alias untuk template (nama lama dipakai di template)
+const notifications = bellNotifications
+
+// Refresh unread count setelah user keluar dari halaman notifikasi
+watch(() => route.path, (newPath, oldPath) => {
+  if (oldPath === '/dashboard/notifications') {
+    // User baru saja pergi dari halaman notifikasi — refresh count
+    fetchBellNotifications()
+  }
+})
 
 onMounted(() => {
   expandActiveParents()
   window.addEventListener('keydown', handleGlobalKeydown)
   auth.fetchMe()
   fetchPartnerLocations()
+  // Fetch notifikasi pertama kali lalu polling setiap 1 menit
+  fetchBellNotifications()
+  notifPollingTimer = setInterval(fetchBellNotifications, 60 * 1000)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  if (notifPollingTimer) clearInterval(notifPollingTimer)
 })
 
 function isLocationActive(type, id) {
@@ -815,7 +873,7 @@ function isLocationActive(type, id) {
                     <RouterLink
                       v-for="wh in partnerWarehouses"
                       :key="wh.id"
-                      :to="`/dashboard/inventory?locationType=WAREHOUSE&locationId=${wh.id}`"
+                      :to="`/dashboard/inventory?locationType=WAREHOUSE&lo921ationId=${wh.id}`"
                       class="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-all"
                       :class="isLocationActive('WAREHOUSE', wh.id)
                         ? 'bg-primary/10 text-primary font-semibold'
@@ -988,7 +1046,7 @@ function isLocationActive(type, id) {
         <div class="flex items-center justify-end gap-3 w-1/3">
           <div class="relative">
             <button
-              @click="showNotifPanel = !showNotifPanel"
+              @click="showNotifPanel = !showNotifPanel; if (showNotifPanel) fetchBellNotifications()"
               class="relative p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-500 transition-colors"
               title="Notifikasi"
             >
@@ -1031,29 +1089,27 @@ function isLocationActive(type, id) {
                     <p class="text-xs font-medium">Tidak ada notifikasi</p>
                   </div>
                   <div v-for="n in notifications" :key="n.id"
-                    @click="router.push(n.to || '#'); showNotifPanel = false; n.read = true"
+                    @click="handleNotifClick(n)"
                     :class="['flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-zinc-100 dark:border-zinc-800/60 last:border-0',
-                      n.read ? 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40' : 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20']">
-                    <div :class="['w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
-                      n.type === 'error' ? 'bg-red-100 dark:bg-red-900/30' :
-                      n.type === 'warning' ? 'bg-amber-100 dark:bg-amber-900/30' :
-                      'bg-blue-100 dark:bg-blue-900/30']">
-                      <svg v-if="n.type === 'error' || n.type === 'warning'" class="w-4 h-4"
-                        :class="n.type === 'error' ? 'text-red-500' : 'text-amber-500'"
-                        fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                      </svg>
-                      <Bell v-else class="w-4 h-4 text-blue-500" />
+                      n.isSeen ? 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40' : 'bg-amber-50/40 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20']">
+                    <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 bg-blue-100 dark:bg-blue-900/30">
+                      <Bell class="w-4 h-4 text-blue-500" />
                     </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-[12px] font-bold text-zinc-900 dark:text-zinc-100">{{ n.title }}</p>
-                      <p class="text-[11px] text-zinc-500 mt-0.5 leading-snug">{{ n.message }}</p>
+                      <p class="text-[12px] font-bold text-zinc-900 dark:text-zinc-100 truncate">{{ n.name }}</p>
+                      <p class="text-[11px] text-zinc-500 mt-0.5 leading-snug line-clamp-2">{{ n.description }}</p>
                     </div>
-                    <div v-if="!n.read" class="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
+                    <div v-if="!n.isSeen" class="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />
                   </div>
                 </div>
-                <div v-if="notifications.length > 0" class="px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-                  <p class="text-[10px] text-zinc-400 text-center">Diperbarui setiap 1 menit</p>
+                <div class="px-4 py-2.5 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-center justify-between">
+                  <p class="text-[10px] text-zinc-400">Diperbarui setiap 1 menit</p>
+                  <button
+                    @click="router.push('/dashboard/notifications'); showNotifPanel = false"
+                    class="text-[10px] font-semibold text-primary hover:underline"
+                  >
+                    Lihat semua
+                  </button>
                 </div>
               </div>
             </Transition>

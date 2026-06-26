@@ -29,8 +29,9 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import com.dak.spravel.util.UserRoleUtil;
+import com.dak.spravel.service.system.NotificationService;
+import lombok.RequiredArgsConstructor;
 
 @lombok.extern.slf4j.Slf4j
 @Service
@@ -44,6 +45,7 @@ public class UserService {
     private final BranchesRepository branchesRepository;
     private final PartnerRepository partnerRepository;
     private final TokenRepository tokenRepository;
+    private final NotificationService notificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.upload.dir:uploads}")
     private String uploadDir;
@@ -210,6 +212,9 @@ public class UserService {
 
         // Resolusi Peran (Roles)
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
+            if (request.getRoleIds().size() > 1) {
+                throw new RuntimeException("Akses Ditolak: Hanya satu peran yang diperbolehkan.");
+            }
             user.setRoles(resolveRoles(request.getRoleIds(), currentUser));
         } else {
             user.setRoles(new HashSet<>());
@@ -226,7 +231,16 @@ public class UserService {
             user.setBranch(branch);
         }
 
-        return toResponse(userRepository.save(user));
+        User savedUser = userRepository.save(user);
+
+        notificationService.createNotification(
+                savedUser.getPartner(),
+                "User",
+                "Pendaftaran user baru: " + savedUser.getUsername() + " (" + savedUser.getFullname() + ")",
+                currentUser
+        );
+
+        return toResponse(savedUser);
     }
 
     @Transactional
@@ -345,7 +359,7 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
         if (currentUser.getId().equals(id)) {
-            throw new RuntimeException("Akses Ditolak: Tindakan bunuh diri ilegal! Anda dilarang menghapus akun sendiri.");
+            throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda dilarang menghapus akun sendiri.");
         }
 
         if (currentUser.getPartner() != null) {

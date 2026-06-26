@@ -1,5 +1,6 @@
 package com.dak.spravel.service.procurement;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ import com.dak.spravel.repository.catalog.ProductRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderItemsRepository;
 import com.dak.spravel.repository.procurement.PurchaseOrderRepository;
 import com.dak.spravel.repository.procurement.SupplierRepository;
+import com.dak.spravel.service.system.NotificationService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +42,7 @@ public class PurchaseOrderService {
     private final SupplierRepository supplierRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     // ─── 🔒 PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
 
@@ -223,6 +226,7 @@ public class PurchaseOrderService {
         PurchaseOrder saved = purchaseOrderRepository.save(po);
 
         List<PurchaseOrderItems> items = new ArrayList<>();
+        BigDecimal grandTotal = BigDecimal.ZERO;
         for (PurchaseOrderItemDTO itemDTO : request.getItems()) {
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
@@ -237,17 +241,26 @@ public class PurchaseOrderService {
             item.setProductName(product.getName());
             item.setQtyOrdered(itemDTO.getQtyOrdered());
             item.setUnitCost(itemDTO.getUnitCost());
-            item.setSubtotal(itemDTO.getQtyOrdered().multiply(itemDTO.getUnitCost()));
+            BigDecimal subtotal = itemDTO.getQtyOrdered().multiply(itemDTO.getUnitCost());
+            item.setSubtotal(subtotal);
+            grandTotal = grandTotal.add(subtotal);
             items.add(item);
         }
 
         purchaseOrderItemsRepository.saveAll(items);
 
-        saved.setTotal(items.stream()
-                .map(PurchaseOrderItems::getSubtotal)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
-        
-        return purchaseOrderRepository.save(saved);
+        // Hitung dan simpan total PO dari akumulasi subtotal semua item
+        saved.setTotal(grandTotal);
+        PurchaseOrder finalSaved = purchaseOrderRepository.save(saved);
+
+        notificationService.createNotification(
+                partner,
+                "Purchase Order",
+                "Membuat Purchase Order baru: " + finalSaved.getPoNumber() + " senilai " + finalSaved.getTotal(),
+                currentUser
+        );
+
+        return finalSaved;
     }
 
     // ==========================================
