@@ -918,10 +918,6 @@ onMounted(async () => {
                   <div class="flex items-center gap-2 max-w-md">
                     <Input v-model="productSearch" type="search" placeholder="Cari produk..." class="h-9" />
                   </div>
-                  <div class="flex items-center gap-2">
-                    <Button :disabled="pendingSelected.length === 0" @click="finishSelection" class="bg-primary text-primary-foreground">Selesai</Button>
-                    <Button variant="outline" @click="resetPendingSelection">Batal</Button>
-                  </div>
                   <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-background">
                     <table class="min-w-full text-sm">
                       <thead class="bg-zinc-100 dark:bg-zinc-900">
@@ -950,19 +946,24 @@ onMounted(async () => {
                         <tr v-if="filteredSelectableProducts.length === 0">
                           <td colspan="4" class="px-3 py-4 text-center text-xs text-muted-foreground">Tidak ada produk ditemukan.</td>
                         </tr>
+                        <!-- Baris aksi: muncul di bawah table hanya saat ada produk dipilih -->
+                        <tr v-if="pendingSelected.length > 0" class="border-t-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/30">
+                          <td colspan="3" class="px-3 py-3 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                            {{ pendingSelected.length }} produk dipilih
+                          </td>
+                          <td class="px-3 py-3 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                              <Button variant="outline" size="sm" class="h-8 text-xs border-zinc-300" @click="resetPendingSelection">Batal</Button>
+                              <Button size="sm" class="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0" @click="finishSelection">Selesai</Button>
+                            </div>
+                          </td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
 
                 <div v-else class="space-y-4">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <Button variant="outline" @click="goBackToSelection">Kembali</Button>
-                      <span class="text-xs text-muted-foreground">Tambah produk ke PO</span>
-                    </div>
-                    <span class="text-xs font-semibold text-zinc-600">{{ selectedProductCount }} Produk Dipilih</span>
-                  </div>
                   <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-background">
                     <table class="min-w-full text-sm">
                       <thead class="bg-zinc-100 dark:bg-zinc-900">
@@ -991,6 +992,18 @@ onMounted(async () => {
                               <X class="h-4 w-4" />
                             </Button>
                           </td>
+                        </tr>
+                        <!-- Baris aksi: Kembali ke pemilihan produk, sejajar kolom Harga Referensi -->
+                        <tr class="border-t-2 border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/10">
+                          <td colspan="2" class="px-3 py-3 text-xs font-semibold text-primary">
+                            {{ form.items.length }} produk dipilih
+                          </td>
+                          <td class="px-3 py-3 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                              <Button variant="outline" size="sm" class="h-8 text-xs" @click="goBackToSelection">Kembali</Button>
+                            </div>
+                          </td>
+                          <td colspan="3"></td>
                         </tr>
                       </tbody>
                     </table>
