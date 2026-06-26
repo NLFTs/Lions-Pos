@@ -194,13 +194,11 @@ function filterMenu(groups) {
     const filteredItems = group.items.reduce((items, item) => {
       if (item.label === 'Cabang' && !isAdmin && !isOwner) {
         return items
-      }
+      } 
 
       if ((item.label === 'Perizinan' || item.label === 'Modul') && !isAdmin) {
         return items
       }
-      // PROTEKSI KHUSUS CABANG:
-      // Hanya Super Admin atau Owner yang boleh melihat menu Cabang
       
 
       if (item.label === 'Mitra' && hasPartner) {
@@ -875,7 +873,7 @@ function isLocationActive(type, id) {
                     <RouterLink
                       v-for="wh in partnerWarehouses"
                       :key="wh.id"
-                      :to="`/dashboard/inventory?locationType=WAREHOUSE&locationId=${wh.id}`"
+                      :to="`/dashboard/inventory?locationType=WAREHOUSE&lo921ationId=${wh.id}`"
                       class="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-all"
                       :class="isLocationActive('WAREHOUSE', wh.id)
                         ? 'bg-primary/10 text-primary font-semibold'

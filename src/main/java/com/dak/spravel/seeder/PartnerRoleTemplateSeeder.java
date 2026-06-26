@@ -128,6 +128,14 @@ public class PartnerRoleTemplateSeeder {
         "report.index",
         // Notifikasi
         "notification.index",
+        // shift
+        "shift.index", "shift.open", "shift.close",
+        // warehouse 
+        "warehouse.index", "warehouse.show",
+        // branch
+        "branch.index", "branch.show",
+        // branch_warehouse
+        "branch_warehouse.index", "branch_warehouse.show",
     };
 
     /**

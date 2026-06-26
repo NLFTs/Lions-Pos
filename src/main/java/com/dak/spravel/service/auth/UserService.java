@@ -359,7 +359,7 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
 
         if (currentUser.getId().equals(id)) {
-            throw new RuntimeException("Akses Ditolak: Tindakan bunuh diri ilegal! Anda dilarang menghapus akun sendiri.");
+            throw new RuntimeException("Akses Ditolak: Tindakan ilegal! Anda dilarang menghapus akun sendiri.");
         }
 
         if (currentUser.getPartner() != null) {
