@@ -492,7 +492,7 @@ function removeFromCart(item) {
   if (idx !== -1) cart.value.splice(idx, 1)
 }
 
-function formatCurrency(value) {
+function  formatCurrency(value) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value)
 }
 
