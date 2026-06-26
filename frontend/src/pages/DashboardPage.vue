@@ -8,6 +8,7 @@ import { useThemeStore } from '@/stores/theme'
 import api from '@/lib/api'
 import DateRangePicker from '@/components/dashboard/DateRangePicker.vue'
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist.vue'
+import ActivityTimeline from '@/components/dashboard/ActivityTimeline.vue'
 import {
   TrendingUp,
   TrendingDown,
@@ -35,6 +36,9 @@ import {
   ChevronRight,
   Search,
   Truck,
+  Bell,
+  ClipboardList,
+  UserPlus as UserPlusIcon,
 } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
 import {
@@ -574,14 +578,68 @@ const combinedStatusItems = computed(() => {
   return [...branches, ...warehouses]
 })
 
-// ── Recent Activity ───────────────────────────────────────────────────────────
-// (dikosongkan — akan diisi dari backend nanti)
-const recentActivities = []
-/*
+// ── Recent Activity (dari notifikasi terbaru) ────────────────────────────────
+const recentActivities = ref([])
+const activitiesLoading = ref(false)
 
-// ── Orders & Shipping (real data) ────────────────────────────────────────────
-  { id: '#1021', customer: 'Lorant', date: '2025-01-15', shipping: 'Dibatalkan',  carrier: '—',            total: 'Rp 559.000', status: 'cancelled' },
-*/
+// Map nama notifikasi → icon + warna bubble
+function getActivityIcon(name) {
+  if (!name) return Bell
+  const lower = name.toLowerCase()
+  if (lower.includes('product'))  return Package
+  if (lower.includes('user'))     return Users
+  if (lower.includes('order'))    return ShoppingBag
+  if (lower.includes('purchase')) return ClipboardList
+  if (lower.includes('supplier')) return Truck
+  return Bell
+}
+
+function getActivityColor(name) {
+  if (!name) return 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+  const lower = name.toLowerCase()
+  if (lower.includes('product'))  return 'bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+  if (lower.includes('user'))     return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400'
+  if (lower.includes('order'))    return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+  if (lower.includes('purchase')) return 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+  if (lower.includes('supplier')) return 'bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400'
+  return 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+}
+
+function formatActivityTime(dateStr) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHrs = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHrs / 24)
+  if (diffMins < 1) return 'Baru saja'
+  if (diffMins < 60) return `${diffMins}m lalu`
+  if (diffHrs < 24) return `${diffHrs}j lalu`
+  if (diffDays === 1) return 'Kemarin'
+  return `${diffDays}h lalu`
+}
+
+async function fetchActivities() {
+  activitiesLoading.value = true
+  try {
+    const res = await api.get('/api/v1/notifications?isDraft=false&page=0&size=5')
+    const items = res.data?.data?.content || []
+    // Ambil 5 terbaru, map ke format ActivityTimeline
+    recentActivities.value = items.slice(0, 5).map(n => ({
+      title: n.name,
+      description: n.description,
+      time: formatActivityTime(n.createdAt),
+      icon: getActivityIcon(n.name),
+      color: getActivityColor(n.name),
+    }))
+  } catch {
+    recentActivities.value = []
+  } finally {
+    activitiesLoading.value = false
+  }
+}
+
 
 const filteredOrders = computed(() => {
   const q = orderSearch.value.toLowerCase()
@@ -771,6 +829,7 @@ onMounted(() => {
   fetchStats()
   fetchBranchWarehouseStatus()
   fetchOrders()
+  fetchActivities()
   document.addEventListener('click', handleOutsideClick)
 
   setTimeout(() => {
@@ -1154,10 +1213,23 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div class="rounded-xl border border-border bg-card overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 class="text-sm font-bold text-foreground">Aktivitas Terbaru</h2>
+            <router-link
+              to="/dashboard/notifications"
+              class="text-[11px] font-semibold text-primary hover:underline"
+            >Lihat semua</router-link>
           </div>
-          <div class="flex flex-col items-center justify-center py-14 gap-3">
+          <!-- Loading -->
+          <div v-if="activitiesLoading" class="flex items-center justify-center py-14">
+            <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+          <!-- Empty -->
+          <div v-else-if="recentActivities.length === 0" class="flex flex-col items-center justify-center py-14 gap-3">
             <Activity class="w-10 h-10 text-muted-foreground/20" />
             <p class="text-xs text-muted-foreground text-center">Belum ada aktivitas terbaru</p>
+          </div>
+          <!-- Timeline -->
+          <div v-else class="px-5 py-4">
+            <ActivityTimeline :items="recentActivities" />
           </div>
         </div>
       </div>
@@ -1346,10 +1418,23 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <div v-show="activeTab === 'activity'" class="animate-in fade-in duration-200">
             <div class="flex items-center justify-between px-4 py-3 border-b border-border">
               <span class="text-xs font-semibold text-muted-foreground">Log Aktivitas</span>
+              <router-link
+                to="/dashboard/notifications"
+                class="text-[11px] font-semibold text-primary hover:underline"
+              >Lihat semua</router-link>
             </div>
-            <div class="flex flex-col items-center justify-center py-12 gap-3">
+            <!-- Loading -->
+            <div v-if="activitiesLoading" class="flex items-center justify-center py-10">
+              <Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+            <!-- Empty -->
+            <div v-else-if="recentActivities.length === 0" class="flex flex-col items-center justify-center py-12 gap-3">
               <Activity class="w-9 h-9 text-muted-foreground/20" />
               <p class="text-xs text-muted-foreground">Belum ada aktivitas terbaru</p>
+            </div>
+            <!-- Timeline -->
+            <div v-else class="px-4 py-4">
+              <ActivityTimeline :items="recentActivities" />
             </div>
           </div>
 

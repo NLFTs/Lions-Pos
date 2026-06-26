@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -153,34 +154,41 @@ public class NotificationService {
     @Transactional
     public void createOrUpdateProductNotification(Partners partner, String productName, User createdBy) {
         try {
-            java.util.Optional<Notification> existingOpt;
+            // Cari notifikasi Product yang masih aktif (belum di-draft/delete)
+            // Tidak peduli isSeen — tetap merge selama belum di-draft
+            Optional<Notification> existingOpt;
             if (partner == null) {
-                existingOpt = notificationRepository.findFirstByPartnerIsNullAndNameAndIsDraftAndIsSeenOrderByCreatedAtDesc(
-                        "Product", false, false);
+                existingOpt = notificationRepository
+                        .findFirstByPartnerIsNullAndNameAndIsDraftOrderByCreatedAtDesc("Product", false);
             } else {
-                existingOpt = notificationRepository.findFirstByPartnerIdAndNameAndIsDraftAndIsSeenOrderByCreatedAtDesc(
-                        partner.getId(), "Product", false, false);
+                existingOpt = notificationRepository
+                        .findFirstByPartnerIdAndNameAndIsDraftOrderByCreatedAtDesc(partner.getId(), "Product", false);
             }
 
             if (existingOpt.isPresent()) {
+                // Merge ke notifikasi yang sudah ada
                 Notification existing = existingOpt.get();
                 int newQty = existing.getQuantity() + 1;
                 existing.setQuantity(newQty);
-                
+
+                // Ambil daftar produk dari deskripsi sebelumnya
                 String desc = existing.getDescription();
-                String productList = "";
+                String productList;
                 int colonIdx = desc.indexOf(": ");
                 if (colonIdx != -1) {
-                    productList = desc.substring(colonIdx + 2);
+                    productList = desc.substring(colonIdx + 2) + ", " + productName;
                 } else {
                     productList = productName;
                 }
-                
-                existing.setDescription("Menambahkan " + newQty + " product baru: " + productList + ", " + productName);
+
+                existing.setDescription("Menambahkan " + newQty + " product baru: " + productList);
                 existing.setCreatedAt(LocalDateTime.now());
+                // Reset isSeen=false agar badge bell kembali aktif saat ada produk baru
+                existing.setIsSeen(false);
                 notificationRepository.save(existing);
-                log.info("Notifikasi Product berhasil digabungkan (jumlah: {}): {}", newQty, existing.getDescription());
+                log.info("[ProductNotif] Merged qty={} desc={}", newQty, existing.getDescription());
             } else {
+                // Buat notifikasi baru
                 Notification notification = new Notification();
                 notification.setPartner(partner);
                 notification.setName("Product");
@@ -191,10 +199,10 @@ public class NotificationService {
                 notification.setIsSeen(false);
                 notification.setQuantity(1);
                 notificationRepository.save(notification);
-                log.info("Notifikasi Product baru dibuat: {}", notification.getDescription());
+                log.info("[ProductNotif] Created new for: {}", productName);
             }
         } catch (Exception e) {
-            log.error("Gagal membuat/menggabungkan notifikasi Product: {}", e.getMessage(), e);
+            log.error("[ProductNotif] Gagal: {}", e.getMessage(), e);
         }
     }
 

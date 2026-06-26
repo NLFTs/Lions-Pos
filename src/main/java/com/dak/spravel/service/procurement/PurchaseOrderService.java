@@ -1,5 +1,6 @@
 package com.dak.spravel.service.procurement;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -225,6 +226,7 @@ public class PurchaseOrderService {
         PurchaseOrder saved = purchaseOrderRepository.save(po);
 
         List<PurchaseOrderItems> items = new ArrayList<>();
+        BigDecimal grandTotal = BigDecimal.ZERO;
         for (PurchaseOrderItemDTO itemDTO : request.getItems()) {
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
@@ -239,12 +241,16 @@ public class PurchaseOrderService {
             item.setProductName(product.getName());
             item.setQtyOrdered(itemDTO.getQtyOrdered());
             item.setUnitCost(itemDTO.getUnitCost());
-            item.setSubtotal(itemDTO.getQtyOrdered().multiply(itemDTO.getUnitCost()));
+            BigDecimal subtotal = itemDTO.getQtyOrdered().multiply(itemDTO.getUnitCost());
+            item.setSubtotal(subtotal);
+            grandTotal = grandTotal.add(subtotal);
             items.add(item);
         }
 
         purchaseOrderItemsRepository.saveAll(items);
 
+        // Hitung dan simpan total PO dari akumulasi subtotal semua item
+        saved.setTotal(grandTotal);
         PurchaseOrder finalSaved = purchaseOrderRepository.save(saved);
 
         notificationService.createNotification(

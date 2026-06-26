@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useNotification } from '@/composables/useNotification'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import api from '@/lib/api'
 import {
@@ -22,6 +23,7 @@ import {
 import DataTablePagination from '@/components/ui/DataTablePagination.vue'
 
 const { notify } = useNotification()
+const router = useRouter()
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const notifications = ref([])
@@ -122,6 +124,41 @@ function getIconColorClass(name) {
   if (lower.includes('purchase')) return 'text-amber-500'
   if (lower.includes('order')) return 'text-emerald-500'
   return 'text-zinc-400'
+}
+
+// ─── Route Mapping ────────────────────────────────────────────────────────────
+const NOTIFICATION_ROUTES = {
+  'product':        '/dashboard/products',
+  'user':           '/dashboard/users',
+  'purchase order': '/dashboard/purchase-orders',
+  'order':          '/dashboard/orders',
+  'supplier':       '/dashboard/suppliers',
+  'warehouse':      '/dashboard/warehouses',
+  'branch':         '/dashboard/branches',
+  'stock':          '/dashboard/inventory',
+  'transfer':       '/dashboard/transfer-requests',
+  'voucher':        '/dashboard/vouchers',
+  'partner':        '/dashboard/partners',
+  'role':           '/dashboard/roles',
+  'permission':     '/dashboard/permissions',
+  'module':         '/dashboard/modules',
+  'shift':          '/dashboard/shifts',
+  'report':         '/dashboard/reports',
+  'log':            '/dashboard/logs',
+}
+
+function getNotificationRoute(name) {
+  if (!name) return null
+  const lower = name.toLowerCase()
+  for (const [key, path] of Object.entries(NOTIFICATION_ROUTES)) {
+    if (lower.includes(key)) return path
+  }
+  return null
+}
+
+function handleRowClick(n) {
+  const route = getNotificationRoute(n.name)
+  if (route) router.push(route)
 }
 
 // ─── Selection ────────────────────────────────────────────────────────────────
@@ -364,11 +401,15 @@ async function bulkDelete() {
             <tr
               v-for="n in filteredNotifications"
               :key="n.id"
+              @click="handleRowClick(n)"
               class="group transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/40"
-              :class="{ 'bg-zinc-50/50 dark:bg-zinc-900/20': selectedIds.includes(n.id) }"
+              :class="[
+                { 'bg-zinc-50/50 dark:bg-zinc-900/20': selectedIds.includes(n.id) },
+                getNotificationRoute(n.name) ? 'cursor-pointer' : 'cursor-default'
+              ]"
             >
-              <!-- Checkbox -->
-              <td class="px-4 py-3">
+              <!-- Checkbox — stop propagation agar tidak trigger navigasi -->
+              <td class="px-4 py-3" @click.stop>
                 <button @click="toggleSelectRow(n.id)" class="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors">
                   <component
                     :is="selectedIds.includes(n.id) ? CheckSquare : Square"
@@ -387,7 +428,10 @@ async function bulkDelete() {
               <td class="px-3 py-3 min-w-0">
                 <div class="flex items-center gap-2 mb-0.5">
                   <span class="text-[11px] font-mono text-zinc-400 dark:text-zinc-600">#{{ n.id }}</span>
-                  <span class="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">{{ n.name }}</span>
+                  <span
+                    class="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200 transition-colors"
+                    :class="getNotificationRoute(n.name) ? 'group-hover:text-primary' : ''"
+                  >{{ n.name }}</span>
                   <span v-if="!n.isSeen && activeTab === 'inbox'" class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                 </div>
                 <p class="text-[12px] text-zinc-500 dark:text-zinc-400 truncate max-w-lg">{{ n.description }}</p>
@@ -403,8 +447,8 @@ async function bulkDelete() {
                 <span class="text-[11px] text-zinc-400 dark:text-zinc-600 whitespace-nowrap">{{ formatRelativeTime(n.createdAt) }}</span>
               </td>
 
-              <!-- Row Actions -->
-              <td class="px-3 py-3">
+              <!-- Row Actions — stop propagation agar tidak trigger navigasi -->
+              <td class="px-3 py-3" @click.stop>
                 <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <!-- Draft button — hanya tampil di inbox -->
                   <button
