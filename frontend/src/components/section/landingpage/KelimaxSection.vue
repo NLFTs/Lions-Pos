@@ -25,6 +25,34 @@ const features = [
     desc: 'Pantau seluruh aktivitas operasional dari satu dashboard terpadu.',
   },
 ]
+
+ // Implementasi dalam komponen Vue Anda:
+  import { useGsap } from '@/hooks/useGsap'
+
+  useGsap((gsap) => {
+    // Animasi muncul untuk teks utama (jalankan sekali)
+    gsap.from('.animate-target > *', {
+      y: 20,
+      opacity: 0,
+      duration: 0.8,
+      stagger: 0.2,
+      ease: 'power2.out'
+    })
+
+    // Animasi looping untuk kotak notifikasi
+    gsap.fromTo('.notify-item', 
+      { x: -10, opacity: 0 }, 
+      { 
+        x: 0, 
+        opacity: 1, 
+        duration: 0.8, 
+        stagger: 0.3, 
+        repeat: -1, 
+        repeatDelay: 1,
+        ease: 'power2.out' 
+      }
+    )
+  })
 </script>
 
 <template>
@@ -278,47 +306,74 @@ const features = [
 
         <!-- ROW 3 -->
         <div class="grid lg:grid-cols-2">
-
           <div
-            class="border-r border-b border-zinc-800 p-10 min-h-[340px]"
+            class="border-r border-b border-zinc-800 flex flex-col workflow-container relative overflow-hidden"
+            style="padding-bottom: 0px;"
           >
-            <h3 class="text-3xl text-white mb-4">
-              Pembelian & Distributor
-            </h3>
+            <div class="animate-target p-10 min-h-[280px]">
+              <h3 class="text-3xl text-white mb-4">
+                Sistem Kasir Pintar<br />
+                untuk Bisnis Anda
+              </h3>
 
-            <p class="text-zinc-400 max-w-md">
-              Kelola supplier dan pengadaan barang dengan lebih terstruktur.
-            </p>
+              <p class="text-zinc-400 max-w-md mb-6">
+                Kelola transaksi, inventaris, dan laporan penjualan secara real-time dalam satu dasbor yang responsif dan efisien.
+              </p>
 
-            <div
-              class="mt-12 rounded-xl border border-zinc-800 bg-zinc-950 p-6 font-mono text-sm text-zinc-400"
-            >
-              Supplier A → 120 Item<br>
-              Supplier B → 82 Item<br>
-              Supplier C → 44 Item
+              <a href="#" class="text-indigo-400 hover:text-indigo-300 block mb-4">
+                Lihat fitur POS →
+              </a>
             </div>
-          </div>
 
-          <div
-            class="border-b border-zinc-800 p-10 min-h-[340px]"
-          >
-            <h3 class="text-3xl text-white mb-4">
-              Laporan Lengkap
-            </h3>
-
-            <p class="text-zinc-400 max-w-md">
-              Laporan otomatis yang siap diunduh kapan saja.
-            </p>
-
-            <div
-              class="mt-12 rounded-xl border border-zinc-800 bg-zinc-950 p-6"
-            >
-              <div class="flex justify-between">
-                <span class="text-zinc-400">Pendapatan</span>
-                <span class="text-white">Rp48.200.000</span>
+            <div class="border-l border-r border-t border-zinc-800 bg-zinc-950 p-6 font-mono text-sm text-zinc-300 flex flex-col gap-3 notification-list relative">
+              <!-- Kotak Notifikasi -->
+              <div class="flex items-center gap-3 border border-zinc-700 bg-zinc-900 p-3 notify-item">
+                <div class="w-3 h-3 bg-emerald-500 rounded-sm"></div>
+                <span class="text-white">Transaksi: Pembayaran Berhasil</span>
               </div>
+              <div class="flex items-center gap-3 border border-zinc-700 bg-zinc-900 p-3 notify-item">
+                <div class="w-3 h-3 bg-amber-500 rounded-sm"></div>
+                <span class="text-white">Stok: Produk mulai menipis</span>
+              </div>
+              <div class="flex items-center gap-3 border border-zinc-700 bg-zinc-900 p-3 notify-item">
+                <div class="w-3 h-3 bg-blue-500 rounded-sm"></div>
+                <span class="text-white">Laporan: Harian siap diunduh</span>
+              </div>
+
+              <!-- Efek Gradien Jatuh ke Kegelapan -->
+              <div class="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent pointer-events-none z-10"></div>
             </div>
           </div>
+
+          <!-- col 2 -->
+           <div class="border-b border-zinc-800 p-10 flex flex-col bg-black">
+  <!-- Header Konten -->
+  <div class="animate-target mb-10">
+    <h3 class="text-4xl font-semibold text-white mb-4">
+      Laporan Lengkap
+    </h3>
+
+    <p class="text-zinc-400 text-lg max-w-lg mb-6">
+      Laporan otomatis yang siap diunduh kapan saja. Analisis data penjualan akurat dengan metrik performa bisnis yang mendalam.
+    </p>
+
+    <a href="#" class="text-indigo-400 hover:text-indigo-300 block">
+      Lihat laporan →
+    </a>
+  </div>
+
+  <!-- Blok Data Visual (Menggunakan Gambar Laporan dengan Proteksi) -->
+  <div class="border border-zinc-800 bg-[#0d0d0d] p-6 max-w-2xl shadow-2xl">
+    <img 
+      src="/components/lapor.webp" 
+      alt="Laporan Lengkap" 
+      class="w-full h-auto object-cover select-none pointer-events-none"
+      oncontextmenu="return false;"
+      draggable="false"
+      onerror="this.style.display='none'; this.parentNode.innerHTML='<div class=\'text-zinc-500 font-mono\'>Gambar laporan tidak ditemukan</div>'"
+    />
+  </div>
+</div>
 
         </div>
 
