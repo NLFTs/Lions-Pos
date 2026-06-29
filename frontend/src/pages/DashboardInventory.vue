@@ -22,6 +22,7 @@ import {
   History,
   Trash2,
   CheckCircle2,
+  PlusCircleIcon,
   X,
 } from 'lucide-vue-next'
 import DataTableSearch from '@/components/ui/DataTableSearch.vue'
@@ -679,6 +680,9 @@ onMounted(async () => {
                 </select>
                 <button @click="fetchDashboardData" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
                   <History class="w-3.5 h-3.5" /> Segarkan
+                </button>
+                <button @click="fetchInitialStock" class="flex items-center gap-2 h-9 px-3 text-xs font-semibold bg-dark border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md transition-colors">
+                  <PlusCircleIcon class="w-3.5 h-3.5" /> Stock Awal
                 </button>
               </div>
             </div>

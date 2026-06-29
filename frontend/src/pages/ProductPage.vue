@@ -10,7 +10,6 @@ import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
-import Badge from '@/components/ui/badge/Badge.vue'
 import Alert from '@/components/ui/Alert.vue'
 import Table from '@/components/ui/Table.vue'
 import TableHeader from '@/components/ui/TableHeader.vue'
@@ -32,13 +31,13 @@ const authStore = useAuthStore()
 const selectedIds = ref([])
 
 const isAllSelected = computed(() => {
-  const visible = filteredProducts.value
+  const visible = paginatedProducts.value
   if (visible.length === 0) return false
   return visible.every(p => selectedIds.value.includes(p.id))
 })
 
 function toggleSelectAll() {
-  const visible = filteredProducts.value
+  const visible = paginatedProducts.value
   if (isAllSelected.value) {
     const visibleIds = visible.map(p => p.id)
     selectedIds.value = selectedIds.value.filter(id => !visibleIds.includes(id))
@@ -79,10 +78,10 @@ async function bulkDelete() {
     )
     toast.success(`${count} produk berhasil dihapus!`)
     selectedIds.value = []
-    fetchProducts(pagination.value.page)
+    fetchProducts()
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal menghapus beberapa produk.')
-    fetchProducts(pagination.value.page)
+    fetchProducts()
   } finally {
     loading.value = false
   }
@@ -107,10 +106,10 @@ async function bulkDeactivate() {
     )
     toast.success(`${count} produk berhasil dinonaktifkan!`)
     selectedIds.value = []
-    fetchProducts(pagination.value.page)
+    fetchProducts()
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal menonaktifkan beberapa produk.')
-    fetchProducts(pagination.value.page)
+    fetchProducts()
   } finally {
     loading.value = false
   }
@@ -119,10 +118,9 @@ async function bulkDeactivate() {
 const isAdmin = computed(() => authStore.isAdmin)
 const isSuperAdmin = computed(() => authStore.isSuperAdmin)
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── State & Pagination ──────────────────────────────────────────────────────
 const products = ref([])
 const categories = ref([])
-const pagination = ref({ page: 0, size: 10, totalPages: 0, totalElements: 0 })
 const loading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
@@ -130,6 +128,9 @@ const showFilter = ref(false)
 const sortBy = ref('terbaru') // 'terbaru', 'harga-termahal', 'harga-termurah'
 const filterStatus = ref('all') // 'all', 'aktif', 'nonaktif'
 const filterStock = ref('all') // 'all', 'dilacak', 'bebas'
+
+const page = ref(1)
+const pageSize = ref(10)
 
 const activeFilterCount = computed(() => {
   let count = 0
@@ -198,8 +199,15 @@ const filteredProducts = computed(() => {
   return result
 })
 
+// Client-side pagination slice dari filtered data
+const paginatedProducts = computed(() => {
+  const startIndex = (page.value - 1) * pageSize.value
+  const endIndex = startIndex + pageSize.value
+  return filteredProducts.value.slice(startIndex, endIndex)
+})
+
 // Form
-const showDrawer = ref(false) // reused to toggle form and table
+const showDrawer = ref(false)
 const modalMode = ref('create') // 'create' | 'edit'
 const saving = ref(false)
 const formError = ref(null)
@@ -223,10 +231,8 @@ const priceDisplay = ref('')
 
 function formatPriceDisplay(val) {
   if (val === '' || val === null || val === undefined) return ''
-  // Strip non-digits
   const digits = String(val).replace(/\D/g, '')
   if (!digits) return ''
-  // Add thousand separators (dots for IDR)
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
@@ -245,30 +251,18 @@ const formErrors = ref({
 })
 
 // ─── Fetch products ───────────────────────────────────────────────────────────
-async function fetchProducts(page = 0) {
+async function fetchProducts() {
   loading.value = true
   error.value = null
   try {
     const url = isAdmin.value ? '/api/v1/products/admin' : '/api/v1/products'
-    const res = await api.get(`${url}?page=${page}&size=${pagination.value.size}`)
+    const res = await api.get(url)
     const data = res.data.data
-    // Backend returns a List if not using Pageable properly in some versions, 
-    // but the controller signature shows ResData<List<ProductResponse>>.
-    // However, the frontend code was expecting data.content.
-    // Let's adapt based on what we saw in ProductController.java (it returns a List).
     
     if (Array.isArray(data)) {
       products.value = data
-      pagination.value.totalElements = data.length
-      pagination.value.totalPages = 1
     } else {
       products.value = data.content || []
-      pagination.value = {
-        ...pagination.value,
-        page: data.number || 0,
-        totalPages: data.totalPages || 0,
-        totalElements: data.totalElements || 0,
-      }
     }
   } catch (err) {
     error.value = err.response?.data?.message || 'Gagal memuat data produk.'
@@ -278,8 +272,8 @@ async function fetchProducts(page = 0) {
 }
 
 function updatePageSize(newSize) {
-  pagination.value.size = newSize
-  fetchProducts(0)
+  pageSize.value = newSize
+  page.value = 1
 }
 
 async function fetchCategories() {
@@ -294,6 +288,7 @@ async function fetchCategories() {
 
 watch([searchQuery, filterStatus, filterStock, sortBy], () => {
   selectedIds.value = []
+  page.value = 1
 })
 
 onMounted(() => {
@@ -339,17 +334,14 @@ async function openEdit(product) {
     const res = await api.get(`/api/v1/product-photos/product/${product.id}`)
     const photos = res.data
     if (photos && photos.length > 0) {
-      // Deduplicate: kalau ada foto dengan URL yang sama, ambil yang punya id terkecil saja
-      const seen = new Map() // url → foto pertama
+      const seen = new Map()
       for (const p of photos) {
         if (!seen.has(p.url)) {
           seen.set(p.url, p)
         }
-        // foto duplikat (URL sama) akan diabaikan — akan dihapus saat save
       }
       const uniquePhotos = Array.from(seen.values())
 
-      // Tandai duplikat untuk dihapus saat save
       const uniqueIds = new Set(uniquePhotos.map(p => p.id))
       for (const p of photos) {
         if (!uniqueIds.has(p.id)) {
@@ -375,8 +367,6 @@ async function openEdit(product) {
         form.value.images[0].isPrimary = true
       }
     } else if (product.imageUrl) {
-      // Tidak ada record di product_photos tapi ada imageUrl —
-      // tampilkan tapi id = null agar saat save dibuat record baru
       form.value.images = [{
         id: null,
         url: product.imageUrl,
@@ -419,7 +409,6 @@ function handleImagesUpload(event) {
     return
   }
   
-  // Cek apakah sudah ada primary sebelum loop
   const alreadyHasPrimary = form.value.images.some(img => img.isPrimary)
   let firstNew = true
 
@@ -430,7 +419,6 @@ function handleImagesUpload(event) {
     }
     
     const preview = URL.createObjectURL(file)
-    // Gambar baru jadi primary hanya jika belum ada primary DAN ini yang pertama ditambahkan
     const shouldBePrimary = !alreadyHasPrimary && firstNew
     firstNew = false
 
@@ -447,7 +435,6 @@ function handleImagesUpload(event) {
 
 function removeImage(index) {
   const img = form.value.images[index]
-  // Kalau punya id berarti sudah ada record di DB — tandai untuk dihapus
   if (img.id) {
     deletedPhotoIds.value.push(img.id)
   }
@@ -492,7 +479,6 @@ async function saveProduct() {
   }
   saving.value = true
   try {
-    // ── Upload semua file baru ke storage terlebih dahulu ──
     await Promise.all(
       form.value.images.map(async (img) => {
         if (!img.id && img.file) {
@@ -517,9 +503,6 @@ async function saveProduct() {
       category_id: form.value.categoryId || undefined,
       track_stock: form.value.trackStock,
       is_active: form.value.isActive,
-      // Saat create: TIDAK kirim image_url agar backend tidak auto-buat ProductPhoto record
-      // (semua foto diurus oleh loop di bawah secara konsisten)
-      // Saat edit: kirim image_url agar flag isPrimary di DB ikut diupdate
       image_url: modalMode.value === 'edit' ? primaryUrl : undefined
     }
     
@@ -534,7 +517,6 @@ async function saveProduct() {
     
     const productId = savedProduct.id
 
-    // ── Hapus foto yang ditandai untuk dihapus (mode edit) ──
     if (modalMode.value === 'edit' && deletedPhotoIds.value.length > 0) {
       await Promise.all(
         deletedPhotoIds.value.map(id => api.delete(`/api/v1/product-photos/${id}`))
@@ -542,18 +524,11 @@ async function saveProduct() {
       deletedPhotoIds.value = []
     }
 
-    // ── Sinkronisasi foto ke DB ──
-    // img.id ada   → record sudah ada di DB → PUT (update isPrimary/sortOrder)
-    // img.id null  → record belum ada di DB → POST (buat baru)
-    // img.url kosong → skip (file gagal upload atau tidak valid)
-    console.log('[DEBUG] images to sync:', form.value.images.map(img => ({ id: img.id, url: img.url?.slice(-20), isPrimary: img.isPrimary })))
     for (let i = 0; i < form.value.images.length; i++) {
       const img = form.value.images[i]
-      if (!img.url) continue  // skip gambar yang tidak punya URL
+      if (!img.url) continue
 
       if (img.id) {
-        // Foto lama — update metadata saja
-        console.log(`[DEBUG] PUT photo id=${img.id}`)
         await api.put(`/api/v1/product-photos/${img.id}`, {
           product_id: productId,
           url: img.url,
@@ -561,8 +536,6 @@ async function saveProduct() {
           sort_order: i
         })
       } else {
-        // Foto baru — buat record di DB
-        console.log(`[DEBUG] POST new photo url=${img.url?.slice(-20)}`)
         await api.post('/api/v1/product-photos', {
           product_id: productId,
           url: img.url,
@@ -574,7 +547,7 @@ async function saveProduct() {
 
     toast.success(modalMode.value === 'create' ? 'Produk berhasil ditambahkan!' : 'Produk berhasil diperbarui!')
     showDrawer.value = false
-    fetchProducts(pagination.value.page)
+    fetchProducts()
   } catch (err) {
     formError.value = err.response?.data?.data?.message || err.response?.data?.message || 'Gagal menyimpan produk.'
   } finally {
@@ -625,7 +598,6 @@ function validateForm() {
   return isValid
 }
 
-
 // ─── Delete ───────────────────────────────────────────────────────────────────
 const deleteModal = ref({
   show: false,
@@ -657,7 +629,7 @@ async function confirmDelete() {
   try {
     await api.delete(`/api/v1/products/${deleteModal.value.product.id}`)
     toast.success('Produk berhasil dihapus!')
-    fetchProducts(pagination.value.page)
+    fetchProducts()
     closeDeleteModal()
   } catch (err) {
     toast.error(err.response?.data?.data?.message || err.response?.data?.message || 'Gagal menghapus produk.')
@@ -666,9 +638,7 @@ async function confirmDelete() {
   }
 }
 
-
 async function toggleStatus(product) {
-  // Cek cooldown global
   const now = Date.now()
   if (now - lastToggleTime.value < TOGGLE_COOLDOWN_MS) {
     toast.warning('Tunggu sebentar sebelum mengganti status lagi')
@@ -682,21 +652,18 @@ async function toggleStatus(product) {
   
   if (togglingStatus.value === product.id) return
   
-  // Set cooldown
   lastToggleTime.value = now
-  
   togglingStatus.value = product.id
   const originalStatus = product.is_active
-  product.is_active = !product.is_active // Optimistic update
+  product.is_active = !product.is_active
   
-  console.log('DEBUG: Toggling status for product', product.id, 'to', product.is_active)
   try {
     await api.patch(`/api/v1/products/${product.id}`, {
       is_active: product.is_active
     })
     toast.success(`Status ${product.name} berhasil diperbarui menjadi ${product.is_active ? 'Aktif' : 'Nonaktif'}.`)
   } catch (err) {
-    product.is_active = originalStatus // Rollback
+    product.is_active = originalStatus
     toast.error(err.response?.data?.message || 'Gagal memperbarui status produk.')
   } finally {
     togglingStatus.value = null
@@ -715,14 +682,14 @@ function formatDate(dt) {
 }
 
 const AVATAR_COLORS = [
-  { bg: '#ede9fe', color: '#6d28d9' }, // violet
-  { bg: '#dbeafe', color: '#1d4ed8' }, // blue
-  { bg: '#d1fae5', color: '#065f46' }, // emerald
-  { bg: '#fef3c7', color: '#92400e' }, // amber
-  { bg: '#fee2e2', color: '#991b1b' }, // red
-  { bg: '#fce7f3', color: '#9d174d' }, // pink
-  { bg: '#e0f2fe', color: '#0369a1' }, // sky
-  { bg: '#f3f4f6', color: '#374151' }, // gray
+  { bg: '#ede9fe', color: '#6d28d9' },
+  { bg: '#dbeafe', color: '#1d4ed8' },
+  { bg: '#d1fae5', color: '#065f46' },
+  { bg: '#fef3c7', color: '#92400e' },
+  { bg: '#fee2e2', color: '#991b1b' },
+  { bg: '#fce7f3', color: '#9d174d' },
+  { bg: '#e0f2fe', color: '#0369a1' },
+  { bg: '#f3f4f6', color: '#374151' },
 ]
 
 function productAvatarStyle(name = '') {
@@ -760,7 +727,6 @@ function productAvatarStyle(name = '') {
                   >
                     <Filter class="h-3.5 w-3.5" />
                     <span>Filter</span>
-                    <!-- Active count badge -->
                     <span v-if="activeFilterCount > 0" class="inline-flex items-center justify-center h-4.5 min-w-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none">
                       {{ activeFilterCount }}
                     </span>
@@ -773,7 +739,6 @@ function productAvatarStyle(name = '') {
                       v-if="showFilter"
                       class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1 z-30 w-[calc(100vw-2.5rem)] sm:w-64 max-w-[280px] sm:max-w-none bg-card border border-border rounded-lg shadow-xl overflow-hidden"
                     >
-                      <!-- Header -->
                       <div class="flex items-center justify-between px-3 py-2.5 border-b border-border">
                         <span class="text-xs font-semibold text-foreground uppercase tracking-wide">Filter</span>
                         <button
@@ -837,7 +802,6 @@ function productAvatarStyle(name = '') {
                     </div>
                   </Transition>
                 </div>
-                <!-- /Filter Dropdown -->
 
                 <Button v-if="can('produk.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                   <Plus class="h-4 w-4" />
@@ -877,7 +841,7 @@ function productAvatarStyle(name = '') {
                 <!-- Mobile List View -->
                 <div class="md:hidden flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/60">
                   <div
-                    v-for="product in filteredProducts"
+                    v-for="product in paginatedProducts"
                     :key="'mobile-' + product.id"
                     class="p-4 flex flex-col gap-3 hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40 transition-colors"
                   >
@@ -1010,7 +974,7 @@ function productAvatarStyle(name = '') {
                     </TableHeader>
                     <TableBody>
                       <TableRow
-                        v-for="product in filteredProducts"
+                        v-for="product in paginatedProducts"
                         :key="product.id"
                         class="group table-lift-row border-b border-zinc-100 dark:border-zinc-800/60 odd:bg-background even:bg-zinc-50/40 dark:even:bg-zinc-900/10 hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer"
                         @click="can('produk.update') && !isSuperAdmin && openEdit(product)"
@@ -1114,12 +1078,13 @@ function productAvatarStyle(name = '') {
                 </div>
               </div>
 
+              <!-- Pagination Terkoneksi Sesuai Logika Komponen Baru -->
               <DataTablePagination
-                v-if="pagination.totalElements > 0 && !loading"
-                :page="pagination.page + 1"
-                :page-size="pagination.size"
-                :total="pagination.totalElements"
-                @update:page="fetchProducts($event - 1)"
+                v-if="filteredProducts.length > 0 && !loading"
+                :page="page"
+                :page-size="pageSize"
+                :total="filteredProducts.length"
+                @update:page="page = $event"
                 @update:page-size="updatePageSize($event)"
               />
             </CardContent>
@@ -1168,7 +1133,6 @@ function productAvatarStyle(name = '') {
 
           <!-- Form Grid Split Layout -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
             <!-- LEFT COLUMN: Product Images Gallery -->
             <div class="lg:col-span-5 space-y-4">
               <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
@@ -1219,7 +1183,6 @@ function productAvatarStyle(name = '') {
                       
                       <!-- Overlay with buttons -->
                       <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/item:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-between p-2">
-                        
                         <!-- Top buttons (Set Primary) -->
                         <div class="w-full flex justify-end">
                           <button
@@ -1268,7 +1231,6 @@ function productAvatarStyle(name = '') {
 
             <!-- RIGHT COLUMN: Product Information Cards -->
             <div class="lg:col-span-7 space-y-6">
-              
               <!-- Card 1: Informasi Utama -->
               <Card class="border-zinc-200 dark:border-zinc-800 shadow-sm">
                 <CardContent class="p-5 space-y-4">
