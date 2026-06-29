@@ -26,10 +26,10 @@ const features = [
   },
 ]
 
- // Implementasi dalam komponen Vue Anda:
-  import { useGsap } from '@/hooks/useGsap'
+import { useGsap } from '@/hooks/useGsap'
+import Button from '@/components/ui/Button.vue'
 
-  useGsap((gsap) => {
+useGsap((gsap) => {
     // Animasi muncul untuk teks utama (jalankan sekali)
     gsap.from('.animate-target > *', {
       y: 20,
@@ -378,47 +378,47 @@ const features = [
         </div>
 
         <!-- ROW 4 -->
-        <div
-          class="p-10 min-h-[340px]"
-        >
-          <h3 class="text-3xl text-white mb-4">
-            Monitoring Bisnis
-          </h3>
+<div class="p-10 min-h-[340px] bg-zinc-950">
+  <div class="grid md:grid-cols-2 gap-12 items-start">
+    
+    <!-- Bagian Kiri -->
+    <div>
+      <h3 class="text-4xl text-white mb-6 font-semibold">
+        Siap membangun sistem? 
+        <span class="text-zinc-500">Mulai iterasi proyek Anda sekarang.</span>
+      </h3>
+      
+      <p class="text-zinc-400 mb-8">
+        Hubungi tim kami untuk mendiskusikan kebutuhan infrastruktur skala 
+        <span class="text-blue-500">Pro</span> atau tingkat 
+        <span class="text-purple-500">Enterprise</span> perusahaan Anda.
+      </p>
 
-          <p class="text-zinc-400 max-w-md">
-            Pantau aktivitas toko, transaksi, stok, dan performa bisnis.
-          </p>
+      <div class="flex gap-4">
+        <!-- Menggunakan komponen tombol Anda -->
+        <Button variant="default">
+          Hubungi Kami
+        </Button>
+        <Button variant="outline" class="">
+          Konsultasikan Ide
+        </Button>
+      </div>
+    </div>
 
-          <div
-            class="mt-12 rounded-xl border border-zinc-800 bg-violet-950/20 p-8"
-          >
-            <div class="grid md:grid-cols-4 gap-6">
+    <!-- Bagian Kanan -->
+    <div class="border-l border-zinc-800 pl-12">
+      <p class="text-zinc-300 mb-6">
+        <span class="text-white font-semibold">Jelajahi Opsi Enterprise</span> dengan jaminan performa kustom, isolasi pipeline data, serta dukungan Service Level Agreement (SLA) khusus.
+      </p>
+      
+      <!-- Menggunakan komponen tombol Anda dengan varian sekunder atau kostum -->
+      <Button variant="secondary" class="bg-zinc-800 text-white border border-zinc-700">
+        Solusi Korporat
+      </Button>
+    </div>
 
-              <div>
-                <div class="text-zinc-500 text-sm">Penjualan</div>
-                <div class="text-3xl text-white">1.245</div>
-              </div>
-
-              <div>
-                <div class="text-zinc-500 text-sm">Produk</div>
-                <div class="text-3xl text-white">342</div>
-              </div>
-
-              <div>
-                <div class="text-zinc-500 text-sm">Pelanggan</div>
-                <div class="text-3xl text-white">879</div>
-              </div>
-
-              <div>
-                <div class="text-zinc-500 text-sm">Laba</div>
-                <div class="text-3xl text-violet-400">
-                  +24%
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
+  </div>
+</div>
 
       </div>
 

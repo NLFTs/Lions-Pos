@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Define Roobert font - Local OTF Files */
+.font-roobert {
+  font-family: 'Roobert', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* FORCE dark background - CRITICAL for preventing white flash */
+html,
+body {
+  background-color: rgb(3, 7, 18) !important;
+  color-scheme: dark;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-width: 100vw;
+}
+
+#app {
+  background-color: rgb(3, 7, 18) !important;
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -54,9 +78,11 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground antialiased;
     font-family: 'Plus Jakarta Sans', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* CRITICAL: Always dark background, never light */
+    background-color: rgb(3, 7, 18) !important;
   }
 
   .font-serif {

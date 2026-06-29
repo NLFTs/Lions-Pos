@@ -62,7 +62,7 @@ const footerLinks = [
   {
     title: 'Resources',
     items: [
-      { name: 'Docs', url: '#' },
+      { name: 'Docs', url: '/docs' },
       { name: 'Changelog', url: '#' },
       { name: 'Support', url: '#' }
     ]

@@ -7,7 +7,7 @@
     >
       <div class="flex flex-col md:flex-row items-center gap-2 md:gap-4 pr-8">
         <p class="text-xs md:text-sm font-medium text-white text-center">
-          Switching clouds? Get up to $10K in credits + hands-on help.
+          Butuh Mengelola Retail dengan cepat? dapatkan penawaran khusus 50%.
         </p>
         <a href="#" class="bg-black text-white text-xs md:text-sm px-4 py-1 rounded hover:bg-zinc-800 transition-colors whitespace-nowrap">
           Apply now >

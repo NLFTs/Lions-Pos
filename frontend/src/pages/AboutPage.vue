@@ -3,9 +3,9 @@ import { useRouter } from 'vue-router'
 import LandingLayout from '@/components/section/landingpage/LandingLayout.vue'
 import Navbar from '@/components/section/landingpage/Navbar.vue'
 import Button from '@/components/ui/Button.vue'
-import { Zap, Heart, Shield, Rocket, Globe, ArrowLeft, Users, Sparkles, Trophy } from 'lucide-vue-next'
+import Aurora from '@/components/Aurora.vue'
+import { Zap } from 'lucide-vue-next'
 import { useGsap } from '@/hooks/useGsap'
-
 
 const router = useRouter()
 
@@ -27,11 +27,7 @@ const handleNavigation = (path) => {
   }
 }
 
-const navigateBack = () => {
-  router.back()
-}
-
-useGsap((gsap, ScrollTrigger) => {
+useGsap((gsap) => {
   gsap.from('.reveal', {
     y: 40,
     opacity: 0,
@@ -61,82 +57,51 @@ useGsap((gsap, ScrollTrigger) => {
       </template>
     </Navbar>
 
-    <main class="relative flex-grow flex flex-col items-center pt-20 pb-24 px-6 overflow-hidden">
-      <div class="relative z-10 max-w-3xl mx-auto space-y-32">
-        <!-- Hero Section -->
-        <div class="text-center space-y-10">
-          <h1 class="reveal text-5xl md:text-7xl font-serif italic tracking-tight text-white leading-[1.1]">
-            Membangun <span class="text-primary not-italic">Masa Depan</span> Retail & F&B modern.
+    <!-- Container dibuat full-width dengan margin yang lebih tipis agar hero terlihat lebih besar -->
+    <main class="relative flex-grow flex flex-col items-center pt-8 pb-16 px-2 font-roobert">
+      <div class="relative w-full max-w-[95rem] min-h-[600px] overflow-hidden bg-black text-white flex flex-col items-center justify-center py-24 rounded-3xl border border-white/10">
+    
+        <!-- Aurora Background Effect - positioned absolutely to fill container -->
+        <div class="absolute inset-0 rounded-3xl overflow-hidden z-0">
+          <Aurora 
+            :color-stops="['#3A29FF', '#FF94B4', '#FF3232']"
+            :blend="0.5"
+            :amplitude="1.0"
+            :speed="0.5"
+          />
+        </div>
+
+        <!-- Konten Utama: Ukuran font diperkecil untuk kesan lebih rapi -->
+        <div class="relative z-10 text-center px-6 max-w-4xl">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gray-800 bg-gray-900/30 mb-6">
+            <span class="text-[9px] font-semibold tracking-widest uppercase text-gray-500" style="font-family: 'Roobert', sans-serif; font-weight: 600;">Workflows</span>
+            <span class="text-[9px] bg-purple-600 px-2 py-0.5 rounded-full font-bold" style="font-family: 'Roobert', sans-serif; font-weight: 700;">BETA</span>
+          </div>
+
+          <h1 class="text-4xl md:text-6xl font-bold mb-6 leading-tight tracking-tight" style="font-family: 'Roobert', sans-serif; font-weight: 300;">
+            Long-running jobs for<br />apps and agents
           </h1>
           
-          <p class="reveal text-lg md:text-xl text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed">
-            Gaptek hadir sebagai solusi revolusioner untuk membantu pengusaha retail dan F&B naik kelas melalui teknologi otomasi yang elegan.
+          <p class="text-base md:text-lg text-gray-400 mb-8 max-w-2xl mx-auto" style="font-family: 'Roobert', sans-serif; font-weight: 400;">
+            Deploy reliable application logic and parallel workloads without managing queues, worker pools, or custom retry logic.
           </p>
-        </div>
 
-        <!-- Vision Section -->
-        <div class="space-y-12 border-t border-white/10 pt-24">
-          <div class="inline-flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-[0.2em]">
-            <Sparkles class="w-3 h-3" />
-            Visi Gaptek
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-1 gap-12">
-            <h2 class="text-4xl md:text-5xl font-medium text-white tracking-tight leading-tight">
-              Menghapus Batas Antara <br class="hidden md:block" />
-              Ide dan Eksekusi.
-            </h2>
-            <div class="space-y-8 text-xl text-zinc-400 leading-relaxed max-w-2xl">
-              <p>
-                Gaptek percaya bahwa setiap pemilik bisnis layak mendapatkan alat yang sama kuatnya dengan perusahaan raksasa. Misi ini adalah mendemokratisasi teknologi enterprise.
-              </p>
-              <p>
-                Kompleksitas dikemas ke dalam antarmuka yang sangat mudah digunakan oleh siapa saja, memastikan pertumbuhan bisnis tidak terhambat oleh batasan teknis.
-              </p>
-            </div>
+          <div class="flex items-center justify-center gap-4">
+            <button class="px-5 py-2 bg-white text-black font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-xs" style="font-family: 'Roobert', sans-serif; font-weight: 600;">
+              Get started <span>&rarr;</span>
+            </button>
+            <button class="px-5 py-2 border border-gray-700 rounded-lg hover:border-gray-500 transition-colors text-xs" style="font-family: 'Roobert', sans-serif; font-weight: 500;">
+              Read the docs
+            </button>
           </div>
         </div>
 
-        <!-- Core Values (Text focused) -->
-        <div class="space-y-20 border-t border-white/10 pt-24">
-          <div class="text-left space-y-4 reveal">
-            <h2 class="text-3xl font-bold text-white tracking-tight">Nilai Inti</h2>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-20 gap-y-16 reveal">
-            <div class="space-y-4 group cursor-default">
-              <h3 class="text-xl font-bold text-white group-hover:text-primary transition-colors duration-300">Inovasi Tanpa Henti</h3>
-              <p class="text-lg text-zinc-500 leading-relaxed group-hover:text-zinc-300 transition-colors duration-500">Inovasi adalah jantung Gaptek. Setiap minggu ada fitur baru yang lahir dari masukan langsung para mitra.</p>
-            </div>
-            
-            <div class="space-y-4 group cursor-default">
-              <h3 class="text-xl font-bold text-white group-hover:text-rose-500 transition-colors duration-300">Empati Pengguna</h3>
-              <p class="text-lg text-zinc-500 leading-relaxed group-hover:text-zinc-300 transition-colors duration-500">Solusi dibangun berdasarkan masalah nyata yang dihadapi oleh pemilik toko dan manajer di lapangan.</p>
-            </div>
-
-            <div class="space-y-4 group cursor-default">
-              <h3 class="text-xl font-bold text-white group-hover:text-blue-500 transition-colors duration-300">Kepercayaan & Keamanan</h3>
-              <p class="text-lg text-zinc-500 leading-relaxed group-hover:text-zinc-300 transition-colors duration-500">Data Anda adalah aset paling berharga. Data dilindungi dengan standar keamanan tertinggi industri.</p>
-            </div>
-
-            <div class="space-y-4 group cursor-default">
-              <h3 class="text-xl font-bold text-white group-hover:text-primary transition-colors duration-300">Ekosistem Terbuka</h3>
-              <p class="text-lg text-zinc-500 leading-relaxed group-hover:text-zinc-300 transition-colors duration-500">Teknologi Gaptek dirancang untuk terhubung dengan berbagai platform, memberikan Anda fleksibilitas penuh.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Simple CTA -->
-        <div class="py-32 border-t border-white/10 text-center space-y-12">
-          <div class="space-y-6">
-            <h2 class="text-4xl md:text-6xl font-medium text-white tracking-tight">Siap Bergabung?</h2>
-            <p class="text-xl text-zinc-500 max-w-lg mx-auto">Ribuan pebisnis telah beralih ke Gaptek untuk menyederhanakan hidup mereka.</p>
-          </div>
-          <Button 
-            class="h-16 px-12 rounded-2xl bg-white text-zinc-900 hover:scale-105 transition-transform duration-300 font-bold text-xl shadow-2xl shadow-white/10"
-            @click="router.push('/login')"
-          >
-            Mulai Sekarang
-          </Button>
+        <!-- Bagian Bawah -->
+        <div class="mt-20 w-full text-center">
+          <p class="text-base md:text-lg text-gray-400" style="font-family: 'Roobert', sans-serif; font-weight: 400;">
+            A better way to build reliable 
+            <span class="inline-block border-b border-purple-500 text-purple-400 px-1" style="font-family: 'Roobert', sans-serif; font-weight: 600;">data pipelines</span>
+          </p>
         </div>
       </div>
     </main>
@@ -144,13 +109,10 @@ useGsap((gsap, ScrollTrigger) => {
     <!-- Footer -->
     <footer class="py-12 border-t border-white/5 text-center">
       <div class="flex items-center justify-center gap-2 mb-4">
-        <Zap class="w-5 h-5 text-primary" />
+        <Zap class="w-5 h-5 text-zinc-500" />
         <span class="text-lg font-bold text-white tracking-tighter uppercase">Gaptek</span>
       </div>
       <p class="text-xs text-zinc-600">© 2026 Gaptek Technology Inc. Semua hak dilindungi undang-undang.</p>
     </footer>
   </LandingLayout>
 </template>
-
-<style scoped>
-</style>
