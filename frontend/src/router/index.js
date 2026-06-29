@@ -291,6 +291,17 @@ export const routes = [
       pageSubtitle: 'Kelola notifikasi aktivitas sistem dan partner.',
     },
   },
+  {
+    path: '/dashboard/quarantine',
+    name: 'quarantine',
+    component: () => import('@/pages/QuarantinePage.vue'),
+    meta: {
+      requiresAuth: true,
+      permission: 'stock_balance.index',
+      pageTitle: 'Stok Karantina',
+      pageSubtitle: 'Kelola stok karantina yang menunggu approve atau dispose.',
+    },
+  },
 
   {
     path: '/receipt/:orderNumber',

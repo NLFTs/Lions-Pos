@@ -45,6 +45,7 @@ import {
   ClipboardList,
   PackageSearch,
   Repeat2,
+  ShieldAlert,
 } from 'lucide-vue-next'
 import Toast from '@/components/ui/Toast.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -87,6 +88,7 @@ const INVENTORY_MENU_RAW = [
   { label: 'Pergerakan Stok',  icon: ArrowLeftRight,  to: '/dashboard/stock-mutations',   permission: 'stock_mutation.index' },
   { label: 'Pengecekan Stok',     icon: PackageSearch,   to: '/dashboard/stock-opname',      permission: 'stock_opname.index' },
   { label: 'Transfer Stok',       icon: Repeat2,          to: '/dashboard/transfer-requests', permission: 'transfer_request.index' },
+  { label: 'Stok Karantina',       icon: ShieldAlert,          to: '/dashboard/quarantine', permission: 'stock_balance.index' },
 ]
 
 // Filter inventory menu berdasarkan permission user saat ini
@@ -104,6 +106,7 @@ const INVENTORY_ROUTES = [
   '/dashboard/stock-mutations',
   '/dashboard/transfer-requests',
   '/dashboard/stock-opname',
+  '/dashboard/quarantine',
 ]
 
 // About Modal state
