@@ -15,16 +15,16 @@ export const useLoadingBar = () => {
     state.progress = 0
     state.error = false
 
-    // Initial jump
-    state.progress = 10
+    // Start at 20% immediately for quick feedback
+    state.progress = 20
 
     timer = setInterval(() => {
-      if (state.progress < 90) {
-        // Slow down as it gets closer to 90
-        const diff = Math.random() * (90 - state.progress) * 0.1
+      if (state.progress < 95) {
+        // Accelerate loading progress perception
+        const diff = Math.random() * (95 - state.progress) * 0.12
         state.progress += diff
       }
-    }, 200)
+    }, 120) // More frequent updates
   }
 
   const finish = () => {
@@ -36,8 +36,8 @@ export const useLoadingBar = () => {
       // Reset after transition finishes
       setTimeout(() => {
         state.progress = 0
-      }, 400)
-    }, 400)
+      }, 350)
+    }, 300) // Match with page transition timing
   }
 
   const fail = () => {
