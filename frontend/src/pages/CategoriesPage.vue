@@ -541,7 +541,6 @@ function categoryAvatarStyle(name = '') {
                             @change="toggleSelectAll"
                           />
                         </th>
-                        <th v-if="isColumnVisible('id')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px] w-16">#</th>
                         <th v-if="isColumnVisible('name')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Nama Kategori</th>
                         <th v-if="isColumnVisible('parent')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Tipe Kategori</th>
                         <th v-if="isColumnVisible('description')" class="px-5 py-3 text-left font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Deskripsi</th>
@@ -565,7 +564,6 @@ function categoryAvatarStyle(name = '') {
                             @change="toggleSelect(cat.id)"
                           />
                         </td>
-                        <td v-if="isColumnVisible('id')" class="px-5 py-3 text-muted-foreground font-mono text-xs">{{ cat.id }}</td>
                         <td v-if="isColumnVisible('name')" class="px-5 py-3">
                           <div class="flex items-center gap-3">
                             <div

@@ -18,7 +18,7 @@ public class AuditorAwareImpl implements AuditorAware<User> {
     public AuditorAwareImpl(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
-
+    
     @Override
     public Optional<User> getCurrentAuditor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
