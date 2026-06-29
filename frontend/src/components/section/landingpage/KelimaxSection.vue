@@ -279,11 +279,11 @@ useGsap((gsap) => {
          <div class="border-t border-b border-zinc-800 p-10 flex flex-col md:flex-row items-stretch gap-10 bg-black min-h-[380px]">     
                 <div class="flex-1 flex flex-col justify-center py-6">
                     <h3 class="text-3xl text-white font-semibold mb-4 max-w-sm">
-                        Load-based autoscaling that handles 100x traffic bursts and beyond
+                        Kasir yang Tetap Stabil Meski Antrian 100X Mengular
                     </h3>
                     <p class="text-zinc-400 max-w-md mb-6">
-                        Keep your workloads running smoothly through viral moments, 
-                        seasonal spikes, and launch days.
+                        Hadapi momen ramai, promo besar, dan akhir pekan tanpa khawatir aplikasi lemot atau down. 
+                        Transaksi tetap cepat meski pelanggan datang bertubi-tubi
                     </p>
                     <a href="#" class="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-2">
                         Autoscaling docs <span>&rarr;</span>
@@ -384,12 +384,12 @@ useGsap((gsap) => {
     <!-- Bagian Kiri -->
     <div>
       <h3 class="text-4xl text-white mb-6 font-semibold">
-        Siap membangun sistem? 
+        Siap Bangun Sistem Kasir Modern? 
         <span class="text-zinc-500">Mulai iterasi proyek Anda sekarang.</span>
       </h3>
       
       <p class="text-zinc-400 mb-8">
-        Hubungi tim kami untuk mendiskusikan kebutuhan infrastruktur skala 
+        Mulai digitalisasi toko Anda sekarang. Dari 1 outlet hingga puluhan cabang—kami siap bantu pilih solusi POS yang paling cocok untuk bisnis Anda 
         <span class="text-blue-500">Pro</span> atau tingkat 
         <span class="text-purple-500">Enterprise</span> perusahaan Anda.
       </p>
@@ -408,7 +408,8 @@ useGsap((gsap) => {
     <!-- Bagian Kanan -->
     <div class="border-l border-zinc-800 pl-12">
       <p class="text-zinc-300 mb-6">
-        <span class="text-white font-semibold">Jelajahi Opsi Enterprise</span> dengan jaminan performa kustom, isolasi pipeline data, serta dukungan Service Level Agreement (SLA) khusus.
+        <span class="text-white font-semibold">Jelajahi Opsi Retail Skala Besar</span> 
+        "Dapatkan performa POS yang stabil di semua cabang, integrasi data real-time antar outlet, serta dukungan prioritas 24/7 dengan Service Level Agreement (SLA) khusus untuk bisnis Anda.".
       </p>
       
       <!-- Menggunakan komponen tombol Anda dengan varian sekunder atau kostum -->

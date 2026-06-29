@@ -1,4 +1,4 @@
-// node_modules/.pnpm/@vue+shared@3.5.33/node_modules/@vue/shared/dist/shared.esm-bundler.js
+// node_modules/.pnpm/@vue+shared@3.5.38/node_modules/@vue/shared/dist/shared.esm-bundler.js
 function makeMap(str) {
   const map2 = /* @__PURE__ */ Object.create(null);
   for (const key of str.split(",")) map2[key] = 1;
@@ -319,7 +319,7 @@ function normalizeCssVarValue(value) {
   return String(value);
 }
 
-// node_modules/.pnpm/@vue+reactivity@3.5.33/node_modules/@vue/reactivity/dist/reactivity.esm-bundler.js
+// node_modules/.pnpm/@vue+reactivity@3.5.38/node_modules/@vue/reactivity/dist/reactivity.esm-bundler.js
 function warn(msg, ...args) {
   console.warn(`[Vue warn] ${msg}`, ...args);
 }
@@ -333,12 +333,18 @@ var EffectScope = class {
     this.effects = [];
     this.cleanups = [];
     this._isPaused = false;
+    this._warnOnRun = true;
     this.__v_skip = true;
-    this.parent = activeEffectScope;
     if (!detached && activeEffectScope) {
-      this.index = (activeEffectScope.scopes || (activeEffectScope.scopes = [])).push(
-        this
-      ) - 1;
+      if (activeEffectScope.active) {
+        this.parent = activeEffectScope;
+        this.index = (activeEffectScope.scopes || (activeEffectScope.scopes = [])).push(
+          this
+        ) - 1;
+      } else {
+        this._active = false;
+        this._warnOnRun = false;
+      }
     }
   }
   get active() {
@@ -386,7 +392,7 @@ var EffectScope = class {
       } finally {
         activeEffectScope = currentEffectScope;
       }
-    } else if (true) {
+    } else if (this._warnOnRun) {
       warn(`cannot run an inactive effect scope.`);
     }
   }
@@ -476,8 +482,12 @@ var ReactiveEffect = class {
     this.next = void 0;
     this.cleanup = void 0;
     this.scheduler = void 0;
-    if (activeEffectScope && activeEffectScope.active) {
-      activeEffectScope.effects.push(this);
+    if (activeEffectScope) {
+      if (activeEffectScope.active) {
+        activeEffectScope.effects.push(this);
+      } else {
+        this.flags &= -2;
+      }
     }
   }
   pause() {
@@ -1609,9 +1619,6 @@ function targetTypeMap(rawType) {
       return 0;
   }
 }
-function getTargetType(value) {
-  return value["__v_skip"] || !Object.isExtensible(value) ? 0 : targetTypeMap(toRawType(value));
-}
 function reactive(target) {
   if (isReadonly(target)) {
     return target;
@@ -1665,13 +1672,16 @@ function createReactiveObject(target, isReadonly2, baseHandlers, collectionHandl
   if (target["__v_raw"] && !(isReadonly2 && target["__v_isReactive"])) {
     return target;
   }
-  const targetType = getTargetType(target);
-  if (targetType === 0) {
+  if (target["__v_skip"] || !Object.isExtensible(target)) {
     return target;
   }
   const existingProxy = proxyMap.get(target);
   if (existingProxy) {
     return existingProxy;
+  }
+  const targetType = targetTypeMap(toRawType(target));
+  if (targetType === 0) {
+    return target;
   }
   const proxy = new Proxy(
     target,
@@ -2064,8 +2074,9 @@ function watch(source, cb, options = EMPTY_OBJ) {
   if (once && cb) {
     const _cb = cb;
     cb = (...args) => {
-      _cb(...args);
+      const res = _cb(...args);
       watchHandle();
+      return res;
     };
   }
   let oldValue = isMultiSource ? new Array(source.length).fill(INITIAL_WATCHER_VALUE) : INITIAL_WATCHER_VALUE;
@@ -2075,7 +2086,7 @@ function watch(source, cb, options = EMPTY_OBJ) {
     }
     if (cb) {
       const newValue = effect2.run();
-      if (deep || forceTrigger || (isMultiSource ? newValue.some((v, i) => hasChanged(v, oldValue[i])) : hasChanged(newValue, oldValue))) {
+      if (immediateFirstRun || deep || forceTrigger || (isMultiSource ? newValue.some((v, i) => hasChanged(v, oldValue[i])) : hasChanged(newValue, oldValue))) {
         if (cleanup) {
           cleanup();
         }
@@ -2171,7 +2182,7 @@ function traverse(value, depth = Infinity, seen) {
   return value;
 }
 
-// node_modules/.pnpm/@vue+runtime-core@3.5.33/node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js
+// node_modules/.pnpm/@vue+runtime-core@3.5.38/node_modules/@vue/runtime-core/dist/runtime-core.esm-bundler.js
 var stack = [];
 function pushWarningContext(vnode) {
   stack.push(vnode);
@@ -3327,19 +3338,18 @@ var TeleportImpl = {
       target,
       props
     } = vnode;
-    let shouldRemove = doRemove || !isTeleportDisabled(props);
+    const shouldRemove = doRemove || !isTeleportDisabled(props);
     const pendingMount = pendingMounts.get(vnode);
     if (pendingMount) {
       pendingMount.flags |= 8;
       pendingMounts.delete(vnode);
-      shouldRemove = false;
     }
     if (target) {
       hostRemove(targetStart);
       hostRemove(targetAnchor);
     }
     doRemove && hostRemove(anchor);
-    if (shapeFlag & 16) {
+    if (!pendingMount && shapeFlag & 16) {
       for (let i = 0; i < children.length; i++) {
         const child = children[i];
         unmount(
@@ -4301,24 +4311,20 @@ function createHydrationFunctions(rendererInternals) {
           slotScopeIds,
           optimized
         );
-        let hasWarned2 = false;
-        while (next) {
-          if (!isMismatchAllowed(
+        if (next && !isMismatchAllowed(
+          el,
+          1
+          /* CHILDREN */
+        )) {
+          warn$1(
+            `Hydration children mismatch on`,
             el,
-            1
-            /* CHILDREN */
-          )) {
-            if (!hasWarned2) {
-              warn$1(
-                `Hydration children mismatch on`,
-                el,
-                `
+            `
 Server rendered element contains more child nodes than client vdom.`
-              );
-              hasWarned2 = true;
-            }
-            logMismatchError();
-          }
+          );
+          logMismatchError();
+        }
+        while (next) {
           const cur = next;
           next = next.nextSibling;
           remove2(cur);
@@ -4396,7 +4402,7 @@ Server rendered element contains more child nodes than client vdom.`
     optimized = optimized || !!parentVNode.dynamicChildren;
     const children = parentVNode.children;
     const l = children.length;
-    let hasWarned2 = false;
+    let hasCheckedMismatch = false;
     for (let i = 0; i < l; i++) {
       const vnode = optimized ? children[i] : children[i] = normalizeVNode(children[i]);
       const isText = vnode.type === Text;
@@ -4424,21 +4430,21 @@ Server rendered element contains more child nodes than client vdom.`
       } else if (isText && !vnode.children) {
         insert(vnode.el = createText(""), container);
       } else {
-        if (!isMismatchAllowed(
-          container,
-          1
-          /* CHILDREN */
-        )) {
-          if (!hasWarned2) {
+        if (!hasCheckedMismatch) {
+          hasCheckedMismatch = true;
+          if (!isMismatchAllowed(
+            container,
+            1
+            /* CHILDREN */
+          )) {
             warn$1(
               `Hydration children mismatch on`,
               container,
               `
 Server rendered element contains fewer child nodes than client vdom.`
             );
-            hasWarned2 = true;
+            logMismatchError();
           }
-          logMismatchError();
         }
         patch(
           null,
@@ -4934,13 +4940,21 @@ function defineAsyncComponent(source) {
       const loaded = ref(false);
       const error = ref();
       const delayed = ref(!!delay);
+      let timeoutTimer;
+      let delayTimer;
+      onUnmounted(() => {
+        if (timeoutTimer != null) clearTimeout(timeoutTimer);
+        if (delayTimer != null) clearTimeout(delayTimer);
+      });
       if (delay) {
-        setTimeout(() => {
+        delayTimer = setTimeout(() => {
+          if (instance.isUnmounted) return;
           delayed.value = false;
         }, delay);
       }
       if (timeout != null) {
-        setTimeout(() => {
+        timeoutTimer = setTimeout(() => {
+          if (instance.isUnmounted) return;
           if (!loaded.value && !error.value) {
             const err = new Error(
               `Async component timed out after ${timeout}ms.`
@@ -4951,11 +4965,16 @@ function defineAsyncComponent(source) {
         }, timeout);
       }
       load().then(() => {
+        if (instance.isUnmounted) return;
         loaded.value = true;
         if (instance.parent && isKeepAlive(instance.parent.vnode)) {
           instance.parent.update();
         }
       }).catch((err) => {
+        if (instance.isUnmounted) {
+          pendingRequest = null;
+          return;
+        }
         onError(err);
         error.value = err;
       });
@@ -6526,13 +6545,20 @@ function useModel(props, name, options = EMPTY_OBJ) {
           return;
         }
         const rawProps = i.vnode.props;
-        if (!(rawProps && // check if parent has passed v-model
-        (name in rawProps || camelizedName in rawProps || hyphenatedName in rawProps) && (`onUpdate:${name}` in rawProps || `onUpdate:${camelizedName}` in rawProps || `onUpdate:${hyphenatedName}` in rawProps))) {
+        const hasVModel = !!(rawProps && // check if parent has passed v-model
+        (name in rawProps || camelizedName in rawProps || hyphenatedName in rawProps) && (`onUpdate:${name}` in rawProps || `onUpdate:${camelizedName}` in rawProps || `onUpdate:${hyphenatedName}` in rawProps));
+        if (!hasVModel) {
           localValue = value;
           trigger2();
         }
         i.emit(`update:${name}`, emittedValue);
-        if (hasChanged(value, emittedValue) && hasChanged(value, prevSetValue) && !hasChanged(emittedValue, prevEmittedValue)) {
+        if (hasChanged(value, prevSetValue) && (hasChanged(value, emittedValue) && !hasChanged(emittedValue, prevEmittedValue) || // #13524: browsers differ in when they flush microtasks between
+        // event listeners. If a v-model listener emits an intermediate value
+        // and a following listener restores the model to its previous prop
+        // value before parent updates are flushed, the parent render can be
+        // deduped as having no prop change. Force a local update so DOM state
+        // such as an input's value is synchronized back to the current model.
+        hasVModel && prevSetValue !== EMPTY_OBJ && !hasChanged(emittedValue, localValue))) {
           trigger2();
         }
         prevSetValue = value;
@@ -7390,7 +7416,7 @@ function getInvalidTypeMessage(name, value, expectedTypes) {
   const receivedType = toRawType(value);
   const expectedValue = styleValue(value, expectedType);
   const receivedValue = styleValue(value, receivedType);
-  if (expectedTypes.length === 1 && isExplicable(expectedType) && !isBoolean(expectedType, receivedType)) {
+  if (expectedTypes.length === 1 && isExplicable(expectedType) && isCoercible(expectedType, receivedType)) {
     message += ` with value ${expectedValue}`;
   }
   message += `, got ${receivedType} `;
@@ -7400,7 +7426,9 @@ function getInvalidTypeMessage(name, value, expectedTypes) {
   return message;
 }
 function styleValue(value, type) {
-  if (type === "String") {
+  if (isSymbol(value)) {
+    return value.toString();
+  } else if (type === "String") {
     return `"${value}"`;
   } else if (type === "Number") {
     return `${Number(value)}`;
@@ -7412,8 +7440,11 @@ function isExplicable(type) {
   const explicitTypes = ["string", "number", "boolean"];
   return explicitTypes.some((elem) => type.toLowerCase() === elem);
 }
-function isBoolean(...args) {
-  return args.some((elem) => elem.toLowerCase() === "boolean");
+function isCoercible(...args) {
+  return args.every((elem) => {
+    const value = elem.toLowerCase();
+    return value !== "boolean" && value !== "symbol";
+  });
 }
 var isInternalKey = (key) => key === "_" || key === "_ctx" || key === "$stable";
 var normalizeSlotValue = (value) => isArray(value) ? value.map(normalizeVNode) : [normalizeVNode(value)];
@@ -8767,9 +8798,13 @@ function baseCreateRenderer(options, createHydrationFns) {
     const needTransition2 = moveType !== 2 && shapeFlag & 1 && transition;
     if (needTransition2) {
       if (moveType === 0) {
-        transition.beforeEnter(el);
-        hostInsert(el, container, anchor);
-        queuePostRenderEffect(() => transition.enter(el), parentSuspense);
+        if (transition.persisted && !el[leaveCbKey]) {
+          hostInsert(el, container, anchor);
+        } else {
+          transition.beforeEnter(el);
+          hostInsert(el, container, anchor);
+          queuePostRenderEffect(() => transition.enter(el), parentSuspense);
+        }
       } else {
         const { leave, delayLeave, afterLeave } = transition;
         const remove22 = () => {
@@ -8780,16 +8815,21 @@ function baseCreateRenderer(options, createHydrationFns) {
           }
         };
         const performLeave = () => {
+          const wasLeaving = el._isLeaving || !!el[leaveCbKey];
           if (el._isLeaving) {
             el[leaveCbKey](
               true
               /* cancelled */
             );
           }
-          leave(el, () => {
+          if (transition.persisted && !wasLeaving) {
             remove22();
-            afterLeave && afterLeave();
-          });
+          } else {
+            leave(el, () => {
+              remove22();
+              afterLeave && afterLeave();
+            });
+          }
         };
         if (delayLeave) {
           delayLeave(el, remove22, performLeave);
@@ -9468,13 +9508,14 @@ function createSuspenseBoundary(vnode, parentSuspense, parentComponent, containe
         suspense.isHydrating = false;
       } else if (!resume) {
         delayEnter = activeBranch && pendingBranch.transition && pendingBranch.transition.mode === "out-in";
+        let hasUpdatedAnchor = false;
         if (delayEnter) {
           activeBranch.transition.afterLeave = () => {
             if (pendingId === suspense.pendingId) {
               move(
                 pendingBranch,
                 container2,
-                anchor === initialAnchor ? next(activeBranch) : anchor,
+                anchor === initialAnchor && !hasUpdatedAnchor ? next(activeBranch) : anchor,
                 0
               );
               queuePostFlushCb(effects);
@@ -9487,6 +9528,7 @@ function createSuspenseBoundary(vnode, parentSuspense, parentComponent, containe
         if (activeBranch && !suspense.isFallbackMountPending) {
           if (parentNode(activeBranch.el) === container2) {
             anchor = next(activeBranch);
+            hasUpdatedAnchor = true;
           }
           unmount(activeBranch, parentComponent2, suspense, true);
           if (!delayEnter && isInFallback && vnode2.ssFallback) {
@@ -10800,7 +10842,7 @@ function isMemoSame(cached, memo) {
   }
   return true;
 }
-var version = "3.5.33";
+var version = "3.5.38";
 var warn2 = true ? warn$1 : NOOP;
 var ErrorTypeStrings = ErrorTypeStrings$1;
 var devtools = true ? devtools$1 : void 0;
@@ -10822,7 +10864,7 @@ var resolveFilter = null;
 var compatUtils = null;
 var DeprecationTypes = null;
 
-// node_modules/.pnpm/@vue+runtime-dom@3.5.33/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-bundler.js
+// node_modules/.pnpm/@vue+runtime-dom@3.5.38/node_modules/@vue/runtime-dom/dist/runtime-dom.esm-bundler.js
 var policy = void 0;
 var tt = typeof window !== "undefined" && window.trustedTypes;
 if (tt) {
@@ -11432,7 +11474,7 @@ function shouldPreserveTextareaResizeStyle(el, key, prev, next) {
   return el.tagName === "TEXTAREA" && (key === "width" || key === "height") && isString(next) && prev === next;
 }
 var xlinkNS = "http://www.w3.org/1999/xlink";
-function patchAttr(el, key, value, isSVG, instance, isBoolean2 = isSpecialBooleanAttr(key)) {
+function patchAttr(el, key, value, isSVG, instance, isBoolean = isSpecialBooleanAttr(key)) {
   if (isSVG && key.startsWith("xlink:")) {
     if (value == null) {
       el.removeAttributeNS(xlinkNS, key.slice(6, key.length));
@@ -11440,12 +11482,12 @@ function patchAttr(el, key, value, isSVG, instance, isBoolean2 = isSpecialBoolea
       el.setAttributeNS(xlinkNS, key, value);
     }
   } else {
-    if (value == null || isBoolean2 && !includeBooleanAttr(value)) {
+    if (value == null || isBoolean && !includeBooleanAttr(value)) {
       el.removeAttribute(key);
     } else {
       el.setAttribute(
         key,
-        isBoolean2 ? "" : isSymbol(value) ? String(value) : value
+        isBoolean ? "" : isSymbol(value) ? String(value) : value
       );
     }
   }
@@ -11550,12 +11592,37 @@ function createInvoker(initialValue, instance) {
     } else if (e._vts <= invoker.attached) {
       return;
     }
-    callWithAsyncErrorHandling(
-      patchStopImmediatePropagation(e, invoker.value),
-      instance,
-      5,
-      [e]
-    );
+    const value = invoker.value;
+    if (isArray(value)) {
+      const originalStop = e.stopImmediatePropagation;
+      e.stopImmediatePropagation = () => {
+        originalStop.call(e);
+        e._stopped = true;
+      };
+      const handlers = value.slice();
+      const args = [e];
+      for (let i = 0; i < handlers.length; i++) {
+        if (e._stopped) {
+          break;
+        }
+        const handler = handlers[i];
+        if (handler) {
+          callWithAsyncErrorHandling(
+            handler,
+            instance,
+            5,
+            args
+          );
+        }
+      }
+    } else {
+      callWithAsyncErrorHandling(
+        value,
+        instance,
+        5,
+        [e]
+      );
+    }
   };
   invoker.value = initialValue;
   invoker.attached = getNow();
@@ -11570,20 +11637,6 @@ function sanitizeEventValue(value, propName) {
 Expected function or array of functions, received type ${typeof value}.`
   );
   return NOOP;
-}
-function patchStopImmediatePropagation(e, value) {
-  if (isArray(value)) {
-    const originalStop = e.stopImmediatePropagation;
-    e.stopImmediatePropagation = () => {
-      originalStop.call(e);
-      e._stopped = true;
-    };
-    return value.map(
-      (fn) => (e2) => !e2._stopped && fn && fn(e2)
-    );
-  } else {
-    return value;
-  }
 }
 var isNativeOn = (key) => key.charCodeAt(0) === 111 && key.charCodeAt(1) === 110 && // lowercase letter
 key.charCodeAt(2) > 96 && key.charCodeAt(2) < 123;
@@ -12244,7 +12297,8 @@ var TransitionGroupImpl = decorate({
       if (children) {
         for (let i = 0; i < children.length; i++) {
           const child = children[i];
-          if (child.el && child.el instanceof Element) {
+          if (child.el && child.el instanceof Element && // Hidden v-show nodes have no previous layout box to animate from.
+          !child.el[vShowHidden]) {
             prevChildren.push(child);
             setTransitionHooks(
               child,
@@ -12788,7 +12842,7 @@ var initDirectivesForSSR = () => {
   }
 };
 
-// node_modules/.pnpm/vue@3.5.33/node_modules/vue/dist/vue.runtime.esm-bundler.js
+// node_modules/.pnpm/vue@3.5.38/node_modules/vue/dist/vue.runtime.esm-bundler.js
 function initDev() {
   {
     initCustomFormatter();
@@ -12982,37 +13036,37 @@ export {
 
 @vue/shared/dist/shared.esm-bundler.js:
   (**
-  * @vue/shared v3.5.33
+  * @vue/shared v3.5.38
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **)
 
 @vue/reactivity/dist/reactivity.esm-bundler.js:
   (**
-  * @vue/reactivity v3.5.33
+  * @vue/reactivity v3.5.38
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **)
 
 @vue/runtime-core/dist/runtime-core.esm-bundler.js:
   (**
-  * @vue/runtime-core v3.5.33
+  * @vue/runtime-core v3.5.38
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **)
 
 @vue/runtime-dom/dist/runtime-dom.esm-bundler.js:
   (**
-  * @vue/runtime-dom v3.5.33
+  * @vue/runtime-dom v3.5.38
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **)
 
 vue/dist/vue.runtime.esm-bundler.js:
   (**
-  * vue v3.5.33
+  * vue v3.5.38
   * (c) 2018-present Yuxi (Evan) You and Vue contributors
   * @license MIT
   **)
 */
-//# sourceMappingURL=chunk-E6CEJ5FA.js.map
+//# sourceMappingURL=chunk-HGLQ7K26.js.map
