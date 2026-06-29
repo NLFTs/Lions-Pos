@@ -668,9 +668,22 @@ public class StockBalanceService {
         }
 
         long totalProducts;
-        long damagedProducts = 10L; // Data simulasi
+        long damagedProducts;
         long incoming = 0;
         long outgoing = 0;
+
+        
+        List<StockBalance> allBalances;
+        if (currentUser.getPartner() == null) {
+            allBalances = stockBalanceRepository.findAll();
+        } else {
+            allBalances = stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+        }
+        damagedProducts = allBalances.stream()
+                .filter(sb -> "QUARANTINE".equalsIgnoreCase(sb.getLocationType()))
+                .map(sb -> sb.getProduct().getId())
+                .distinct()
+                .count();
 
         if (locationType == null || locationId == null || "all".equalsIgnoreCase(locationType)) {
             totalProducts = products.size();
@@ -939,4 +952,3 @@ mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembek
         return mapToResponse(savedBranchStock);
     }
 }
-
