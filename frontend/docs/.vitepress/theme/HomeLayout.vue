@@ -6,7 +6,7 @@
         <div class="hero-grid">
           <div class="hero-left">
             <h1 class="hero-heading">
-              jawa Web<br />yang berdampak.
+              Aplikasi<br />yang berdampak.
             </h1>
           </div>
           <div class="hero-right">
@@ -93,7 +93,7 @@
                 </svg>
               </div>
               <div class="tech-logo">
-                <img :src="withBase('/logo-gaptek.svg')" alt="Gaptek Logo" class="tech-logo-img" />
+                <img :src="withBase('/gaptek-hit.png')" alt="Gaptek Logo" class="tech-logo-img" />
               </div>
             </div>
 
