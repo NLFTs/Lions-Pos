@@ -6,21 +6,20 @@ import com.dak.spravel.middleware.JwtAuthFilter;
 import com.dak.spravel.middleware.UserContextFilter;
 import com.dak.spravel.service.auth.PermissionCacheService;
 import com.dak.spravel.util.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import lombok.RequiredArgsConstructor;
-
-import java.util.List;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Spring Security configuration with JWT filter and public path definitions.
@@ -53,7 +52,6 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-
         // Public endpoints — no JWT required
         String[] publicApiPaths = {
                 "/api/v1/auth/login",
@@ -108,4 +106,6 @@ public class SecurityConfig {
         }
         return result;
     }
+
 }
+    

@@ -38,10 +38,10 @@ public class WarehousesController {
         return ResponseBuilder.ok(warehousesService.findPageAdmin(page, size));
     }
 
-    // Modifikasi: Menangkap branchId dari Query Param (Contoh: /api/v1/warehouses?branchId=1)
     @GetMapping
     @PreAuthorize("hasAuthority('warehouse.index')")
-    public ResponseEntity<ResData<List<WarehouseResponse>>> findAll(@RequestParam(required = false) Long branchId) {
+    public ResponseEntity<ResData<List<WarehouseResponse>>> findAll(
+            @RequestParam(required = false) Long branchId) {
         log.info("[GET] /api/v1/warehouses - Fetching all warehouses for branch ID: {}", branchId);
         return ResponseBuilder.ok(warehousesService.findAllByPartner(branchId));
     }
