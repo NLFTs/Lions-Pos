@@ -1013,7 +1013,7 @@ onMounted(async () => {
               </div>
               <div class="space-y-1.5">
                 <Label>Catatan Tambahan</Label>
-                <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Catatan untuk supplier..." />
+                <textarea v-model="form.notes" rows="3" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none" placeholder="Catatan untuk distributor..." />
               </div>
             </div>
 
