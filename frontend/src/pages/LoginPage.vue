@@ -323,7 +323,7 @@ async function handleLogin() {
     >
 
       <img
-        src="/login-image.jpg"
+        src="/login-gam.webp"
         alt="Login visual"
         class="absolute inset-0 h-full w-full object-cover object-left-top"
       />
