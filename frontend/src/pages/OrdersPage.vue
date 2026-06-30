@@ -184,7 +184,15 @@ async function verifyTransfer(paymentId) {
 }
 
 function openReturnModal(order) {
-  returnItems.value = (order.items || []).map(i => ({ ...i, returnQty: 0 }))
+  const alreadyReturned = (order.returnInfo?.items || []).reduce((acc, r) => {
+    acc[r.orderItemId || r.id] = r.qtyReturn || 0
+    return acc
+  }, {})
+  returnItems.value = (order.items || []).map(i => ({
+    ...i,
+    returnQty: 0,
+    alreadyReturnedQty: alreadyReturned[i.id] || 0
+  }))
   returnReason.value = ''
   returnLocationType.value = 'BRANCH'
   returnLocationId.value = order.branch?.id || order.branchId || null
@@ -366,10 +374,9 @@ function formatDate(dt) {
 }
 function statusColor(s, payments) {
   const st = String(s).toLowerCase()
-  // Canceled selalu merah, tidak peduli payment
   if (st === 'cancelled' || st === 'canceled') return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/50'
   if (st === 'return') return 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400 dark:border-violet-800/50'
-  // Jika ada payment transfer yang masih pending
+  if (st === 'partial_return') return 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800/50'
   if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
     return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50'
   }
@@ -379,10 +386,9 @@ function statusColor(s, payments) {
 }
 function statusLabel(s, payments) {
   const st = String(s).toLowerCase()
-  // Canceled selalu "Dibatalkan", tidak peduli payment
   if (st === 'cancelled' || st === 'canceled') return 'Dibatalkan'
   if (st === 'return') return 'Retur'
-  // Jika ada payment transfer yang masih pending
+  if (st === 'partial_return') return 'Retur Sebagian'
   if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
     return 'Menunggu Konfirmasi'
   }
@@ -395,6 +401,7 @@ function statusDotClass(s, payments) {
   const st = String(s || '').toLowerCase()
   if (st === 'cancelled' || st === 'canceled') return 'bg-red-500 shadow-[0_0_8px_#ef4444]'
   if (st === 'return') return 'bg-violet-500 shadow-[0_0_8px_#8b5cf6]'
+  if (st === 'partial_return') return 'bg-orange-500 shadow-[0_0_8px_#f97316]'
   if (payments?.length && payments.some(p => p.method === 'TRANSFER' && p.status === 'PENDING')) {
     return 'bg-amber-500 shadow-[0_0_8px_#f59e0b]'
   }
@@ -448,6 +455,7 @@ watch([statusFilter, branchFilter, searchQuery, dateFilter, dateFrom, dateTo], (
 const statusOptions = computed(() => [
   { value: 'all', label: 'Semua Status' },
   { value: 'paid', label: 'Lunas' },
+  { value: 'partial_return', label: 'Retur Sebagian' },
   { value: 'pending_transfer', label: 'Menunggu Konfirmasi' },
   { value: 'draft', label: 'Draf' },
   { value: 'return', label: 'Retur' },
@@ -775,8 +783,8 @@ onMounted(() => {
                 <CheckCircle2 class="h-4 w-4" /> Konfirmasi Transfer
               </button>
 
-              <!-- Retur Barang — hanya jika PAID dan tidak ada transfer pending -->
-              <button v-if="detailDrawer.order.status?.toUpperCase() === 'PAID' && !pendingTransferPayment"
+              <!-- Retur Barang — hanya jika PAID/PARTIAL_RETURN dan tidak ada transfer pending -->
+              <button v-if="(detailDrawer.order.status?.toUpperCase() === 'PAID' || detailDrawer.order.status?.toUpperCase() === 'PARTIAL_RETURN') && !pendingTransferPayment"
                 :disabled="actionLoading"
                 @click="openReturnModal(detailDrawer.order)"
                 class="w-full h-10 rounded-xl border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 flex items-center justify-center gap-2 text-sm font-bold hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50">
@@ -817,11 +825,13 @@ onMounted(() => {
                   class="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 gap-3">
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-bold truncate">{{ item.productName || 'Produk' }}</p>
-                    <p class="text-[11px] text-muted-foreground">Qty order: {{ item.qty }}</p>
+                    <p class="text-[11px] text-muted-foreground">Qty order: {{ item.qty }}
+                      <span v-if="item.alreadyReturnedQty > 0" class="text-orange-600">(sudah diretur: {{ item.alreadyReturnedQty }})</span>
+                    </p>
                   </div>
                   <div class="flex items-center gap-2 shrink-0">
                     <span class="text-[11px] font-bold text-zinc-500">Retur:</span>
-                    <input v-model.number="item.returnQty" type="number" min="0" :max="item.qty"
+                    <input v-model.number="item.returnQty" type="number" min="0" :max="item.qty - (item.alreadyReturnedQty || 0)"
                       class="w-16 h-8 text-center text-sm font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 outline-none focus:ring-2 focus:ring-primary/20" />
                   </div>
                 </div>

@@ -1281,8 +1281,7 @@ function avatarStyle(name = '') {
           </div>
         </div>
       </div>
-
-      <!-- ─── Panel Kanan: Pesanan ─────────────────────────────────────────── -->
+      
       <div class="flex flex-col bg-white dark:bg-[#09090b] border-t lg:border-t-0 lg:border-l border-zinc-200 dark:border-zinc-800 max-h-[42vh] lg:max-h-none lg:w-[380px] shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)] lg:shadow-none z-20 rounded-t-[24px] lg:rounded-none">
         
         <div class="flex items-center justify-between px-4 py-3.5 lg:p-5 border-b border-zinc-100 dark:border-zinc-800/60 shrink-0">

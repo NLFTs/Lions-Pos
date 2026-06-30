@@ -468,8 +468,8 @@ public class OrdersService {
             }
         }
 
-        if (order.getStatus() != Orders.PaymentStatus.PAID) {
-            throw new RuntimeException("Hanya order dengan status PAID yang bisa diretur. Status saat ini: " + order.getStatus());
+        if (order.getStatus() != Orders.PaymentStatus.PAID && order.getStatus() != Orders.PaymentStatus.PARTIAL_RETURN) {
+            throw new RuntimeException("Hanya order dengan status PAID atau PARTIAL_RETURN yang bisa diretur. Status saat ini: " + order.getStatus());
         }
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
@@ -528,9 +528,11 @@ public class OrdersService {
             if (itemReq.getQtyReturn() <= 0) {
                 throw new RuntimeException("Qty retur harus lebih dari 0.");
             }
-            if (itemReq.getQtyReturn() > orderItem.getQty()) {
-                throw new RuntimeException("Qty retur (" + itemReq.getQtyReturn() + ") melebihi qty order ("
-                        + orderItem.getQty() + ") untuk produk: " + orderItem.getProductName());
+            Long alreadyReturned = orderItem.getReturnQty() != null ? orderItem.getReturnQty() : 0L;
+            Long maxReturnable = orderItem.getQty() - alreadyReturned;
+            if (itemReq.getQtyReturn() > maxReturnable) {
+                throw new RuntimeException("Qty retur (" + itemReq.getQtyReturn() + ") melebihi qty tersedia ("
+                        + maxReturnable + ") untuk produk: " + orderItem.getProductName());
             }
             if (isDefective) {
                 stockBalanceService.addToQuarantine(
@@ -556,8 +558,9 @@ public class OrdersService {
                 );
             }
 
-            // Simpan returnQty dan returnReason ke OrderItems untuk riwayat
-            orderItem.setReturnQty(itemReq.getQtyReturn());
+            // Simpan returnQty dan returnReason ke OrderItems untuk riwayat (akumulasi qty)
+            Long newReturnQty = (orderItem.getReturnQty() != null ? orderItem.getReturnQty() : 0L) + itemReq.getQtyReturn();
+            orderItem.setReturnQty(newReturnQty);
             orderItem.setReturnReason(itemReq.getReason());
             orderItemsRepository.save(orderItem);
 
@@ -575,7 +578,12 @@ public class OrdersService {
         }
 
         LocalDateTime returnedAt = LocalDateTime.now();
-        order.setStatus(Orders.PaymentStatus.RETURN);
+        boolean allItemsReturned = order.getItems().stream()
+                .allMatch(item -> {
+                    Long returnedQty = item.getReturnQty() != null ? item.getReturnQty() : 0L;
+                    return returnedQty >= item.getQty();
+                });
+        order.setStatus(allItemsReturned ? Orders.PaymentStatus.RETURN : Orders.PaymentStatus.PARTIAL_RETURN);
         order.setReturnedAt(returnedAt);
         order.setUpdatedAt(returnedAt);
         order.setUpdatedBy(currentUser);
