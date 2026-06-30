@@ -153,8 +153,82 @@ async function fetchActiveShift() {
   }
 }
 
-function openShiftModal(mode) {
-  shiftModalMode.value = mode
+// ─── Absen Foto (Check-in/Check-out Kasir) ───────────────────────────────────
+// Diambil sebelum modal Buka/Tutup Shift muncul. Foto disimpan sebagai base64
+// data URL dan dikirim bersama payload buka/tutup shift ke backend.
+const showCameraModal = ref(false)
+const cameraStream = ref(null)
+const cameraError = ref('')
+const capturedPhoto = ref('')
+const cameraVideoRef = ref(null)
+const cameraCanvasRef = ref(null)
+const pendingShiftMode = ref('open')
+
+async function openShiftModal(mode) {
+  pendingShiftMode.value = mode
+  capturedPhoto.value = ''
+  cameraError.value = ''
+  showCameraModal.value = true
+  await startCamera()
+}
+
+async function startCamera() {
+  try {
+    cameraStream.value = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
+      audio: false,
+    })
+    // Tunggu elemen video siap dirender lalu pasang stream
+    await new Promise(r => setTimeout(r, 50))
+    if (cameraVideoRef.value) {
+      cameraVideoRef.value.srcObject = cameraStream.value
+      await cameraVideoRef.value.play()
+    }
+  } catch (err) {
+    cameraError.value = 'Tidak bisa mengakses kamera. Pastikan izin kamera diizinkan di browser.'
+  }
+}
+
+function stopCamera() {
+  if (cameraStream.value) {
+    cameraStream.value.getTracks().forEach(t => t.stop())
+    cameraStream.value = null
+  }
+}
+
+function capturePhoto() {
+  const video = cameraVideoRef.value
+  const canvas = cameraCanvasRef.value
+  if (!video || !canvas) return
+  const size = Math.min(video.videoWidth, video.videoHeight) || 480
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  const sx = (video.videoWidth - size) / 2
+  const sy = (video.videoHeight - size) / 2
+  // Mirror horizontal supaya hasil foto natural seperti cermin
+  ctx.translate(size, 0)
+  ctx.scale(-1, 1)
+  ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size)
+  capturedPhoto.value = canvas.toDataURL('image/jpeg', 0.85)
+  stopCamera()
+}
+
+function retakePhoto() {
+  capturedPhoto.value = ''
+  startCamera()
+}
+
+function cancelCameraModal() {
+  stopCamera()
+  showCameraModal.value = false
+  capturedPhoto.value = ''
+}
+
+function confirmCameraAndProceed() {
+  if (!capturedPhoto.value) { toast.error('Ambil foto absen terlebih dahulu.'); return }
+  showCameraModal.value = false
+  shiftModalMode.value = pendingShiftMode.value
   showShiftModal.value = true
 }
 
@@ -167,19 +241,22 @@ async function handleShiftSubmitted(form) {
         branchId: selectedBranchId.value,
         startingCash: form.startingCash ?? 0,
         notes: form.notes || null,
+        checkInPhoto: capturedPhoto.value || null,
       })
       activeShift.value = res.data?.data
-      toast.success('Shift berhasil dibuka!')
+      toast.success('Shift berhasil dibuka! Absen masuk tercatat.')
       showShiftModal.value = false
     } else {
       const res = await api.patch(`/api/v1/shifts/${activeShift.value.id}/close`, {
         closingNotes: form.closingNotes || null,
+        checkOutPhoto: capturedPhoto.value || null,
       })
       const d = res.data?.data
       activeShift.value = null
       closedShiftResult.value = d
-      toast.success('Shift ditutup. Omzet berhasil dihitung!')
+      toast.success('Shift ditutup. Absen keluar tercatat.')
     }
+    capturedPhoto.value = ''
   } catch (err) {
     const msg = err.response?.data?.data?.message || err.response?.data?.message || err.message || 'Gagal proses shift.'
     toast.error(msg)
@@ -187,6 +264,7 @@ async function handleShiftSubmitted(form) {
     loadingShift.value = false
   }
 }
+
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 async function fetchData() {
@@ -253,11 +331,82 @@ onMounted(() => {
   fetchTopProducts()
   fetchMonthRevenue()
   document.addEventListener('click', handleBranchOutsideClick)
+  document.addEventListener('keydown', handleGlobalScan)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleBranchOutsideClick)
+  document.removeEventListener('keydown', handleGlobalScan)
+  if (scanTimeout) clearTimeout(scanTimeout)
+  stopCamera()
 })
+
+// ─── Barcode Scanner (USB/Bluetooth keyboard-wedge) ──────────────────────────
+// Scanner USB/BT mengetik karakter dengan sangat cepat lalu menekan Enter.
+// Pola ini kita deteksi: jeda antar tombol < 100ms dianggap hasil scan,
+// kalau lebih lambat (ketikan manusia biasa) buffer-nya direset.
+const scanBuffer = ref('')
+let lastScanKeyTime = 0
+let scanTimeout = null
+
+function handleGlobalScan(e) {
+  // Jangan ganggu saat user sedang mengetik manual di field manapun
+  const tag = (e.target?.tagName || '').toUpperCase()
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  // Jangan aktif saat modal pembayaran/struk/shift terbuka
+  if (showPayment.value || showReceipt.value || showShiftModal.value) return
+
+  const now = Date.now()
+  const gap = now - lastScanKeyTime
+  lastScanKeyTime = now
+
+  if (e.key === 'Enter') {
+    if (scanBuffer.value.trim().length >= 3) {
+      processScannedCode(scanBuffer.value.trim())
+    }
+    scanBuffer.value = ''
+    return
+  }
+
+  // Hanya tangkap karakter tunggal (huruf/angka/simbol)
+  if (e.key.length === 1) {
+    // Jeda terlalu lama berarti kemungkinan ketikan manusia biasa -> reset buffer
+    if (gap > 100) scanBuffer.value = ''
+    scanBuffer.value += e.key
+  }
+
+  clearTimeout(scanTimeout)
+  scanTimeout = setTimeout(() => { scanBuffer.value = '' }, 300)
+}
+
+function processScannedCode(code) {
+  // Cari produk berdasarkan SKU persis (case-insensitive), diutamakan yang stoknya tersedia di cabang ini
+  const product = branchProducts.value.find(
+    p => (p.sku || '').toLowerCase() === code.toLowerCase()
+  )
+
+  if (product) {
+    const stock = getStock(product.id)
+    if (stock === undefined || stock === null || stock <= 0) {
+      toast.error(`Stok "${product.name}" (SKU: ${code}) habis di cabang ini.`)
+      return
+    }
+    addToCart(product)
+    toast.success(`"${product.name}" ditambahkan via scan (${code})`)
+  } else {
+    // SKU tidak ditemukan -> buka pencarian manual otomatis memakai kode hasil scan
+    showFavorites.value = false
+    searchQuery.value = code
+    toast.info(`SKU "${code}" tidak ditemukan. Menampilkan hasil pencarian manual.`)
+  }
+}
+
+function triggerScanMode() {
+  // Pastikan fokus lepas dari input apa pun supaya hasil scan tertangkap listener global
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+}
 
 watch(selectedBranchId, (newId) => {
   if (newId) {
@@ -1086,7 +1235,7 @@ function avatarStyle(name = '') {
               <Input v-model="searchQuery" placeholder="Cari produk atau SKU..."
                 class="w-full bg-transparent border-none shadow-none text-[13px] font-medium focus-visible:ring-0 px-2 h-9" />
             </div>
-            <Button size="sm" variant="outline" class="h-[34px] rounded-xl px-3 bg-white dark:bg-zinc-700 shadow-sm border-none font-bold gap-1.5 mr-0.5 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50">
+            <Button @click="triggerScanMode" size="sm" variant="outline" class="h-[34px] rounded-xl px-3 bg-white dark:bg-zinc-700 shadow-sm border-none font-bold gap-1.5 mr-0.5 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50">
               <Scan class="h-3.5 w-3.5" /> Scan
             </Button>
           </div>
@@ -1882,6 +2031,63 @@ function avatarStyle(name = '') {
       store-name="Gaptek"
     />
 
+    <!-- ─── Modal Absen Foto (Check-in/Check-out Kasir) ───────────────────────── -->
+    <Teleport to="body">
+      <Transition name="fade"><div v-if="showCameraModal" class="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm" @click="cancelCameraModal" /></Transition>
+      <Transition name="scale">
+        <div v-if="showCameraModal" class="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
+          <div class="bg-white dark:bg-zinc-900 rounded-[24px] shadow-2xl w-full max-w-xs border border-zinc-200 dark:border-zinc-800 pointer-events-auto overflow-hidden flex flex-col">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+              <h3 class="font-black text-[14px] flex items-center gap-2">
+                <UserCheck class="h-4 w-4 text-primary" />
+                Absen {{ pendingShiftMode === 'open' ? 'Masuk' : 'Keluar' }}
+              </h3>
+              <button @click="cancelCameraModal" class="p-1.5 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"><X class="h-4 w-4" /></button>
+            </div>
+
+            <div class="p-5 flex flex-col gap-4">
+              <div class="relative w-full aspect-square rounded-2xl overflow-hidden bg-zinc-900 flex items-center justify-center">
+                <video
+                  v-show="!capturedPhoto && !cameraError"
+                  ref="cameraVideoRef"
+                  autoplay
+                  playsinline
+                  muted
+                  class="w-full h-full object-cover -scale-x-100"
+                />
+                <img v-if="capturedPhoto" :src="capturedPhoto" class="w-full h-full object-cover" />
+                <div v-if="cameraError" class="flex flex-col items-center gap-2 px-4 text-center">
+                  <AlertTriangle class="h-7 w-7 text-amber-400" />
+                  <p class="text-[12px] font-medium text-zinc-300">{{ cameraError }}</p>
+                </div>
+                <canvas ref="cameraCanvasRef" class="hidden" />
+              </div>
+
+              <p class="text-[11px] text-zinc-400 font-medium text-center">
+                Foto ini akan dicatat sebagai bukti absen {{ pendingShiftMode === 'open' ? 'masuk' : 'keluar' }} kasir.
+              </p>
+
+              <div class="flex gap-2">
+                <template v-if="!capturedPhoto">
+                  <Button class="w-full h-11 font-bold rounded-[14px]" :disabled="!!cameraError" @click="capturePhoto">
+                    <Scan class="h-4 w-4 mr-2" /> Ambil Foto
+                  </Button>
+                </template>
+                <template v-else>
+                  <Button variant="outline" class="flex-1 h-11 font-bold rounded-[14px]" @click="retakePhoto">
+                    Ambil Ulang
+                  </Button>
+                  <Button class="flex-1 h-11 font-bold rounded-[14px]" @click="confirmCameraAndProceed">
+                    <Check class="h-4 w-4 mr-2" /> Lanjut
+                  </Button>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <ShiftModal
       :show="showShiftModal"
       :mode="shiftModalMode"
@@ -1889,6 +2095,7 @@ function avatarStyle(name = '') {
       :branch-name="selectedBranch?.name || authStore.user?.branchName"
       :active-shift="activeShift"
       :closed-shift="closedShiftResult"
+      :attendance-photo="capturedPhoto"
       @close="showShiftModal = false; closedShiftResult = null"
       @submitted="handleShiftSubmitted"
     />
@@ -1931,4 +2138,4 @@ function avatarStyle(name = '') {
 
 .scale-enter-active, .scale-leave-active { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
 .scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
-</style>   
+</style>
