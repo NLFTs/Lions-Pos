@@ -54,7 +54,7 @@ const isAdmin = computed(() => authStore.isAdmin)
 const loading = ref(true)
 const stats = ref({
   total_products: 0,
-  damaged_products: 10,
+  damaged_products: 0,
   incoming_products: 0,
   outgoing_products: 0,
   chart_data: []

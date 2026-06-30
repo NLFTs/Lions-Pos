@@ -1105,7 +1105,7 @@ function avatarStyle(name = '') {
                     outOfStockProducts.length > 0 ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400']">
                     <span v-if="outOfStockProducts.length > 0">{{ outOfStockProducts.length }} produk habis</span>
                     <span v-if="outOfStockProducts.length > 0 && lowStockProducts.length > 0">, </span>
-                    <span v-if="lowStockProducts.length > 0">{{ lowStockProducts.length }} produk hampir habis (≤ {{ LOW_STOCK_THRESHOLD }})</span>
+                    <span v-if="lowStockProducts.length > 0">{{ lowStockProducts.length }} produk hampir habis ( kurang dari {{ LOW_STOCK_THRESHOLD }})</span>
                   </p>
                   <div class="flex flex-wrap gap-1 mt-1">
                     <span v-for="p in [...outOfStockProducts, ...lowStockProducts].slice(0, 5)" :key="p.id"
