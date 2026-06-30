@@ -1,7 +1,6 @@
 <script setup>
 import { cn } from '@/lib/utils'
 
-// Vue 3.5+: destructuring props dengan default values — tetap reaktif
 const {
   variant = 'default',
   size = 'default',
@@ -13,11 +12,12 @@ const {
   size: String,
   class: String,
   disabled: Boolean,
-  type: String,
+  type: Boolean,
 })
 
 const variants = {
-  default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  // Pastikan background default adalah zinc-100 agar transisi terlihat jelas
+  default: 'bg-zinc-100 text-zinc-900', 
   destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
   outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
   secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
@@ -32,11 +32,10 @@ const sizes = {
   icon: 'h-9 w-9',
 }
 
-// cn() dipanggil langsung di template — tidak perlu computed karena props
-// string tidak berubah di tengah render cycle untuk kasus ini
 function getClasses() {
   return cn(
-    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+    // Base classes: group, relative, overflow-hidden, transisi warna teks default, dan scale-down saat klik
+    'group relative overflow-hidden inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-bold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 active:scale-95',
     variants[variant],
     sizes[size],
     className,
@@ -46,6 +45,14 @@ function getClasses() {
 
 <template>
   <button :class="getClasses()" :type="type" :disabled="disabled">
-    <slot />
+    <!-- Layer Background Animasi -->
+    <span 
+      class="absolute inset-0 z-0 bg-indigo-500 scale-x-0 transition-transform duration-500 ease-in-out origin-right group-hover:scale-x-100 group-hover:origin-left"
+    ></span>
+
+    <!-- Slot Teks dengan transisi warna agar tetap kontras -->
+    <span class="relative z-10 transition-colors duration-300 group-hover:text-white">
+      <slot />
+    </span>
   </button>
 </template>

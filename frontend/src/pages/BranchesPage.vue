@@ -638,7 +638,6 @@ onMounted(fetchBranches)
                             </div>
                             <div>
                               <p class="font-semibold text-[13px] leading-tight">{{ b.name }}</p>
-                              <p class="text-[10px] text-zinc-400">ID #{{ b.id }}</p>
                             </div>
                           </div>
                         </td>

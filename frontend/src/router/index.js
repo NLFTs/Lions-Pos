@@ -341,14 +341,21 @@ export const routes = [
 const isProd = import.meta.env.PROD
 const base = isProd ? '/_/' : '/'
 
+let finishTimeout = null
 
 export const setupRouterGuards = (router) => {
   router.beforeEach((to, from) => {
     const { start } = useLoadingBar()
-    start()
+    
+    // Clear any pending finish timeout
+    if (finishTimeout) clearTimeout(finishTimeout)
+    
+    // Only start if actually navigating to a different route
+    if (to.path !== from.path) {
+      start()
+    }
 
     const auth = useAuthStore()
-
 
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
       return { name: 'login' }
@@ -363,12 +370,17 @@ export const setupRouterGuards = (router) => {
     if (to.meta.guest && auth.isAuthenticated) {
       return { name: 'dashboard' }
     }
-
   })
 
   router.afterEach((to) => {
     const { finish } = useLoadingBar()
-    finish()
+    
+    // Delay finish by minimum time to let page transition complete
+    // This prevents the loading bar from disappearing too quickly
+    if (finishTimeout) clearTimeout(finishTimeout)
+    finishTimeout = setTimeout(() => {
+      finish()
+    }, 250) // Minimum visible loading time
 
     if (typeof document !== 'undefined') {
       // Disable custom scrollbar on dashboard routes
@@ -379,8 +391,10 @@ export const setupRouterGuards = (router) => {
       }
     }
   })
+  
   router.onError(() => {
     const { fail } = useLoadingBar()
+    if (finishTimeout) clearTimeout(finishTimeout)
     fail()
   })
 }
