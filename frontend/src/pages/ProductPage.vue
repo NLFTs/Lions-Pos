@@ -803,7 +803,12 @@ function productAvatarStyle(name = '') {
                   </Transition>
                 </div>
 
-                <Button v-if="can('produk.store') && !isSuperAdmin" @click="openCreate" size="sm" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button 
+                    v-if="can('produk.store') && !isSuperAdmin" 
+                    @click="openCreate" 
+                    size="sm" 
+                    class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
                   <Plus class="h-4 w-4" />
                   <span>Tambah Produk</span>
                 </Button>
