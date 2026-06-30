@@ -51,7 +51,7 @@ function getClasses() {
     ></span>
 
     <!-- Slot Teks dengan transisi warna agar tetap kontras -->
-    <span class="relative z-10 transition-colors duration-300 group-hover:text-white">
+    <span class="relative z-10 inline-flex items-center gap-2 transition-colors duration-300 group-hover:text-white">
       <slot />
     </span>
   </button>
