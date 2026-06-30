@@ -254,7 +254,7 @@ onMounted(fetchSuppliers)
                 <p class="text-xs text-muted-foreground/70 mt-1">Mulai dengan menambahkan distributor pertama Anda.</p>
                 <Button v-if="can('supplier.store') && !isSuperAdmin && !searchQuery" size="sm" class="mt-4" @click="openCreate">
                   <Plus class="h-3.5 w-3.5 mr-1.5" />
-                  Tambah Supplier
+                  Tambah Distrbutor
                 </Button>
               </div>
 
