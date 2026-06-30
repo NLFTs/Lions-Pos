@@ -120,21 +120,21 @@ async function handleLogin() {
     <div class="flex w-full flex-col justify-between px-8 py-10 sm:px-12 md:w-1/2 lg:px-16 xl:px-24">
 
       <!-- Logo -->
-        <a href="/" class="flex items-center gap-2.5 group cursor-pointer hover:opacity-80 transition-opacity">
-          <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl  shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
-          >
-            <img 
-            src="/logo-gaptek.svg" 
-            alt="Logo Gaptek" 
+      <a href="/" class="flex items-center gap-2.5 group cursor-pointer hover:opacity-80 transition-opacity">
+        <div
+          class="flex h-9 w-9 items-center justify-center rounded-xl shadow-md shadow-primary/30 transition-transform group-hover:scale-105"
+        >
+          <img
+            src="/logo-gaptek.svg"
+            alt="Logo Gaptek"
             class="h-8 w-8 object-contain"
           />
-          </div>
+        </div>
 
-          <span class="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            GapTek
-          </span>
-        </a>
+        <span class="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          GapTek
+        </span>
+      </a>
 
       <!-- FORM -->
       <div class="mx-auto w-full max-w-sm space-y-7">
@@ -182,7 +182,7 @@ async function handleLogin() {
             <div class="group relative">
 
               <div
-                class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5"
+                class="pointer-events-none absolute inset-y-0 left-0 w-10 flex items-center justify-center"
               >
                 <User
                   class="h-4 w-4 text-zinc-400 transition-colors group-focus-within:text-primary"
@@ -224,7 +224,7 @@ async function handleLogin() {
             <div class="group relative">
 
               <div
-                class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5"
+                class="pointer-events-none absolute inset-y-0 left-0 w-10 flex items-center justify-center"
               >
                 <Lock
                   class="h-4 w-4 text-zinc-400 transition-colors group-focus-within:text-primary"
@@ -273,27 +273,25 @@ async function handleLogin() {
           </div>
 
           <!-- SUBMIT -->
-          <Button
-            type="submit"
-            :disabled="loading || !isFormValid"
-            class="mt-2 w-full h-11 text-sm font-bold shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+         <Button
+          type="submit"
+          :disabled="loading || !isFormValid"
+          class="mt-2 w-full h-11 text-sm font-bold shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Loader2
+            v-if="loading"
+            class="h-4 w-4 animate-spin"
+          />
 
-            <Loader2
-              v-if="loading"
-              class="mr-2 h-4 w-4 animate-spin"
-            />
+          <LogIn
+            v-else
+            class="h-4 w-4"
+          />
 
-            <LogIn
-              v-else
-              class="mr-2 h-4 w-4"
-            />
-
-            <span>
-              {{ loading ? 'Memproses...' : 'Masuk' }}
-            </span>
-
-          </Button>
+          <span>
+            {{ loading ? 'Memproses...' : 'Masuk' }}
+          </span>
+        </Button>
 
         </form>
 
