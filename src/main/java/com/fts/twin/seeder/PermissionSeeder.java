@@ -1,0 +1,280 @@
+package com.fts.twin.seeder;
+
+import com.fts.twin.model.auth.Module;
+import com.fts.twin.model.auth.Permission;
+import com.fts.twin.model.auth.Role;
+import com.fts.twin.repository.auth.ModuleRepository;
+import com.fts.twin.repository.auth.PermissionRepository;
+import com.fts.twin.repository.auth.RoleRepository;
+import com.fts.twin.repository.auth.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Seeds modules, permissions, and default admin/editor roles.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PermissionSeeder {
+    private final ModuleRepository moduleRepository;
+    private final PermissionRepository permissionRepository;
+    private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
+
+    @Value("${app.enable.seeder:false}")
+    private boolean enableSeeder;
+
+    // slug, name, description
+    private static final String[][] ALL_MODULES = {
+        {"partner",           "Partner",           "Manage blog partners"},
+        {"branch",            "Branch",            "Manage partner branches"},
+        {"warehouse",         "Warehouse",         "Manage partner warehouses"},
+        {"branch_warehouse",  "Branch Warehouse",  "Manage branch warehouses"},
+        {"stock_balance",     "Stock Balance",     "Manage stock balances"},
+        {"stock_mutation",    "Stock Mutation",    "Manage stock mutations"},
+        {"stock_opname",      "Stock Opname",      "Manage stock opname"},
+        {"category",          "Category",          "Manage product categories"},
+        {"produk",            "Product",           "Manage blog products"},
+        {"product_photo",     "Product Photo",     "Manage blog product photo"},
+        {"role",              "Role",              "Manage user roles"},
+        {"permission",        "Permission",        "Manage system permissions"},
+        {"module",            "Module",            "Manage permission modules"},
+        {"user",              "User",              "Manage users"},
+        {"log",               "Log",               "View audit logs"},
+        {"dashboard",         "Dashboard",         "View dashboard metrics"},
+        {"pos",               "Point of Sale",     "Access cashier system"},
+        {"report",            "Reports",           "View business reports"},
+        {"transfer_request",  "Transfer Request",  "Manage stock transfers"},
+        {"purchase_order",    "Purchase Order",    "Manage purchase orders"},
+        {"purchase_receipt",  "Purchase Receipt",  "Manage purchase receipts"},
+        {"supplier",          "Supplier",          "Manage suppliers"},
+        {"order",             "Order",             "Manage orders"},
+        {"order_item",        "Order Item",        "Manage order items"},
+        {"voucher",           "Voucher",           "Manage vouchers and discounts"},
+        {"shift",             "Shift",             "Manage cashier shifts"},
+        {"notification",      "Notification",      "Manage notifications"},
+    };
+
+    // slug, name, moduleSlug
+    private static final String[][] ALL_PERMISSIONS = {
+        {"partner.index",      "View All Partners",          "partner"},
+        {"partner.show",       "View Partner Detail",        "partner"},
+        {"partner.store",      "Create Partner",             "partner"},
+        {"partner.update",     "Update Partner",             "partner"},
+        {"partner.delete",     "Delete Partner",             "partner"},
+
+        {"category.index",  "View All Categories",     "category"},
+        {"category.show",   "View Category Detail",    "category"},
+        {"category.store",  "Create Category",         "category"},
+        {"category.update", "Update Category",         "category"},
+        {"category.delete", "Delete Category",         "category"}, 
+
+        {"produk.index",      "View All Products",          "produk"},
+        {"produk.show",       "View Product Detail",        "produk"},
+        {"produk.store",      "Create Product",             "produk"},
+        {"produk.update",     "Update Product",             "produk"},
+        {"produk.delete",     "Delete Product",             "produk"},
+        
+        {"product_photo.index",      "View All Products",          "product_photo"},
+        {"product_photo.store",      "Create Product",             "product_photo"},
+        {"product_photo.update",     "Update Product",             "product_photo"},
+        {"product_photo.delete",     "Delete Product",             "product_photo"},
+        
+        {"role.index",      "View All Roles",          "role"},
+        {"role.show",       "View Role Detail",        "role"},
+        {"role.store",      "Create Role",             "role"},
+        {"role.update",     "Update Role",             "role"},
+        {"role.delete",     "Delete Role",             "role"},
+
+        {"permission.index",  "View All Permissions",   "permission"},
+        {"permission.show",   "View Permission Detail", "permission"},
+        {"permission.store",  "Create Permission",      "permission"},
+        {"permission.update", "Update Permission",      "permission"},
+        {"permission.delete", "Delete Permission",      "permission"},
+
+        {"module.index",  "View All Modules",   "module"},
+        {"module.show",   "View Module Detail", "module"},
+        {"module.store",  "Create Module",      "module"},
+        {"module.update", "Update Module",      "module"},
+        {"module.delete", "Delete Module",      "module"},
+
+        {"user.index",  "View All Users",   "user"},
+        {"user.show",   "View User Detail", "user"},
+        {"user.store",  "Create User",      "user"},
+        {"user.update", "Update User",      "user"},
+        {"user.delete", "Delete User",      "user"},
+
+        {"warehouse.index",  "View All Warehouses",   "warehouse"},
+        {"warehouse.show",   "View Warehouse Detail", "warehouse"},
+        {"warehouse.store",  "Create Warehouse",      "warehouse"},
+        {"warehouse.update", "Update Warehouse",      "warehouse"},
+        {"warehouse.delete", "Delete Warehouse",      "warehouse"},
+        
+        {"branch.index",  "View All Branches",   "branch"},
+        {"branch.show",   "View Branch Detail", "branch"},
+        {"branch.store",  "Create Branch",      "branch"},
+        {"branch.update", "Update Branch",      "branch"},
+        {"branch.delete", "Delete Branch",      "branch"},
+
+        {"branch_warehouse.index",  "View All Branch Warehouses",   "branch_warehouse"},
+        {"branch_warehouse.show",   "View Branch Warehouse Detail", "branch_warehouse"},
+        {"branch_warehouse.store",  "Create Branch Warehouse",      "branch_warehouse"},
+        {"branch_warehouse.update", "Update Branch Warehouse",      "branch_warehouse"},
+        {"branch_warehouse.delete", "Delete Branch Warehouse",      "branch_warehouse"},
+
+        {"stock_balance.index",  "View All Stock Balances",   "stock_balance"},
+        {"stock_balance.store",  "Create Stock Balance",      "stock_balance"},
+        {"stock_balance.show",   "View Stock Balance Detail", "stock_balance"},
+        {"stock_balance.update", "Update Stock Balance",      "stock_balance"},
+        {"stock_balance.transfer", "Transfer Stock Balance",      "stock_balance"},
+
+        {"stock_mutation.index",  "View All Stock Mutations",   "stock_mutation"},
+        {"stock_mutation.show",   "View Stock Mutation Detail", "stock_mutation"},
+
+        {"stock_opname.index",  "View All Stock Opnames",   "stock_opname"},
+        {"stock_opname.store",  "Create Stock Opname",      "stock_opname"},
+        {"stock_opname.show",   "View Stock Opname Detail", "stock_opname"},
+        {"stock_opname.update", "Update Stock Opname",      "stock_opname"},
+        {"stock_opname.delete", "Delete Stock Opname",      "stock_opname"},
+
+        {"log.index",  "View All Logs",  "log"},
+        {"log.show",   "View Log Detail", "log"},
+
+        {"dashboard.index", "View Dashboard", "dashboard"},
+        {"pos.index",       "Access POS",       "pos"},
+        {"report.index",    "View Reports",    "report"},
+
+        {"transfer_request.index",  "View All Transfer Requests",      "transfer_request"},
+        {"transfer_request.show",   "View Transfer Request Detail",    "transfer_request"},
+        {"transfer_request.store",  "Create Transfer Request",         "transfer_request"},
+        {"transfer_request.update", "Update Transfer Request Status",  "transfer_request"},
+        {"transfer_request.delete", "Delete Transfer Request",         "transfer_request"},
+
+        {"purchase_order.index", "View All Purchase Orders", "purchase_order"},
+        {"purchase_order.show",  "View Purchase Order Detail", "purchase_order"},
+        {"purchase_order.store", "Create Purchase Order", "purchase_order"},
+        {"purchase_order.update", "Update Purchase Order", "purchase_order"},
+        {"purchase_order.delete", "Delete Purchase Order", "purchase_order"},
+
+        {"purchase_receipt.index", "View All Purchase Receipts", "purchase_receipt"},
+        {"purchase_receipt.show",  "View Purchase Receipt Detail", "purchase_receipt"},
+        {"purchase_receipt.store", "Create Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.update", "Update Purchase Receipt", "purchase_receipt"},
+        {"purchase_receipt.delete", "Delete Purchase Receipt", "purchase_receipt"},
+        
+
+        {"supplier.index",  "View All Suppliers",   "supplier"},
+        {"supplier.show",   "View Supplier Detail", "supplier"},
+        {"supplier.store",  "Create Supplier",      "supplier"},
+        {"supplier.update", "Update Supplier",      "supplier"},
+        {"supplier.delete", "Delete Supplier",      "supplier"},
+        {"supplier.admin",  "Admin Access to Suppliers", "supplier"},
+
+        {"order.index",  "View All Orders",   "order"},
+        {"order.show",   "View Order Detail", "order"},
+        {"order.store",  "Create Order",      "order"},
+        {"order.update", "Update Order",      "order"},
+        {"order.delete", "Delete Order",      "order"},        
+
+        {"order_item.index",  "View All Order Items",   "order_item"},
+        {"order_item.show",   "View Order Item Detail", "order_item"},
+        {"order_item.store",  "Create Order Item",      "order_item"},
+        {"order_item.update", "Update Order Item",      "order_item"},
+        {"order_item.delete", "Delete Order Item",      "order_item"},        
+
+        {"voucher.index",  "View All Vouchers",   "voucher"},
+        {"voucher.show",   "View Voucher Detail", "voucher"},
+        {"voucher.store",  "Create Voucher",      "voucher"},
+        {"voucher.update", "Update Voucher",      "voucher"},
+        {"voucher.delete", "Delete Voucher",      "voucher"},
+
+        {"shift.index",  "View All Shifts",   "shift"},
+        {"shift.open",   "Open Cashier Shift", "shift"},
+        {"shift.close",  "Close Cashier Shift", "shift"},
+
+        {"notification.index", "View All Notifications", "notification"},
+        {"notification.delete", "Delete Notification", "notification"},
+    };
+
+    @Transactional
+    public void run() {
+        if (!enableSeeder) return;
+
+        // 1. Create modules
+        for (String[] mod : ALL_MODULES) {
+            if (!moduleRepository.existsBySlug(mod[0])) {
+                Module m = new Module();
+                m.setSlug(mod[0]);
+                m.setName(mod[1]);
+                m.setDescription(mod[2]);
+                moduleRepository.save(m);
+            }
+        }
+
+        // 2. Create permissions linked to their module
+        for (String[] perm : ALL_PERMISSIONS) {
+            if (!permissionRepository.existsBySlug(perm[0])) {
+                Module module = moduleRepository.findBySlug(perm[2])
+                        .orElseThrow(() -> new RuntimeException("Module not found: " + perm[2]));
+                Permission p = new Permission();
+                p.setSlug(perm[0]);
+                p.setName(perm[1]);
+                p.setModule(module);
+                permissionRepository.save(p);
+            }
+        }
+
+        List<Permission> allPerms = permissionRepository.findAll();
+
+        // 3. Create "admin" role — Super Admin hanya bisa akses modul tertentu
+        //    Bisa LIHAT semua, tapi CRUD hanya di: role, permission, module, user, partner, log
+        Role adminRole = roleRepository.findBySlug("admin").orElseGet(() -> {
+            Role r = new Role();
+            r.setSlug("admin");
+            r.setName("Super Administrator");
+            r.setType(Role.Type.INTERNAL);
+            return r;
+        });
+
+        // Modul yang boleh full CRUD oleh superadmin
+        Set<String> superAdminFullCrudModules = Set.of(
+            "role", "permission", "module", "user", "partner", "log", "notification"
+        );
+
+        Set<Permission> superAdminPerms = new HashSet<>();
+        for (Permission p : allPerms) {
+            String moduleSlug = p.getModule().getSlug();
+            String permSlug   = p.getSlug();
+            // Modul full CRUD → semua permission diizinkan
+            if (superAdminFullCrudModules.contains(moduleSlug)) {
+                superAdminPerms.add(p);
+            }
+            // Modul lainnya → hanya index & show (read-only)
+            else if (permSlug.endsWith(".index") || permSlug.endsWith(".show")) {
+                superAdminPerms.add(p);
+            }
+        }
+
+        adminRole.setPermissions(superAdminPerms);
+        Role savedAdmin = roleRepository.save(adminRole);
+        log.info("[SEEDER] Admin role '{}' now has {} permissions (read-only + full CRUD on: role/permission/module/user/partner/log)",
+            savedAdmin.getSlug(), savedAdmin.getPermissions().size());
+
+        // 4. Assign "admin" role to super user "superadmin"
+        userRepository.findByUsername("superadmin").ifPresent(su -> {
+            Role managed = roleRepository.findBySlug("admin").orElseThrow();
+            if (su.getRoles().stream().noneMatch(r -> "admin".equals(r.getSlug()))) {
+                su.getRoles().add(managed);
+                userRepository.save(su);
+            }
+        });
+    }
+}

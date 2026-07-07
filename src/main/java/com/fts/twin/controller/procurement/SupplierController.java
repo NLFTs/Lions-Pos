@@ -1,0 +1,69 @@
+package com.fts.twin.controller.procurement;
+
+import com.fts.twin.model.procurement.Supplier;
+import com.fts.twin.service.procurement.SupplierService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/v1/suppliers")
+@RequiredArgsConstructor
+public class SupplierController {
+
+    private final SupplierService supplierService;
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasAuthority('supplier.admin')")
+    public ResponseEntity<List<Supplier>> findAllAdmin() {
+        log.info("[GET] /api/v1/suppliers/admin/all - Access by Super Admin");
+        return ResponseEntity.ok(supplierService.findAllAdmin());
+    }
+
+    @GetMapping("/admin/page")
+    @PreAuthorize("hasAuthority('supplier.admin')")
+    public ResponseEntity<Page<Supplier>> findPageAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        log.info("[GET] /api/v1/suppliers/admin/page - Access by Super Admin, Page: {}", page);
+        return ResponseEntity.ok(supplierService.findPageAdmin(page, size));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Supplier>> findAll() {
+        return ResponseEntity.ok(supplierService.findAllByPartner());
+    }
+
+    @PostMapping
+    public ResponseEntity<Supplier> create(@Valid @RequestBody Supplier supplier) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(supplierService.create(supplier));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        supplierService.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Supplier> update(
+            @PathVariable Long id,
+            @Valid @RequestBody Supplier supplier) {
+        return ResponseEntity.ok(supplierService.update(id, supplier));
+    }
+}

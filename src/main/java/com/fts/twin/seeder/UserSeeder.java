@@ -1,0 +1,39 @@
+package com.fts.twin.seeder;
+
+import com.fts.twin.model.auth.User;
+import com.fts.twin.repository.auth.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Component;
+
+/**
+ * Seeds default super admin user on startup.
+ */
+@Component
+@RequiredArgsConstructor
+public class UserSeeder {
+
+    private final UserRepository userRepository;
+
+    public void run() {
+        User su = new User();
+        su.setUsername("superadmin");
+        su.setFullname("Super Admin");
+        su.setEmail("superadmin@gaptek.org");
+        su.setPassword("super1234");
+        process(su);
+    }
+
+    public void process(User user) {
+        if (userRepository.findByUsername(user.getUsername()).isPresent() || 
+            userRepository.findByEmail(user.getEmail()).isPresent()) return;
+
+        var userEntity = new User();
+        userEntity.setUsername(user.getUsername());
+        userEntity.setPassword(new BCryptPasswordEncoder().encode(user.getPassword()));
+        userEntity.setFullname(user.getFullname());
+        userEntity.setEmail(user.getEmail());
+        userRepository.save(userEntity);
+    }
+}

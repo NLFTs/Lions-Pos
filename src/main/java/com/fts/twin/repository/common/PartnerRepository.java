@@ -1,0 +1,18 @@
+package com.fts.twin.repository.common;
+
+import java.util.List;
+
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.fts.twin.model.auth.User;
+import com.fts.twin.model.common.Partners;
+
+@Repository
+public interface PartnerRepository extends JpaRepository<Partners, Long> {
+    List<Partners> findAllByCreatedBy(User user, Sort sort);
+    boolean existsByName(String name);
+    boolean existsBySlug(String slug);
+    List<Partners> findByPlan(Partners.Plan plan);
+    java.util.Optional<Partners> findBySlug(String slug);
+}
