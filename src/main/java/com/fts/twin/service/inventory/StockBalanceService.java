@@ -1,0 +1,954 @@
+package com.fts.twin.service.inventory;
+
+import com.fts.twin.dto.request.inventory.BranchStockInRequest;
+import com.fts.twin.dto.request.inventory.StockBalanceInitRequest;
+import com.fts.twin.dto.request.inventory.StockBalanceItemRequest;
+import com.fts.twin.dto.request.inventory.StockBalanceRequestDTO;
+import com.fts.twin.dto.request.inventory.StockTransferRequest;
+import com.fts.twin.dto.request.inventory.WarehouseStockInRequest;
+import com.fts.twin.dto.response.components.UserSimpleDto;
+import com.fts.twin.dto.response.inventoryresponse.InventoryDashboardResponse;
+import com.fts.twin.dto.response.inventoryresponse.StockBalanceResponse;
+import com.fts.twin.dto.response.inventoryresponse.StockLocationSummaryResponse;
+import com.fts.twin.handler.ResourceNotFoundException;
+import com.fts.twin.model.auth.User;
+import com.fts.twin.model.catalog.Product;
+import com.fts.twin.model.common.Partners;
+import com.fts.twin.model.inventory.Branches;
+import com.fts.twin.model.inventory.StockBalance;
+import com.fts.twin.model.inventory.StockMutation;
+import com.fts.twin.model.inventory.Warehouses;
+import com.fts.twin.repository.auth.UserRepository;
+import com.fts.twin.repository.catalog.ProductRepository;
+import com.fts.twin.repository.inventory.BranchesRepository;
+import com.fts.twin.repository.inventory.StockBalanceRepository;
+import com.fts.twin.repository.inventory.StockMutationRepository;
+import com.fts.twin.repository.inventory.WarehousesRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class StockBalanceService {
+
+    private final StockBalanceRepository stockBalanceRepository;
+    private final ProductRepository productRepository;
+    private final BranchesRepository branchesRepository;
+    private final WarehousesRepository warehousesRepository;
+    private final StockMutationRepository stockMutationRepository;
+    private final UserRepository userRepository;
+
+    // ─── PUSAT
+
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("Pengguna tidak disahkan");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Pengguna tidak ditemui dalam pangkalan data"));
+    }
+
+    private void checkPermission(User user, String permissionSlug) {
+        // Super Admin (rakan kongsi bernilai null) melepasi semua jenis semakan kebenaran sistem
+        if (user.getPartner() == null) {
+            return;
+        }
+
+        // Mengumpulkan semua kebenaran daripada setiap peranan yang diberikan kepada pengguna
+        boolean hasPerm = user.getRoles().stream()
+                .filter(role -> role.getPermissions() != null)
+                .flatMap(role -> role.getPermissions().stream())
+                .anyMatch(perm -> perm.getSlug().equalsIgnoreCase(permissionSlug));
+
+        if (!hasPerm) {
+            throw new RuntimeException("Akses Ditolak: Anda tidak mempunyai hak akses '" + permissionSlug + "'!");
+        }
+    }
+
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses ditolak: Ciri ini khusus untuk Super Admin Global.");
+        }
+    }
+
+    // ─── PERLINDUNGAN MULTI-TENANT (RAKAN KONGSI) ───────────────────────────
+
+    private StockBalance getValidatedStockBalance(Long id, User currentUser) {
+        StockBalance stock = stockBalanceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("StockBalance", id));
+
+        if (currentUser.getPartner() == null) {
+            return stock;
+        }
+
+        if (stock.getProduct() == null || stock.getProduct().getPartner() == null || 
+                !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Baki stok bukan milik rakan kongsi anda.");
+        }
+
+        return stock;
+    }
+
+    private void validateLocation(String locationType, Long locationId, Partners partner) {
+        if (partner == null) return; 
+
+        if ("BRANCH".equalsIgnoreCase(locationType)) {
+            Branches branch = branchesRepository.findById(locationId)
+                    .orElseThrow(() -> new RuntimeException("Cawangan tidak ditemui"));
+            if (branch.getPartners() == null || !branch.getPartners().getId().equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Cawangan bukan milik rakan kongsi anda.");
+            }
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            Warehouses warehouse = warehousesRepository.findById(locationId)
+                    .orElseThrow(() -> new RuntimeException("Gudang tidak ditemui"));
+            
+            if (warehouse.getPartners() != null) {
+                if (!warehouse.getPartners().getId().equals(partner.getId())) {
+                    throw new RuntimeException("Akses Ditolak: Gudang bukan milik rakan kongsi anda.");
+                }
+            } else {
+                log.info("[TENANT CHECK] Memproses verifikasi gudang ID: {}", locationId);
+            }
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+            if (!locationId.equals(partner.getId())) {
+                throw new RuntimeException("Akses Ditolak: Lokasi kuarantin bukan milik rakan kongsi anda.");
+            }
+        } 
+        else {
+            throw new RuntimeException("locationType tidak sah. Gunakan 'BRANCH', 'WAREHOUSE', atau 'QUARANTINE'.");
+        }
+    }
+
+    private String resolveLocationName(String locationType, Long locationId) {
+        if ("BRANCH".equalsIgnoreCase(locationType)) {
+            return branchesRepository.findById(locationId).map(Branches::getName).orElse("Cawangan #" + locationId);
+        } 
+        else if ("WAREHOUSE".equalsIgnoreCase(locationType)) {
+            return warehousesRepository.findById(locationId).map(Warehouses::getName).orElse("Gudang #" + locationId);
+        } 
+        else if ("QUARANTINE".equalsIgnoreCase(locationType)) {
+            return "Kuarantin (Rakan Kongsi #" + locationId + ")";
+        }
+        return "Lokasi #" + locationId;
+    }
+    // ─── PEMETAAN RESPON & REKOD MUTASI STOK ──────────────────────────────────
+
+    public StockBalanceResponse mapToResponse(StockBalance stock) {
+        if (stock == null) return null;
+
+        Product product = stock.getProduct();
+
+        StockBalanceResponse.ProductSimpleDto productDto =
+                new StockBalanceResponse.ProductSimpleDto();
+
+        if (product != null) {
+            productDto.setId(product.getId());
+            productDto.setName(product.getName());
+            productDto.setSku(product.getSku());
+
+            if (product.getCategory() != null) {
+                productDto.setCategoryId(product.getCategory().getId());
+                productDto.setCategoryName(product.getCategory().getName());
+            } else {
+                productDto.setCategoryName("-");
+            }
+        }
+
+        UserSimpleDto userDto = null;
+
+        if (stock.getUpdatedBy() != null) {
+            userDto = new UserSimpleDto();
+            userDto.setId(stock.getUpdatedBy().getId());
+            userDto.setUsername(stock.getUpdatedBy().getUsername());
+        }
+
+        return StockBalanceResponse.builder()
+                .id(stock.getId())
+                .product(productDto)
+                .locationType(stock.getLocationType())
+                .locationId(stock.getLocationId())
+                .qty(stock.getQty())
+                .updatedAt(stock.getUpdatedAt())
+                .updatedBy(userDto)
+                .build();
+    }
+
+    private void recordMutation(StockBalance stock, Long qty, String type, String refType, Long refId, String notes, User user) {
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(stock.getProduct());
+        mutation.setPartner(stock.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.valueOf(type.toUpperCase()));
+        mutation.setFromLocationType(null);
+        mutation.setFromLocationId(null);
+        mutation.setToLocationType(StockMutation.Location.valueOf(stock.getLocationType().toUpperCase()));
+        mutation.setToLocationId(stock.getLocationId());
+        mutation.setQty(qty);
+        mutation.setReferenceType(StockMutation.ReferenceType.valueOf(refType.toUpperCase()));
+        mutation.setReferenceId(refId);
+        mutation.setNotes(notes);
+        mutation.setCreatedBy(user);
+        stockMutationRepository.save(mutation);
+    }
+
+    // ─── METHOD UTAMA PENGURUSAN BAKI STOK ─────────────────────────────────
+
+    public List<StockBalanceResponse> findAllStockBalance() {
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
+        return stockBalanceRepository.findAll().stream().map(this::mapToResponse).toList();
+    }
+
+    public List<StockBalanceResponse> findAll() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index"); 
+
+        if (currentUser.getPartner() == null) {
+            return stockBalanceRepository.findAll().stream().map(this::mapToResponse).toList();
+        }
+        
+        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId()).stream()
+                .map(this::mapToResponse).toList();
+    }
+
+    public Page<StockBalanceResponse> findAll(Long branchId, int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("id").descending());
+        
+        if (currentUser.getPartner() == null) {
+            return stockBalanceRepository.findAll(pageable).map(this::mapToResponse);
+        }
+
+        if (branchId != null) {
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(branchId, pageable)
+                    .map(this::mapToResponse);
+        }
+
+        List<String> roleSlugs = currentUser.getRoles().stream()
+                .map(role -> role.getSlug().toLowerCase())
+                .toList();
+
+        if (roleSlugs.stream().anyMatch(slug -> slug.contains("cabang") || slug.contains("pengelola-cabang"))) {
+            if (currentUser.getBranch() == null) {
+                throw new RuntimeException("Akses ditolak: anda tidak berkaitan dengan mana-mana cawangan");
+            }
+            return stockBalanceRepository.findStockByBranchAndLinkedWarehouses(currentUser.getBranch().getId(), pageable)
+                    .map(this::mapToResponse);
+        }
+
+        return stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId(), pageable)
+                .map(this::mapToResponse);
+    }
+
+    public List<StockLocationSummaryResponse> findStockSummary() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        List<StockBalance> allBalances;
+        if (currentUser.getPartner() == null) {
+            allBalances = stockBalanceRepository.findAll();
+        } else {
+            allBalances = stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+        }
+
+        Map<Product, List<StockBalance>> groupedByProduct = allBalances.stream()
+                .filter(sb -> sb.getProduct() != null)
+                .collect(Collectors.groupingBy(StockBalance::getProduct));
+
+        return groupedByProduct.entrySet().stream()
+                .map(entry -> {
+                    Product product = entry.getKey();
+                    List<StockBalance> balances = entry.getValue();
+
+                    BigDecimal totalQty = balances.stream()
+                            .map(sb -> sb.getQty() != null ? BigDecimal.valueOf(sb.getQty()) : BigDecimal.ZERO)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    List<StockLocationSummaryResponse.StockPerLocation> perLokasi = balances.stream()
+                            .map(sb -> new StockLocationSummaryResponse.StockPerLocation(
+                                    sb.getLocationType(),
+                                    sb.getLocationId(),
+                                    resolveLocationName(sb.getLocationType(), sb.getLocationId()),
+                                    sb.getQty() != null ? BigDecimal.valueOf(sb.getQty()) : BigDecimal.ZERO))
+                            .toList();
+
+                    return StockLocationSummaryResponse.builder()
+                            .productId(product.getId())
+                            .productName(product.getName())
+                            .sku(product.getSku())
+                            .totalQty(totalQty)
+                            .perLokasi(perLokasi)
+                            .build();
+                })
+                .toList();
+    }
+
+    public StockBalanceResponse findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.show");
+        
+        return mapToResponse(getValidatedStockBalance(id, currentUser));
+    }
+
+    public List<StockBalanceResponse> findByLocation(String locationType, Long locationId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        String targetType = "BRANCH"; 
+        if (locationType != null) {
+            String inputLower = locationType.toLowerCase().trim();
+            if (inputLower.contains("warehouse") || inputLower.contains("gudang")) {
+                targetType = "WAREHOUSE";
+            } else if (inputLower.contains("branch") || inputLower.contains("cabang")) {
+                targetType = "BRANCH";
+            } else if (inputLower.contains("quarantine") || inputLower.contains("karantina")) {
+                targetType = "QUARANTINE";
+            }
+        }
+
+        log.info("[BACKEND DEBUG] Memproses kueri stok murni untuk Tipe: {} dengan ID: {}", targetType, locationId);
+
+        validateLocation(targetType, locationId, currentUser.getPartner());
+
+        List<StockBalance> queryResults = stockBalanceRepository.findByLocationTypeAndLocationId(targetType, locationId);
+        
+        if (currentUser.getPartner() == null) {
+            return queryResults.stream().map(this::mapToResponse).toList();
+        }
+
+        return queryResults.stream()
+                .filter(s -> s.getProduct() != null && s.getProduct().getPartner() != null && 
+                                s.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public List<StockBalanceResponse> findByBranch(Long branchId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+        validateLocation("BRANCH", branchId, currentUser.getPartner());
+
+        return stockBalanceRepository.findByLocationTypeAndLocationId("BRANCH", branchId).stream()
+                .filter(sb -> {
+                    if (currentUser.getPartner() == null) return true;
+                    return sb.getProduct() != null
+                            && sb.getProduct().getPartner() != null
+                            && sb.getProduct().getPartner().getId().equals(currentUser.getPartner().getId());
+                })
+                .map(this::mapToResponse).toList();
+    }
+
+    public List<StockBalanceResponse> findByWarehouse(Long warehouseId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+        validateLocation("WAREHOUSE", warehouseId, currentUser.getPartner());
+
+        return stockBalanceRepository.findByLocationTypeAndLocationId("WAREHOUSE", warehouseId).stream()
+                .map(this::mapToResponse).toList();
+    }
+    
+
+    // ─── PROSES MUTASI STOK KAWALAN CAWANAN & KUARANTIN ───────────────────────
+
+    @Transactional
+    public StockBalanceResponse create(StockBalanceRequestDTO request) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.store");
+
+        Partners partner = currentUser.getPartner();
+        Product product = productRepository.findById(request.getProduct())
+                .orElseThrow(() -> new RuntimeException("Produk tidak ditemui"));
+
+        if (partner != null && (product.getPartner() == null || !product.getPartner().getId().equals(partner.getId()))) {
+            throw new RuntimeException("Akses Ditolak: Produk bukan milik rakan kongsi anda.");
+        }
+
+        validateLocation(request.getLocationType(), request.getLocationId(), partner);
+
+        stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                request.getProduct(), request.getLocationType().toUpperCase(), request.getLocationId()
+        ).ifPresent(existing -> {
+            throw new IllegalArgumentException("Baki stok sudah wujud untuk produk dan lokasi ini.");
+        });
+
+        StockBalance stock = new StockBalance();
+        stock.setProduct(product);
+        stock.setLocationType(request.getLocationType().toUpperCase());
+        stock.setLocationId(request.getLocationId());
+        stock.setQty(request.getQty());
+        stock.setCreatedBy(currentUser);
+        stock.setUpdatedBy(currentUser);
+        stock.setUpdatedAt(LocalDateTime.now());
+
+        StockBalance saved = stockBalanceRepository.save(stock);
+        recordMutation(saved, request.getQty(), "ADJUSTMENT", "STOCK_OPNAME", saved.getId(),
+                "Stok awal manual untuk " + product.getName(), currentUser);
+
+        return mapToResponse(saved);
+    }
+
+    @Transactional
+    public List<StockBalanceResponse> initializeStock(StockBalanceInitRequest request) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.store"); 
+
+        Partners partner = currentUser.getPartner();
+        validateLocation(request.getLocationType(), request.getLocationId(), partner);
+        List<StockBalanceResponse> results = new ArrayList<>();
+
+        for (StockBalanceItemRequest itemRequest : request.getItems()) {
+            Product product = productRepository.findById(itemRequest.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Produk tidak ditemui: id=" + itemRequest.getProductId()));
+
+            if (partner != null && (product.getPartner() == null || !product.getPartner().getId().equals(partner.getId()))) {
+                throw new RuntimeException("Akses Ditolak: Produk '" + product.getName() + "' bukan milik rakan kongsi anda.");
+            }
+
+            StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                    product.getId(), request.getLocationType().toUpperCase(), request.getLocationId()
+            ).orElse(null);
+
+            long oldQty = 0L;
+            if (stock != null) {
+                oldQty = stock.getQty() != null ? stock.getQty() : 0L;
+                stock.setQty(itemRequest.getQty().longValue());
+                stock.setUpdatedBy(currentUser);
+                stock.setUpdatedAt(LocalDateTime.now());
+            } else {
+                stock = new StockBalance();
+                stock.setProduct(product);
+                stock.setLocationType(request.getLocationType().toUpperCase());
+                stock.setLocationId(request.getLocationId());
+                stock.setQty(itemRequest.getQty().longValue());
+                stock.setCreatedBy(currentUser);
+                stock.setUpdatedBy(currentUser);
+                stock.setUpdatedAt(LocalDateTime.now());
+            }
+
+            StockBalance saved = stockBalanceRepository.save(stock);
+            long qtyDiff = saved.getQty() - oldQty;
+            
+            if (qtyDiff != 0) {
+                recordMutation(saved, Math.abs(qtyDiff), "ADJUSTMENT", "STOCK_OPNAME", saved.getId(),
+                        "Stok awal kumpulan untuk " + product.getName(), currentUser);
+            }
+            results.add(mapToResponse(saved));
+        }
+        return results;
+    }
+
+    @Transactional
+    public void adjustStock(Long productId, String locationType, Long locationId, Long adjustment) {
+        Optional<StockBalance> optStock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                productId, locationType.toUpperCase(), locationId
+        );
+
+        if (optStock.isEmpty()) {
+            if (adjustment < 0) {
+                // Tidak ada record stok di lokasi ini
+                throw new RuntimeException(
+                    "Stok tidak ditemukan di " + locationType + " (id=" + locationId + ") untuk produk id=" + productId +
+                    ". Pastikan stok sudah diisi di cabang sebelum melakukan penjualan."
+                );
+            } else {
+                // Penambahan stok
+                log.warn("[adjustStock] Membuat record stok baru untuk produk={} di {}={} dengan qty={}",
+                        productId, locationType, locationId, adjustment);
+                Product product = productRepository.findById(productId)
+                        .orElseThrow(() -> new RuntimeException("Produk tidak ditemukan id=" + productId));
+                StockBalance newStock = new StockBalance();
+                newStock.setProduct(product);
+                newStock.setLocationType(locationType.toUpperCase());
+                newStock.setLocationId(locationId);
+                newStock.setQty(adjustment);
+                newStock.setUpdatedAt(LocalDateTime.now());
+                stockBalanceRepository.save(newStock);
+                return;
+            }
+        }
+
+        StockBalance stock = optStock.get();
+        long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
+        long newQty = currentQty + adjustment;
+
+        if (newQty < 0) {
+            throw new RuntimeException("Stok tidak mencukupi untuk ID produk: " + productId + ". Stok tersedia: " + currentQty + ", diminta: " + Math.abs(adjustment));
+        }
+
+        stock.setQty(newQty);
+        stock.setUpdatedAt(LocalDateTime.now());
+        stockBalanceRepository.save(stock);
+    }
+
+    @Transactional
+    public StockBalanceResponse createFromWarehouse(WarehouseStockInRequest request) {
+        Warehouses warehouse = warehousesRepository.findById(request.getWarehouseId()).orElseThrow();
+        Product product = productRepository.findById(request.getProductId()).orElseThrow();
+        checkPermission(getAuthenticatedUser(), "stock_balance.store");
+
+        User currentUser = getAuthenticatedUser();
+        StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                request.getProductId(), "WAREHOUSE", request.getWarehouseId()
+        ).orElse(new StockBalance());
+
+        if (stock.getId() == null) {
+            stock.setProduct(product);
+            stock.setLocationType("WAREHOUSE");
+            stock.setLocationId(warehouse.getId());
+            stock.setQty(request.getQty());
+            stock.setCreatedBy(currentUser);
+        } else {
+            stock.setQty(stock.getQty() + request.getQty());
+        }
+
+        stock.setUpdatedBy(currentUser);
+        stock.setUpdatedAt(LocalDateTime.now());
+        StockBalance stockBalance = stockBalanceRepository.save(stock);
+
+        StockMutation stockMutation = new StockMutation();
+        stockMutation.setProduct(stockBalance.getProduct());
+        stockMutation.setQty(request.getQty()); 
+        stockMutation.setPartner(stockBalance.getProduct().getPartner());
+        stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+        stockMutation.setType(StockMutation.Type.PURCHASE_IN);
+        stockMutation.setToLocationType(StockMutation.Location.valueOf(stockBalance.getLocationType()));
+        stockMutation.setToLocationId(stockBalance.getLocationId());
+        stockMutation.setCreatedBy(currentUser);
+        stockMutation.setCreatedAt(LocalDateTime.now());
+        stockMutationRepository.save(stockMutation);
+
+        return mapToResponse(stockBalance);
+    }
+
+    @Transactional
+    public StockBalanceResponse createFromBranch(BranchStockInRequest request) {       
+        Branches branch = branchesRepository.findById(request.getBranchId()).orElseThrow();
+        Product product = productRepository.findById(request.getProductId()).orElseThrow();
+        checkPermission(getAuthenticatedUser(), "stock_balance.store");
+
+        User currentUser = getAuthenticatedUser();
+        StockBalance stock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                request.getProductId(), "BRANCH", request.getBranchId()
+        ).orElse(new StockBalance());
+
+        if (stock.getId() == null) {
+            stock.setProduct(product);
+            stock.setLocationType("BRANCH");
+            stock.setLocationId(branch.getId());
+            stock.setQty(request.getQty());
+            stock.setCreatedBy(currentUser);
+        } else {
+            stock.setQty(stock.getQty() + request.getQty());
+        }
+
+        stock.setUpdatedBy(currentUser);
+        stock.setUpdatedAt(LocalDateTime.now());
+        StockBalance stockBalance = stockBalanceRepository.save(stock);
+
+        StockMutation stockMutation = new StockMutation();
+        stockMutation.setProduct(stockBalance.getProduct());
+        stockMutation.setQty(request.getQty()); 
+        stockMutation.setPartner(stockBalance.getProduct().getPartner());        
+        stockMutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+        stockMutation.setType(StockMutation.Type.PURCHASE_IN);
+        stockMutation.setToLocationType(StockMutation.Location.valueOf(stockBalance.getLocationType()));
+        stockMutation.setToLocationId(stockBalance.getLocationId());
+        stockMutation.setCreatedBy(currentUser);
+        stockMutation.setCreatedAt(LocalDateTime.now());
+        stockMutationRepository.save(stockMutation);
+
+        return mapToResponse(stockBalance);
+    }
+
+    @Transactional
+    public StockBalanceResponse transferStock(StockTransferRequest request) {
+        Long productId = request.getProductId();
+        Long qty = request.getQty();
+        checkPermission(getAuthenticatedUser(), "stock_balance.transfer");
+    
+        if (request.getFromLocationType().equalsIgnoreCase(request.getToLocationType()) && 
+                request.getFromLocationId().equals(request.getToLocationId())) {
+            throw new RuntimeException("Lokasi asal dan destinasi tidak boleh sama!");
+        }
+    
+        User currentUser = getAuthenticatedUser();
+    
+        // 1. POTONG STOK DI LOKASI ASAL
+        StockBalance sourceStock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                productId, request.getFromLocationType().toUpperCase(), request.getFromLocationId()
+        ).orElseThrow(() -> new RuntimeException("Stok tidak ditemui di lokasi asal"));
+    
+        long currentSourceQty = sourceStock.getQty() != null ? sourceStock.getQty() : 0L;
+        if (currentSourceQty < qty) {
+            throw new RuntimeException("Stok di lokasi asal tidak mencukupi! Baki: " + currentSourceQty);
+        }
+    
+        sourceStock.setQty(currentSourceQty - qty);
+        sourceStock.setUpdatedBy(currentUser);
+        sourceStock.setUpdatedAt(LocalDateTime.now());
+        stockBalanceRepository.save(sourceStock);
+    
+        // 2. TAMBAH STOK DI LOKASI DESTINASI
+        StockBalance destStock = stockBalanceRepository.findByProductIdAndLocationTypeAndLocationId(
+                productId, request.getToLocationType().toUpperCase(), request.getToLocationId()
+        ).orElse(new StockBalance());
+
+        if (destStock.getId() == null) {
+            Product product = productRepository.findById(productId).orElseThrow();
+            destStock.setProduct(product);
+            destStock.setLocationType(request.getToLocationType().toUpperCase());
+            destStock.setLocationId(request.getToLocationId());
+            destStock.setQty(qty);
+            destStock.setCreatedBy(currentUser);
+        } else {
+            long currentDestQty = destStock.getQty() != null ? destStock.getQty() : 0L;
+            destStock.setQty(currentDestQty + qty);
+        }
+
+        destStock.setUpdatedBy(currentUser);
+        destStock.setUpdatedAt(LocalDateTime.now());
+        StockBalance savedDestStock = stockBalanceRepository.save(destStock);
+    
+        // 3. REKOD LOG MUTASI STOK (PENGHANTARAN)
+        StockMutation stockMutation = new StockMutation();
+        stockMutation.setProduct(savedDestStock.getProduct());
+        stockMutation.setPartner(savedDestStock.getProduct().getPartner());
+        stockMutation.setReferenceType(StockMutation.ReferenceType.TRANSFER_REQUEST);
+        stockMutation.setType(StockMutation.Type.TRANSFER);
+        stockMutation.setQty(qty); 
+    
+        stockMutation.setFromLocationType(StockMutation.Location.valueOf(sourceStock.getLocationType().toUpperCase()));
+        stockMutation.setFromLocationId(sourceStock.getLocationId());
+        stockMutation.setToLocationType(StockMutation.Location.valueOf(savedDestStock.getLocationType().toUpperCase()));
+        stockMutation.setToLocationId(savedDestStock.getLocationId());
+    
+        stockMutation.setCreatedBy(currentUser);
+        stockMutation.setCreatedAt(LocalDateTime.now());
+        stockMutationRepository.save(stockMutation);
+
+        return mapToResponse(savedDestStock);
+    }
+
+    @Transactional(readOnly = true)
+    public InventoryDashboardResponse getInventoryStats(String locationType, Long locationId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        List<Product> products;
+        List<StockMutation> mutations;
+
+        if (currentUser.getPartner() == null) {
+            products = productRepository.findAll();
+            mutations = stockMutationRepository.findAll(Sort.by("id").descending());
+        } else {
+            products = productRepository.findAllByPartner(currentUser.getPartner());
+            mutations = stockMutationRepository.findByPartner(currentUser.getPartner(), Sort.by("id").descending());
+        }
+
+        long totalProducts;
+        long damagedProducts;
+        long incoming = 0;
+        long outgoing = 0;
+
+        
+        List<StockBalance> allBalances;
+        if (currentUser.getPartner() == null) {
+            allBalances = stockBalanceRepository.findAll();
+        } else {
+            allBalances = stockBalanceRepository.findByProductPartnerId(currentUser.getPartner().getId());
+        }
+        damagedProducts = allBalances.stream()
+                .filter(sb -> "QUARANTINE".equalsIgnoreCase(sb.getLocationType()))
+                .map(sb -> sb.getProduct().getId())
+                .distinct()
+                .count();
+
+        if (locationType == null || locationId == null || "all".equalsIgnoreCase(locationType)) {
+            totalProducts = products.size();
+            incoming = mutations.stream()
+                .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+            outgoing = mutations.stream()
+                .filter(m -> m.getType() == StockMutation.Type.SALE_OUT)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+        } else {
+            String locTypeUpper = locationType.toUpperCase();
+            List<StockBalance> balances = stockBalanceRepository.findByLocationTypeAndLocationId(locTypeUpper, locationId);
+            totalProducts = balances.stream()
+                .filter(sb -> sb.getProduct() != null && (currentUser.getPartner() == null || (sb.getProduct().getPartner() != null && sb.getProduct().getPartner().getId().equals(currentUser.getPartner().getId()))))
+                .map(sb -> sb.getProduct().getId())
+                .distinct()
+                .count();
+
+            incoming = mutations.stream()
+                .filter(m -> m.getToLocationType() != null && m.getToLocationType().name().equals(locTypeUpper) && locationId.equals(m.getToLocationId()))
+                .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN || m.getType() == StockMutation.Type.TRANSFER)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+
+            outgoing = mutations.stream()
+                .filter(m -> m.getFromLocationType() != null && m.getFromLocationType().name().equals(locTypeUpper) && locationId.equals(m.getFromLocationId()))
+                .filter(m -> m.getType() == StockMutation.Type.SALE_OUT || m.getType() == StockMutation.Type.TRANSFER)
+                .mapToLong(StockMutation::getQty)
+                .sum();
+        }
+
+        List<InventoryDashboardResponse.DailyMovementDto> chartData = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 14; i >= 0; i--) {
+            LocalDateTime dayStart = now.minusDays(i).withHour(0).withMinute(0).withSecond(0).withNano(0);
+            LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
+
+            List<StockMutation> dayMutations = mutations.stream()
+                .filter(m -> m.getCreatedAt() != null && !m.getCreatedAt().isBefore(dayStart) && m.getCreatedAt().isBefore(dayEnd))
+                .toList();
+
+            long dayIncoming = 0;
+            long dayOutgoing = 0;
+
+            if (locationType == null || locationId == null || "all".equalsIgnoreCase(locationType)) {
+                dayIncoming = dayMutations.stream()
+                    .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+                dayOutgoing = dayMutations.stream()
+                    .filter(m -> m.getType() == StockMutation.Type.SALE_OUT)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+            } else {
+                String locTypeUpper = locationType.toUpperCase();
+                dayIncoming = dayMutations.stream()
+                    .filter(m -> m.getToLocationType() != null && m.getToLocationType().name().equals(locTypeUpper) && locationId.equals(m.getToLocationId()))
+                    .filter(m -> m.getType() == StockMutation.Type.PURCHASE_IN || m.getType() == StockMutation.Type.RETURN || m.getType() == StockMutation.Type.TRANSFER)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+                dayOutgoing = dayMutations.stream()
+                    .filter(m -> m.getFromLocationType() != null && m.getFromLocationType().name().equals(locTypeUpper) && locationId.equals(m.getFromLocationId()))
+                    .filter(m -> m.getType() == StockMutation.Type.SALE_OUT || m.getType() == StockMutation.Type.TRANSFER)
+                    .mapToLong(StockMutation::getQty)
+                    .sum();
+            }
+
+            String monthName = dayStart.getMonth().name().substring(0, 3);
+            monthName = monthName.charAt(0) + monthName.substring(1).toLowerCase();
+            String dateStr = dayStart.getDayOfMonth() + " " + monthName;
+            chartData.add(new InventoryDashboardResponse.DailyMovementDto(dateStr, dayIncoming, dayOutgoing));
+        }
+
+        return InventoryDashboardResponse.builder()
+            .totalProducts(totalProducts)
+            .damagedProducts(damagedProducts)
+            .incomingProducts(incoming)
+            .outgoingProducts(outgoing)
+            .chartData(chartData)
+            .build();
+    }
+
+    @Transactional
+    public void addToQuarantine(Long productId, Long partnerId, Long qty, Long referenceId, String notes, User createdBy) {
+        StockBalance quarantineStock = stockBalanceRepository
+                .findByProductIdAndLocationTypeAndLocationId(productId, "QUARANTINE", partnerId)
+                .orElse(null);
+
+        if (quarantineStock == null) {
+            Product product = productRepository.findById(productId)
+                    .orElseThrow(() -> new RuntimeException("Produk tidak ditemui id=" + productId));
+            quarantineStock = new StockBalance();
+            quarantineStock.setProduct(product);
+            quarantineStock.setLocationType("QUARANTINE");
+            quarantineStock.setLocationId(partnerId);
+            quarantineStock.setQty(qty);
+            quarantineStock.setCreatedBy(createdBy);
+        } else {
+            quarantineStock.setQty(quarantineStock.getQty() + qty);
+        }
+        quarantineStock.setUpdatedBy(createdBy);
+        quarantineStock.setUpdatedAt(java.time.LocalDateTime.now());
+        StockBalance saved = stockBalanceRepository.save(quarantineStock);
+
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(saved.getProduct());
+        mutation.setPartner(saved.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.QUARANTINE_IN);
+        mutation.setFromLocationType(null);
+        mutation.setFromLocationId(null);
+        mutation.setToLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setToLocationId(partnerId);
+        mutation.setQty(qty);
+        mutation.setReferenceType(StockMutation.ReferenceType.ORDER);
+        mutation.setReferenceId(referenceId);
+        mutation.setNotes(notes);
+        mutation.setCreatedBy(createdBy);
+        stockMutationRepository.save(mutation);
+    }
+
+    @Transactional
+    public StockBalanceResponse disposeQuarantine(Long stockBalanceId, Long qty, String notes) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.update");
+
+        StockBalance stock = stockBalanceRepository.findById(stockBalanceId)
+                .orElseThrow(() -> new RuntimeException("Stock balance tidak ditemui id=" + stockBalanceId));
+
+        if (!"QUARANTINE".equalsIgnoreCase(stock.getLocationType())) {
+            throw new RuntimeException("Hanya stok kuarantin yang boleh dilupuskan.");
+        }
+
+        if (currentUser.getPartner() != null) {
+            if (stock.getProduct().getPartner() == null ||
+                    !stock.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Stok bukan milik rakan kongsi anda.");
+            }
+        }
+
+        long currentQty = stock.getQty() != null ? stock.getQty() : 0L;
+        long disposeQty = (qty == null || qty <= 0) ? currentQty : Math.min(qty, currentQty);
+
+        if (disposeQty <= 0) {
+            throw new RuntimeException("Tiada stok kuarantin untuk dilupuskan.");
+        }
+
+        stock.setQty(currentQty - disposeQty);
+        stock.setUpdatedBy(currentUser);
+        stock.setUpdatedAt(java.time.LocalDateTime.now());
+        stockBalanceRepository.save(stock);
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(stock.getProduct());
+        mutation.setPartner(stock.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.QUARANTINE_DISPOSE);
+        mutation.setFromLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setFromLocationId(stock.getLocationId());
+        mutation.setToLocationType(null);
+        mutation.setToLocationId(null);
+        mutation.setQty(disposeQty);
+        mutation.setReferenceType(StockMutation.ReferenceType.STOCK_OPNAME);
+        mutation.setReferenceId(stock.getId());
+mutation.setNotes(notes != null ? notes : "Lupuskan stok kuarantin kepada pembekal");
+        mutation.setCreatedBy(currentUser);
+        stockMutationRepository.save(mutation);
+
+        return mapToResponse(stock);
+    }
+
+    public List<StockBalanceResponse> findQuarantineStock() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.index");
+
+        if (currentUser.getPartner() == null) {
+            return stockBalanceRepository.findAll().stream()
+                    .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getLocationType()))
+                    .map(this::mapToResponse).toList();
+        }
+
+        return stockBalanceRepository
+                .findByProductPartnerId(currentUser.getPartner().getId()).stream()
+                .filter(s -> "QUARANTINE".equalsIgnoreCase(s.getLocationType()))
+                .map(this::mapToResponse).toList();
+    }
+
+    @Transactional
+    public StockBalanceResponse approveQuarantineToBranch(Long stockBalanceId, Long qty, String notes) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "stock_balance.update");
+
+        StockBalance quarantine = stockBalanceRepository.findById(stockBalanceId)
+                .orElseThrow(() -> new RuntimeException("Stock balance tidak ditemukan id=" + stockBalanceId));
+
+        if (!"QUARANTINE".equalsIgnoreCase(quarantine.getLocationType())) {
+            throw new RuntimeException("Hanya stok karantina yang bisa di-approve ke cabang.");
+        }
+
+        if (currentUser.getPartner() != null) {
+            if (quarantine.getProduct().getPartner() == null ||
+                    !quarantine.getProduct().getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Stok bukan milik partner Anda.");
+            }
+        }
+
+        long currentQty = quarantine.getQty() != null ? quarantine.getQty() : 0L;
+        long approveQty = (qty == null || qty <= 0) ? currentQty : Math.min(qty, currentQty);
+
+        if (approveQty <= 0) {
+            throw new RuntimeException("Tidak ada stok karantina yang bisa di-approve.");
+        }
+
+        // targetBranchId: saat penerimaan PO ke branch, locationId quarantine = branchId tujuan
+        Long targetBranchId = quarantine.getLocationId();
+
+        // 1. Kurangi stok quarantine
+        long remainingQuarantineQty = currentQty - approveQty;
+        if (remainingQuarantineQty <= 0) {
+            stockBalanceRepository.delete(quarantine);
+        } else {
+            quarantine.setQty(remainingQuarantineQty);
+            quarantine.setUpdatedBy(currentUser);
+            quarantine.setUpdatedAt(LocalDateTime.now());
+            stockBalanceRepository.save(quarantine);
+        }
+
+        // 2. Tambah stok ke BRANCH
+        StockBalance branchStock = stockBalanceRepository
+                .findByProductIdAndLocationTypeAndLocationId(
+                        quarantine.getProduct().getId(), "BRANCH", targetBranchId)
+                .orElse(null);
+
+        if (branchStock == null) {
+            branchStock = new StockBalance();
+            branchStock.setProduct(quarantine.getProduct());
+            branchStock.setLocationType("BRANCH");
+            branchStock.setLocationId(targetBranchId);
+            branchStock.setQty(0L);
+            branchStock.setCreatedBy(currentUser);
+            branchStock.setCreatedAt(LocalDateTime.now());
+        }
+
+        long currentBranchQty = branchStock.getQty() != null ? branchStock.getQty() : 0L;
+        branchStock.setQty(currentBranchQty + approveQty);
+        branchStock.setUpdatedBy(currentUser);
+        branchStock.setUpdatedAt(LocalDateTime.now());
+        StockBalance savedBranchStock = stockBalanceRepository.save(branchStock);
+
+        // 3. Catat mutasi: QUARANTINE → BRANCH
+        StockMutation mutation = new StockMutation();
+        mutation.setProduct(quarantine.getProduct());
+        mutation.setPartner(quarantine.getProduct().getPartner());
+        mutation.setType(StockMutation.Type.TRANSFER);
+        mutation.setFromLocationType(StockMutation.Location.QUARANTINE);
+        mutation.setFromLocationId(quarantine.getLocationId());
+        mutation.setToLocationType(StockMutation.Location.BRANCH);
+        mutation.setToLocationId(targetBranchId);
+        mutation.setQty(approveQty);
+        mutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+        mutation.setReferenceId(stockBalanceId);
+        mutation.setNotes(notes != null ? notes : "Approve stok karantina ke cabang #" + targetBranchId);
+        mutation.setCreatedBy(currentUser);
+        mutation.setCreatedAt(LocalDateTime.now());
+        stockMutationRepository.save(mutation);
+
+        return mapToResponse(savedBranchStock);
+    }
+}

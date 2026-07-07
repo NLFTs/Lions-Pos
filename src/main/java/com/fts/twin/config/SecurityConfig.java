@@ -1,0 +1,111 @@
+package com.fts.twin.config;
+
+import com.fts.twin.handler.CustomAccessDeniedHandler;
+import com.fts.twin.handler.CustomAuthEntryPoint;
+import com.fts.twin.middleware.JwtAuthFilter;
+import com.fts.twin.middleware.UserContextFilter;
+import com.fts.twin.service.auth.PermissionCacheService;
+import com.fts.twin.util.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import java.util.List;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+/**
+ * Spring Security configuration with JWT filter and public path definitions.
+ */
+@Configuration
+@EnableMethodSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+    private final JwtUtil jwtUtil;
+    private final PermissionCacheService permissionCacheService;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final UserContextFilter userContextFilter;
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // Public endpoints — no JWT required
+        String[] publicApiPaths = {
+                "/api/v1/auth/login",
+                "/api/v1/auth/refresh",
+                "/api/v1/auth/logout",
+                "/api/v1/auth/force-logout-all",
+                "/api/v1/public/**",
+                "/v3/api-docs/**",
+                "/v3/api-docs.yaml/**",
+                "/docs",
+                "/swagger-ui/**",
+                "/swagger-ui.html",
+                "/scalar-ui/**",
+        };
+
+        // Vue SPA — all under /_/ prefix, Spring just serves the assets
+        // Access control is handled by Vue Router on the client.
+        String[] webPaths = {
+                "/_/**",
+                "/favicon.ico",
+                "/error",
+                "/uploads/**",
+        };
+
+        String[] jwtExcludedPaths = merge(publicApiPaths, webPaths);
+
+        return http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(jwtExcludedPaths).permitAll()
+                        .anyRequest().authenticated())
+                .exceptionHandling(exc -> exc
+                        .authenticationEntryPoint(new CustomAuthEntryPoint())
+                        .accessDeniedHandler(customAccessDeniedHandler))
+                .addFilterBefore(
+                        new JwtAuthFilter(jwtUtil, permissionCacheService, java.util.Arrays.asList(jwtExcludedPaths)),
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(userContextFilter, JwtAuthFilter.class) 
+                .build();
+    }
+
+    private String[] merge(String[]... arrays) {
+        int len = 0;
+        for (String[] a : arrays)
+            len += a.length;
+        String[] result = new String[len];
+        int pos = 0;
+        for (String[] a : arrays) {
+            System.arraycopy(a, 0, result, pos, a.length);
+            pos += a.length;
+        }
+        return result;
+    }
+
+}
+    

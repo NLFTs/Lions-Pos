@@ -138,7 +138,7 @@ import{_ as a,o as n,c as e,ae as p}from"./chunks/framework.CDhj6wcg.js";const h
 <span class="line"><span></span></span>
 <span class="line"><span>tokens (id, access_token, refresh_token, token_type, username, revoked, expiry_date)</span></span>
 <span class="line"><span></span></span>
-<span class="line"><span>log_http (id, method, url, status, duration, ip, created_at, ...)</span></span></code></pre></div><hr><h2 id="_8-package-structure-backend" tabindex="-1">8. Package Structure Backend <a class="header-anchor" href="#_8-package-structure-backend" aria-label="Permalink to &quot;8. Package Structure Backend&quot;">​</a></h2><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>com.dak.spravel</span></span>
+<span class="line"><span>log_http (id, method, url, status, duration, ip, created_at, ...)</span></span></code></pre></div><hr><h2 id="_8-package-structure-backend" tabindex="-1">8. Package Structure Backend <a class="header-anchor" href="#_8-package-structure-backend" aria-label="Permalink to &quot;8. Package Structure Backend&quot;">​</a></h2><div class="language- vp-adaptive-theme"><button title="Copy Code" class="copy"></button><span class="lang"></span><pre class="shiki shiki-themes github-light github-dark vp-code" tabindex="0"><code><span class="line"><span>com.fts.twin</span></span>
 <span class="line"><span>├── config/          → Konfigurasi Spring (Security, WebMvc, Jackson)</span></span>
 <span class="line"><span>├── controller/      → REST controller — HANYA routing + response mapping</span></span>
 <span class="line"><span>├── service/</span></span>

@@ -111,7 +111,7 @@
 Gaptek/
 ├── src/
 │   ├── main/
-│   │   ├── java/com/dak/spravel/
+│   │   ├── java/com/fts/twin/
 │   │   │   ├── config/          # Konfigurasi Spring (Security, Cache, Swagger, dll.)
 │   │   │   ├── controller/      # REST API controllers (auth, catalog, inventory, order, procurement, system)
 │   │   │   ├── dto/             # Data Transfer Objects (request & response)

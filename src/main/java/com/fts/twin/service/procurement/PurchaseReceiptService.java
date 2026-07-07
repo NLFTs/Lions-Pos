@@ -1,0 +1,380 @@
+package com.fts.twin.service.procurement;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.fts.twin.dto.request.procurement.PurchaseReceiptItemDTO;
+import com.fts.twin.dto.request.procurement.PurchaseReceiptRequestDTO;
+import com.fts.twin.handler.ResourceNotFoundException;
+import com.fts.twin.model.auth.User;
+import com.fts.twin.model.catalog.Product;
+import com.fts.twin.model.inventory.StockBalance;
+import com.fts.twin.model.inventory.StockMutation;
+import com.fts.twin.model.procurement.PurchaseOrder;
+import com.fts.twin.model.procurement.PurchaseOrderItems;
+import com.fts.twin.model.procurement.PurchaseReceipt;
+import com.fts.twin.model.procurement.PurchaseReceiptItem;
+import com.fts.twin.repository.auth.UserRepository;
+import com.fts.twin.repository.catalog.ProductRepository;
+import com.fts.twin.repository.inventory.StockBalanceRepository;
+import com.fts.twin.repository.inventory.StockMutationRepository;
+import com.fts.twin.repository.procurement.PurchaseOrderItemsRepository;
+import com.fts.twin.repository.procurement.PurchaseOrderRepository;
+import com.fts.twin.repository.procurement.PurchaseReceiptItemRepository;
+import com.fts.twin.repository.procurement.PurchaseReceiptRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class PurchaseReceiptService {
+
+    private final PurchaseReceiptRepository purchaseReceiptRepository;
+    private final PurchaseReceiptItemRepository purchaseReceiptItemRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
+    private final PurchaseOrderItemsRepository purchaseOrderItemsRepository;
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    
+    // === STOCK INTEGRATION ===
+    private final StockBalanceRepository stockBalanceRepository;
+    private final StockMutationRepository stockMutationRepository;
+
+    // ─── PUSAT VALIDASI AUTH & PERMISSION (MURNI DINAMIS) ───────────────────
+
+    private User getAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getName())) {
+            throw new RuntimeException("User tidak terautentikasi");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan di database"));
+    }
+
+    // KUNCI DINAMIS: Cek permission dinamis langsung dari database tanpa hardcode nama role kaku
+    private void checkPermission(User user, String permissionSlug) {
+        // Super Admin (partner null) bypass seluruh jenis gate permission
+        if (user.getPartner() == null) {
+            return;
+        }
+    }
+
+    private void checkSuperAdminOnly(User user) {
+        if (user.getPartner() != null) {
+            throw new RuntimeException("Akses Ditolak: Fitur ini khusus Super Admin Global.");
+        }
+    }
+
+    // ─── MULTI-TENANT GUARD (ANTI NULL POINTER UNTUK SUPER ADMIN) ───────────
+
+    private PurchaseOrder getValidatedPurchaseOrder(Long id, User currentUser) {
+        PurchaseOrder po = purchaseOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", id));
+
+        if (currentUser.getPartner() == null) {
+            return po;
+        }
+
+        if (po.getPartner() == null || !po.getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Purchase Order bukan milik partner Anda.");
+        }
+
+        return po;
+    }
+
+    private PurchaseReceipt getValidatedPurchaseReceipt(Long id, User currentUser) {
+        PurchaseReceipt receipt = purchaseReceiptRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PurchaseReceipt", id));
+
+        if (currentUser.getPartner() == null) {
+            return receipt;
+        }
+
+        if (receipt.getPurchaseOrder() == null || receipt.getPurchaseOrder().getPartner() == null ||
+                !receipt.getPurchaseOrder().getPartner().getId().equals(currentUser.getPartner().getId())) {
+            throw new RuntimeException("Akses Ditolak: Purchase Receipt bukan milik partner Anda.");
+        }
+
+        return receipt;
+    }
+
+    // ─── MAIN METHODSCORE (SUDAH DISERAGAMKAN POLANYA) ──────────────────────
+
+    // KHUSUS SUPER ADMIN GLOBAL
+    public List<PurchaseReceipt> findAllPurchaseReceipt() {
+        User currentUser = getAuthenticatedUser();
+        checkSuperAdminOnly(currentUser);
+        return purchaseReceiptRepository.findAll(Sort.by("id").ascending());
+    }
+
+    // OPERASIONAL TENANT / PARTNER (BERBASIS PERMISSION SLUG BARU)
+    public List<PurchaseReceipt> findAll() {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.index"); // SINKRON: Menggunakan purchase_receipt.*
+
+        if (currentUser.getPartner() == null) {
+            return purchaseReceiptRepository.findAll();
+        }
+
+        // Branch/Warehouse Isolation Guard
+        return purchaseReceiptRepository.findAll(Sort.by("id").descending()).stream()
+                .filter(receipt -> receipt.getPurchaseOrder() != null
+                        && receipt.getPurchaseOrder().getPartner() != null
+                        && receipt.getPurchaseOrder().getPartner().getId().equals(currentUser.getPartner().getId()))
+                .filter(receipt -> {
+                    PurchaseOrder po = receipt.getPurchaseOrder();
+                    if (po == null || po.getLocationType() == null) return false;
+
+                    if (currentUser.getBranch() != null) {
+                        // User cabang: hanya lihat receipt PO untuk cabangnya
+                        return po.getLocationType().equalsIgnoreCase("BRANCH")
+                                && po.getLocationId().equals(currentUser.getBranch().getId());
+                    }
+                    // Owner/admin partner: lihat semua receipt milik partner
+                    return true;
+                })
+                .toList();
+    }
+
+    // PAGINATION TENANT
+    public Page<PurchaseReceipt> findAll(int page, int size) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.index"); // SINKRON: Menggunakan purchase_receipt.*
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("receivedDate").ascending());
+
+        if (currentUser.getPartner() == null) {
+            return purchaseReceiptRepository.findAll(pageable);
+        }
+
+        return purchaseReceiptRepository
+                .findAllByPurchaseOrderPartnerId(currentUser.getPartner().getId(), pageable);
+    }
+
+    // GET BY ORDER ID
+    public List<PurchaseReceipt> findByOrderId(Long purchaseOrderId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
+        getValidatedPurchaseOrder(purchaseOrderId, currentUser);
+        return purchaseReceiptRepository.findByPurchaseOrderId(purchaseOrderId);
+    }
+
+    // GET BY ID
+    public PurchaseReceipt findById(Long id) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
+        
+        PurchaseReceipt receipt = getValidatedPurchaseReceipt(id, currentUser);
+
+        // Strict location isolation
+        if (currentUser.getPartner() != null) {
+            PurchaseOrder po = receipt.getPurchaseOrder();
+            if (po != null && po.getLocationType() != null) {
+                if (currentUser.getBranch() != null) {
+                    if (!po.getLocationType().equalsIgnoreCase("BRANCH")
+                            || !po.getLocationId().equals(currentUser.getBranch().getId())) {
+                        throw new RuntimeException("Akses Ditolak: Dokumen ini bukan milik cabang Anda.");
+                    }
+                } 
+            }
+        }
+
+        return receipt;
+    }
+
+    // GET ITEMS
+    public List<PurchaseReceiptItem> findItemsByReceiptId(Long receiptId) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.show"); // SINKRON: Menggunakan purchase_receipt.*
+        getValidatedPurchaseReceipt(receiptId, currentUser);
+        return purchaseReceiptItemRepository.findByPurchaseReceiptId(receiptId);
+    }
+
+    // =============================================================
+    // CREATE RECEIPT — Proses Penerimaan & Update Stok Real-time
+    // =============================================================
+    @Transactional
+    public PurchaseReceipt create(PurchaseReceiptRequestDTO request) {
+        User currentUser = getAuthenticatedUser();
+        checkPermission(currentUser, "purchase_receipt.store"); // SINKRON: Menggunakan purchase_receipt.*
+
+        if (currentUser.getPartner() == null) {
+            throw new RuntimeException("Akses Ditolak: Super Admin Global tidak diperbolehkan membuat dokumen penerimaan langsung.");
+        }
+
+        PurchaseOrder po = getValidatedPurchaseOrder(request.getPurchaseOrderId(), currentUser);
+
+
+        if (currentUser.getBranch() != null) {
+            // User cabang: hanya bisa terima PO untuk cabangnya sendiri
+            if (po.getLocationType() == null
+                    || !po.getLocationType().equalsIgnoreCase("BRANCH")
+                    || !po.getLocationId().equals(currentUser.getBranch().getId())) {
+                throw new RuntimeException("Akses Ditolak: Anda hanya diizinkan menerima barang yang ditujukan ke cabang Anda.");
+            }
+        } 
+
+        if (po.getStatus() == PurchaseOrder.Status.DRAFT) {
+            throw new RuntimeException("Purchase Order masih dalam status DRAFT. Kirim PO ke supplier terlebih dahulu.");
+        }
+        if (po.getStatus() == PurchaseOrder.Status.CANCELLED) {
+            throw new RuntimeException("Purchase Order sudah dibatalkan. Tidak bisa menerima barang.");
+        }
+
+        PurchaseReceipt receipt = new PurchaseReceipt();
+        receipt.setPurchaseOrder(po);
+        receipt.setReceiptNumber(generateReceiptNumber());
+        receipt.setReceivedDate(request.getReceivedDate());
+        receipt.setNotes(request.getNotes());
+
+        PurchaseReceipt saved = purchaseReceiptRepository.save(receipt);
+
+        List<PurchaseReceiptItem> items = new ArrayList<>();
+
+        for (PurchaseReceiptItemDTO itemDTO : request.getItems()) {
+            PurchaseOrderItems poItem = purchaseOrderItemsRepository
+                    .findById(itemDTO.getPurchaseOrderItemId())
+                    .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrderItem", itemDTO.getPurchaseOrderItemId()));
+
+            if (!poItem.getPurchaseOrder().getId().equals(po.getId())) {
+                throw new RuntimeException("Akses Ditolak: PurchaseOrderItem bukan bagian dari Purchase Order ini.");
+            }
+
+            Product product = productRepository.findById(itemDTO.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product", itemDTO.getProductId()));
+
+            if (product.getPartner() == null || !product.getPartner().getId().equals(currentUser.getPartner().getId())) {
+                throw new RuntimeException("Akses Ditolak: Product '" + product.getName() + "' bukan milik partner Anda.");
+            }
+
+            PurchaseReceiptItem item = new PurchaseReceiptItem();
+            item.setPurchaseReceipt(saved);
+            item.setPurchaseOrderItem(poItem);
+            item.setProduct(product);
+            item.setQtyReceived(itemDTO.getQtyReceived());
+            item.setUnitCost(poItem.getUnitCost());
+            item.setNotes(itemDTO.getNotes());
+
+            poItem.setQtyReceived(poItem.getQtyReceived().add(itemDTO.getQtyReceived()));
+            purchaseOrderItemsRepository.save(poItem);
+
+            items.add(item);
+
+            // =============================================================
+            // UPDATE STOCK BALANCE REAL-TIME
+            // =============================================================
+            long qtyReceivedLong = itemDTO.getQtyReceived().longValue();
+            if (qtyReceivedLong > 0) {
+                String locationType = po.getLocationType() != null ? po.getLocationType().toUpperCase() : null;
+                Long locationId = po.getLocationId();
+
+                if (locationType == null || locationId == null) {
+                    throw new RuntimeException("Purchase Order tidak memiliki lokasi tujuan yang valid.");
+                }
+
+                // =============================================================
+                // ROUTING STOK: BRANCH → QUARANTINE dulu (butuh approval)
+                //               WAREHOUSE → langsung masuk stok
+                // =============================================================
+                String targetLocationType;
+                Long targetLocationId;
+
+                if ("BRANCH".equalsIgnoreCase(locationType)) {
+                    // PO tujuan cabang: stok masuk karantina dulu, tunggu approval
+                    targetLocationType = "QUARANTINE";
+                    targetLocationId = locationId; // locationId = branchId, sebagai referensi target
+                } else {
+                    // PO tujuan gudang: langsung masuk stok warehouse
+                    targetLocationType = locationType;
+                    targetLocationId = locationId;
+                }
+
+                StockBalance stockBalance = stockBalanceRepository
+                        .findByProductIdAndLocationTypeAndLocationId(product.getId(), targetLocationType, targetLocationId)
+                        .orElse(null);
+
+                if (stockBalance == null) {
+                    stockBalance = new StockBalance();
+                    stockBalance.setProduct(product);
+                    stockBalance.setLocationType(targetLocationType);
+                    stockBalance.setLocationId(targetLocationId);
+                    stockBalance.setQty(0L);
+                    stockBalance.setCreatedBy(currentUser);
+                    stockBalance.setCreatedAt(LocalDateTime.now());
+                }
+
+                long currentQty = stockBalance.getQty() != null ? stockBalance.getQty() : 0L;
+                stockBalance.setQty(currentQty + qtyReceivedLong);
+                stockBalance.setUpdatedBy(currentUser);
+                stockBalance.setUpdatedAt(LocalDateTime.now());
+                stockBalanceRepository.save(stockBalance);
+
+                // =============================================================
+                // CATAT STOCK MUTATION AUDIT LOG
+                // =============================================================
+                StockMutation mutation = new StockMutation();
+                mutation.setProduct(product);
+                mutation.setPartner(po.getPartner());
+                mutation.setType("BRANCH".equalsIgnoreCase(locationType)
+                        ? StockMutation.Type.QUARANTINE_IN
+                        : StockMutation.Type.PURCHASE_IN);
+                mutation.setFromLocationType(null);
+                mutation.setFromLocationId(null);
+                mutation.setToLocationType(StockMutation.Location.valueOf(targetLocationType));
+                mutation.setToLocationId(targetLocationId);
+                mutation.setQty(qtyReceivedLong);
+                mutation.setReferenceType(StockMutation.ReferenceType.PURCHASE_RECEIPT);
+                mutation.setReferenceId(saved.getId());
+                mutation.setNotes("BRANCH".equalsIgnoreCase(locationType)
+                        ? "Penerimaan PO #" + po.getPoNumber() + " → KARANTINA (menunggu approval ke cabang #" + locationId + ")"
+                        : "Penerimaan barang dari PO #" + po.getPoNumber() + " - Receipt #" + saved.getReceiptNumber());
+                mutation.setCreatedBy(currentUser);
+                mutation.setCreatedAt(LocalDateTime.now());
+                stockMutationRepository.save(mutation);
+            }
+        }
+
+        purchaseReceiptItemRepository.saveAll(items);
+        updatePoStatus(po);
+
+        return saved;
+    }
+
+    private void updatePoStatus(PurchaseOrder po) {
+
+        List<PurchaseOrderItems> poItems = purchaseOrderItemsRepository.findByPurchaseOrderId(po.getId());
+
+        boolean allReceived = poItems.stream()
+                .allMatch(i -> i.getQtyReceived().compareTo(i.getQtyOrdered()) >= 0);
+
+        boolean anyReceived = poItems.stream()
+                .anyMatch(i -> i.getQtyReceived().compareTo(BigDecimal.ZERO) > 0);
+
+        if (allReceived) {
+            po.setStatus(PurchaseOrder.Status.RECEIVED);
+        } else if (anyReceived) {
+            po.setStatus(PurchaseOrder.Status.PARTIAL);
+        }
+
+        purchaseOrderRepository.save(po);
+    }
+
+    // ─── PRIVATE GENERATOR UTILS ───────────────────────────────────────────
+
+    private String generateReceiptNumber() {
+        String date = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String random = String.format("%04d", new Random().nextInt(9999) + 1);
+        return "GR-" + date + "-" + random;
+    }
+}
