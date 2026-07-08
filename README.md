@@ -14,7 +14,7 @@
 **Lions** adalah platform manajemen bisnis berbasis web yang menggabungkan backend Spring Boot dengan frontend Vue.js. Sistem ini mencakup manajemen penjualan (kasir/POS), inventaris gudang, pengadaan barang, manajemen pengguna dengan kontrol akses berbasis peran, serta berbagai laporan operasional.
 
 <p align="center">
-  <a href="https://ko-fi.com/madslorentzen">
+  <a href="https://ko-fi.com/nlfts">
     <img src="https://storage.ko-fi.com/cdn/kofi3.png?v=6" alt="Buy me a coffee at ko-fi.com" height="40">
   </a>
 </p>
