@@ -1,9 +1,9 @@
-[![Gaptek](/docs/amazing.png)](https://gaptek.dev)
+[![Lions](/docs/amazing.png)](https://Lions.dev)
 
-# Gaptek — Sistem Manajemen Bisnis
+# Lions — Sistem Manajemen Bisnis
 
 <p>
-  <a href="./LICENSE"><img src="https://img.shields.io/github/license/your-org/gaptek?style=flat" alt="Lisensi"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/your-org/Lions?style=flat" alt="Lisensi"></a>
   <a href="#"><img src="https://img.shields.io/badge/Java-21-orange?style=flat" alt="Java 21"></a>
   <a href="#"><img src="https://img.shields.io/badge/Spring%20Boot-3.4.5-6DB33F?style=flat" alt="Spring Boot 3.4.5"></a>
   <a href="#"><img src="https://img.shields.io/badge/Vue.js-3.x-42b883?style=flat" alt="Vue 3"></a>
@@ -11,7 +11,13 @@
   <a href="#"><img src="https://img.shields.io/badge/PostgreSQL-ready-336791?style=flat" alt="PostgreSQL"></a>
 </p>
 
-**Gaptek** adalah platform manajemen bisnis berbasis web yang menggabungkan backend Spring Boot dengan frontend Vue.js. Sistem ini mencakup manajemen penjualan (kasir/POS), inventaris gudang, pengadaan barang, manajemen pengguna dengan kontrol akses berbasis peran, serta berbagai laporan operasional.
+**Lions** adalah platform manajemen bisnis berbasis web yang menggabungkan backend Spring Boot dengan frontend Vue.js. Sistem ini mencakup manajemen penjualan (kasir/POS), inventaris gudang, pengadaan barang, manajemen pengguna dengan kontrol akses berbasis peran, serta berbagai laporan operasional.
+
+<p align="center">
+  <a href="https://ko-fi.com/madslorentzen">
+    <img src="https://storage.ko-fi.com/cdn/kofi3.png?v=6" alt="Buy me a coffee at ko-fi.com" height="40">
+  </a>
+</p>
 
 ---
 
@@ -108,7 +114,7 @@
 ## Struktur Proyek
 
 ```text
-Gaptek/
+Lions/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/fts/twin/
@@ -169,8 +175,8 @@ Pastikan alat berikut sudah terpasang sebelum memulai:
 ### 1. Clone repositori
 
 ```bash
-git clone https://github.com/your-org/gaptek.git
-cd gaptek
+git clone https://github.com/your-org/Lions.git
+cd Lions
 ```
 
 ### 2. Konfigurasi database
@@ -178,7 +184,7 @@ cd gaptek
 Buat database PostgreSQL dan sesuaikan konfigurasi di `src/main/resources/application.properties` (atau `application.yml`):
 
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/gaptek
+spring.datasource.url=jdbc:postgresql://localhost:5432/Lions
 spring.datasource.username=postgres
 spring.datasource.password=yourpassword
 ```
@@ -225,7 +231,7 @@ cp frontend/.env.example frontend/.env.local
 |---|---|---|
 | `VITE_API_URL` | `http://localhost:8090` | URL backend API |
 | `VITE_DEV_PORT` | `5173` | Port dev server Vite |
-| `VITE_APP_TITLE` | `GAPTEK` | Judul aplikasi di browser |
+| `VITE_APP_TITLE` | `Lions` | Judul aplikasi di browser |
 | `VITE_APP_MODE` | `mock` | Mode data: `api`, `mock`, atau `empty` |
 
 ---
