@@ -54,7 +54,7 @@ dilaporkan kepada salah satu orang berikut:
 
 - Adminstartor <team@nlfts.dev>
 - davingm <davin@nlfts.dev>
-- radietya <ryn@nlfts.dev>
+- radietya <xoryn@nlfts.dev>
 - Sidik <sidiktsq@nlfts.dev>
 
 Semua pengaduan akan ditinjau dan diselidiki dengan cepat dan adil.
